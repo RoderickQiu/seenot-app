@@ -61,6 +61,7 @@ import com.roderickqiu.seenot.ui.theme.YellowGrey80
 import com.roderickqiu.seenot.utils.RuleFormatter
 
 data class MonitoringApp(
+    val id: String = java.util.UUID.randomUUID().toString(),
     val name: String,
     val isEnabled: Boolean = true,
     val rules: List<Rule>
@@ -68,16 +69,19 @@ data class MonitoringApp(
 
 
 class MainActivity : ComponentActivity() {
-    private val repository = MonitoringAppRepository()
+    private lateinit var repository: MonitoringAppRepository
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
+
+        repository = MonitoringAppRepository(this)
+
         setContent {
             SeeNotTheme {
                 val context = LocalContext.current
-                val monitoringApps = repository.getAllApps()
+                var monitoringApps by remember { mutableStateOf(repository.getAllApps()) }
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
@@ -117,7 +121,13 @@ class MainActivity : ComponentActivity() {
                             contentPadding = PaddingValues(bottom = 80.dp)
                         ) {
                             items(monitoringApps) { app ->
-                                MonitoringAppItem(app = app)
+                                MonitoringAppItem(
+                                    app = app,
+                                    onDeleteApp = { appId ->
+                                        repository.deleteApp(appId)
+                                        monitoringApps = repository.getAllApps()
+                                    }
+                                )
                             }
                         }
                     }
@@ -128,7 +138,10 @@ class MainActivity : ComponentActivity() {
 }
 
 @Composable
-fun MonitoringAppItem(app: MonitoringApp) {
+fun MonitoringAppItem(
+    app: MonitoringApp,
+    onDeleteApp: (String) -> Unit
+) {
     val context = LocalContext.current
     val colorScheme = MaterialTheme.colorScheme
     val isDarkTheme = isSystemInDarkTheme()
@@ -209,8 +222,11 @@ fun MonitoringAppItem(app: MonitoringApp) {
                         text = RuleFormatter.formatRule(context, rule),
                         fontSize = 14.sp,
                         color = colorScheme.onSurface.copy(alpha = 0.7f),
-                        maxLines = 2, // Allow more lines to display
-                        overflow = TextOverflow.Ellipsis
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 2.dp)
                     )
                 }
             }
@@ -246,7 +262,7 @@ fun MonitoringAppItem(app: MonitoringApp) {
                         text = { Text(context.getString(R.string.delete)) },
                         onClick = {
                             showMenu = false
-                            // TODO: Handle delete action
+                            onDeleteApp(app.id)
                         },
                         leadingIcon = {
                             Icon(

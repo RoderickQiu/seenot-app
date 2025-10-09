@@ -1,14 +1,33 @@
 package com.roderickqiu.seenot.data
 
+import android.content.Context
 import com.roderickqiu.seenot.MonitoringApp
 
-class MonitoringAppRepository {
+class MonitoringAppRepository(private val context: Context) {
+
+    private val dataStore = AppDataStore(context)
 
     /**
      * Get all monitoring apps
-     * TODO: Replace with actual data source (Room database, API, etc.)
      */
     fun getAllApps(): List<MonitoringApp> {
+        val savedApps = dataStore.loadMonitoringApps()
+        
+        // If this is the first launch, initialize with default data
+        if (dataStore.isFirstLaunch()) {
+            val defaultApps = getDefaultApps()
+            dataStore.saveMonitoringApps(defaultApps)
+            dataStore.markAsLaunched()
+            return defaultApps
+        }
+        
+        return savedApps
+    }
+
+    /**
+     * Get default apps for first launch
+     */
+    private fun getDefaultApps(): List<MonitoringApp> {
         return listOf(
             MonitoringApp(
                 name = "知乎",
@@ -101,20 +120,29 @@ class MonitoringAppRepository {
      * Add a new monitoring app
      */
     fun addApp(app: MonitoringApp) {
-        // TODO: Implement database insertion
+        val currentApps = dataStore.loadMonitoringApps().toMutableList()
+        currentApps.add(app)
+        dataStore.saveMonitoringApps(currentApps)
     }
 
     /**
      * Update an existing monitoring app
      */
     fun updateApp(app: MonitoringApp) {
-        // TODO: Implement database update
+        dataStore.updateMonitoringApp(app)
     }
 
     /**
      * Delete a monitoring app
      */
     fun deleteApp(appId: String) {
-        // TODO: Implement database deletion
+        dataStore.deleteMonitoringApp(appId)
+    }
+
+    /**
+     * Delete a specific rule from a monitoring app
+     */
+    fun deleteRule(appId: String, ruleId: String) {
+        dataStore.deleteRule(appId, ruleId)
     }
 }

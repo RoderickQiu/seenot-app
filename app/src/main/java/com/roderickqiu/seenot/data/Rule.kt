@@ -1,7 +1,11 @@
 package com.roderickqiu.seenot.data
 
 /** Represents a monitoring rule with condition and action */
-data class Rule(val condition: RuleCondition, val action: RuleAction)
+data class Rule(
+    val id: String = java.util.UUID.randomUUID().toString(),
+    val condition: RuleCondition, 
+    val action: RuleAction
+)
 
 /** Represents the condition part of a rule */
 data class RuleCondition(
