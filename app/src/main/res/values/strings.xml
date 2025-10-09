@@ -1,3 +1,23 @@
 <resources>
     <string name="app_name">SeeNot</string>
+    <string name="monitoring_software_list">监测软件列表</string>
+    <string name="status_disabled">(已关闭)</string>
+    <string name="add_app">添加</string>
+    <string name="more_options">更多选项</string>
+    <string name="edit">编辑</string>
+    <string name="delete">删除</string>
+    
+    <!-- Rule condition descriptions -->
+    <string name="condition_time_interval">每%1$d分钟</string>
+    <string name="condition_on_enter">每次进入时</string>
+    <string name="condition_on_page">如果在%1$s</string>
+    <string name="condition_on_content">如果内容关于%1$s</string>
+    
+    <!-- Rule action descriptions -->
+    <string name="action_remind">进行提醒</string>
+    <string name="action_auto_click">自动点击%1$s</string>
+    <string name="action_auto_scroll_up">自动上滑</string>
+    <string name="action_auto_scroll_down">自动下滑</string>
+    <string name="action_auto_back">自动回退</string>
+    <string name="action_ask">询问</string>
 </resources>

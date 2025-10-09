@@ -1,0 +1,23 @@
+<resources>
+    <string name="app_name">SeeNot</string>
+    <string name="monitoring_software_list">Monitoring Software List</string>
+    <string name="status_disabled">(Disabled)</string>
+    <string name="add_app">Add</string>
+    <string name="more_options">More options</string>
+    <string name="edit">Edit</string>
+    <string name="delete">Delete</string>
+    
+    <!-- Rule condition descriptions -->
+    <string name="condition_time_interval">Every %1$d minutes</string>
+    <string name="condition_on_enter">Every time entering</string>
+    <string name="condition_on_page">If on %1$s</string>
+    <string name="condition_on_content">If content about %1$s</string>
+    
+    <!-- Rule action descriptions -->
+    <string name="action_remind">Remind</string>
+    <string name="action_auto_click">Auto click %1$s</string>
+    <string name="action_auto_scroll_up">Auto scroll up</string>
+    <string name="action_auto_scroll_down">Auto scroll down</string>
+    <string name="action_auto_back">Auto go back</string>
+    <string name="action_ask">Ask</string>
+</resources>
