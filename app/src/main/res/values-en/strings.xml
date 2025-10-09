@@ -6,6 +6,11 @@
     <string name="more_options">More options</string>
     <string name="edit">Edit</string>
     <string name="delete">Delete</string>
+    <string name="edit_app">Edit App</string>
+    <string name="app_name_label">App Name</string>
+    <string name="enabled_status">Enabled Status</string>
+    <string name="save">Save</string>
+    <string name="cancel">Cancel</string>
     
     <!-- Rule condition descriptions -->
     <string name="condition_time_interval">Every %1$d minutes</string>
@@ -20,4 +25,11 @@
     <string name="action_auto_scroll_down">Auto scroll down</string>
     <string name="action_auto_back">Auto go back</string>
     <string name="action_ask">Ask</string>
+    
+    <!-- Add App Dialog -->
+    <string name="add_new_app">Add New App</string>
+    <string name="select_app">Select App</string>
+    <string name="no_apps_found">No installed apps found</string>
+    <string name="add_empty_rule">Add Empty Rule</string>
+    <string name="app_already_exists">This app already exists</string>
 </resources>

@@ -6,6 +6,11 @@
     <string name="more_options">更多选项</string>
     <string name="edit">编辑</string>
     <string name="delete">删除</string>
+    <string name="edit_app">编辑应用</string>
+    <string name="app_name_label">应用名称</string>
+    <string name="enabled_status">启用状态</string>
+    <string name="save">保存</string>
+    <string name="cancel">取消</string>
     
     <!-- Rule condition descriptions -->
     <string name="condition_time_interval">每%1$d分钟</string>
@@ -20,4 +25,11 @@
     <string name="action_auto_scroll_down">自动下滑</string>
     <string name="action_auto_back">自动回退</string>
     <string name="action_ask">询问</string>
+    
+    <!-- Add App Dialog -->
+    <string name="add_new_app">添加新应用</string>
+    <string name="select_app">选择应用</string>
+    <string name="no_apps_found">未找到已安装的应用</string>
+    <string name="add_empty_rule">添加空规则</string>
+    <string name="app_already_exists">该应用已存在</string>
 </resources>
