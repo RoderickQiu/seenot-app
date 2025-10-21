@@ -32,4 +32,13 @@
     <string name="no_apps_found">未找到已安装的应用</string>
     <string name="add_empty_rule">添加空规则</string>
     <string name="app_already_exists">该应用已存在</string>
+    
+    <!-- Rule Edit Dialog -->
+    <string name="edit_rules">编辑规则</string>
+    <string name="add_rule">增加规则</string>
+    <string name="rule_enabled">规则已启用</string>
+    <string name="rule_disabled">规则已禁用</string>
+    <string name="delete_rule">删除规则</string>
+    <string name="edit_rule">编辑规则</string>
+    <string name="duplicate_rule">复制规则</string>
 </resources>

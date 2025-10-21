@@ -32,4 +32,13 @@
     <string name="no_apps_found">No installed apps found</string>
     <string name="add_empty_rule">Add Empty Rule</string>
     <string name="app_already_exists">This app already exists</string>
+    
+    <!-- Rule Edit Dialog -->
+    <string name="edit_rules">Edit Rules</string>
+    <string name="add_rule">Add Rule</string>
+    <string name="rule_enabled">Rule Enabled</string>
+    <string name="rule_disabled">Rule Disabled</string>
+    <string name="delete_rule">Delete Rule</string>
+    <string name="edit_rule">Edit Rule</string>
+    <string name="duplicate_rule">Duplicate Rule</string>
 </resources>

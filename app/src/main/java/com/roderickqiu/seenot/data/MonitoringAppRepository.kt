@@ -1,7 +1,7 @@
 package com.roderickqiu.seenot.data
 
 import android.content.Context
-import com.roderickqiu.seenot.MonitoringApp
+import com.roderickqiu.seenot.data.MonitoringApp
 
 class MonitoringAppRepository(private val context: Context) {
 
@@ -91,7 +91,7 @@ class MonitoringAppRepository(private val context: Context) {
                     Rule(
                         condition = RuleCondition(
                             type = ConditionType.ON_PAGE,
-                            parameter = "如果页面关于QQ空间"
+                            parameter = "QQ空间"
                         ),
                         action = RuleAction(
                             type = ActionType.AUTO_BACK
@@ -105,7 +105,7 @@ class MonitoringAppRepository(private val context: Context) {
                     Rule(
                         condition = RuleCondition(
                             type = ConditionType.ON_CONTENT,
-                            parameter = "如果内容关于商品推荐"
+                            parameter = "商品推荐"
                         ),
                         action = RuleAction(
                             type = ActionType.AUTO_SCROLL_UP

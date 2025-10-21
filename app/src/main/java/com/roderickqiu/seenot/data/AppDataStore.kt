@@ -5,7 +5,7 @@ import android.content.SharedPreferences
 import androidx.core.content.edit
 import com.google.gson.Gson
 import com.google.gson.reflect.TypeToken
-import com.roderickqiu.seenot.MonitoringApp
+import com.roderickqiu.seenot.data.MonitoringApp
 
 class AppDataStore(private val context: Context) {
 
