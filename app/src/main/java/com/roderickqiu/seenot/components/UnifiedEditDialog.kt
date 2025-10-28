@@ -25,6 +25,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -34,6 +35,8 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.roderickqiu.seenot.components.RuleItem
 import com.roderickqiu.seenot.components.AddRuleDialog
+import com.roderickqiu.seenot.components.EditRuleDialog
+import com.roderickqiu.seenot.R
 import com.roderickqiu.seenot.data.MonitoringApp
 import com.roderickqiu.seenot.data.Rule
 import com.roderickqiu.seenot.data.RuleCondition
@@ -49,14 +52,15 @@ fun UnifiedEditDialog(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var isEnabled by remember { mutableStateOf(app.isEnabled) }
-    var rules by remember { mutableStateOf(app.rules.toMutableList()) }
+    val rules = remember { mutableStateListOf<Rule>(*app.rules.toTypedArray()) }
     var showAddRuleDialog by remember { mutableStateOf(false) }
+    var editingRuleIndex by remember { mutableStateOf<Int?>(null) }
     
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { 
             Text(
-                text = "编辑 - ${app.name}",
+                text = context.getString(R.string.edit_dialog_title, app.name),
                 fontSize = 18.sp,
                 fontWeight = androidx.compose.ui.text.font.FontWeight.Bold
             )
@@ -79,7 +83,7 @@ fun UnifiedEditDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "启用状态",
+                            text = context.getString(R.string.enabled_status_label),
                             fontSize = 16.sp,
                             fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
                         )
@@ -95,7 +99,7 @@ fun UnifiedEditDialog(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "应用名称:",
+                            text = context.getString(R.string.app_name_label_colon),
                             fontSize = 14.sp,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                         )
@@ -111,7 +115,7 @@ fun UnifiedEditDialog(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Text(
-                            text = "规则数量:",
+                            text = context.getString(R.string.rule_count),
                             fontSize = 14.sp,
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                         )
@@ -137,7 +141,7 @@ fun UnifiedEditDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(
-                        text = "规则管理",
+                        text = context.getString(R.string.rule_management),
                         fontSize = 16.sp,
                         fontWeight = androidx.compose.ui.text.font.FontWeight.Medium,
                         modifier = Modifier.padding(bottom = 8.dp)
@@ -152,11 +156,11 @@ fun UnifiedEditDialog(
                             RuleItem(
                                 rule = rule,
                                 isEnabled = true,
-                                onToggleEnabled = { enabled ->
+                                onToggleEnabled = { _ ->
                                     // For now, we don't support disabling individual rules
                                 },
-                                onEditRule = { updatedRule ->
-                                    rules[index] = updatedRule
+                                onEditRule = { 
+                                    editingRuleIndex = index
                                 },
                                 onDeleteRule = {
                                     rules.removeAt(index)
@@ -191,7 +195,7 @@ fun UnifiedEditDialog(
                         )
                         Spacer(modifier = Modifier.width(12.dp))
                         Text(
-                            text = "增加规则",
+                            text = context.getString(R.string.add_rule_button),
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f),
                             fontSize = 16.sp
                         )
@@ -201,20 +205,20 @@ fun UnifiedEditDialog(
         },
         confirmButton = {
             Button(
-                onClick = {
-                    val updatedApp = app.copy(
-                        isEnabled = isEnabled,
-                        rules = rules
-                    )
-                    onSaveApp(updatedApp)
-                }
+                    onClick = {
+                        val updatedApp = app.copy(
+                            isEnabled = isEnabled,
+                            rules = rules.toList()
+                        )
+                        onSaveApp(updatedApp)
+                    }
             ) {
-                Text("保存")
+                Text(context.getString(R.string.save))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消")
+                Text(context.getString(R.string.cancel))
             }
         }
     )
@@ -226,6 +230,18 @@ fun UnifiedEditDialog(
             onAddRule = { newRule ->
                 rules.add(newRule)
                 showAddRuleDialog = false
+            }
+        )
+    }
+    
+    // Edit Rule Dialog
+    editingRuleIndex?.let { index ->
+        EditRuleDialog(
+            rule = rules[index],
+            onDismiss = { editingRuleIndex = null },
+            onSaveRule = { updatedRule ->
+                rules[index] = updatedRule
+                editingRuleIndex = null
             }
         )
     }

@@ -41,4 +41,30 @@
     <string name="delete_rule">删除规则</string>
     <string name="edit_rule">编辑规则</string>
     <string name="duplicate_rule">复制规则</string>
+    
+    <!-- Add/Edit Rule Dialog -->
+    <string name="condition_type">条件类型</string>
+    <string name="condition_time_interval_label">每X分钟</string>
+    <string name="condition_on_enter_label">每次进入时</string>
+    <string name="condition_on_page_label">如果在特定页面</string>
+    <string name="condition_on_content_label">如果内容关于特定主题</string>
+    <string name="time_interval_minutes">间隔时间（分钟）:</string>
+    <string name="click_to_input_parameter">点击输入参数</string>
+    <string name="action_type">动作类型</string>
+    <string name="action_remind_label">进行提醒</string>
+    <string name="action_auto_click_label">自动点击</string>
+    <string name="action_auto_scroll_up_label">自动上滑</string>
+    <string name="action_auto_scroll_down_label">自动下滑</string>
+    <string name="action_auto_back_label">自动回退</string>
+    <string name="action_ask_label">询问</string>
+    <string name="input_parameter">输入参数</string>
+    <string name="please_input_parameter">请输入参数</string>
+    <string name="input_time_interval">输入间隔时间（分钟）</string>
+    <string name="please_input_minutes">请输入分钟数</string>
+    <string name="edit_dialog_title">编辑 - %1$s</string>
+    <string name="rule_count">规则数量:</string>
+    <string name="rule_management">规则管理</string>
+    <string name="add_rule_button">增加规则</string>
+    <string name="enabled_status_label">启用状态</string>
+    <string name="app_name_label_colon">应用名称:</string>
 </resources>
