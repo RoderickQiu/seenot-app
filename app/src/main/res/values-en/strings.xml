@@ -11,13 +11,13 @@
     <string name="enabled_status">Enabled Status</string>
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
-    
+
     <!-- Rule condition descriptions -->
     <string name="condition_time_interval">Every %1$d minutes</string>
     <string name="condition_on_enter">Every time entering</string>
     <string name="condition_on_page">If on %1$s</string>
     <string name="condition_on_content">If content about %1$s</string>
-    
+
     <!-- Rule action descriptions -->
     <string name="action_remind">Remind</string>
     <string name="action_auto_click">Auto click %1$s</string>
@@ -25,14 +25,14 @@
     <string name="action_auto_scroll_down">Auto scroll down</string>
     <string name="action_auto_back">Auto go back</string>
     <string name="action_ask">Ask</string>
-    
+
     <!-- Add App Dialog -->
     <string name="add_new_app">Add New App</string>
     <string name="select_app">Select App</string>
     <string name="no_apps_found">No installed apps found</string>
     <string name="add_empty_rule">Add Empty Rule</string>
     <string name="app_already_exists">This app already exists</string>
-    
+
     <!-- Rule Edit Dialog -->
     <string name="edit_rules">Edit Rules</string>
     <string name="add_rule">Add Rule</string>
@@ -53,4 +53,12 @@
     <string name="status_granted">Granted</string>
     <string name="status_not_granted">Not granted</string>
     <string name="refresh_status">Refresh status</string>
+
+    <!-- Accessibility Service & Foreground Notification -->
+    <string name="accessibility_service_label">SeeNot Focus Assistant</string>
+    <string name="accessibility_service_description">Accessibility-based focus assistance to help you stay focused</string>
+    <string name="fg_channel_name">Focus Assistant</string>
+    <string name="fg_channel_desc">Foreground notification for focus assistance</string>
+    <string name="fg_notification_title">SeeNot Focus Assistant active</string>
+    <string name="fg_notification_text">Helping you stay focused</string>
 </resources>

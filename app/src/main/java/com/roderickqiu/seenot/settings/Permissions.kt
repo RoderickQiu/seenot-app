@@ -163,7 +163,7 @@ private fun PermissionRow(
 @Composable
 private fun StatusPill(text: String, positive: Boolean) {
     val containerColor = if (positive) {
-        Color(0xFF2E7D32) // success green
+        Color(0xFF2E7D32)
     } else {
         MaterialTheme.colorScheme.error
     }
@@ -223,4 +223,5 @@ private fun isAccessibilitySettingsOn(context: Context): Boolean {
         false
     }
 }
+
 

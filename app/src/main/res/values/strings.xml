@@ -79,4 +79,12 @@
     <string name="status_granted">已获取</string>
     <string name="status_not_granted">未获取</string>
     <string name="refresh_status">刷新状态</string>
+    
+    <!-- Accessibility Service & Foreground Notification -->
+    <string name="accessibility_service_label">SeeNot 专注助手</string>
+    <string name="accessibility_service_description">基于无障碍的专注辅助服务，帮助你保持专注</string>
+    <string name="fg_channel_name">专注助手</string>
+    <string name="fg_channel_desc">用于专注辅助的前台服务通知</string>
+    <string name="fg_notification_title">SeeNot 专注助手运行中</string>
+    <string name="fg_notification_text">正在帮助你保持专注</string>
 </resources>
