@@ -27,7 +27,10 @@ private val LightColorScheme = lightColorScheme(
     tertiary = YellowOrange40,
     primaryContainer = YellowContainer40,
     secondaryContainer = YellowGreyContainer40,
-    tertiaryContainer = YellowOrangeContainer40
+    tertiaryContainer = YellowOrangeContainer40,
+    // Ensure high-contrast text using same yellow tonal family
+    onPrimary = Yellow10,
+    onPrimaryContainer = Yellow20
 
     /* Other default colors to override
     background = Color(0xFFFFFBFE),

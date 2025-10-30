@@ -41,4 +41,16 @@
     <string name="delete_rule">Delete Rule</string>
     <string name="edit_rule">Edit Rule</string>
     <string name="duplicate_rule">Duplicate Rule</string>
+    <string name="permission_settings">Permission Settings</string>
+    <string name="back">Back</string>
+    <string name="permission_notifications">Notifications</string>
+    <string name="permission_overlay">Overlay</string>
+    <string name="permission_battery_optimizations">Battery optimization ignore</string>
+    <string name="permission_accessibility">Accessibility</string>
+    <string name="permission_background_autostart">Autostart &amp; background</string>
+    <string name="permission_background_note">Please confirm manually</string>
+    <string name="open_settings">Open Settings</string>
+    <string name="status_granted">Granted</string>
+    <string name="status_not_granted">Not granted</string>
+    <string name="refresh_status">Refresh status</string>
 </resources>

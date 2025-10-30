@@ -67,4 +67,16 @@
     <string name="add_rule_button">增加规则</string>
     <string name="enabled_status_label">启用状态</string>
     <string name="app_name_label_colon">应用名称:</string>
+    <string name="permission_settings">权限设置</string>
+    <string name="back">返回</string>
+    <string name="permission_notifications">通知权限</string>
+    <string name="permission_overlay">悬浮窗权限</string>
+    <string name="permission_battery_optimizations">电池优化忽略</string>
+    <string name="permission_accessibility">无障碍服务</string>
+    <string name="permission_background_autostart">自启与后台运行</string>
+    <string name="permission_background_note">无法自动检测，请自行确认</string>
+    <string name="open_settings">打开设置</string>
+    <string name="status_granted">已获取</string>
+    <string name="status_not_granted">未获取</string>
+    <string name="refresh_status">刷新状态</string>
 </resources>

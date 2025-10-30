@@ -13,10 +13,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.automirrored.filled.ArrowBack
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.filled.Refresh
+import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material3.CenterAlignedTopAppBar
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -56,56 +63,103 @@ class MainActivity : ComponentActivity() {
                 val context = LocalContext.current
                 var monitoringApps by remember { mutableStateOf(repository.getAllApps()) }
                 var showAddAppDialog by remember { mutableStateOf(false) }
+                var showTopMenu by remember { mutableStateOf(false) }
+                var showPermissionSettings by remember { mutableStateOf(false) }
+                var permissionRefreshKey by remember { mutableStateOf(0) }
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     topBar = {
-                        CenterAlignedTopAppBar(
-                            title = {
-                                Text("SeeNot")
-                            }
-                        )
+                        if (showPermissionSettings) {
+                            CenterAlignedTopAppBar(
+                                title = { Text(context.getString(R.string.permission_settings)) },
+                                navigationIcon = {
+                                    IconButton(onClick = { showPermissionSettings = false }) {
+                                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = context.getString(R.string.back))
+                                    }
+                                }
+                            )
+                        } else {
+                            CenterAlignedTopAppBar(
+                                title = { Text("SeeNot") },
+                                navigationIcon = {
+                                    // Left-side hamburger menu opening dropdown
+                                    androidx.compose.foundation.layout.Box {
+                                        IconButton(onClick = { showTopMenu = true }) {
+                                            Icon(Icons.Default.Menu, contentDescription = context.getString(R.string.more_options))
+                                        }
+                                        DropdownMenu(
+                                            expanded = showTopMenu,
+                                            onDismissRequest = { showTopMenu = false }
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text(text = context.getString(R.string.permission_settings)) },
+                                                onClick = {
+                                                    showTopMenu = false
+                                                    showPermissionSettings = true
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            )
+                        }
                     },
                     floatingActionButton = {
-                        FloatingActionButton(
-                            onClick = { showAddAppDialog = true }
-                        ) {
-                            Icon(
-                                Icons.Default.Add,
-                                contentDescription = context.getString(R.string.add_app)
+                        if (showPermissionSettings) {
+                            androidx.compose.material3.ExtendedFloatingActionButton(
+                                onClick = { permissionRefreshKey++ },
+                                icon = { Icon(Icons.Default.Refresh, contentDescription = context.getString(R.string.refresh_status)) },
+                                text = { Text(text = context.getString(R.string.refresh_status)) }
                             )
+                        } else {
+                            FloatingActionButton(
+                                onClick = { showAddAppDialog = true }
+                            ) {
+                                Icon(
+                                    Icons.Default.Add,
+                                    contentDescription = context.getString(R.string.add_app)
+                                )
+                            }
                         }
                     }
                 ) { innerPadding ->
-                    Column(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .padding(innerPadding)
-                            .padding(horizontal = 16.dp)
-                    ) {
-                        Text(
-                            text = context.getString(R.string.monitoring_software_list),
-                            fontSize = 16.sp,
-                            modifier = Modifier.padding(vertical = 16.dp)
+                    if (showPermissionSettings) {
+                        com.roderickqiu.seenot.settings.PermissionSettingsScreen(
+                            modifier = Modifier.padding(innerPadding),
+                            refreshSignal = permissionRefreshKey
                         )
-
-                        LazyColumn(
-                            modifier = Modifier.fillMaxSize(),
-                            verticalArrangement = Arrangement.spacedBy(12.dp),
-                            contentPadding = PaddingValues(bottom = 80.dp)
+                    } else {
+                        Column(
+                            modifier = Modifier
+                                .fillMaxSize()
+                                .padding(innerPadding)
+                                .padding(horizontal = 16.dp)
                         ) {
-                            items(monitoringApps) { app ->
-                                MonitoringAppItem(
-                                    app = app,
-                                    onDeleteApp = { appId ->
-                                        repository.deleteApp(appId)
-                                        monitoringApps = repository.getAllApps()
-                                    },
-                                    onEditApp = { updatedApp ->
-                                        repository.updateApp(updatedApp)
-                                        monitoringApps = repository.getAllApps()
-                                    }
-                                )
+                            Text(
+                                text = context.getString(R.string.monitoring_software_list),
+                                fontSize = 16.sp,
+                                modifier = Modifier.padding(vertical = 16.dp)
+                            )
+
+                            LazyColumn(
+                                modifier = Modifier.fillMaxSize(),
+                                verticalArrangement = Arrangement.spacedBy(12.dp),
+                                contentPadding = PaddingValues(bottom = 80.dp)
+                            ) {
+                                items(monitoringApps) { app ->
+                                    MonitoringAppItem(
+                                        app = app,
+                                        onDeleteApp = { appId ->
+                                            repository.deleteApp(appId)
+                                            monitoringApps = repository.getAllApps()
+                                        },
+                                        onEditApp = { updatedApp ->
+                                            repository.updateApp(updatedApp)
+                                            monitoringApps = repository.getAllApps()
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
