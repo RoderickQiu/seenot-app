@@ -9,5 +9,6 @@
     android:canRequestFilterKeyEvents="true"
     android:canRequestTouchExplorationMode="true"
     android:canRequestEnhancedWebAccessibility="true"
+    android:canTakeScreenshot="true"
     android:accessibilityFlags="flagDefault|flagIncludeNotImportantViews|flagRequestEnhancedWebAccessibility|flagRetrieveInteractiveWindows|flagReportViewIds"
     android:canPerformGestures="true" />
