@@ -11,6 +11,7 @@ import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.os.Handler
 import android.os.Looper
+import android.util.Base64
 import android.util.Log
 import android.view.Display
 import android.view.accessibility.AccessibilityEvent
@@ -18,10 +19,26 @@ import android.view.accessibility.AccessibilityNodeInfo
 import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import androidx.core.content.ContextCompat
+import com.aallam.openai.api.chat.ChatCompletionRequest
+import com.aallam.openai.api.chat.ChatMessage
+import com.aallam.openai.api.chat.ChatRole
+import com.aallam.openai.api.chat.ContentPart
+import com.aallam.openai.api.chat.ContentPartBuilder
+import com.aallam.openai.api.exception.OpenAIException
+import com.aallam.openai.api.http.Timeout
+import com.aallam.openai.api.model.ModelId
+import com.aallam.openai.client.OpenAI
+import com.aallam.openai.client.OpenAIHost
+import io.ktor.client.call.NoTransformationFoundException
 import com.roderickqiu.seenot.MainActivity
 import com.roderickqiu.seenot.R
 import com.roderickqiu.seenot.data.AppDataStore
 import com.roderickqiu.seenot.utils.AccessibilityEventUtils
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
+import java.io.ByteArrayOutputStream
+import kotlin.time.Duration.Companion.seconds
 
 class A11yService : AccessibilityService() {
 
@@ -34,6 +51,7 @@ class A11yService : AccessibilityService() {
     private var currentMonitoredAppName: String? = null
     private var lastMonitoredLogTimeMs: Long = 0L
     private var isTakingScreenshot: Boolean = false
+    private val coroutineScope = CoroutineScope(Dispatchers.IO)
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -163,7 +181,7 @@ class A11yService : AccessibilityService() {
     }
 
     override fun onInterrupt() {
-        // No-op
+        Log.d("A11yService", "Accessibility service interrupted")
     }
 
     private fun showToast(message: String, duration: Int = Toast.LENGTH_SHORT) {
@@ -228,8 +246,16 @@ class A11yService : AccessibilityService() {
                                 if (hardwareBitmap != null) {
                                     val originalWidth = hardwareBitmap.width
                                     val originalHeight = hardwareBitmap.height
-                                    val scaledWidth = originalWidth / 2
-                                    val scaledHeight = originalHeight / 2
+
+                                    // Scale image: max 960px on longer side, maintain aspect ratio
+                                    val maxSize = 960
+                                    val scale = if (originalWidth > originalHeight) {
+                                        maxSize.toFloat() / originalWidth
+                                    } else {
+                                        maxSize.toFloat() / originalHeight
+                                    }
+                                    val scaledWidth = (originalWidth * scale).toInt()
+                                    val scaledHeight = (originalHeight * scale).toInt()
 
                                     // Create a mutable copy first, then directly scale it
                                     val mutableBitmap =
@@ -245,8 +271,11 @@ class A11yService : AccessibilityService() {
 
                                     Log.d(
                                             "A11yService",
-                                            "Bitmap created and scaled from screenshot: ${scaledBitmap.width}x${scaledBitmap.height}"
+                                            "Bitmap created and scaled from screenshot: ${scaledBitmap.width}x${scaledBitmap.height} (original: ${originalWidth}x${originalHeight})"
                                     )
+
+                                    // Describe image using AI
+                                    describeImageWithAI(scaledBitmap)
                                 } else {
                                     Log.w(
                                             "A11yService",
@@ -277,10 +306,89 @@ class A11yService : AccessibilityService() {
         }
     }
 
+    private fun loadAiModelId(): String {
+        val prefs = getSharedPreferences("seenot_ai", Context.MODE_PRIVATE)
+        return prefs.getString("model", "qwen3-vl-flash") ?: "qwen3-vl-flash"
+    }
+
+    private fun loadAiKey(): String {
+        val prefs = getSharedPreferences("seenot_ai", Context.MODE_PRIVATE)
+        return prefs.getString("api_key", "") ?: ""
+    }
+
+    private fun bitmapToBase64(bitmap: Bitmap): String {
+        val outputStream = ByteArrayOutputStream()
+        bitmap.compress(Bitmap.CompressFormat.PNG, 85, outputStream)
+        val byteArray = outputStream.toByteArray()
+        return Base64.encodeToString(byteArray, Base64.NO_WRAP)
+    }
+
+    private fun describeImageWithAI(bitmap: Bitmap) {
+        val apiKey = loadAiKey()
+        val modelId = loadAiModelId()
+
+        if (apiKey.isEmpty()) {
+            Log.w("A11yService", "AI API key not configured, skipping image description")
+            return
+        }
+
+        coroutineScope.launch {
+            val startTime = System.currentTimeMillis()
+            try {
+                // Convert bitmap to base64
+                val base64Image = bitmapToBase64(bitmap)
+                Log.d("A11yService", "Image converted to base64, size: ${base64Image.length} chars")
+
+                // Create OpenAI client with custom base URL for DashScope
+                val openAI = OpenAI(
+                    token = apiKey,
+                    timeout = Timeout(socket = 60.seconds),
+                    host = OpenAIHost(baseUrl = AI_BASE_URL)
+                )
+
+                // Create chat completion request using Qwen vision models
+                val imageContent = "data:image/png;base64,$base64Image"
+                val contentList: List<ContentPart> = ContentPartBuilder().apply {
+                    image(imageContent)
+                    text("Please describe the content of this screenshot in few words.")
+                }.build()
+                val request = ChatCompletionRequest(
+                    model = ModelId(modelId),
+                    messages = listOf(
+                        ChatMessage(
+                            role = ChatRole.User,
+                            content = contentList
+                        )
+                    ),
+                    maxTokens = 1000
+                )
+
+                // Call API
+                val response = openAI.chatCompletion(request)
+                val elapsedTime = System.currentTimeMillis() - startTime
+
+                // Extract and log response
+                val description = response.choices.firstOrNull()?.message?.content
+                if (description != null) {
+                    Log.d("A11yService", "AI Image Description: $description, model: $modelId, elapsed time: ${elapsedTime}ms")
+                } else {
+                    Log.w("A11yService", "No description returned from AI, model: $modelId, elapsed time: ${elapsedTime}ms")
+                }
+            } catch (e: Exception) {
+                val elapsedTime = System.currentTimeMillis() - startTime
+                Log.e("A11yService", "Error describing image with AI (elapsed: ${elapsedTime}ms)", e)
+                e.message?.let { Log.e("A11yService", "Error details: $it") }
+            } finally {
+                bitmap.recycle()
+            }
+        }
+    }
+
     companion object {
         private const val CHANNEL_ID = "seenot_accessibility"
         private const val NOTIFICATION_ID = 1001
         const val LOG_INTERVAL_MS: Long = 5_000L
-        const val AI_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        // DashScope compatible mode endpoint
+        const val AI_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/"
     }
 }
