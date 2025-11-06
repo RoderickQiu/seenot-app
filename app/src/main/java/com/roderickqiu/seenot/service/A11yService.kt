@@ -281,5 +281,6 @@ class A11yService : AccessibilityService() {
         private const val CHANNEL_ID = "seenot_accessibility"
         private const val NOTIFICATION_ID = 1001
         const val LOG_INTERVAL_MS: Long = 5_000L
+        const val AI_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     }
 }

@@ -47,6 +47,7 @@ import com.roderickqiu.seenot.data.Rule
 import com.roderickqiu.seenot.data.RuleAction
 import com.roderickqiu.seenot.data.RuleCondition
 import com.roderickqiu.seenot.ui.theme.SeeNotTheme
+import com.roderickqiu.seenot.settings.AiSettingsDialog
 
 class MainActivity : ComponentActivity() {
     private lateinit var repository: MonitoringAppRepository
@@ -65,6 +66,7 @@ class MainActivity : ComponentActivity() {
                 var showAddAppDialog by remember { mutableStateOf(false) }
                 var showTopMenu by remember { mutableStateOf(false) }
                 var showPermissionSettings by remember { mutableStateOf(false) }
+                var showAiSettings by remember { mutableStateOf(false) }
                 var permissionRefreshKey by remember { mutableStateOf(0) }
 
                 Scaffold(
@@ -97,6 +99,13 @@ class MainActivity : ComponentActivity() {
                                                 onClick = {
                                                     showTopMenu = false
                                                     showPermissionSettings = true
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text(text = context.getString(R.string.ai_settings)) },
+                                                onClick = {
+                                                    showTopMenu = false
+                                                    showAiSettings = true
                                                 }
                                             )
                                         }
@@ -188,6 +197,12 @@ class MainActivity : ComponentActivity() {
                             showAddAppDialog = false
                         },
                         existingApps = monitoringApps
+                    )
+                }
+
+                if (showAiSettings) {
+                    AiSettingsDialog(
+                        onDismiss = { showAiSettings = false }
                     )
                 }
             }

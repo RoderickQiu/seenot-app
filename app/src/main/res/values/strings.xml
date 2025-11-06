@@ -88,4 +88,9 @@
     <string name="fg_notification_title">SeeNot 专注助手运行中</string>
     <string name="fg_notification_text">正在帮助你保持专注</string>
     <string name="monitor_app_entered">已进入监控应用：</string>
+    
+    <!-- AI Settings -->
+    <string name="ai_settings">AI 设置</string>
+    <string name="ai_model">模型选择</string>
+    <string name="ai_key">Key 设定</string>
 </resources>
