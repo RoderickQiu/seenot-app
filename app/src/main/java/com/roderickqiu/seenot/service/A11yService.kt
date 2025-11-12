@@ -33,6 +33,9 @@ import io.ktor.client.call.NoTransformationFoundException
 import com.roderickqiu.seenot.MainActivity
 import com.roderickqiu.seenot.R
 import com.roderickqiu.seenot.data.AppDataStore
+import com.roderickqiu.seenot.data.ConditionType
+import com.roderickqiu.seenot.data.Rule
+import com.roderickqiu.seenot.data.RuleCondition
 import com.roderickqiu.seenot.utils.AccessibilityEventUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -333,11 +336,41 @@ class A11yService : AccessibilityService() {
         }
 
         coroutineScope.launch {
-            val startTime = System.currentTimeMillis()
             try {
                 // Convert bitmap to base64
                 val base64Image = bitmapToBase64(bitmap)
                 Log.d("A11yService", "Image converted to base64, size: ${base64Image.length} chars")
+
+                // Get activated rules only for the currently monitored app
+                val currentAppName = currentMonitoredAppName
+                if (currentAppName == null) {
+                    Log.d("A11yService", "No currently monitored app, skipping AI evaluation")
+                    bitmap.recycle()
+                    return@launch
+                }
+
+                val monitoringApps = appDataStore.loadMonitoringApps()
+                val activatedRules = mutableListOf<Pair<String, Rule>>()
+                
+                // Find the current monitored app and get its rules
+                val currentApp = monitoringApps.find { it.name == currentAppName && it.isEnabled }
+                if (currentApp != null) {
+                    for (rule in currentApp.rules) {
+                        // Only process conditions that can be evaluated visually
+                        if (rule.condition.type == ConditionType.ON_PAGE || 
+                            rule.condition.type == ConditionType.ON_CONTENT) {
+                            activatedRules.add(Pair(currentApp.name, rule))
+                        }
+                    }
+                }
+
+                Log.d("A11yService", "Found ${activatedRules.size} activated rules to evaluate for app=$currentAppName")
+
+                if (activatedRules.isEmpty()) {
+                    Log.d("A11yService", "No activated rules found, skipping AI evaluation")
+                    bitmap.recycle()
+                    return@launch
+                }
 
                 // Create OpenAI client with custom base URL for DashScope
                 val openAI = OpenAI(
@@ -346,37 +379,73 @@ class A11yService : AccessibilityService() {
                     host = OpenAIHost(baseUrl = AI_BASE_URL)
                 )
 
-                // Create chat completion request using Qwen vision models
                 val imageContent = "data:image/png;base64,$base64Image"
-                val contentList: List<ContentPart> = ContentPartBuilder().apply {
-                    image(imageContent)
-                    text("Please describe the content of this screenshot in few words.")
-                }.build()
-                val request = ChatCompletionRequest(
-                    model = ModelId(modelId),
-                    messages = listOf(
-                        ChatMessage(
-                            role = ChatRole.User,
-                            content = contentList
+
+                // Process each activated rule
+                for ((appName, rule) in activatedRules) {
+                    val startTime = System.currentTimeMillis()
+                    try {
+                        val condition = rule.condition
+                        val action = rule.action
+                        
+                        // Build question from condition
+                        val question = when (condition.type) {
+                            ConditionType.ON_PAGE -> {
+                                val pageName = condition.parameter ?: ""
+                                "Is this the $pageName page?"
+                            }
+                            ConditionType.ON_CONTENT -> {
+                                val contentTopic = condition.parameter ?: ""
+                                "Is this content about $contentTopic?"
+                            }
+                            else -> null
+                        }
+
+                        if (question == null) {
+                            continue
+                        }
+
+                        // Combine AI_PROMPT with the condition question
+                        val fullPrompt = "$AI_PROMPT\n\nUser's question: $question"
+
+                        // Create chat completion request
+                        val contentList: List<ContentPart> = ContentPartBuilder().apply {
+                            image(imageContent)
+                            text(fullPrompt)
+                        }.build()
+                        
+                        val request = ChatCompletionRequest(
+                            model = ModelId(modelId),
+                            messages = listOf(
+                                ChatMessage(
+                                    role = ChatRole.User,
+                                    content = contentList
+                                )
+                            ),
+                            maxTokens = 1000
                         )
-                    ),
-                    maxTokens = 1000
-                )
 
-                // Call API
-                val response = openAI.chatCompletion(request)
-                val elapsedTime = System.currentTimeMillis() - startTime
+                        // Call API
+                        val response = openAI.chatCompletion(request)
+                        val elapsedTime = System.currentTimeMillis() - startTime
 
-                // Extract and log response
-                val description = response.choices.firstOrNull()?.message?.content
-                if (description != null) {
-                    Log.d("A11yService", "AI Image Description: $description, model: $modelId, elapsed time: ${elapsedTime}ms")
-                } else {
-                    Log.w("A11yService", "No description returned from AI, model: $modelId, elapsed time: ${elapsedTime}ms")
+                        // Extract and log response with both condition and action
+                        val result = response.choices.firstOrNull()?.message?.content
+                        if (result != null) {
+                            Log.d("A11yService", "AI Result for app=$appName, question=$question,  condition=${condition.type}, parameter=${condition.parameter}, action=${action.type}: $result, elapsed time: ${elapsedTime}ms")
+                        } else {
+                            Log.w("A11yService", "No result returned from AI for app=$appName, question=$question, condition=${condition.type}, action=${action.type}, elapsed time: ${elapsedTime}ms")
+                        }
+                    } catch (e: Exception) {
+                        val elapsedTime = System.currentTimeMillis() - startTime
+                        Log.e("A11yService", "Error evaluating rule for app=$appName, condition=${rule.condition.type}, action=${rule.action.type} (elapsed: ${elapsedTime}ms)", e)
+                        e.message?.let { 
+                            Log.e("A11yService", "Error details: $it")
+                        }
+                    }
                 }
             } catch (e: Exception) {
-                val elapsedTime = System.currentTimeMillis() - startTime
-                Log.e("A11yService", "Error describing image with AI (elapsed: ${elapsedTime}ms)", e)
+                Log.e("A11yService", "Error in describeImageWithAI", e)
                 e.message?.let { Log.e("A11yService", "Error details: $it") }
             } finally {
                 bitmap.recycle()
@@ -390,5 +459,19 @@ class A11yService : AccessibilityService() {
         const val LOG_INTERVAL_MS: Long = 5_000L
         // DashScope compatible mode endpoint
         const val AI_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/"
+        const val AI_PROMPT = """
+        You are a strict visual classifier. Only answer "yes" if the visual state is a PERFECT MATCH to the user's question. Otherwise answer "no".
+
+        Rules:
+        - Do NOT guess. When uncertain, answer "no".
+        - Partial matches or related elements are "no".
+        - The question is about the PAGE/STATE TYPE, not content details.
+        - Examples:
+        * If the question asks: "Is this a feed/list page showing image-note or video-note items?",
+            then only a scrolling feed or grid/list overview of notes counts as "yes".
+            A detail page of a single note, a player page, or any non-list page is "no".
+        - Output format: strictly JSON {"reason": "brief reason in 10 words or less", "answer": "yes"} or {"reason": "brief reason in 10 words or less", "answer": "no"}.
+        - The reason must be concise and explain why you chose yes or no.
+        """
     }
 }
