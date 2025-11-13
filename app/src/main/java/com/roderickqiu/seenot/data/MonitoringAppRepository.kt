@@ -2,6 +2,7 @@ package com.roderickqiu.seenot.data
 
 import android.content.Context
 import com.roderickqiu.seenot.data.MonitoringApp
+import com.roderickqiu.seenot.data.TimeConstraint
 
 class MonitoringAppRepository(private val context: Context) {
 
@@ -31,6 +32,7 @@ class MonitoringAppRepository(private val context: Context) {
         return listOf(
             MonitoringApp(
                 name = "知乎",
+                isEnabled = false,
                 rules = listOf(
                     Rule(
                         condition = RuleCondition(
@@ -66,19 +68,19 @@ class MonitoringAppRepository(private val context: Context) {
                 rules = listOf(
                     Rule(
                         condition = RuleCondition(
-                            type = ConditionType.TIME_INTERVAL,
-                            timeInterval = 3
+                            type = ConditionType.ON_CONTENT,
+                            parameter = "在看公众号文章"
                         ),
                         action = RuleAction(
                             type = ActionType.REMIND,
-                            parameter = "如果在看公众号"
-                        )
+                            parameter = "你已经连续看了3分钟公众号文章"
+                        ),
+                        timeConstraint = TimeConstraint.Continuous(minutes = 3)
                     )
                 )
             ),
             MonitoringApp(
                 name = "QQ",
-                isEnabled = false,
                 rules = listOf(
                     Rule(
                         condition = RuleCondition(
@@ -91,7 +93,7 @@ class MonitoringAppRepository(private val context: Context) {
                     Rule(
                         condition = RuleCondition(
                             type = ConditionType.ON_PAGE,
-                            parameter = "QQ空间"
+                            parameter = "QQ空间的动态列表"
                         ),
                         action = RuleAction(
                             type = ActionType.AUTO_BACK
@@ -105,7 +107,7 @@ class MonitoringAppRepository(private val context: Context) {
                     Rule(
                         condition = RuleCondition(
                             type = ConditionType.ON_CONTENT,
-                            parameter = "商品推荐"
+                            parameter = "整页长的商品推荐瀑布流列表"
                         ),
                         action = RuleAction(
                             type = ActionType.AUTO_SCROLL_UP

@@ -5,6 +5,7 @@ import com.roderickqiu.seenot.R
 import com.roderickqiu.seenot.data.ActionType
 import com.roderickqiu.seenot.data.ConditionType
 import com.roderickqiu.seenot.data.Rule
+import com.roderickqiu.seenot.data.TimeConstraint
 
 /**
  * Utility class for formatting rules with i18n support
@@ -18,7 +19,7 @@ object RuleFormatter {
         val conditionText = formatCondition(context, rule.condition)
         val actionText = formatAction(context, rule.action)
         
-        return when (rule.condition.type) {
+        val baseRule = when (rule.condition.type) {
             ConditionType.TIME_INTERVAL -> "$conditionText$actionText"
             ConditionType.ON_ENTER -> "$conditionText$actionText"
             ConditionType.ON_PAGE -> {
@@ -29,6 +30,14 @@ object RuleFormatter {
                 val comma = getCommaForLanguage(context)
                 "$conditionText$comma$actionText"
             }
+        }
+        
+        // Append time constraint if present
+        val timeConstraintText = formatTimeConstraint(context, rule.timeConstraint)
+        return if (timeConstraintText.isNotEmpty()) {
+            "$baseRule${context.getString(R.string.time_constraint_desc_separator)}$timeConstraintText${context.getString(R.string.time_constraint_desc_separator_end)}"
+        } else {
+            baseRule
         }
     }
 
@@ -63,6 +72,7 @@ object RuleFormatter {
 
     /**
      * Format action part of a rule
+     * Note: Action parameters are not displayed in the list view to keep it concise
      */
     private fun formatAction(
         context: Context,
@@ -70,17 +80,11 @@ object RuleFormatter {
     ): String {
         return when (action.type) {
             ActionType.REMIND -> {
-                if (action.parameter != null) {
-                    val comma = getCommaForLanguage(context)
-                    "${context.getString(R.string.action_remind)}$comma${action.parameter}"
-                } else {
-                    context.getString(R.string.action_remind)
-                }
+                context.getString(R.string.action_remind)
             }
 
             ActionType.AUTO_CLICK -> {
-                val parameter = action.parameter ?: ""
-                context.getString(R.string.action_auto_click, parameter)
+                context.getString(R.string.action_auto_click_label)
             }
 
             ActionType.AUTO_SCROLL_UP -> {
@@ -97,6 +101,30 @@ object RuleFormatter {
 
             ActionType.ASK -> {
                 context.getString(R.string.action_ask)
+            }
+        }
+    }
+    
+    /**
+     * Format time constraint part of a rule (short version for list display)
+     */
+    private fun formatTimeConstraint(
+        context: Context,
+        timeConstraint: TimeConstraint?
+    ): String {
+        if (timeConstraint == null) {
+            return ""
+        }
+        
+        return when (timeConstraint) {
+            is TimeConstraint.Continuous -> {
+                context.getString(R.string.time_constraint_continuous_desc_short, timeConstraint.minutes)
+            }
+            is TimeConstraint.DailyTotal -> {
+                context.getString(R.string.time_constraint_daily_total_desc_short, timeConstraint.minutes)
+            }
+            is TimeConstraint.RecentTotal -> {
+                context.getString(R.string.time_constraint_recent_total_desc_short, timeConstraint.hours, timeConstraint.minutes)
             }
         }
     }

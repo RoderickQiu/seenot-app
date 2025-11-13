@@ -2,8 +2,10 @@ package com.roderickqiu.seenot.data
 
 import android.content.Context
 import android.content.SharedPreferences
+import android.util.Log
 import androidx.core.content.edit
 import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
 import com.roderickqiu.seenot.data.MonitoringApp
 
@@ -11,7 +13,10 @@ class AppDataStore(private val context: Context) {
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences("seenot_rules", Context.MODE_PRIVATE)
-    private val gson = Gson()
+    
+    private val gson: Gson = GsonBuilder()
+        .registerTypeAdapter(TimeConstraint::class.java, TimeConstraintAdapter())
+        .create()
 
     companion object {
         private const val KEY_MONITORING_APPS = "monitoring_apps"
@@ -22,8 +27,13 @@ class AppDataStore(private val context: Context) {
      * Save monitoring apps to SharedPreferences
      */
     fun saveMonitoringApps(apps: List<MonitoringApp>) {
-        val json = gson.toJson(apps)
-        prefs.edit { putString(KEY_MONITORING_APPS, json) }
+        try {
+            val json = gson.toJson(apps)
+            prefs.edit { putString(KEY_MONITORING_APPS, json) }
+        } catch (e: Exception) {
+            Log.e("AppDataStore", "Error saving monitoring apps", e)
+            throw e
+        }
     }
 
     /**
@@ -35,6 +45,8 @@ class AppDataStore(private val context: Context) {
         return try {
             gson.fromJson(json, type) ?: emptyList()
         } catch (e: Exception) {
+            Log.e("AppDataStore", "Error loading monitoring apps: ${e.message}", e)
+            Log.e("AppDataStore", "JSON content: $json")
             emptyList()
         }
     }
