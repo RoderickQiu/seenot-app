@@ -59,6 +59,7 @@
     <string name="action_ask_label">询问</string>
     <string name="input_parameter">输入参数</string>
     <string name="please_input_parameter">请输入参数</string>
+    <string name="parameter_input_hint">提示：请尽可能详细、细致地描述参数，以提高识别准确性，避免误判。</string>
     <string name="input_time_interval">输入间隔时间（分钟）</string>
     <string name="please_input_minutes">请输入分钟数</string>
     <string name="edit_dialog_title">编辑 - %1$s</string>
@@ -90,7 +91,8 @@
     <string name="monitor_app_entered">已进入监控应用：</string>
     
     <!-- AI Settings -->
-    <string name="ai_settings">AI 设置</string>
+    <string name="ai_settings">程序设置</string>
     <string name="ai_model">模型选择</string>
     <string name="ai_key">Key 设定</string>
+    <string name="auto_save_screenshot">自动保存截图到图库</string>
 </resources>

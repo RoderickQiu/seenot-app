@@ -17,10 +17,14 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.*
+import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.layout.onGloballyPositioned
@@ -46,6 +50,7 @@ private val AI_MODELS = listOf(
 private const val AI_PREFS = "seenot_ai"
 private const val KEY_MODEL = "model"
 private const val KEY_API_KEY = "api_key"
+private const val KEY_AUTO_SAVE_SCREENSHOT = "auto_save_screenshot"
 private const val DEFAULT_MODEL_ID = "qwen3-vl-flash"
 
 private fun loadAiModelId(context: Context): String {
@@ -62,9 +67,18 @@ private fun loadAiKey(context: Context): String {
     return prefs.getString(KEY_API_KEY, "") ?: ""
 }
 
-private fun saveAiSettings(context: Context, modelId: String, apiKey: String) {
+private fun loadAutoSaveScreenshot(context: Context): Boolean {
     val prefs = context.getSharedPreferences(AI_PREFS, Context.MODE_PRIVATE)
-    prefs.edit().putString(KEY_MODEL, modelId).putString(KEY_API_KEY, apiKey).apply()
+    return prefs.getBoolean(KEY_AUTO_SAVE_SCREENSHOT, false)
+}
+
+private fun saveAiSettings(context: Context, modelId: String, apiKey: String, autoSaveScreenshot: Boolean) {
+    val prefs = context.getSharedPreferences(AI_PREFS, Context.MODE_PRIVATE)
+    prefs.edit()
+        .putString(KEY_MODEL, modelId)
+        .putString(KEY_API_KEY, apiKey)
+        .putBoolean(KEY_AUTO_SAVE_SCREENSHOT, autoSaveScreenshot)
+        .apply()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -78,6 +92,7 @@ fun AiSettingsDialog(onDismiss: () -> Unit) {
     val initialModelId = loadAiModelId(context)
     var selectedModel by remember { mutableStateOf(getModelById(initialModelId)) }
     var apiKey by remember { mutableStateOf(loadAiKey(context)) }
+    var autoSaveScreenshot by remember { mutableStateOf(loadAutoSaveScreenshot(context)) }
 
     AlertDialog(
             onDismissRequest = onDismiss,
@@ -139,12 +154,26 @@ fun AiSettingsDialog(onDismiss: () -> Unit) {
                             modifier = Modifier.fillMaxWidth(),
                             textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)
                     )
+
+                    Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 16.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(text = context.getString(R.string.auto_save_screenshot))
+                        Switch(
+                                checked = autoSaveScreenshot,
+                                onCheckedChange = { autoSaveScreenshot = it }
+                        )
+                    }
                 }
             },
             confirmButton = {
                 TextButton(
                         onClick = {
-                            saveAiSettings(context, selectedModel.id, apiKey)
+                            saveAiSettings(context, selectedModel.id, apiKey, autoSaveScreenshot)
                             onDismiss()
                         }
                 ) { Text(text = context.getString(R.string.save)) }

@@ -8,6 +8,11 @@
     <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
     <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
+    
+    <!-- Storage permission for saving screenshots to gallery (for debugging purposes) -->
+    <!-- For Android 13+ (API 33+), WRITE_MEDIA_IMAGES is required to save images -->
+    <!-- For Android 11-12 (API 30-32), MediaStore API can be used without permission -->
+    <uses-permission android:name="android.permission.WRITE_MEDIA_IMAGES" />
 
     <queries>
         <intent>

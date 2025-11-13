@@ -5,12 +5,15 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
+import android.net.Uri
 import android.os.Handler
 import android.os.Looper
+import android.provider.MediaStore
 import android.util.Base64
 import android.util.Log
 import android.view.Display
@@ -49,6 +52,7 @@ class A11yService : AccessibilityService() {
     private lateinit var mHandler: Handler
     private var lastTimeClassName: String? = null
     private var lastTimeClassCapable: Boolean = false
+    private var lastTimeCapableClass: String? = null
     private var foregroundWindowId: Int = -1
     private var currentMonitoredPackage: String? = null
     private var currentMonitoredAppName: String? = null
@@ -97,6 +101,9 @@ class A11yService : AccessibilityService() {
                             )
                     lastTimeClassName = className
                     lastTimeClassCapable = capable
+                    if (capable && className != null) {
+                        lastTimeCapableClass = className
+                    }
 
                     val packageName = e.packageName?.toString()
                     if (packageName != null && capable) {
@@ -161,6 +168,7 @@ class A11yService : AccessibilityService() {
                 )
                 currentMonitoredPackage = null
                 currentMonitoredAppName = null
+                lastTimeCapableClass = null
             }
 
             // Then, if the new package is monitored
@@ -250,6 +258,25 @@ class A11yService : AccessibilityService() {
                                     val originalWidth = hardwareBitmap.width
                                     val originalHeight = hardwareBitmap.height
 
+                                    // Create a mutable copy for processing
+                                    val mutableBitmap =
+                                            hardwareBitmap.copy(Bitmap.Config.ARGB_8888, true)
+
+                                    // Save original screenshot to gallery if enabled
+                                    if (loadAutoSaveScreenshot()) {
+                                        // Create a separate copy for saving to gallery to avoid interference
+                                        val galleryBitmap = mutableBitmap.copy(Bitmap.Config.ARGB_8888, false)
+                                        coroutineScope.launch {
+                                            try {
+                                                saveBitmapToGallery(galleryBitmap, reason)
+                                                galleryBitmap.recycle()
+                                            } catch (e: Exception) {
+                                                Log.e("A11yService", "Error saving screenshot to gallery", e)
+                                                galleryBitmap.recycle()
+                                            }
+                                        }
+                                    }
+
                                     // Scale image: max 960px on longer side, maintain aspect ratio
                                     val maxSize = 960
                                     val scale = if (originalWidth > originalHeight) {
@@ -260,9 +287,6 @@ class A11yService : AccessibilityService() {
                                     val scaledWidth = (originalWidth * scale).toInt()
                                     val scaledHeight = (originalHeight * scale).toInt()
 
-                                    // Create a mutable copy first, then directly scale it
-                                    val mutableBitmap =
-                                            hardwareBitmap.copy(Bitmap.Config.ARGB_8888, true)
                                     val scaledBitmap =
                                             Bitmap.createScaledBitmap(
                                                     mutableBitmap,
@@ -270,7 +294,6 @@ class A11yService : AccessibilityService() {
                                                     scaledHeight,
                                                     true
                                             )
-                                    mutableBitmap.recycle()
 
                                     Log.d(
                                             "A11yService",
@@ -319,11 +342,55 @@ class A11yService : AccessibilityService() {
         return prefs.getString("api_key", "") ?: ""
     }
 
+    private fun loadAutoSaveScreenshot(): Boolean {
+        val prefs = getSharedPreferences("seenot_ai", Context.MODE_PRIVATE)
+        return prefs.getBoolean("auto_save_screenshot", false)
+    }
+
     private fun bitmapToBase64(bitmap: Bitmap): String {
         val outputStream = ByteArrayOutputStream()
         bitmap.compress(Bitmap.CompressFormat.PNG, 85, outputStream)
         val byteArray = outputStream.toByteArray()
         return Base64.encodeToString(byteArray, Base64.NO_WRAP)
+    }
+
+    private suspend fun saveBitmapToGallery(bitmap: Bitmap, reason: String) {
+        try {
+            val appName = currentMonitoredAppName ?: "Unknown"
+            val timestamp = System.currentTimeMillis()
+            val displayName = "SeeNot_${appName}_${timestamp}_$reason.jpg"
+
+            val contentValues = ContentValues().apply {
+                put(MediaStore.MediaColumns.DISPLAY_NAME, displayName)
+                put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
+                put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/SeeNot")
+                put(MediaStore.MediaColumns.IS_PENDING, 1)
+            }
+
+            val uri = contentResolver.insert(
+                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
+                contentValues
+            ) ?: run {
+                Log.e("A11yService", "Failed to create MediaStore entry")
+                return
+            }
+
+            contentResolver.openOutputStream(uri)?.use { outputStream ->
+                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
+            } ?: run {
+                Log.e("A11yService", "Failed to open output stream")
+                contentResolver.delete(uri, null, null)
+                return
+            }
+
+            contentValues.clear()
+            contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
+            contentResolver.update(uri, contentValues, null, null)
+
+            Log.d("A11yService", "Screenshot saved to gallery: $displayName")
+        } catch (e: Exception) {
+            Log.e("A11yService", "Error saving screenshot to gallery", e)
+        }
     }
 
     private fun describeImageWithAI(bitmap: Bitmap) {
@@ -405,8 +472,27 @@ class A11yService : AccessibilityService() {
                             continue
                         }
 
-                        // Combine AI_PROMPT with the condition question
-                        val fullPrompt = "$AI_PROMPT\n\nUser's question: $question"
+                        // Build app context with available information only
+                        val contextParts = mutableListOf<String>()
+                        if (currentMonitoredAppName != null && currentMonitoredPackage != null) {
+                            contextParts.add("Current app: $currentMonitoredAppName (package: $currentMonitoredPackage)")
+                        }
+                        if (lastTimeCapableClass != null) {
+                            contextParts.add("Current class: $lastTimeCapableClass")
+                        }
+                        
+                        val appContext = if (contextParts.isNotEmpty()) {
+                            contextParts.joinToString("\n")
+                        } else {
+                            null
+                        }
+                        
+                        // Combine AI_PROMPT with the condition question and app context
+                        val fullPrompt = if (appContext != null) {
+                            "$AI_PROMPT\n\n$appContext\n\nUser's question: $question"
+                        } else {
+                            "$AI_PROMPT\n\nUser's question: $question"
+                        }
 
                         // Create chat completion request
                         val contentList: List<ContentPart> = ContentPartBuilder().apply {
@@ -432,9 +518,9 @@ class A11yService : AccessibilityService() {
                         // Extract and log response with both condition and action
                         val result = response.choices.firstOrNull()?.message?.content
                         if (result != null) {
-                            Log.d("A11yService", "AI Result for app=$appName, question=$question,  condition=${condition.type}, parameter=${condition.parameter}, action=${action.type}: $result, elapsed time: ${elapsedTime}ms")
+                            Log.d("A11yService", "AI Result for app=$appName, question=$question, context=$appContext, condition=${condition.type}, action=${action.type}: $result, elapsed time: ${elapsedTime}ms")
                         } else {
-                            Log.w("A11yService", "No result returned from AI for app=$appName, question=$question, condition=${condition.type}, action=${action.type}, elapsed time: ${elapsedTime}ms")
+                            Log.w("A11yService", "No result returned from AI for app=$appName, question=$question, context=$appContext, condition=${condition.type}, action=${action.type}, elapsed time: ${elapsedTime}ms")
                         }
                     } catch (e: Exception) {
                         val elapsedTime = System.currentTimeMillis() - startTime
@@ -465,7 +551,7 @@ class A11yService : AccessibilityService() {
         Rules:
         - Do NOT guess. When uncertain, answer "no".
         - Partial matches or related elements are "no".
-        - The question is about the PAGE/STATE TYPE, not content details.
+        - If the visual state is not a PERFECT MATCH to the user's question, answer "no".
         - Examples:
         * If the question asks: "Is this a feed/list page showing image-note or video-note items?",
             then only a scrolling feed or grid/list overview of notes counts as "yes".

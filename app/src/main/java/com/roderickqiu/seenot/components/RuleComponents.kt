@@ -351,12 +351,22 @@ fun AddRuleDialog(
             onDismissRequest = { showParameterDialog = false },
             title = { Text(context.getString(R.string.input_parameter)) },
             text = {
-                TextField(
-                    value = inputText,
-                    onValueChange = { inputText = it },
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(context.getString(R.string.please_input_parameter)) }
-                )
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = context.getString(R.string.parameter_input_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TextField(
+                        value = inputText,
+                        onValueChange = { inputText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text(context.getString(R.string.please_input_parameter)) }
+                    )
+                }
             },
             confirmButton = {
                 Button(
@@ -572,12 +582,22 @@ fun EditRuleDialog(
             onDismissRequest = { showParameterDialog = false },
             title = { Text(context.getString(R.string.input_parameter)) },
             text = {
-                TextField(
-                    value = inputText,
-                    onValueChange = { inputText = it },
+                Column(
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text(context.getString(R.string.please_input_parameter)) }
-                )
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = context.getString(R.string.parameter_input_hint),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TextField(
+                        value = inputText,
+                        onValueChange = { inputText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text(context.getString(R.string.please_input_parameter)) }
+                    )
+                }
             },
             confirmButton = {
                 Button(
