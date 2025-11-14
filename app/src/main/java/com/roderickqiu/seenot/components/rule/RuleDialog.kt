@@ -1,21 +1,12 @@
 package com.roderickqiu.seenot.components.rule
 
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Row
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Tab
 import androidx.compose.material3.TabRow
 import androidx.compose.material3.Text
@@ -26,10 +17,8 @@ import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.roderickqiu.seenot.R
 import com.roderickqiu.seenot.data.ActionType
 import com.roderickqiu.seenot.data.ConditionType
@@ -37,7 +26,6 @@ import com.roderickqiu.seenot.data.Rule
 import com.roderickqiu.seenot.data.RuleAction
 import com.roderickqiu.seenot.data.RuleCondition
 import com.roderickqiu.seenot.data.TimeConstraint
-import com.roderickqiu.seenot.utils.RuleFormatter
 
 /**
  * Unified dialog for adding or editing a rule.
@@ -133,256 +121,43 @@ fun RuleDialog(
                 }
                 
                 // Tab Content
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 16.dp),
-                    verticalArrangement = Arrangement.spacedBy(16.dp)
-                ) {
-                    when (selectedTab) {
-                        0 -> {
-                            // Condition Tab
-                            Text(
-                                text = context.getString(R.string.condition_type),
-                                fontSize = 16.sp,
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
-                            )
-                            
-                            LazyColumn(
-                                modifier = Modifier.height(180.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                items(ConditionType.values().toList()) { conditionType ->
-                                    val conditionText = when (conditionType) {
-                                        ConditionType.TIME_INTERVAL -> context.getString(R.string.condition_time_interval_label)
-                                        ConditionType.ON_ENTER -> context.getString(R.string.condition_on_enter_label)
-                                        ConditionType.ON_PAGE -> context.getString(R.string.condition_on_page_label)
-                                        ConditionType.ON_CONTENT -> context.getString(R.string.condition_on_content_label)
-                                    }
-                                    
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { selectedConditionType = conditionType }
-                                            .padding(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Checkbox(
-                                            checked = selectedConditionType == conditionType,
-                                            onCheckedChange = { selectedConditionType = conditionType }
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(text = conditionText)
-                                    }
-                                }
-                            }
-                            
-                            // Time interval input for TIME_INTERVAL condition
-                            if (selectedConditionType == ConditionType.TIME_INTERVAL) {
-                                Row(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    Text(context.getString(R.string.time_interval_minutes))
-                                    Spacer(modifier = Modifier.width(8.dp))
-                                    OutlinedButton(
-                                        onClick = { showTimeIntervalDialog = true }
-                                    ) {
-                                        Text("$timeInterval")
-                                    }
-                                }
-                            }
-                            
-                            // Parameter input for ON_PAGE and ON_CONTENT conditions
-                            if (selectedConditionType == ConditionType.ON_PAGE || selectedConditionType == ConditionType.ON_CONTENT) {
-                                OutlinedButton(
-                                    onClick = { showConditionParameterDialog = true },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(conditionParameter.ifEmpty { context.getString(R.string.click_to_input_parameter) })
-                                }
-                            }
-                        }
-                        1 -> {
-                            // Action Tab
-                            Text(
-                                text = context.getString(R.string.action_type),
-                                fontSize = 16.sp,
-                                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
-                            )
-                            
-                            LazyColumn(
-                                modifier = Modifier.height(180.dp),
-                                verticalArrangement = Arrangement.spacedBy(8.dp)
-                            ) {
-                                items(ActionType.values().toList()) { actionType ->
-                                    val actionText = when (actionType) {
-                                        ActionType.REMIND -> context.getString(R.string.action_remind_label)
-                                        ActionType.AUTO_CLICK -> context.getString(R.string.action_auto_click_label)
-                                        ActionType.AUTO_SCROLL_UP -> context.getString(R.string.action_auto_scroll_up_label)
-                                        ActionType.AUTO_SCROLL_DOWN -> context.getString(R.string.action_auto_scroll_down_label)
-                                        ActionType.AUTO_BACK -> context.getString(R.string.action_auto_back_label)
-                                        ActionType.ASK -> context.getString(R.string.action_ask_label)
-                                    }
-                                    
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .clickable { selectedActionType = actionType }
-                                            .padding(8.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Checkbox(
-                                            checked = selectedActionType == actionType,
-                                            onCheckedChange = { selectedActionType = actionType }
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(text = actionText)
-                                    }
-                                }
-                            }
-                            
-                            // Action Parameter input for REMIND and AUTO_CLICK actions
-                            if (selectedActionType == ActionType.REMIND || selectedActionType == ActionType.AUTO_CLICK) {
-                                OutlinedButton(
-                                    onClick = { showActionParameterDialog = true },
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Text(
-                                        if (selectedActionType == ActionType.REMIND) {
-                                            actionParameter.ifEmpty { context.getString(R.string.click_to_input_remind_message) }
-                                        } else {
-                                            actionParameter.ifEmpty { context.getString(R.string.click_to_input_parameter) }
-                                        }
-                                    )
-                                }
-                            }
-                        }
-                        2 -> {
-                            // Time Constraint Tab
-                            Row(
-                                modifier = Modifier.fillMaxWidth(),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Checkbox(
-                                    checked = enableTimeConstraint,
-                                    onCheckedChange = { enableTimeConstraint = it }
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Text(
-                                    text = context.getString(R.string.enable_time_constraint),
-                                    fontSize = 16.sp,
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
-                                )
-                            }
-                            
-                            if (enableTimeConstraint) {
-                                Text(
-                                    text = context.getString(R.string.time_constraint_type),
-                                    fontSize = 14.sp,
-                                    fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
-                                )
-                                
-                                LazyColumn(
-                                    modifier = Modifier.height(180.dp),
-                                    verticalArrangement = Arrangement.spacedBy(8.dp)
-                                ) {
-                                    item {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clickable { 
-                                                    timeConstraintType = TimeConstraint.Continuous(continuousMinutes)
-                                                    showContinuousMinutesDialog = true
-                                                }
-                                                .padding(8.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Checkbox(
-                                                checked = timeConstraintType is TimeConstraint.Continuous,
-                                                onCheckedChange = { 
-                                                    if (it) {
-                                                        timeConstraintType = TimeConstraint.Continuous(continuousMinutes)
-                                                        showContinuousMinutesDialog = true
-                                                    }
-                                                }
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Column {
-                                                Text(text = context.getString(R.string.time_constraint_continuous))
-                                                Text(
-                                                    text = context.getString(R.string.time_constraint_continuous_desc, RuleFormatter.formatMinutes(continuousMinutes)),
-                                                    fontSize = 12.sp,
-                                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                                                )
-                                            }
-                                        }
-                                    }
-                                    item {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clickable { 
-                                                    timeConstraintType = TimeConstraint.DailyTotal(dailyTotalMinutes)
-                                                    showDailyTotalMinutesDialog = true
-                                                }
-                                                .padding(8.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Checkbox(
-                                                checked = timeConstraintType is TimeConstraint.DailyTotal,
-                                                onCheckedChange = { 
-                                                    if (it) {
-                                                        timeConstraintType = TimeConstraint.DailyTotal(dailyTotalMinutes)
-                                                        showDailyTotalMinutesDialog = true
-                                                    }
-                                                }
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Column {
-                                                Text(text = context.getString(R.string.time_constraint_daily_total))
-                                                Text(
-                                                    text = context.getString(R.string.time_constraint_daily_total_desc, RuleFormatter.formatMinutes(dailyTotalMinutes)),
-                                                    fontSize = 12.sp,
-                                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                                                )
-                                            }
-                                        }
-                                    }
-                                    item {
-                                        Row(
-                                            modifier = Modifier
-                                                .fillMaxWidth()
-                                                .clickable { 
-                                                    timeConstraintType = TimeConstraint.RecentTotal(recentHours, recentMinutes)
-                                                    showRecentHoursDialog = true
-                                                }
-                                                .padding(8.dp),
-                                            verticalAlignment = Alignment.CenterVertically
-                                        ) {
-                                            Checkbox(
-                                                checked = timeConstraintType is TimeConstraint.RecentTotal,
-                                                onCheckedChange = { 
-                                                    if (it) {
-                                                        timeConstraintType = TimeConstraint.RecentTotal(recentHours, recentMinutes)
-                                                        showRecentHoursDialog = true
-                                                    }
-                                                }
-                                            )
-                                            Spacer(modifier = Modifier.width(8.dp))
-                                            Column {
-                                                Text(text = context.getString(R.string.time_constraint_recent_total))
-                                                Text(
-                                                    text = context.getString(R.string.time_constraint_recent_total_desc, recentHours, RuleFormatter.formatMinutes(recentMinutes)),
-                                                    fontSize = 12.sp,
-                                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
+                when (selectedTab) {
+                    0 -> {
+                        ConditionTab(
+                            selectedConditionType = selectedConditionType,
+                            onConditionTypeSelected = { selectedConditionType = it },
+                            timeInterval = timeInterval,
+                            onTimeIntervalClick = { showTimeIntervalDialog = true },
+                            conditionParameter = conditionParameter,
+                            onConditionParameterClick = { showConditionParameterDialog = true },
+                            context = context
+                        )
+                    }
+                    1 -> {
+                        ActionTab(
+                            selectedActionType = selectedActionType,
+                            onActionTypeSelected = { selectedActionType = it },
+                            actionParameter = actionParameter,
+                            onActionParameterClick = { showActionParameterDialog = true },
+                            context = context
+                        )
+                    }
+                    2 -> {
+                        ConstraintTab(
+                            enableTimeConstraint = enableTimeConstraint,
+                            onEnableTimeConstraintChanged = { enableTimeConstraint = it },
+                            timeConstraintType = timeConstraintType,
+                            onTimeConstraintTypeChanged = { timeConstraintType = it },
+                            continuousMinutes = continuousMinutes,
+                            onContinuousMinutesClick = { showContinuousMinutesDialog = true },
+                            dailyTotalMinutes = dailyTotalMinutes,
+                            onDailyTotalMinutesClick = { showDailyTotalMinutesDialog = true },
+                            recentHours = recentHours,
+                            recentMinutes = recentMinutes,
+                            onRecentHoursClick = { showRecentHoursDialog = true },
+                            onRecentMinutesClick = { showRecentMinutesDialog = true },
+                            context = context
+                        )
                     }
                 }
             }
@@ -411,8 +186,8 @@ fun RuleDialog(
                     }
                     val timeConstraint = if (enableTimeConstraint) timeConstraintType else null
                     
-                    val savedRule = if (isEditMode && rule != null) {
-                        rule.copy(condition = condition, action = action, timeConstraint = timeConstraint)
+                    val savedRule = if (isEditMode) {
+                        rule!!.copy(condition = condition, action = action, timeConstraint = timeConstraint)
                     } else {
                         Rule(condition = condition, action = action, timeConstraint = timeConstraint)
                     }
