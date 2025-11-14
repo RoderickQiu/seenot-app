@@ -118,5 +118,7 @@
     <string name="ai_settings">程序设置</string>
     <string name="ai_model">模型选择</string>
     <string name="ai_key">Key 设定</string>
+    <string name="debug_options">调试选项</string>
     <string name="auto_save_screenshot">自动保存截图到图库</string>
+    <string name="show_rule_result_toast">显示规则执行结果</string>
 </resources>

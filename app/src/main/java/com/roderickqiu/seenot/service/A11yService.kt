@@ -362,6 +362,11 @@ class A11yService : AccessibilityService() {
         return prefs.getBoolean("auto_save_screenshot", false)
     }
 
+    private fun loadShowRuleResultToast(): Boolean {
+        val prefs = getSharedPreferences("seenot_ai", Context.MODE_PRIVATE)
+        return prefs.getBoolean("show_rule_result_toast", false)
+    }
+
     private fun bitmapToBase64(bitmap: Bitmap): String {
         val outputStream = ByteArrayOutputStream()
         bitmap.compress(Bitmap.CompressFormat.PNG, 85, outputStream)
@@ -537,6 +542,12 @@ class A11yService : AccessibilityService() {
                             
                             // Parse AI result to check if condition matches
                             val isConditionMatch = parseAIResult(result)
+                            
+                            // Show toast if debug option is enabled
+                            if (loadShowRuleResultToast()) {
+                                val resultText = if (isConditionMatch) "YES" else "NO"
+                                showToast("$question: $resultText", Toast.LENGTH_SHORT)
+                            }
                             
                             // Handle time constraint if present
                             if (isConditionMatch && rule.timeConstraint != null) {
@@ -958,7 +969,7 @@ class A11yService : AccessibilityService() {
             }
             // Handle other action types as needed, with execution TODO
             else -> {
-                showToast(getString(R.string.action_triggered, appName, rule.action.type), Toast.LENGTH_LONG)
+                showToast(getString(R.string.action_triggered, appName, rule.action.type.name), Toast.LENGTH_LONG)
                 Log.d("A11yService", "Action ${rule.action.type} triggered")
             }
         }
