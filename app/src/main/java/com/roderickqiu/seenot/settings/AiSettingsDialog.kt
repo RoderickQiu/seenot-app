@@ -51,7 +51,7 @@ private const val AI_PREFS = "seenot_ai"
 private const val KEY_MODEL = "model"
 private const val KEY_API_KEY = "api_key"
 private const val KEY_AUTO_SAVE_SCREENSHOT = "auto_save_screenshot"
-private const val DEFAULT_MODEL_ID = "qwen3-vl-flash"
+private const val DEFAULT_MODEL_ID = "qwen3-vl-plus"
 
 private fun loadAiModelId(context: Context): String {
     val prefs = context.getSharedPreferences(AI_PREFS, Context.MODE_PRIVATE)

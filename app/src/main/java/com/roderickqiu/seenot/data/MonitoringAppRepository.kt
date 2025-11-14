@@ -75,7 +75,7 @@ class MonitoringAppRepository(private val context: Context) {
                             type = ActionType.REMIND,
                             parameter = "你已经连续看了3分钟公众号文章"
                         ),
-                        timeConstraint = TimeConstraint.Continuous(minutes = 3)
+                        timeConstraint = TimeConstraint.Continuous(minutes = 3.0)
                     )
                 )
             ),

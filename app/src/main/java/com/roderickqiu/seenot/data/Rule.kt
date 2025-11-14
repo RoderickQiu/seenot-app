@@ -34,13 +34,13 @@ data class RuleAction(
 /** Represents optional time constraint for when to trigger the action */
 sealed class TimeConstraint {
     /** Trigger after continuously matching condition for X minutes */
-    data class Continuous(val minutes: Int) : TimeConstraint()
+    data class Continuous(val minutes: Double) : TimeConstraint()
     
     /** Trigger after total time matching condition reaches X minutes today */
-    data class DailyTotal(val minutes: Int) : TimeConstraint()
+    data class DailyTotal(val minutes: Double) : TimeConstraint()
     
     /** Trigger after total time matching condition reaches X minutes in the last Y hours */
-    data class RecentTotal(val hours: Int, val minutes: Int) : TimeConstraint()
+    data class RecentTotal(val hours: Int, val minutes: Double) : TimeConstraint()
 }
 
 /** Types of conditions */
@@ -105,19 +105,19 @@ class TimeConstraintAdapter : JsonSerializer<TimeConstraint>, JsonDeserializer<T
         
         return when (type) {
             "Continuous" -> {
-                val minutes = jsonObject.get("minutes")?.asInt
+                val minutes = jsonObject.get("minutes")?.asDouble
                     ?: throw JsonParseException("Missing 'minutes' field for Continuous TimeConstraint")
                 TimeConstraint.Continuous(minutes)
             }
             "DailyTotal" -> {
-                val minutes = jsonObject.get("minutes")?.asInt
+                val minutes = jsonObject.get("minutes")?.asDouble
                     ?: throw JsonParseException("Missing 'minutes' field for DailyTotal TimeConstraint")
                 TimeConstraint.DailyTotal(minutes)
             }
             "RecentTotal" -> {
                 val hours = jsonObject.get("hours")?.asInt
                     ?: throw JsonParseException("Missing 'hours' field for RecentTotal TimeConstraint")
-                val minutes = jsonObject.get("minutes")?.asInt
+                val minutes = jsonObject.get("minutes")?.asDouble
                     ?: throw JsonParseException("Missing 'minutes' field for RecentTotal TimeConstraint")
                 TimeConstraint.RecentTotal(hours, minutes)
             }

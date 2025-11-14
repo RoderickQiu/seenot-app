@@ -118,14 +118,25 @@ object RuleFormatter {
         
         return when (timeConstraint) {
             is TimeConstraint.Continuous -> {
-                context.getString(R.string.time_constraint_continuous_desc_short, timeConstraint.minutes)
+                context.getString(R.string.time_constraint_continuous_desc, formatMinutes(timeConstraint.minutes))
             }
             is TimeConstraint.DailyTotal -> {
-                context.getString(R.string.time_constraint_daily_total_desc_short, timeConstraint.minutes)
+                context.getString(R.string.time_constraint_daily_total_desc, formatMinutes(timeConstraint.minutes))
             }
             is TimeConstraint.RecentTotal -> {
-                context.getString(R.string.time_constraint_recent_total_desc_short, timeConstraint.hours, timeConstraint.minutes)
+                context.getString(R.string.time_constraint_recent_total_desc, timeConstraint.hours, formatMinutes(timeConstraint.minutes))
             }
+        }
+    }
+    
+    /**
+     * Format minutes value: show as integer if whole number, otherwise show decimal
+     */
+    private fun formatMinutes(minutes: Double): String {
+        return if (minutes % 1.0 == 0.0) {
+            minutes.toInt().toString()
+        } else {
+            minutes.toString()
         }
     }
     

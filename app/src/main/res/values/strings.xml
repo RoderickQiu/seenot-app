@@ -69,17 +69,14 @@
     <string name="time_constraint">时间约束</string>
     <string name="enable_time_constraint">启用时间约束</string>
     <string name="time_constraint_type">时间约束类型</string>
-    <string name="time_constraint_continuous">连续匹配</string>
+    <string name="time_constraint_continuous">短时间内匹配</string>
     <string name="time_constraint_daily_total">今日总计</string>
     <string name="time_constraint_recent_total">最近总计</string>
     <string name="time_constraint_desc_separator">（若</string>
     <string name="time_constraint_desc_separator_end">）</string>
-    <string name="time_constraint_continuous_desc">连续匹配条件%1$d分钟后触发</string>
-    <string name="time_constraint_daily_total_desc">今日总匹配时间达到%1$d分钟后触发</string>
-    <string name="time_constraint_recent_total_desc">最近%1$d小时内总匹配时间达到%2$d分钟后触发</string>
-    <string name="time_constraint_continuous_desc_short">连续%1$d分钟</string>
-    <string name="time_constraint_daily_total_desc_short">今日%1$d分钟</string>
-    <string name="time_constraint_recent_total_desc_short">最近%1$d小时%2$d分钟</string>
+    <string name="time_constraint_continuous_desc">短时间内匹配%1$s分钟</string>
+    <string name="time_constraint_daily_total_desc">今日总计匹配%1$s分钟</string>
+    <string name="time_constraint_recent_total_desc">最近%1$d小时内总计匹配%2$s分钟</string>
     <string name="input_continuous_minutes">输入连续分钟数</string>
     <string name="input_daily_total_minutes">输入今日总计分钟数</string>
     <string name="input_recent_hours">输入小时数（最近）</string>
@@ -115,6 +112,7 @@
     <string name="fg_notification_title">SeeNot 专注助手运行中</string>
     <string name="fg_notification_text">正在帮助你保持专注</string>
     <string name="monitor_app_entered">已进入监控应用：</string>
+    <string name="action_triggered">%1$s: 已触发动作 %2$s</string>
     
     <!-- AI Settings -->
     <string name="ai_settings">程序设置</string>

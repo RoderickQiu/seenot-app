@@ -21,6 +21,7 @@ class AppDataStore(private val context: Context) {
     companion object {
         private const val KEY_MONITORING_APPS = "monitoring_apps"
         private const val KEY_IS_FIRST_LAUNCH = "is_first_launch"
+        private const val KEY_TIME_CONSTRAINT_STATES = "time_constraint_states"
     }
 
     /**
@@ -100,5 +101,109 @@ class AppDataStore(private val context: Context) {
             apps.add(updatedApp)
         }
         saveMonitoringApps(apps)
+    }
+
+    /**
+     * Data class for persisting time constraint state with constraint info
+     */
+    data class TimeConstraintStateData(
+        val stateKey: String, // "${appName}_${ruleId}"
+        val appName: String,
+        val ruleId: String,
+        val constraintType: String, // "Continuous", "DailyTotal", "RecentTotal"
+        val constraintMinutes: Double,
+        val constraintHours: Int? = null, // Only for RecentTotal
+        val records: List<TimeRecord>
+    )
+
+    /**
+     * Data class for TimeRecord (must be in data package for Gson serialization)
+     */
+    data class TimeRecord(
+        val startTime: Long,
+        val endTime: Long? = null // null means still active
+    )
+
+    /**
+     * Save all time constraint states
+     */
+    fun saveTimeConstraintStates(
+        shortTerm: Map<String, MutableList<TimeRecord>>,
+        dailyTotal: Map<String, MutableList<TimeRecord>>,
+        recentTotal: Map<String, MutableList<TimeRecord>>,
+        rules: List<Pair<String, Rule>> // appName to Rule mapping
+    ) {
+        try {
+            val states = mutableListOf<TimeConstraintStateData>()
+            
+            // Build a map of stateKey -> (appName, rule) for lookup
+            val ruleMap = rules.associate { (appName, rule) ->
+                "${appName}_${rule.id}" to Pair(appName, rule)
+            }
+            
+            // Process short-term records
+            shortTerm.forEach { (stateKey, recordList) ->
+                val (appName, rule) = ruleMap[stateKey] ?: return@forEach
+                val constraint = rule.timeConstraint as? TimeConstraint.Continuous ?: return@forEach
+                states.add(TimeConstraintStateData(
+                    stateKey = stateKey,
+                    appName = appName,
+                    ruleId = rule.id,
+                    constraintType = "Continuous",
+                    constraintMinutes = constraint.minutes,
+                    constraintHours = null,
+                    records = recordList.map { TimeRecord(it.startTime, it.endTime) }
+                ))
+            }
+            
+            // Process daily total records
+            dailyTotal.forEach { (stateKey, recordList) ->
+                val (appName, rule) = ruleMap[stateKey] ?: return@forEach
+                val constraint = rule.timeConstraint as? TimeConstraint.DailyTotal ?: return@forEach
+                states.add(TimeConstraintStateData(
+                    stateKey = stateKey,
+                    appName = appName,
+                    ruleId = rule.id,
+                    constraintType = "DailyTotal",
+                    constraintMinutes = constraint.minutes,
+                    constraintHours = null,
+                    records = recordList.map { TimeRecord(it.startTime, it.endTime) }
+                ))
+            }
+            
+            // Process recent total records
+            recentTotal.forEach { (stateKey, recordList) ->
+                val (appName, rule) = ruleMap[stateKey] ?: return@forEach
+                val constraint = rule.timeConstraint as? TimeConstraint.RecentTotal ?: return@forEach
+                states.add(TimeConstraintStateData(
+                    stateKey = stateKey,
+                    appName = appName,
+                    ruleId = rule.id,
+                    constraintType = "RecentTotal",
+                    constraintMinutes = constraint.minutes,
+                    constraintHours = constraint.hours,
+                    records = recordList.map { TimeRecord(it.startTime, it.endTime) }
+                ))
+            }
+            
+            val json = gson.toJson(states)
+            prefs.edit { putString(KEY_TIME_CONSTRAINT_STATES, json) }
+        } catch (e: Exception) {
+            Log.e("AppDataStore", "Error saving time constraint states", e)
+        }
+    }
+
+    /**
+     * Load all time constraint states
+     */
+    fun loadTimeConstraintStates(): List<TimeConstraintStateData> {
+        val json = prefs.getString(KEY_TIME_CONSTRAINT_STATES, null) ?: return emptyList()
+        val type = object : TypeToken<List<TimeConstraintStateData>>() {}.type
+        return try {
+            gson.fromJson<List<TimeConstraintStateData>>(json, type) ?: emptyList()
+        } catch (e: Exception) {
+            Log.e("AppDataStore", "Error loading time constraint states: ${e.message}", e)
+            emptyList()
+        }
     }
 }

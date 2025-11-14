@@ -51,6 +51,17 @@ import com.roderickqiu.seenot.data.RuleAction
 import com.roderickqiu.seenot.data.RuleCondition
 import com.roderickqiu.seenot.data.TimeConstraint
 
+/**
+ * Format minutes value: show as integer if whole number, otherwise show decimal
+ */
+private fun formatMinutes(minutes: Double): String {
+    return if (minutes % 1.0 == 0.0) {
+        minutes.toInt().toString()
+    } else {
+        minutes.toString()
+    }
+}
+
 @Composable
 fun RuleItem(
     rule: Rule,
@@ -209,11 +220,10 @@ fun AddRuleDialog(
     var showTimeIntervalDialog by remember { mutableStateOf(false) }
     var enableTimeConstraint by remember { mutableStateOf(false) }
     var timeConstraintType by remember { mutableStateOf<TimeConstraint?>(null) }
-    var continuousMinutes by remember { mutableStateOf(3) }
-    var dailyTotalMinutes by remember { mutableStateOf(30) }
+    var continuousMinutes by remember { mutableStateOf(3.0) }
+    var dailyTotalMinutes by remember { mutableStateOf(30.0) }
     var recentHours by remember { mutableStateOf(24) }
-    var recentMinutes by remember { mutableStateOf(60) }
-    var showTimeConstraintTypeDialog by remember { mutableStateOf(false) }
+    var recentMinutes by remember { mutableStateOf(60.0) }
     var showContinuousMinutesDialog by remember { mutableStateOf(false) }
     var showDailyTotalMinutesDialog by remember { mutableStateOf(false) }
     var showRecentHoursDialog by remember { mutableStateOf(false) }
@@ -424,7 +434,7 @@ fun AddRuleDialog(
                                             Column {
                                                 Text(text = context.getString(R.string.time_constraint_continuous))
                                                 Text(
-                                                    text = context.getString(R.string.time_constraint_continuous_desc, continuousMinutes),
+                                                    text = context.getString(R.string.time_constraint_continuous_desc, formatMinutes(continuousMinutes)),
                                                     fontSize = 12.sp,
                                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                                 )
@@ -455,7 +465,7 @@ fun AddRuleDialog(
                                             Column {
                                                 Text(text = context.getString(R.string.time_constraint_daily_total))
                                                 Text(
-                                                    text = context.getString(R.string.time_constraint_daily_total_desc, dailyTotalMinutes),
+                                                    text = context.getString(R.string.time_constraint_daily_total_desc, formatMinutes(dailyTotalMinutes)),
                                                     fontSize = 12.sp,
                                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                                 )
@@ -486,7 +496,7 @@ fun AddRuleDialog(
                                             Column {
                                                 Text(text = context.getString(R.string.time_constraint_recent_total))
                                                 Text(
-                                                    text = context.getString(R.string.time_constraint_recent_total_desc, recentHours, recentMinutes),
+                                                    text = context.getString(R.string.time_constraint_recent_total_desc, recentHours, formatMinutes(recentMinutes)),
                                                     fontSize = 12.sp,
                                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                                 )
@@ -690,7 +700,7 @@ fun AddRuleDialog(
             confirmButton = {
                 Button(
                     onClick = {
-                        continuousMinutes = inputText.toIntOrNull() ?: 3
+                        continuousMinutes = inputText.toDoubleOrNull() ?: 3.0
                         timeConstraintType = TimeConstraint.Continuous(continuousMinutes)
                         showContinuousMinutesDialog = false
                     }
@@ -723,7 +733,7 @@ fun AddRuleDialog(
             confirmButton = {
                 Button(
                     onClick = {
-                        dailyTotalMinutes = inputText.toIntOrNull() ?: 30
+                        dailyTotalMinutes = inputText.toDoubleOrNull() ?: 30.0
                         timeConstraintType = TimeConstraint.DailyTotal(dailyTotalMinutes)
                         showDailyTotalMinutesDialog = false
                     }
@@ -790,7 +800,7 @@ fun AddRuleDialog(
             confirmButton = {
                 Button(
                     onClick = {
-                        recentMinutes = inputText.toIntOrNull() ?: 60
+                        recentMinutes = inputText.toDoubleOrNull() ?: 60.0
                         timeConstraintType = TimeConstraint.RecentTotal(recentHours, recentMinutes)
                         showRecentMinutesDialog = false
                     }
@@ -824,19 +834,15 @@ fun EditRuleDialog(
     var showActionParameterDialog by remember { mutableStateOf(false) }
     var showTimeIntervalDialog by remember { mutableStateOf(false) }
     var enableTimeConstraint by remember { mutableStateOf(rule.timeConstraint != null) }
-    var timeConstraintType by remember { 
-        mutableStateOf<TimeConstraint?>(
-            rule.timeConstraint ?: null
-        ) 
-    }
+    var timeConstraintType by remember { mutableStateOf(rule.timeConstraint) }
     var continuousMinutes by remember { 
         mutableStateOf(
-            (rule.timeConstraint as? TimeConstraint.Continuous)?.minutes ?: 3
+            (rule.timeConstraint as? TimeConstraint.Continuous)?.minutes ?: 3.0
         ) 
     }
     var dailyTotalMinutes by remember { 
         mutableStateOf(
-            (rule.timeConstraint as? TimeConstraint.DailyTotal)?.minutes ?: 30
+            (rule.timeConstraint as? TimeConstraint.DailyTotal)?.minutes ?: 30.0
         ) 
     }
     var recentHours by remember { 
@@ -846,10 +852,9 @@ fun EditRuleDialog(
     }
     var recentMinutes by remember { 
         mutableStateOf(
-            (rule.timeConstraint as? TimeConstraint.RecentTotal)?.minutes ?: 60
+            (rule.timeConstraint as? TimeConstraint.RecentTotal)?.minutes ?: 60.0
         ) 
     }
-    var showTimeConstraintTypeDialog by remember { mutableStateOf(false) }
     var showContinuousMinutesDialog by remember { mutableStateOf(false) }
     var showDailyTotalMinutesDialog by remember { mutableStateOf(false) }
     var showRecentHoursDialog by remember { mutableStateOf(false) }
@@ -1060,7 +1065,7 @@ fun EditRuleDialog(
                                             Column {
                                                 Text(text = context.getString(R.string.time_constraint_continuous))
                                                 Text(
-                                                    text = context.getString(R.string.time_constraint_continuous_desc, continuousMinutes),
+                                                    text = context.getString(R.string.time_constraint_continuous_desc, formatMinutes(continuousMinutes)),
                                                     fontSize = 12.sp,
                                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                                 )
@@ -1091,7 +1096,7 @@ fun EditRuleDialog(
                                             Column {
                                                 Text(text = context.getString(R.string.time_constraint_daily_total))
                                                 Text(
-                                                    text = context.getString(R.string.time_constraint_daily_total_desc, dailyTotalMinutes),
+                                                    text = context.getString(R.string.time_constraint_daily_total_desc, formatMinutes(dailyTotalMinutes)),
                                                     fontSize = 12.sp,
                                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                                 )
@@ -1122,7 +1127,7 @@ fun EditRuleDialog(
                                             Column {
                                                 Text(text = context.getString(R.string.time_constraint_recent_total))
                                                 Text(
-                                                    text = context.getString(R.string.time_constraint_recent_total_desc, recentHours, recentMinutes),
+                                                    text = context.getString(R.string.time_constraint_recent_total_desc, recentHours, formatMinutes(recentMinutes)),
                                                     fontSize = 12.sp,
                                                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
                                                 )
@@ -1326,7 +1331,7 @@ fun EditRuleDialog(
             confirmButton = {
                 Button(
                     onClick = {
-                        continuousMinutes = inputText.toIntOrNull() ?: 3
+                        continuousMinutes = inputText.toDoubleOrNull() ?: 3.0
                         timeConstraintType = TimeConstraint.Continuous(continuousMinutes)
                         showContinuousMinutesDialog = false
                     }
@@ -1359,7 +1364,7 @@ fun EditRuleDialog(
             confirmButton = {
                 Button(
                     onClick = {
-                        dailyTotalMinutes = inputText.toIntOrNull() ?: 30
+                        dailyTotalMinutes = inputText.toDoubleOrNull() ?: 30.0
                         timeConstraintType = TimeConstraint.DailyTotal(dailyTotalMinutes)
                         showDailyTotalMinutesDialog = false
                     }
@@ -1426,7 +1431,7 @@ fun EditRuleDialog(
             confirmButton = {
                 Button(
                     onClick = {
-                        recentMinutes = inputText.toIntOrNull() ?: 60
+                        recentMinutes = inputText.toDoubleOrNull() ?: 60.0
                         timeConstraintType = TimeConstraint.RecentTotal(recentHours, recentMinutes)
                         showRecentMinutesDialog = false
                     }
