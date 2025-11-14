@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
 import android.graphics.drawable.Drawable
+import java.util.Calendar
 
 data class InstalledApp(
     val packageName: String,
@@ -11,7 +12,7 @@ data class InstalledApp(
     val icon: Drawable?
 )
 
-object InstalledAppHelper {
+object GenericUtils {
     
     /**
      * Get all installed apps on the device
@@ -40,4 +41,17 @@ object InstalledAppHelper {
             }
             .sortedBy { it.appName }
     }
+    
+    /**
+     * Get today's start time (00:00:00) in milliseconds
+     */
+    fun getTodayStartTime(): Long {
+        val calendar = Calendar.getInstance()
+        calendar.set(Calendar.HOUR_OF_DAY, 0)
+        calendar.set(Calendar.MINUTE, 0)
+        calendar.set(Calendar.SECOND, 0)
+        calendar.set(Calendar.MILLISECOND, 0)
+        return calendar.timeInMillis
+    }
 }
+

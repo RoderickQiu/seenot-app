@@ -132,7 +132,7 @@ object RuleFormatter {
     /**
      * Format minutes value: show as integer if whole number, otherwise show decimal
      */
-    private fun formatMinutes(minutes: Double): String {
+    fun formatMinutes(minutes: Double): String {
         return if (minutes % 1.0 == 0.0) {
             minutes.toInt().toString()
         } else {

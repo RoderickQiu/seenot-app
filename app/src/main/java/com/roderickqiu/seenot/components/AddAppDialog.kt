@@ -34,7 +34,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.roderickqiu.seenot.R
 import com.roderickqiu.seenot.data.MonitoringApp
-import com.roderickqiu.seenot.utils.InstalledAppHelper
+import com.roderickqiu.seenot.utils.GenericUtils
 import com.roderickqiu.seenot.utils.InstalledApp
 
 @Composable
@@ -49,7 +49,7 @@ fun AddAppDialog(
     var showAppList by remember { mutableStateOf(false) }
     
     LaunchedEffect(Unit) {
-        val allInstalledApps = InstalledAppHelper.getInstalledApps(context)
+        val allInstalledApps = GenericUtils.getInstalledApps(context)
         val existingAppNames = existingApps.map { it.name }.toSet()
         
         // Filter out SeeNot app and already added apps

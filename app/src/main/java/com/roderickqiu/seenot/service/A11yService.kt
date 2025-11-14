@@ -5,16 +5,12 @@ import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
-import android.content.ContentValues
 import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
-import android.net.Uri
 import android.os.Handler
 import android.os.Looper
-import android.provider.MediaStore
-import android.util.Base64
 import android.util.Log
 import android.view.Display
 import android.view.accessibility.AccessibilityEvent
@@ -41,13 +37,13 @@ import com.roderickqiu.seenot.data.ConditionType
 import com.roderickqiu.seenot.data.Rule
 import com.roderickqiu.seenot.data.RuleCondition
 import com.roderickqiu.seenot.data.TimeConstraint
-import com.roderickqiu.seenot.utils.AccessibilityEventUtils
+import com.roderickqiu.seenot.service.A11yEventUtils
+import com.roderickqiu.seenot.service.BitmapUtils
+import com.roderickqiu.seenot.service.AIServiceUtils
+import com.roderickqiu.seenot.utils.GenericUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
-import java.io.ByteArrayOutputStream
-import java.util.Calendar
-import kotlin.text.RegexOption
 import kotlin.time.Duration.Companion.seconds
 
 class A11yService : AccessibilityService() {
@@ -109,7 +105,7 @@ class A11yService : AccessibilityService() {
 
                     val className = e.className?.toString()
                     val capable =
-                            AccessibilityEventUtils.isCapableClass(
+                            A11yEventUtils.isCapableClass(
                                     className,
                                     lastTimeClassName,
                                     lastTimeClassCapable
@@ -131,12 +127,12 @@ class A11yService : AccessibilityService() {
                     if (currentMonitoredPackage != null) {
                         Log.d(
                                 "A11yService",
-                                "Accessibility event: ${AccessibilityEventUtils.eventTypeName(e.eventType)}, className: ${e.className?.toString()}, packageName: ${e.packageName?.toString()}, text: ${e.text.toString()}"
+                                "Accessibility event: ${A11yEventUtils.eventTypeName(e.eventType)}, className: ${e.className?.toString()}, packageName: ${e.packageName?.toString()}, text: ${e.text.toString()}"
                         )
                         if (now - lastMonitoredLogTimeMs >= LOG_INTERVAL_MS) {
                             Log.d(
                                     "A11yService",
-                                    "Active in monitored app: $currentMonitoredAppName (package: $currentMonitoredPackage) via event: ${AccessibilityEventUtils.eventTypeName(e.eventType)}"
+                                    "Active in monitored app: $currentMonitoredAppName (package: $currentMonitoredPackage) via event: ${A11yEventUtils.eventTypeName(e.eventType)}"
                             )
                             tryTakeScreenshot("periodic-active")
                             lastMonitoredLogTimeMs = now
@@ -278,12 +274,12 @@ class A11yService : AccessibilityService() {
                                             hardwareBitmap.copy(Bitmap.Config.ARGB_8888, true)
 
                                     // Save original screenshot to gallery if enabled
-                                    if (loadAutoSaveScreenshot()) {
+                                    if (AIServiceUtils.loadAutoSaveScreenshot(this@A11yService)) {
                                         // Create a separate copy for saving to gallery to avoid interference
                                         val galleryBitmap = mutableBitmap.copy(Bitmap.Config.ARGB_8888, false)
                                         coroutineScope.launch {
                                             try {
-                                                saveBitmapToGallery(galleryBitmap, reason)
+                                                BitmapUtils.saveBitmapToGallery(this@A11yService, galleryBitmap, currentMonitoredAppName, reason)
                                                 galleryBitmap.recycle()
                                             } catch (e: Exception) {
                                                 Log.e("A11yService", "Error saving screenshot to gallery", e)
@@ -347,75 +343,10 @@ class A11yService : AccessibilityService() {
         }
     }
 
-    private fun loadAiModelId(): String {
-        val prefs = getSharedPreferences("seenot_ai", Context.MODE_PRIVATE)
-        return prefs.getString("model", "qwen3-vl-plus") ?: "qwen3-vl-plus"
-    }
-
-    private fun loadAiKey(): String {
-        val prefs = getSharedPreferences("seenot_ai", Context.MODE_PRIVATE)
-        return prefs.getString("api_key", "") ?: ""
-    }
-
-    private fun loadAutoSaveScreenshot(): Boolean {
-        val prefs = getSharedPreferences("seenot_ai", Context.MODE_PRIVATE)
-        return prefs.getBoolean("auto_save_screenshot", false)
-    }
-
-    private fun loadShowRuleResultToast(): Boolean {
-        val prefs = getSharedPreferences("seenot_ai", Context.MODE_PRIVATE)
-        return prefs.getBoolean("show_rule_result_toast", false)
-    }
-
-    private fun bitmapToBase64(bitmap: Bitmap): String {
-        val outputStream = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.PNG, 85, outputStream)
-        val byteArray = outputStream.toByteArray()
-        return Base64.encodeToString(byteArray, Base64.NO_WRAP)
-    }
-
-    private suspend fun saveBitmapToGallery(bitmap: Bitmap, reason: String) {
-        try {
-            val appName = currentMonitoredAppName ?: "Unknown"
-            val timestamp = System.currentTimeMillis()
-            val displayName = "SeeNot_${appName}_${timestamp}_$reason.jpg"
-
-            val contentValues = ContentValues().apply {
-                put(MediaStore.MediaColumns.DISPLAY_NAME, displayName)
-                put(MediaStore.MediaColumns.MIME_TYPE, "image/jpeg")
-                put(MediaStore.MediaColumns.RELATIVE_PATH, "Pictures/SeeNot")
-                put(MediaStore.MediaColumns.IS_PENDING, 1)
-            }
-
-            val uri = contentResolver.insert(
-                MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
-                contentValues
-            ) ?: run {
-                Log.e("A11yService", "Failed to create MediaStore entry")
-                return
-            }
-
-            contentResolver.openOutputStream(uri)?.use { outputStream ->
-                bitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
-            } ?: run {
-                Log.e("A11yService", "Failed to open output stream")
-                contentResolver.delete(uri, null, null)
-                return
-            }
-
-            contentValues.clear()
-            contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
-            contentResolver.update(uri, contentValues, null, null)
-
-            Log.d("A11yService", "Screenshot saved to gallery: $displayName")
-        } catch (e: Exception) {
-            Log.e("A11yService", "Error saving screenshot to gallery", e)
-        }
-    }
 
     private fun describeImageWithAI(bitmap: Bitmap) {
-        val apiKey = loadAiKey()
-        val modelId = loadAiModelId()
+        val apiKey = AIServiceUtils.loadAiKey(this)
+        val modelId = AIServiceUtils.loadAiModelId(this)
 
         if (apiKey.isEmpty()) {
             Log.w("A11yService", "AI API key not configured, skipping image description")
@@ -425,7 +356,7 @@ class A11yService : AccessibilityService() {
         coroutineScope.launch {
             try {
                 // Convert bitmap to base64
-                val base64Image = bitmapToBase64(bitmap)
+                val base64Image = BitmapUtils.bitmapToBase64(bitmap)
                 Log.d("A11yService", "Image converted to base64, size: ${base64Image.length} chars")
 
                 // Get activated rules only for the currently monitored app
@@ -463,7 +394,7 @@ class A11yService : AccessibilityService() {
                 val openAI = OpenAI(
                     token = apiKey,
                     timeout = Timeout(socket = 60.seconds),
-                    host = OpenAIHost(baseUrl = AI_BASE_URL)
+                    host = OpenAIHost(baseUrl = AIServiceUtils.AI_BASE_URL)
                 )
 
                 val imageContent = "data:image/png;base64,$base64Image"
@@ -509,9 +440,9 @@ class A11yService : AccessibilityService() {
                         
                         // Combine AI_PROMPT with the condition question and app context
                         val fullPrompt = if (appContext != null) {
-                            "$AI_PROMPT\n\n$appContext\n\nUser's question: $question"
+                            "${AIServiceUtils.AI_PROMPT}\n\n$appContext\n\nUser's question: $question"
                         } else {
-                            "$AI_PROMPT\n\nUser's question: $question"
+                            "${AIServiceUtils.AI_PROMPT}\n\nUser's question: $question"
                         }
 
                         // Create chat completion request
@@ -541,10 +472,10 @@ class A11yService : AccessibilityService() {
                             Log.d("A11yService", "AI Result for app=$appName, question=$question, context=$appContext, condition=${condition.type}, action=${action.type}: $result, elapsed time: ${elapsedTime}ms")
                             
                             // Parse AI result to check if condition matches
-                            val isConditionMatch = parseAIResult(result)
+                            val isConditionMatch = AIServiceUtils.parseAIResult(result)
                             
                             // Show toast if debug option is enabled
-                            if (loadShowRuleResultToast()) {
+                            if (AIServiceUtils.loadShowRuleResultToast(this@A11yService)) {
                                 val resultText = if (isConditionMatch) "YES" else "NO"
                                 showToast("$question: $resultText", Toast.LENGTH_SHORT)
                             }
@@ -577,13 +508,6 @@ class A11yService : AccessibilityService() {
                 bitmap.recycle()
             }
         }
-    }
-    
-    private fun parseAIResult(result: String): Boolean {
-        // Parse AI result (assuming JSON format: {"answer": "yes"/"no", "reason": "..."})
-        val yesPattern = Regex("\"answer\"\\s*:\\s*\"yes\"", RegexOption.IGNORE_CASE)
-        val yesPattern2 = Regex("answer.*yes", RegexOption.IGNORE_CASE)
-        return yesPattern.containsMatchIn(result) || yesPattern2.containsMatchIn(result)
     }
     
     private fun handleTimeConstraint(rule: Rule, appName: String, isMatch: Boolean) {
@@ -697,7 +621,7 @@ class A11yService : AccessibilityService() {
             }
             
             // Check total time today
-            val todayStart = getTodayStartTime()
+            val todayStart = GenericUtils.getTodayStartTime()
             val totalMinutes = records.sumOf { record ->
                 val start = maxOf(record.startTime, todayStart)
                 val end = record.endTime ?: now
@@ -817,7 +741,7 @@ class A11yService : AccessibilityService() {
         var expiredCount = 0
         
         states.forEach { stateData ->
-            val (appName, rule) = ruleMap[stateData.stateKey] ?: run {
+            val (appName, _) = ruleMap[stateData.stateKey] ?: run {
                 expiredCount++
                 Log.d("A11yService", "Skipping expired state: ${stateData.stateKey} (rule not found)")
                 return@forEach
@@ -851,7 +775,7 @@ class A11yService : AccessibilityService() {
                     }
                 }
                 "DailyTotal" -> {
-                    val todayStart = getTodayStartTime()
+                    val todayStart = GenericUtils.getTodayStartTime()
                     
                     // Clean records before today
                     records.removeAll { record ->
@@ -951,15 +875,6 @@ class A11yService : AccessibilityService() {
         }
     }
     
-    private fun getTodayStartTime(): Long {
-        val calendar = Calendar.getInstance()
-        calendar.set(Calendar.HOUR_OF_DAY, 0)
-        calendar.set(Calendar.MINUTE, 0)
-        calendar.set(Calendar.SECOND, 0)
-        calendar.set(Calendar.MILLISECOND, 0)
-        return calendar.timeInMillis
-    }
-    
     private fun triggerAction(rule: Rule, appName: String) {
         when (rule.action.type) {
             ActionType.REMIND -> {
@@ -979,21 +894,5 @@ class A11yService : AccessibilityService() {
         private const val CHANNEL_ID = "seenot_accessibility"
         private const val NOTIFICATION_ID = 1001
         const val LOG_INTERVAL_MS: Long = 5_000L
-        // DashScope compatible mode endpoint
-        const val AI_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1/"
-        const val AI_PROMPT = """
-        You are a strict visual classifier. Only answer "yes" if the visual state is a PERFECT MATCH to the user's question. Otherwise answer "no".
-
-        Rules:
-        - Do NOT guess. When uncertain, answer "no".
-        - Partial matches or related elements are "no".
-        - If the visual state is not a PERFECT MATCH to the user's question, answer "no".
-        - Examples:
-        * If the question asks: "Is this a feed/list page showing image-note or video-note items?",
-            then only a scrolling feed or grid/list overview of notes counts as "yes".
-            A detail page of a single note, a player page, or any non-list page is "no".
-        - Output format: strictly JSON {"reason": "brief reason in 10 words or less", "answer": "yes"} or {"reason": "brief reason in 10 words or less", "answer": "no"}.
-        - The reason must be concise and explain why you chose yes or no.
-        """
     }
 }

@@ -1,8 +1,8 @@
-package com.roderickqiu.seenot.utils
+package com.roderickqiu.seenot.service
 
 import android.view.accessibility.AccessibilityEvent
 
-object AccessibilityEventUtils {
+object A11yEventUtils {
     fun eventTypeName(type: Int): String {
         return when (type) {
             AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> "TYPE_WINDOW_STATE_CHANGED"
@@ -44,5 +44,4 @@ object AccessibilityEventUtils {
         }
     }
 }
-
 

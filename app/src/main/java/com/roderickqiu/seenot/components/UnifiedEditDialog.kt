@@ -33,9 +33,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.roderickqiu.seenot.components.RuleItem
-import com.roderickqiu.seenot.components.AddRuleDialog
-import com.roderickqiu.seenot.components.EditRuleDialog
+import com.roderickqiu.seenot.components.rule.RuleItem
+import com.roderickqiu.seenot.components.rule.RuleDialog
 import com.roderickqiu.seenot.R
 import com.roderickqiu.seenot.data.MonitoringApp
 import com.roderickqiu.seenot.data.Rule
@@ -225,9 +224,10 @@ fun UnifiedEditDialog(
     
     // Add Rule Dialog
     if (showAddRuleDialog) {
-        AddRuleDialog(
+        RuleDialog(
+            rule = null,
             onDismiss = { showAddRuleDialog = false },
-            onAddRule = { newRule ->
+            onSaveRule = { newRule ->
                 rules.add(newRule)
                 showAddRuleDialog = false
             }
@@ -236,7 +236,7 @@ fun UnifiedEditDialog(
     
     // Edit Rule Dialog
     editingRuleIndex?.let { index ->
-        EditRuleDialog(
+        RuleDialog(
             rule = rules[index],
             onDismiss = { editingRuleIndex = null },
             onSaveRule = { updatedRule ->
