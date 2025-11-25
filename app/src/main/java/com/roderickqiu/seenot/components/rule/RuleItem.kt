@@ -69,7 +69,8 @@ fun RuleItem(
         Column(
             modifier = Modifier.weight(1f)
         ) {
-            val conditionText = when (rule.condition.type) {
+            val conditionType = rule.condition.type
+            val conditionText = when (conditionType) {
                 ConditionType.TIME_INTERVAL -> {
                     val interval = rule.condition.timeInterval ?: 0
                     context.getString(R.string.condition_time_interval, interval)
@@ -78,10 +79,6 @@ fun RuleItem(
                 ConditionType.ON_PAGE -> {
                     val parameter = rule.condition.parameter ?: ""
                     context.getString(R.string.condition_on_page, parameter)
-                }
-                ConditionType.ON_CONTENT -> {
-                    val parameter = rule.condition.parameter ?: ""
-                    context.getString(R.string.condition_on_content, parameter)
                 }
             }
             

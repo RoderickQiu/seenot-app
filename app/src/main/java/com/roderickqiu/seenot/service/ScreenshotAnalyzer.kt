@@ -176,8 +176,7 @@ class ScreenshotAnalyzer(
                 if (currentApp != null) {
                     for (rule in currentApp.rules) {
                         // Only process conditions that can be evaluated visually
-                        if (rule.condition.type == ConditionType.ON_PAGE || 
-                            rule.condition.type == ConditionType.ON_CONTENT) {
+                        if (rule.condition.type == ConditionType.ON_PAGE) {
                             activatedRules.add(Pair(currentApp.name, rule))
                         }
                     }
@@ -214,16 +213,11 @@ class ScreenshotAnalyzer(
                         val action = rule.action
                         
                         // Build question from condition
-                        val question = when (condition.type) {
-                            ConditionType.ON_PAGE -> {
-                                val pageName = condition.parameter ?: ""
-                                "Is this the $pageName page?"
-                            }
-                            ConditionType.ON_CONTENT -> {
-                                val contentTopic = condition.parameter ?: ""
-                                "Is this content about $contentTopic?"
-                            }
-                            else -> null
+                        val question = if (condition.type == ConditionType.ON_PAGE) {
+                            val description = condition.parameter ?: ""
+                            "Does the current screen match this description: $description?"
+                        } else {
+                            null
                         }
 
                         if (question == null) {

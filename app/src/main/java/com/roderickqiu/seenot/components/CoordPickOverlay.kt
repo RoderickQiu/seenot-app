@@ -57,7 +57,7 @@ class CoordPickOverlay(
         if (!canDrawOverlays()) {
             Toast.makeText(
                 context,
-                context.getString(R.string.overlay_permission_required),
+                context.getString(R.string.coordinate_picker_error),
                 Toast.LENGTH_LONG
             ).show()
             onDismiss()

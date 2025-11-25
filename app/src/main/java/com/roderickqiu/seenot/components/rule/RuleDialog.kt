@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
+import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -207,13 +208,32 @@ fun RuleDialog(
         confirmButton = {
             Button(
                 onClick = {
+                    val trimmedActionParameter = actionParameter.trim()
+                    if (selectedActionType == ActionType.REMIND && trimmedActionParameter.isEmpty()) {
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.error_remind_message_required),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        selectedTab = 1
+                        return@Button
+                    }
+                    if (selectedActionType == ActionType.AUTO_CLICK && trimmedActionParameter.isEmpty()) {
+                        Toast.makeText(
+                            context,
+                            context.getString(R.string.error_coordinate_required),
+                            Toast.LENGTH_SHORT
+                        ).show()
+                        selectedTab = 1
+                        return@Button
+                    }
                     val condition = when (selectedConditionType) {
                         ConditionType.TIME_INTERVAL -> RuleCondition(
                             type = selectedConditionType,
                             timeInterval = timeInterval
                         )
 
-                        ConditionType.ON_PAGE, ConditionType.ON_CONTENT -> RuleCondition(
+                        ConditionType.ON_PAGE -> RuleCondition(
                             type = selectedConditionType,
                             parameter = conditionParameter
                         )
@@ -224,7 +244,7 @@ fun RuleDialog(
                     val action = when (selectedActionType) {
                         ActionType.REMIND, ActionType.AUTO_CLICK -> RuleAction(
                             type = selectedActionType,
-                            parameter = actionParameter.takeIf { it.isNotEmpty() }
+                            parameter = trimmedActionParameter
                         )
 
                         else -> RuleAction(type = selectedActionType)
@@ -521,7 +541,7 @@ fun RuleDialog(
         AlertDialog(
             onDismissRequest = { showOverlayPermissionDialog = false },
             title = { Text(context.getString(R.string.permission_overlay)) },
-            text = { Text(context.getString(R.string.overlay_permission_required)) },
+            text = { Text(context.getString(R.string.coordinate_picker_error)) },
             confirmButton = {
                 Button(
                     onClick = {

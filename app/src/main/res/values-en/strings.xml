@@ -16,8 +16,7 @@
     <!-- Rule condition descriptions -->
     <string name="condition_time_interval">Every %1$d minutes</string>
     <string name="condition_on_enter">Every time entering</string>
-    <string name="condition_on_page">If on %1$s</string>
-    <string name="condition_on_content">If content about %1$s</string>
+    <string name="condition_on_page">If the page matches %1$s</string>
     
     <!-- Rule action descriptions -->
     <string name="action_remind">Remind</string>
@@ -47,8 +46,7 @@
     <string name="condition_type">Condition Type</string>
     <string name="condition_time_interval_label">Every X minutes</string>
     <string name="condition_on_enter_label">Every time entering</string>
-    <string name="condition_on_page_label">If on specific page</string>
-    <string name="condition_on_content_label">If content about specific topic</string>
+    <string name="condition_on_page_label">If the page matches a description</string>
     <string name="time_interval_minutes">Time interval (minutes):</string>
     <string name="click_to_input_parameter">Click to input parameter</string>
     <string name="action_type">Action Type</string>
@@ -65,6 +63,8 @@
     <string name="please_input_remind_message">Please input remind message</string>
     <string name="remind_message_input_hint">Hint: Input the reminder message to be displayed when the action is triggered.</string>
     <string name="click_to_input_remind_message">Click to input remind message</string>
+    <string name="error_remind_message_required">Please enter a reminder message first to save</string>
+    <string name="error_coordinate_required">Please select a coordinate first to save</string>
     <string name="input_time_interval">Input time interval (minutes)</string>
     <string name="please_input_minutes">Please input minutes</string>
     <string name="time_constraint">Time Constraint</string>
@@ -136,7 +136,6 @@
     <string name="coordinate_picker_test_click">Test click at coordinate (%1$d, %2$d)</string>
     <string name="coordinate_picker_test_click_inside_app">Test click at coordinate (%1$d, %2$d) [Inside app, click not executed]</string>
     <string name="coordinate_picker_error">Cannot show coordinate picker, please check overlay permission</string>
-    <string name="overlay_permission_required">Overlay permission required to use coordinate picker</string>
     <string name="accessibility_required_for_coordinate_picker">Accessibility service required to use coordinate picker</string>
     
     <!-- AI Settings -->

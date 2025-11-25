@@ -22,7 +22,7 @@ data class Rule(
 data class RuleCondition(
     val type: ConditionType,
     val timeInterval: Int? = null, // in minutes, null if not applicable
-    val parameter: String? = null // app-specific parameter for ON_PAGE and ON_CONTENT
+    val parameter: String? = null // description for ON_PAGE condition
 )
 
 /** Represents the action part of a rule */
@@ -47,8 +47,7 @@ sealed class TimeConstraint {
 enum class ConditionType {
     TIME_INTERVAL, // every X minutes
     ON_ENTER, // every time enter
-    ON_PAGE, // if on specific page
-    ON_CONTENT // if content about specific topic
+    ON_PAGE // if on specific page
 }
 
 /** Types of actions */

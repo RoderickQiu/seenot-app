@@ -26,10 +26,6 @@ object RuleFormatter {
                 val comma = getCommaForLanguage(context)
                 "$conditionText$comma$actionText"
             }
-            ConditionType.ON_CONTENT -> {
-                val comma = getCommaForLanguage(context)
-                "$conditionText$comma$actionText"
-            }
         }
         
         // Append time constraint if present
@@ -61,11 +57,6 @@ object RuleFormatter {
             ConditionType.ON_PAGE -> {
                 val parameter = condition.parameter ?: ""
                 context.getString(R.string.condition_on_page, parameter)
-            }
-
-            ConditionType.ON_CONTENT -> {
-                val parameter = condition.parameter ?: ""
-                context.getString(R.string.condition_on_content, parameter)
             }
         }
     }

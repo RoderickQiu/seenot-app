@@ -53,19 +53,20 @@ fun ConditionTab(
                     ConditionType.TIME_INTERVAL -> context.getString(R.string.condition_time_interval_label)
                     ConditionType.ON_ENTER -> context.getString(R.string.condition_on_enter_label)
                     ConditionType.ON_PAGE -> context.getString(R.string.condition_on_page_label)
-                    ConditionType.ON_CONTENT -> context.getString(R.string.condition_on_content_label)
                 }
+                val isSelected = selectedConditionType == conditionType
+                val onSelect: () -> Unit = { onConditionTypeSelected(conditionType) }
                 
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clickable { onConditionTypeSelected(conditionType) }
+                        .clickable(onClick = onSelect)
                         .padding(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Checkbox(
-                        checked = selectedConditionType == conditionType,
-                        onCheckedChange = { onConditionTypeSelected(conditionType) }
+                        checked = isSelected,
+                        onCheckedChange = { onSelect() }
                     )
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(text = conditionText)
@@ -89,8 +90,8 @@ fun ConditionTab(
             }
         }
         
-        // Parameter input for ON_PAGE and ON_CONTENT conditions
-        if (selectedConditionType == ConditionType.ON_PAGE || selectedConditionType == ConditionType.ON_CONTENT) {
+        // Parameter input for ON_PAGE condition
+        if (selectedConditionType == ConditionType.ON_PAGE) {
             OutlinedButton(
                 onClick = onConditionParameterClick,
                 modifier = Modifier.fillMaxWidth()

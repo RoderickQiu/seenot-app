@@ -42,7 +42,7 @@ import com.roderickqiu.seenot.components.UnifiedEditDialog
 import com.roderickqiu.seenot.data.ActionType
 import com.roderickqiu.seenot.data.ConditionType
 import com.roderickqiu.seenot.data.MonitoringApp
-import com.roderickqiu.seenot.data.MonitoringAppRepository
+import com.roderickqiu.seenot.data.MonitoringRepo
 import com.roderickqiu.seenot.data.Rule
 import com.roderickqiu.seenot.data.RuleAction
 import com.roderickqiu.seenot.data.RuleCondition
@@ -50,14 +50,14 @@ import com.roderickqiu.seenot.ui.theme.SeeNotTheme
 import com.roderickqiu.seenot.settings.AiSettingsDialog
 
 class MainActivity : ComponentActivity() {
-    private lateinit var repository: MonitoringAppRepository
+    private lateinit var repository: MonitoringRepo
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
 
-        repository = MonitoringAppRepository(this)
+        repository = MonitoringRepo(this)
 
         setContent {
             SeeNotTheme {

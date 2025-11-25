@@ -4,7 +4,7 @@ import android.content.Context
 import com.roderickqiu.seenot.data.MonitoringApp
 import com.roderickqiu.seenot.data.TimeConstraint
 
-class MonitoringAppRepository(private val context: Context) {
+class MonitoringRepo(private val context: Context) {
 
     private val dataStore = AppDataStore(context)
 
@@ -68,7 +68,7 @@ class MonitoringAppRepository(private val context: Context) {
                 rules = listOf(
                     Rule(
                         condition = RuleCondition(
-                            type = ConditionType.ON_CONTENT,
+                            type = ConditionType.ON_PAGE,
                             parameter = "在看公众号文章"
                         ),
                         action = RuleAction(
@@ -106,7 +106,7 @@ class MonitoringAppRepository(private val context: Context) {
                 rules = listOf(
                     Rule(
                         condition = RuleCondition(
-                            type = ConditionType.ON_CONTENT,
+                            type = ConditionType.ON_PAGE,
                             parameter = "整页长的商品推荐瀑布流列表"
                         ),
                         action = RuleAction(
