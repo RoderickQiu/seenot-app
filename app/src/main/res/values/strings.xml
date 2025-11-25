@@ -120,6 +120,10 @@
     <string name="invalid_coordinate">无效坐标格式</string>
     
     <!-- Coordinate Picker -->
+    <string name="coordinate_picker_panel_title">坐标拾取工具</string>
+    <string name="coordinate_picker_panel_hint">拖动至不遮挡的位置，随时开启选择</string>
+    <string name="coordinate_picker_status_idle">等待选择</string>
+    <string name="coordinate_picker_status_selected">坐标已记录</string>
     <string name="coordinate_picker_instruction">拖动此窗口到合适位置，然后点击"选择坐标"按钮开始选择</string>
     <string name="coordinate_picker_select_mode">选择坐标</string>
     <string name="coordinate_picker_select_instruction">现在请点击屏幕选择坐标位置</string>

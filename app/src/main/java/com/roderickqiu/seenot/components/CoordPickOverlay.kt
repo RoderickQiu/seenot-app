@@ -2,7 +2,10 @@ package com.roderickqiu.seenot.components
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
+import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.drawable.GradientDrawable
 import android.provider.Settings
 import android.view.Gravity
 import android.view.MotionEvent
@@ -15,6 +18,9 @@ import android.widget.TextView
 import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.toColorInt
+import com.roderickqiu.seenot.MainActivity
+import kotlin.math.min
+import kotlin.math.roundToInt
 import com.roderickqiu.seenot.R
 import com.roderickqiu.seenot.service.A11yService
 
@@ -33,6 +39,14 @@ class CoordPickOverlay(
     private var lastX: Int = 0
     private var lastY: Int = 0
     private var isDragging: Boolean = false
+    private val density = context.resources.displayMetrics.density
+    private val accentColor = Color.parseColor("#F6C439")
+    private val accentDark = Color.parseColor("#3A2E00")
+    private val surfaceTint = Color.parseColor("#FFFCF3")
+    private val containerColor = Color.parseColor("#FFF3C4")
+    private val subtleTextColor = Color.parseColor("#8E8266")
+    private val successColor = Color.parseColor("#4CAF50")
+    private val destructiveColor = Color.parseColor("#E57373")
 
     init {
         windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
@@ -78,64 +92,140 @@ class CoordPickOverlay(
 
         val bottomSheet = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setBackgroundColor(ContextCompat.getColor(context, android.R.color.white))
-            elevation = 8f
+            background = createCardBackground()
+            elevation = 12f
+            setPadding(16.dp(), 18.dp(), 16.dp(), 18.dp())
         }
 
-        val layoutParams = FrameLayout.LayoutParams(
+        val sheetLayoutParams = FrameLayout.LayoutParams(
             FrameLayout.LayoutParams.WRAP_CONTENT,
             FrameLayout.LayoutParams.WRAP_CONTENT
         ).apply {
             gravity = Gravity.TOP or Gravity.START
-            setMargins(16, 16, 16, 16)
+            setMargins(16.dp(), 16.dp(), 16.dp(), 16.dp())
+        }
+        val maxWidthPx = min((context.resources.displayMetrics.widthPixels * 0.78f).roundToInt(), 320.dp())
+        sheetLayoutParams.width = maxWidthPx
+
+        bottomSheet.layoutParams = sheetLayoutParams
+
+        // Header
+        val headerLayout = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
         }
 
-        bottomSheet.layoutParams = layoutParams
+        val accentBar = View(context).apply {
+            background = GradientDrawable().apply {
+                cornerRadius = 999f
+                setColor(accentColor)
+            }
+        }
+        val accentParams = LinearLayout.LayoutParams(8.dp(), 32.dp()).apply {
+            rightMargin = 12.dp()
+        }
+        accentBar.layoutParams = accentParams
 
-        // Add title
         val title = TextView(context).apply {
-            text = context.getString(R.string.coordinate_picker_instruction)
-            textSize = 16f
+            text = context.getString(R.string.coordinate_picker_panel_title)
+            textSize = 18f
             setTextColor(ContextCompat.getColor(context, android.R.color.black))
-            setPadding(16, 16, 16, 8)
+            layoutParams = LinearLayout.LayoutParams(
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+            )
         }
 
-        bottomSheet.addView(title)
+        val statusBadge = TextView(context).apply {
+            textSize = 12f
+            setPadding(12.dp(), 6.dp(), 12.dp(), 6.dp())
+            updateBadge(
+                R.string.coordinate_picker_status_idle,
+                accentColor,
+                accentDark
+            )
+        }
+
+        headerLayout.addView(accentBar)
+        headerLayout.addView(title)
+        headerLayout.addView(statusBadge)
+        bottomSheet.addView(headerLayout)
+
+        val helperText = TextView(context).apply {
+            text = context.getString(R.string.coordinate_picker_panel_hint)
+            textSize = 14f
+            setTextColor(subtleTextColor)
+            setPadding(0, 12.dp(), 0, 8.dp())
+        }
+
+        bottomSheet.addView(helperText)
+
+        val divider = View(context).apply {
+            setBackgroundColor("#1A000000".toColorInt())
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                1
+            )
+        }
+
+        bottomSheet.addView(divider)
+
+        val coordinateContainer = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            background = GradientDrawable().apply {
+                cornerRadius = 16.dp().toFloat()
+                setColor(containerColor)
+            }
+            setPadding(16.dp(), 12.dp(), 16.dp(), 12.dp())
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = 16.dp()
+            }
+        }
+
+        val coordinateLabel = TextView(context).apply {
+            text = context.getString(R.string.coordinate_picker_select_instruction)
+            textSize = 13f
+            setTextColor(subtleTextColor)
+        }
 
         // Add coordinate text
         val coordinateText = TextView(context).apply {
             text = context.getString(R.string.coordinate_picker_no_selection)
             textSize = 14f
             setTextColor(ContextCompat.getColor(context, android.R.color.darker_gray))
-            setPadding(16, 8, 16, 16)
+            setPadding(0, 8.dp(), 0, 0)
         }
 
-        bottomSheet.addView(coordinateText)
+        coordinateContainer.addView(coordinateLabel)
+        coordinateContainer.addView(coordinateText)
+        bottomSheet.addView(coordinateContainer)
 
         // Add buttons
-        val buttonLayout = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
-        }
-
         val selectButton = Button(context).apply {
             text = context.getString(R.string.coordinate_picker_select_mode)
-        }
+        }.also { stylePrimaryButton(it) }
 
         val testButton = Button(context).apply {
             text = context.getString(R.string.coordinate_picker_test)
-            isEnabled = false
-        }
+        }.also { styleOutlineButton(it, accentColor, accentDark) }
 
         val saveButton = Button(context).apply {
             text = context.getString(R.string.save)
-        }
+        }.also { styleOutlineButton(it, accentColor, accentDark) }
 
         val cancelButton = Button(context).apply {
             text = context.getString(R.string.cancel)
             setOnClickListener {
                 dismiss()
             }
-        }
+        }.also { styleOutlineButton(it, destructiveColor) }
+
+        testButton.updateEnabledState(false)
+        saveButton.updateEnabledState(false)
 
         // Set up select button functionality
         selectButton.setOnClickListener {
@@ -150,7 +240,13 @@ class CoordPickOverlay(
             }
 
             // Enable selection mode on full screen overlay
-            enableSelectionOnFullScreenOverlay(coordinateText, testButton, saveButton, selectButton)
+            enableSelectionOnFullScreenOverlay(
+                coordinateText,
+                testButton,
+                saveButton,
+                selectButton,
+                statusBadge
+            )
         }
 
         // Set up test button functionality
@@ -171,20 +267,59 @@ class CoordPickOverlay(
             ).show()
         }
 
-        val buttonParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
-        buttonParams.setMargins(8, 8, 8, 16)
+        val primaryButtonRow = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+        }
 
-        selectButton.layoutParams = buttonParams
-        testButton.layoutParams = buttonParams
-        saveButton.layoutParams = buttonParams
-        cancelButton.layoutParams = buttonParams
+        selectButton.layoutParams = LinearLayout.LayoutParams(
+            LinearLayout.LayoutParams.MATCH_PARENT,
+            LinearLayout.LayoutParams.WRAP_CONTENT
+        ).apply {
+            topMargin = 16.dp()
+        }
 
-        buttonLayout.addView(selectButton)
-        buttonLayout.addView(testButton)
-        buttonLayout.addView(saveButton)
-        buttonLayout.addView(cancelButton)
+        primaryButtonRow.addView(selectButton)
+        bottomSheet.addView(primaryButtonRow)
 
-        bottomSheet.addView(buttonLayout)
+        val secondaryButtonRow = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+        }
+
+        val testButtonParams = LinearLayout.LayoutParams(
+            0,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            1f
+        ).apply {
+            topMargin = 12.dp()
+            marginEnd = 8.dp()
+        }
+
+        val saveButtonParams = LinearLayout.LayoutParams(
+            0,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            1f
+        ).apply {
+            topMargin = 12.dp()
+            marginEnd = 8.dp()
+        }
+
+        val cancelButtonParams = LinearLayout.LayoutParams(
+            0,
+            LinearLayout.LayoutParams.WRAP_CONTENT,
+            1f
+        ).apply {
+            topMargin = 12.dp()
+        }
+
+        testButton.layoutParams = testButtonParams
+        saveButton.layoutParams = saveButtonParams
+        cancelButton.layoutParams = cancelButtonParams
+
+        secondaryButtonRow.addView(testButton)
+        secondaryButtonRow.addView(saveButton)
+        secondaryButtonRow.addView(cancelButton)
+
+        bottomSheet.addView(secondaryButtonRow)
         controlLayout.addView(bottomSheet)
 
         // Set initial touch listener for dragging control panel
@@ -292,13 +427,21 @@ class CoordPickOverlay(
         coordinateText: TextView,
         testButton: Button,
         saveButton: Button,
-        selectButton: Button
+        selectButton: Button,
+        statusBadge: TextView
     ) {
-        testButton.isEnabled = false
+        testButton.updateEnabledState(false)
+        saveButton.updateEnabledState(false)
         // Make full screen overlay touchable and semi-transparent
         fullScreenParams?.flags = WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE or
                 WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
         fullScreenOverlayView?.setBackgroundColor("#80000000".toColorInt()) // 50% transparent black
+        statusBadge.updateBadge(
+            R.string.coordinate_picker_select_instruction,
+            accentColor,
+            accentDark
+        )
+        coordinateText.text = context.getString(R.string.coordinate_picker_select_instruction)
 
         // Variables to store the selected coordinates
         var selectedX = 0
@@ -309,6 +452,25 @@ class CoordPickOverlay(
         selectButton.setOnClickListener {
             // Reset full screen overlay to non-touchable and transparent
             resetFullScreenOverlay()
+            val hasSelection = selectedX != 0 || selectedY != 0
+            if (hasSelection) {
+                statusBadge.updateBadge(
+                    R.string.coordinate_picker_status_selected,
+                    successColor,
+                    Color.WHITE
+                )
+                testButton.updateEnabledState(true)
+                saveButton.updateEnabledState(true)
+            } else {
+                statusBadge.updateBadge(
+                    R.string.coordinate_picker_status_idle,
+                    accentColor,
+                    accentDark
+                )
+                testButton.updateEnabledState(false)
+                saveButton.updateEnabledState(false)
+                coordinateText.text = context.getString(R.string.coordinate_picker_no_selection)
+            }
             // Change button back to select mode
             selectButton.text = context.getString(R.string.coordinate_picker_select_mode)
             selectButton.setOnClickListener {
@@ -327,7 +489,8 @@ class CoordPickOverlay(
                     coordinateText,
                     testButton,
                     saveButton,
-                    selectButton
+                    selectButton,
+                    statusBadge
                 )
             }
         }
@@ -392,6 +555,7 @@ class CoordPickOverlay(
             onCoordinateSelected(coordinate)
             // Dismiss the overlay when saving
             dismiss()
+            launchSeeNotHome()
         }
 
         // Set touch listener for coordinate selection
@@ -400,9 +564,15 @@ class CoordPickOverlay(
                 MotionEvent.ACTION_DOWN -> {
                     selectedX = event.rawX.toInt()
                     selectedY = event.rawY.toInt()
-                    testButton.isEnabled = true
+                    testButton.updateEnabledState(true)
+                    saveButton.updateEnabledState(true)
                     coordinateText.text =
                         context.getString(R.string.coordinate_picker_selected, selectedX, selectedY)
+                    statusBadge.updateBadge(
+                        R.string.coordinate_picker_status_selected,
+                        successColor,
+                        Color.WHITE
+                    )
 
                     v.performClick()
                 }
@@ -452,6 +622,78 @@ class CoordPickOverlay(
         A11yService.getInstance()?.setRulesEnabled(true)
         onDismiss()
     }
+
+    private fun launchSeeNotHome() {
+        try {
+            val intent = Intent(context, MainActivity::class.java).apply {
+                addFlags(
+                    Intent.FLAG_ACTIVITY_NEW_TASK or
+                            Intent.FLAG_ACTIVITY_CLEAR_TOP or
+                            Intent.FLAG_ACTIVITY_SINGLE_TOP
+                )
+            }
+            context.startActivity(intent)
+        } catch (ignored: Exception) {
+            // If we cannot return automatically, we silently ignore to avoid crashing
+        }
+    }
+
+    private fun createCardBackground(): GradientDrawable {
+        return GradientDrawable().apply {
+            cornerRadius = 20.dp().toFloat()
+            setColor(surfaceTint)
+            setStroke(1.dp(), "#11000000".toColorInt())
+        }
+    }
+
+    private fun createBadgeBackground(color: Int, alphaFactor: Float = 0.2f): GradientDrawable {
+        return GradientDrawable().apply {
+            cornerRadius = 999f
+            setColor(adjustAlpha(color, alphaFactor))
+        }
+    }
+
+    private fun stylePrimaryButton(button: Button) {
+        button.setTextColor(accentDark)
+        button.background = GradientDrawable().apply {
+            cornerRadius = 16.dp().toFloat()
+            setColor(accentColor)
+            setStroke(2.dp(), adjustAlpha(accentDark, 0.25f))
+        }
+        button.setPadding(0, 12.dp(), 0, 12.dp())
+    }
+
+    private fun styleOutlineButton(button: Button, strokeColor: Int, textColor: Int = strokeColor) {
+        button.setTextColor(textColor)
+        button.background = GradientDrawable().apply {
+            cornerRadius = 16.dp().toFloat()
+            setColor(Color.TRANSPARENT)
+            setStroke(2.dp(), adjustAlpha(strokeColor, 0.4f))
+        }
+        button.setPadding(0, 12.dp(), 0, 12.dp())
+    }
+
+    private fun adjustAlpha(color: Int, factor: Float): Int {
+        val alpha = (Color.alpha(color) * factor).roundToInt()
+        return Color.argb(alpha, Color.red(color), Color.green(color), Color.blue(color))
+    }
+
+    private fun Button.updateEnabledState(isEnabledNow: Boolean) {
+        isEnabled = isEnabledNow
+        alpha = if (isEnabledNow) 1f else 0.45f
+    }
+
+    private fun TextView.updateBadge(
+        textRes: Int,
+        color: Int,
+        textColorOverride: Int? = null
+    ) {
+        text = context.getString(textRes)
+        setTextColor(textColorOverride ?: color)
+        background = createBadgeBackground(color)
+    }
+
+    private fun Int.dp(): Int = (this * density).roundToInt()
 
     private fun canDrawOverlays(): Boolean {
         return Settings.canDrawOverlays(context)

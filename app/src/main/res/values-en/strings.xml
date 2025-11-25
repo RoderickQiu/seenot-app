@@ -121,6 +121,10 @@
     <string name="invalid_coordinate">Invalid coordinate format</string>
     
     <!-- Coordinate Picker -->
+    <string name="coordinate_picker_panel_title">Coordinate Picker</string>
+    <string name="coordinate_picker_panel_hint">Drag to a clear corner and start selecting anytime</string>
+    <string name="coordinate_picker_status_idle">Waiting for selection</string>
+    <string name="coordinate_picker_status_selected">Coordinate saved</string>
     <string name="coordinate_picker_instruction">Drag this window to a suitable position, then click "Select Coordinate" button to start selection</string>
     <string name="coordinate_picker_select_mode">Select Coordinate</string>
     <string name="coordinate_picker_select_instruction">Now please tap on the screen to select coordinate</string>
