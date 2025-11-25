@@ -1,9 +1,12 @@
 package com.roderickqiu.seenot.components.rule
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.padding
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
@@ -20,6 +23,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.unit.dp
 import com.roderickqiu.seenot.R
+import com.roderickqiu.seenot.components.CoordPickOverlay
 import com.roderickqiu.seenot.data.ActionType
 import com.roderickqiu.seenot.data.ConditionType
 import com.roderickqiu.seenot.data.Rule
@@ -39,63 +43,99 @@ fun RuleDialog(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val isEditMode = rule != null
-    
+
     var selectedTab by remember { mutableStateOf(0) }
-    var selectedConditionType by remember { 
-        mutableStateOf(rule?.condition?.type ?: ConditionType.ON_ENTER) 
+    var selectedConditionType by remember {
+        mutableStateOf(rule?.condition?.type ?: ConditionType.ON_ENTER)
     }
-    var selectedActionType by remember { 
-        mutableStateOf(rule?.action?.type ?: ActionType.ASK) 
+    var selectedActionType by remember {
+        mutableStateOf(rule?.action?.type ?: ActionType.ASK)
     }
-    var timeInterval by remember { 
-        mutableStateOf(rule?.condition?.timeInterval ?: 3) 
+    var timeInterval by remember {
+        mutableStateOf(rule?.condition?.timeInterval ?: 3)
     }
-    var conditionParameter by remember { 
-        mutableStateOf(rule?.condition?.parameter ?: "") 
+    var conditionParameter by remember {
+        mutableStateOf(rule?.condition?.parameter ?: "")
     }
-    var actionParameter by remember { 
-        mutableStateOf(rule?.action?.parameter ?: "") 
+    var actionParameter by remember {
+        mutableStateOf(rule?.action?.parameter ?: "")
     }
     var showConditionParameterDialog by remember { mutableStateOf(false) }
     var showActionParameterDialog by remember { mutableStateOf(false) }
     var showTimeIntervalDialog by remember { mutableStateOf(false) }
     var enableTimeConstraint by remember { mutableStateOf(rule?.timeConstraint != null) }
     var timeConstraintType by remember { mutableStateOf(rule?.timeConstraint) }
-    var continuousMinutes by remember { 
+    var continuousMinutes by remember {
         mutableStateOf(
             (rule?.timeConstraint as? TimeConstraint.Continuous)?.minutes ?: 3.0
-        ) 
+        )
     }
-    var dailyTotalMinutes by remember { 
+    var dailyTotalMinutes by remember {
         mutableStateOf(
             (rule?.timeConstraint as? TimeConstraint.DailyTotal)?.minutes ?: 30.0
-        ) 
+        )
     }
-    var recentHours by remember { 
+    var recentHours by remember {
         mutableStateOf(
             (rule?.timeConstraint as? TimeConstraint.RecentTotal)?.hours ?: 24
-        ) 
+        )
     }
-    var recentMinutes by remember { 
+    var recentMinutes by remember {
         mutableStateOf(
             (rule?.timeConstraint as? TimeConstraint.RecentTotal)?.minutes ?: 60.0
-        ) 
+        )
     }
     var showContinuousMinutesDialog by remember { mutableStateOf(false) }
     var showDailyTotalMinutesDialog by remember { mutableStateOf(false) }
     var showRecentHoursDialog by remember { mutableStateOf(false) }
     var showRecentMinutesDialog by remember { mutableStateOf(false) }
-    
+    var coordPickOverlay by remember { mutableStateOf<CoordPickOverlay?>(null) }
+    var showOverlayPermissionDialog by remember { mutableStateOf(false) }
+
+    // Handle action parameter click
+    val handleActionParameterClick: () -> Unit = {
+        if (selectedActionType == ActionType.AUTO_CLICK) {
+            // Check overlay permission for coordinate picker
+            val canDrawOverlays = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+                Settings.canDrawOverlays(context)
+            } else {
+                true
+            }
+
+            if (canDrawOverlays) {
+                // Show coordinate picker
+                val overlay = CoordPickOverlay(
+                    context = context,
+                    onCoordinateSelected = { coordinate ->
+                        actionParameter = coordinate
+                        coordPickOverlay = null
+                    },
+                    onDismiss = {
+                        coordPickOverlay = null
+                    }
+                )
+                coordPickOverlay = overlay
+                overlay.show()
+            } else {
+                // Show permission request dialog
+                showOverlayPermissionDialog = true
+            }
+        } else {
+            // For REMIND action, show text input dialog
+            showActionParameterDialog = true
+        }
+    }
+
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { 
+        title = {
             Text(
                 if (isEditMode) {
                     context.getString(R.string.edit_rule)
                 } else {
                     context.getString(R.string.add_rule)
                 }
-            ) 
+            )
         },
         text = {
             Column(
@@ -119,7 +159,7 @@ fun RuleDialog(
                         text = { Text(context.getString(R.string.tab_time_constraint)) }
                     )
                 }
-                
+
                 // Tab Content
                 when (selectedTab) {
                     0 -> {
@@ -133,15 +173,17 @@ fun RuleDialog(
                             context = context
                         )
                     }
+
                     1 -> {
                         ActionTab(
                             selectedActionType = selectedActionType,
                             onActionTypeSelected = { selectedActionType = it },
                             actionParameter = actionParameter,
-                            onActionParameterClick = { showActionParameterDialog = true },
+                            onActionParameterClick = handleActionParameterClick,
                             context = context
                         )
                     }
+
                     2 -> {
                         ConstraintTab(
                             enableTimeConstraint = enableTimeConstraint,
@@ -170,26 +212,37 @@ fun RuleDialog(
                             type = selectedConditionType,
                             timeInterval = timeInterval
                         )
+
                         ConditionType.ON_PAGE, ConditionType.ON_CONTENT -> RuleCondition(
                             type = selectedConditionType,
                             parameter = conditionParameter
                         )
+
                         else -> RuleCondition(type = selectedConditionType)
                     }
-                    
+
                     val action = when (selectedActionType) {
                         ActionType.REMIND, ActionType.AUTO_CLICK -> RuleAction(
                             type = selectedActionType,
                             parameter = actionParameter.takeIf { it.isNotEmpty() }
                         )
+
                         else -> RuleAction(type = selectedActionType)
                     }
                     val timeConstraint = if (enableTimeConstraint) timeConstraintType else null
-                    
+
                     val savedRule = if (isEditMode) {
-                        rule!!.copy(condition = condition, action = action, timeConstraint = timeConstraint)
+                        rule!!.copy(
+                            condition = condition,
+                            action = action,
+                            timeConstraint = timeConstraint
+                        )
                     } else {
-                        Rule(condition = condition, action = action, timeConstraint = timeConstraint)
+                        Rule(
+                            condition = condition,
+                            action = action,
+                            timeConstraint = timeConstraint
+                        )
                     }
                     onSaveRule(savedRule)
                 }
@@ -209,7 +262,7 @@ fun RuleDialog(
             }
         }
     )
-    
+
     // Condition Parameter Input Dialog
     if (showConditionParameterDialog) {
         var inputText by remember { mutableStateOf(conditionParameter) }
@@ -251,20 +304,14 @@ fun RuleDialog(
             }
         )
     }
-    
-    // Action Parameter Input Dialog
-    if (showActionParameterDialog) {
+
+    // Action Parameter Input Dialog (only for REMIND action)
+    if (showActionParameterDialog && selectedActionType == ActionType.REMIND) {
         var inputText by remember { mutableStateOf(actionParameter) }
         AlertDialog(
             onDismissRequest = { showActionParameterDialog = false },
-            title = { 
-                Text(
-                    if (selectedActionType == ActionType.REMIND) {
-                        context.getString(R.string.input_remind_message)
-                    } else {
-                        context.getString(R.string.input_parameter)
-                    }
-                )
+            title = {
+                Text(context.getString(R.string.input_remind_message))
             },
             text = {
                 Column(
@@ -272,11 +319,7 @@ fun RuleDialog(
                     verticalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Text(
-                        text = if (selectedActionType == ActionType.REMIND) {
-                            context.getString(R.string.remind_message_input_hint)
-                        } else {
-                            context.getString(R.string.parameter_input_hint)
-                        },
+                        text = context.getString(R.string.remind_message_input_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -284,14 +327,8 @@ fun RuleDialog(
                         value = inputText,
                         onValueChange = { inputText = it },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { 
-                            Text(
-                                if (selectedActionType == ActionType.REMIND) {
-                                    context.getString(R.string.please_input_remind_message)
-                                } else {
-                                    context.getString(R.string.please_input_parameter)
-                                }
-                            )
+                        placeholder = {
+                            Text(context.getString(R.string.please_input_remind_message))
                         }
                     )
                 }
@@ -313,7 +350,7 @@ fun RuleDialog(
             }
         )
     }
-    
+
     // Time Interval Input Dialog
     if (showTimeIntervalDialog) {
         var inputText by remember { mutableStateOf(timeInterval.toString()) }
@@ -345,7 +382,7 @@ fun RuleDialog(
             }
         )
     }
-    
+
     // Continuous Minutes Input Dialog
     if (showContinuousMinutesDialog) {
         var inputText by remember { mutableStateOf(continuousMinutes.toString()) }
@@ -378,7 +415,7 @@ fun RuleDialog(
             }
         )
     }
-    
+
     // Daily Total Minutes Input Dialog
     if (showDailyTotalMinutesDialog) {
         var inputText by remember { mutableStateOf(dailyTotalMinutes.toString()) }
@@ -411,7 +448,7 @@ fun RuleDialog(
             }
         )
     }
-    
+
     // Recent Hours Input Dialog
     if (showRecentHoursDialog) {
         var inputText by remember { mutableStateOf(recentHours.toString()) }
@@ -445,7 +482,7 @@ fun RuleDialog(
             }
         )
     }
-    
+
     // Recent Minutes Input Dialog
     if (showRecentMinutesDialog) {
         var inputText by remember { mutableStateOf(recentMinutes.toString()) }
@@ -473,6 +510,34 @@ fun RuleDialog(
             },
             dismissButton = {
                 TextButton(onClick = { showRecentMinutesDialog = false }) {
+                    Text(context.getString(R.string.cancel))
+                }
+            }
+        )
+    }
+
+    // Overlay Permission Request Dialog
+    if (showOverlayPermissionDialog) {
+        AlertDialog(
+            onDismissRequest = { showOverlayPermissionDialog = false },
+            title = { Text(context.getString(R.string.permission_overlay)) },
+            text = { Text(context.getString(R.string.overlay_permission_required)) },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val intent = Intent(
+                            Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
+                            Uri.parse("package:" + context.packageName)
+                        )
+                        context.startActivity(intent)
+                        showOverlayPermissionDialog = false
+                    }
+                ) {
+                    Text(context.getString(R.string.open_settings))
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showOverlayPermissionDialog = false }) {
                     Text(context.getString(R.string.cancel))
                 }
             }

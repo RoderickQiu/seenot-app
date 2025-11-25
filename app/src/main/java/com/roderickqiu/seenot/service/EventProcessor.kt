@@ -11,7 +11,8 @@ class EventProcessor(
     private val context: android.content.Context,
     private val appDataStore: AppDataStore,
     private val notificationManager: NotificationManager,
-    private val screenshotAnalyzer: ScreenshotAnalyzer
+    private val screenshotAnalyzer: ScreenshotAnalyzer,
+    private val constraintManager: ConstraintManager
 ) {
     private var lastTimeClassName: String? = null
     private var lastTimeClassCapable: Boolean = false
@@ -177,6 +178,7 @@ class EventProcessor(
                     lastMonitoredLogTimeMs = now
                     notificationManager.showToast(context.getString(R.string.monitor_app_entered) + appName)
                     screenshotAnalyzer.tryTakeScreenshot(service, "entered")
+                    constraintManager.handleOnEnterRules(appName)
                 }
             }
         } catch (e: PackageManager.NameNotFoundException) {

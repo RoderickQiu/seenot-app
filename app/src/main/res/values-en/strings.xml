@@ -1,3 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
 <resources>
     <string name="app_name">SeeNot</string>
     <string name="monitoring_software_list">Monitoring Software List</string>
@@ -11,28 +12,28 @@
     <string name="enabled_status">Enabled Status</string>
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
-
+    
     <!-- Rule condition descriptions -->
     <string name="condition_time_interval">Every %1$d minutes</string>
     <string name="condition_on_enter">Every time entering</string>
     <string name="condition_on_page">If on %1$s</string>
     <string name="condition_on_content">If content about %1$s</string>
-
+    
     <!-- Rule action descriptions -->
     <string name="action_remind">Remind</string>
     <string name="action_auto_click">Auto click %1$s</string>
     <string name="action_auto_scroll_up">Auto scroll up</string>
     <string name="action_auto_scroll_down">Auto scroll down</string>
-    <string name="action_auto_back">Auto go back</string>
+    <string name="action_auto_back">Auto back</string>
     <string name="action_ask">Ask</string>
-
+    
     <!-- Add App Dialog -->
     <string name="add_new_app">Add New App</string>
     <string name="select_app">Select App</string>
     <string name="no_apps_found">No installed apps found</string>
     <string name="add_empty_rule">Add Empty Rule</string>
-    <string name="app_already_exists">This app already exists</string>
-
+    <string name="app_already_exists">App already exists</string>
+    
     <!-- Rule Edit Dialog -->
     <string name="edit_rules">Edit Rules</string>
     <string name="add_rule">Add Rule</string>
@@ -41,6 +42,56 @@
     <string name="delete_rule">Delete Rule</string>
     <string name="edit_rule">Edit Rule</string>
     <string name="duplicate_rule">Duplicate Rule</string>
+    
+    <!-- Add/Edit Rule Dialog -->
+    <string name="condition_type">Condition Type</string>
+    <string name="condition_time_interval_label">Every X minutes</string>
+    <string name="condition_on_enter_label">Every time entering</string>
+    <string name="condition_on_page_label">If on specific page</string>
+    <string name="condition_on_content_label">If content about specific topic</string>
+    <string name="time_interval_minutes">Time interval (minutes):</string>
+    <string name="click_to_input_parameter">Click to input parameter</string>
+    <string name="action_type">Action Type</string>
+    <string name="action_remind_label">Remind</string>
+    <string name="action_auto_click_label">Auto click</string>
+    <string name="action_auto_scroll_up_label">Auto scroll up</string>
+    <string name="action_auto_scroll_down_label">Auto scroll down</string>
+    <string name="action_auto_back_label">Auto back</string>
+    <string name="action_ask_label">Ask</string>
+    <string name="input_parameter">Input Parameter</string>
+    <string name="please_input_parameter">Please input parameter</string>
+    <string name="parameter_input_hint">Hint: Please describe the parameter as detailed as possible to improve recognition accuracy and avoid misjudgment.</string>
+    <string name="input_remind_message">Input remind message</string>
+    <string name="please_input_remind_message">Please input remind message</string>
+    <string name="remind_message_input_hint">Hint: Input the reminder message to be displayed when the action is triggered.</string>
+    <string name="click_to_input_remind_message">Click to input remind message</string>
+    <string name="input_time_interval">Input time interval (minutes)</string>
+    <string name="please_input_minutes">Please input minutes</string>
+    <string name="time_constraint">Time Constraint</string>
+    <string name="enable_time_constraint">Enable time constraint</string>
+    <string name="time_constraint_type">Time Constraint Type</string>
+    <string name="time_constraint_continuous">Match within short time</string>
+    <string name="time_constraint_daily_total">Today\'s total</string>
+    <string name="time_constraint_recent_total">Recent total</string>
+    <string name="time_constraint_desc_separator">(If</string>
+    <string name="time_constraint_desc_separator_end">)</string>
+    <string name="time_constraint_continuous_desc">Match within %1$s minutes in short time</string>
+    <string name="time_constraint_daily_total_desc">Today\'s total match %1$s minutes</string>
+    <string name="time_constraint_recent_total_desc">Recent %1$d hours total match %2$s minutes</string>
+    <string name="input_continuous_minutes">Input continuous minutes</string>
+    <string name="input_daily_total_minutes">Input today\'s total minutes</string>
+    <string name="input_recent_hours">Input hours (recent)</string>
+    <string name="input_recent_minutes">Input minutes (total)</string>
+    <string name="please_input_hours">Please input hours</string>
+    <string name="tab_condition">Condition</string>
+    <string name="tab_action">Action</string>
+    <string name="tab_time_constraint">Time Constraint</string>
+    <string name="edit_dialog_title">Edit - %1$s</string>
+    <string name="rule_count">Rule Count:</string>
+    <string name="rule_management">Rule Management</string>
+    <string name="add_rule_button">Add Rule</string>
+    <string name="enabled_status_label">Enabled Status</string>
+    <string name="app_name_label_colon">App Name:</string>
     <string name="permission_settings">Permission Settings</string>
     <string name="back">Back</string>
     <string name="permission_notifications">Notifications</string>
@@ -48,24 +99,47 @@
     <string name="permission_battery_optimizations">Battery optimization ignore</string>
     <string name="permission_accessibility">Accessibility</string>
     <string name="permission_background_autostart">Autostart &amp; background</string>
-    <string name="permission_background_note">Please confirm manually</string>
+    <string name="permission_background_note">Cannot be automatically detected, please confirm manually</string>
     <string name="open_settings">Open Settings</string>
     <string name="status_granted">Granted</string>
     <string name="status_not_granted">Not granted</string>
     <string name="refresh_status">Refresh status</string>
-
+    
     <!-- Accessibility Service & Foreground Notification -->
     <string name="accessibility_service_label">SeeNot Focus Assistant</string>
-    <string name="accessibility_service_description">Accessibility-based focus assistance to help you stay focused</string>
+    <string name="accessibility_service_description">Accessibility-based focus assistance service to help you stay focused</string>
     <string name="fg_channel_name">Focus Assistant</string>
-    <string name="fg_channel_desc">Foreground notification for focus assistance</string>
+    <string name="fg_channel_desc">Foreground service notification for focus assistance</string>
     <string name="fg_notification_title">SeeNot Focus Assistant active</string>
     <string name="fg_notification_text">Helping you stay focused</string>
     <string name="monitor_app_entered">Entered monitored app: </string>
     <string name="action_triggered">%1$s: Action %2$s triggered</string>
-    <string name="back_last_failed">Failed to return to the prev. page, exit the app directly: </string>
+    <string name="back_last_failed">Failed to go back, exit app directly: </string>
     <string name="click_failed">Click failed</string>
     <string name="element_not_found">Element not found</string>
     <string name="no_parameter">No parameter provided</string>
     <string name="invalid_coordinate">Invalid coordinate format</string>
+    
+    <!-- Coordinate Picker -->
+    <string name="coordinate_picker_instruction">Drag this window to a suitable position, then click "Select Coordinate" button to start selection</string>
+    <string name="coordinate_picker_select_mode">Select Coordinate</string>
+    <string name="coordinate_picker_select_instruction">Now please tap on the screen to select coordinate</string>
+    <string name="coordinate_picker_exit_mode">Exit Selection</string>
+    <string name="coordinate_picker_no_selection">No coordinate selected</string>
+    <string name="coordinate_picker_selected">Selected coordinate: (%1$d, %2$d)</string>
+    <string name="coordinate_picker_no_selection_warning">Please select a coordinate first</string>
+    <string name="coordinate_picker_test">Test Click</string>
+    <string name="coordinate_picker_test_click">Test click at coordinate (%1$d, %2$d)</string>
+    <string name="coordinate_picker_test_click_inside_app">Test click at coordinate (%1$d, %2$d) [Inside app, click not executed]</string>
+    <string name="coordinate_picker_error">Cannot show coordinate picker, please check overlay permission</string>
+    <string name="overlay_permission_required">Overlay permission required to use coordinate picker</string>
+    <string name="accessibility_required_for_coordinate_picker">Accessibility service required to use coordinate picker</string>
+    
+    <!-- AI Settings -->
+    <string name="ai_settings">App Settings</string>
+    <string name="ai_model">Model Selection</string>
+    <string name="ai_key">Key Setting</string>
+    <string name="debug_options">Debug Options</string>
+    <string name="auto_save_screenshot">Auto save screenshots to gallery</string>
+    <string name="show_rule_result_toast">Show rule execution results</string>
 </resources>

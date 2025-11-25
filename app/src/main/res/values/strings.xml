@@ -119,6 +119,21 @@
     <string name="no_parameter">未提供参数</string>
     <string name="invalid_coordinate">无效坐标格式</string>
     
+    <!-- Coordinate Picker -->
+    <string name="coordinate_picker_instruction">拖动此窗口到合适位置，然后点击"选择坐标"按钮开始选择</string>
+    <string name="coordinate_picker_select_mode">选择坐标</string>
+    <string name="coordinate_picker_select_instruction">现在请点击屏幕选择坐标位置</string>
+    <string name="coordinate_picker_exit_mode">退出选择</string>
+    <string name="coordinate_picker_no_selection">尚未选择坐标</string>
+    <string name="coordinate_picker_selected">已选择坐标: (%1$d, %2$d)</string>
+    <string name="coordinate_picker_no_selection_warning">请先选择一个坐标位置</string>
+    <string name="coordinate_picker_test">测试点击</string>
+    <string name="coordinate_picker_test_click">测试点击坐标 (%1$d, %2$d)</string>
+    <string name="coordinate_picker_test_click_inside_app">测试点击坐标 (%1$d, %2$d) [应用内测试，不执行点击]</string>
+    <string name="coordinate_picker_error">无法显示坐标选择器，请检查悬浮窗权限</string>
+    <string name="overlay_permission_required">需要悬浮窗权限才能使用坐标选择功能</string>
+    <string name="accessibility_required_for_coordinate_picker">需要启用无障碍服务才能使用坐标选择功能</string>
+    
     <!-- AI Settings -->
     <string name="ai_settings">程序设置</string>
     <string name="ai_model">模型选择</string>

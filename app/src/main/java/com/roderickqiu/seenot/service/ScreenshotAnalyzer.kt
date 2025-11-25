@@ -204,6 +204,12 @@ class ScreenshotAnalyzer(
                 for ((appName, rule) in activatedRules) {
                     val startTime = System.currentTimeMillis()
                     try {
+                        if (!constraintManager.areRulesEnabled()) {
+                            Log.d("A11yService", "Rules paused - skipping rule ${rule.id} for $appName")
+                            constraintManager.endShortTermRecord(rule.id, appName)
+                            continue
+                        }
+
                         val condition = rule.condition
                         val action = rule.action
                         

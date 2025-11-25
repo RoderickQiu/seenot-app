@@ -2,14 +2,19 @@ package com.roderickqiu.seenot.service
 
 import android.util.Log
 import com.roderickqiu.seenot.data.AppDataStore
+import com.roderickqiu.seenot.data.ConditionType
 import com.roderickqiu.seenot.data.Rule
 import com.roderickqiu.seenot.data.TimeConstraint
 import com.roderickqiu.seenot.utils.GenericUtils
+import kotlin.jvm.Volatile
 
 class ConstraintManager(
     private val appDataStore: AppDataStore,
     private val actionExecutor: ActionExecutor
 ) {
+    @Volatile
+    private var rulesEnabled = true
+
     // State tracking for time constraints
     private val shortTermRecords = mutableMapOf<String, MutableList<TimeRecord>>()
     private val dailyTotalRecords = mutableMapOf<String, MutableList<TimeRecord>>()
@@ -20,7 +25,15 @@ class ConstraintManager(
         val endTime: Long? = null // null means still active
     )
 
+    fun setRulesEnabled(enabled: Boolean) {
+        rulesEnabled = enabled
+        Log.d("A11yService", "Rule execution ${if (enabled) "resumed" else "paused"}")
+    }
+
+    fun areRulesEnabled(): Boolean = rulesEnabled
+
     fun handleTimeConstraint(rule: Rule, appName: String, isMatch: Boolean) {
+        if (!areRulesEnabled()) return
         val constraint = rule.timeConstraint ?: return
         
         when (constraint) {
@@ -384,6 +397,25 @@ class ConstraintManager(
             Log.e("A11yService", "Error saving time constraint states", e)
         }
     }
-    
+
+    fun handleOnEnterRules(appName: String) {
+        if (!areRulesEnabled()) return
+        try {
+            val monitoringApps = appDataStore.loadMonitoringApps()
+            val targetApp = monitoringApps.find { it.name == appName && it.isEnabled } ?: return
+            targetApp.rules.filter { it.condition.type == ConditionType.ON_ENTER }
+                .forEach { rule ->
+                    if (rule.timeConstraint != null) {
+                        Log.w(
+                            "A11yService",
+                            "Time constraints are not supported for ON_ENTER rules (ruleId=${rule.id}), executing immediately"
+                        )
+                    }
+                    actionExecutor.executeAction(rule, appName)
+                }
+        } catch (e: Exception) {
+            Log.e("A11yService", "Failed to handle ON_ENTER rules for $appName", e)
+        }
+    }
 }
 
