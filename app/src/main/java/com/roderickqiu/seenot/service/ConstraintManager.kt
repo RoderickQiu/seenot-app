@@ -1,17 +1,14 @@
 package com.roderickqiu.seenot.service
 
 import android.util.Log
-import com.roderickqiu.seenot.data.ActionType
 import com.roderickqiu.seenot.data.AppDataStore
 import com.roderickqiu.seenot.data.Rule
 import com.roderickqiu.seenot.data.TimeConstraint
 import com.roderickqiu.seenot.utils.GenericUtils
-import android.widget.Toast
 
 class ConstraintManager(
     private val appDataStore: AppDataStore,
-    private val notificationManager: NotificationManager,
-    private val context: android.content.Context
+    private val actionExecutor: ActionExecutor
 ) {
     // State tracking for time constraints
     private val shortTermRecords = mutableMapOf<String, MutableList<TimeRecord>>()
@@ -79,7 +76,7 @@ class ConstraintManager(
             }
             
             if (totalMinutes >= constraint.minutes) {
-                triggerAction(rule, appName)
+                actionExecutor.executeAction(rule, appName)
                 // Clear records after triggering
                 records.clear()
                 Log.d("A11yService", "Short-term constraint met for rule ${rule.id} (matched ${totalMinutes} minutes in ${windowSizeMinutes} min window), triggered action")
@@ -142,7 +139,7 @@ class ConstraintManager(
             }
             
             if (totalMinutes >= constraint.minutes) {
-                triggerAction(rule, appName)
+                actionExecutor.executeAction(rule, appName)
                 // Clear today's records after triggering
                 records.clear()
                 Log.d("A11yService", "Daily total constraint met for rule ${rule.id}, triggered action")
@@ -193,7 +190,7 @@ class ConstraintManager(
             }
             
             if (totalMinutes >= constraint.minutes) {
-                triggerAction(rule, appName)
+                actionExecutor.executeAction(rule, appName)
                 // Clear records after triggering
                 records.clear()
                 Log.d("A11yService", "Recent total constraint met for rule ${rule.id}, triggered action")
@@ -388,19 +385,5 @@ class ConstraintManager(
         }
     }
     
-    fun triggerAction(rule: Rule, appName: String) {
-        when (rule.action.type) {
-            ActionType.REMIND -> {
-                val message = rule.action.parameter ?: "Reminder"
-                notificationManager.showToast("$appName: $message", Toast.LENGTH_LONG)
-                Log.d("A11yService", "Triggered REMIND action: $message")
-            }
-            // Handle other action types as needed, with execution TODO
-            else -> {
-                notificationManager.showToast(context.getString(com.roderickqiu.seenot.R.string.action_triggered, appName, rule.action.type.name), Toast.LENGTH_LONG)
-                Log.d("A11yService", "Action ${rule.action.type} triggered")
-            }
-        }
-    }
 }
 

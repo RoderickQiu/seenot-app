@@ -30,6 +30,7 @@ class ScreenshotAnalyzer(
     private val context: Context,
     private val appDataStore: AppDataStore,
     private val constraintManager: ConstraintManager,
+    private val actionExecutor: ActionExecutor,
     private val notificationManager: NotificationManager
 ) {
     private var isTakingScreenshot: Boolean = false
@@ -285,7 +286,7 @@ class ScreenshotAnalyzer(
                                 constraintManager.handleTimeConstraint(rule, appName, isConditionMatch)
                             } else if (isConditionMatch && rule.timeConstraint == null) {
                                 // No time constraint - trigger immediately
-                                constraintManager.triggerAction(rule, appName)
+                                actionExecutor.executeAction(rule, appName)
                             } else {
                                 // Condition doesn't match - end current record if any
                                 constraintManager.endShortTermRecord(rule.id, appName)

@@ -61,4 +61,11 @@
     <string name="fg_channel_desc">Foreground notification for focus assistance</string>
     <string name="fg_notification_title">SeeNot Focus Assistant active</string>
     <string name="fg_notification_text">Helping you stay focused</string>
+    <string name="monitor_app_entered">Entered monitored app: </string>
+    <string name="action_triggered">%1$s: Action %2$s triggered</string>
+    <string name="back_last_failed">Failed to return to the prev. page, exit the app directly: </string>
+    <string name="click_failed">Click failed</string>
+    <string name="element_not_found">Element not found</string>
+    <string name="no_parameter">No parameter provided</string>
+    <string name="invalid_coordinate">Invalid coordinate format</string>
 </resources>

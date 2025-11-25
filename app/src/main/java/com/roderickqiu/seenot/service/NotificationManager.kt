@@ -49,8 +49,38 @@ class NotificationManager(private val context: Context) {
         service.startForeground(NOTIFICATION_ID, notification)
     }
 
+    fun showNotification(title: String, content: String) {
+        val channelId = NOTIFICATION_CHANNEL_ID
+        val channelName = context.getString(R.string.fg_channel_name)
+        val importance = NotificationManager.IMPORTANCE_HIGH
+        val channel = NotificationChannel(channelId, channelName, importance)
+        channel.setLockscreenVisibility(Notification.VISIBILITY_PUBLIC)
+        channel.setBypassDnd(true)
+        channel.setShowBadge(false)
+        val nm = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        nm.createNotificationChannel(channel)
+
+        val intent = Intent(context, MainActivity::class.java)
+        val pendingFlags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        val pendingIntent = PendingIntent.getActivity(context, 0, intent, pendingFlags)
+
+        val notification = NotificationCompat.Builder(context, channelId)
+                .setContentTitle(title)
+                .setContentText(content)
+                .setSmallIcon(R.mipmap.ic_launcher)
+                .setContentIntent(pendingIntent)
+                .setAutoCancel(true)
+                .setShowWhen(true)
+                .setCategory(Notification.CATEGORY_STATUS)
+                .setPriority(NotificationCompat.PRIORITY_HIGH)
+                .build()
+        
+        nm.notify((System.currentTimeMillis() % Int.MAX_VALUE).toInt(), notification)
+    }
+
     companion object {
         private const val CHANNEL_ID = "seenot_accessibility"
+        private const val NOTIFICATION_CHANNEL_ID = "seenot_notifications"
         private const val NOTIFICATION_ID = 1001
     }
 }

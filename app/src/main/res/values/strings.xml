@@ -113,6 +113,11 @@
     <string name="fg_notification_text">正在帮助你保持专注</string>
     <string name="monitor_app_entered">已进入监控应用：</string>
     <string name="action_triggered">%1$s: 已触发动作 %2$s</string>
+    <string name="back_last_failed">返回上一页失败，直接退出程序：</string>
+    <string name="click_failed">点击失败</string>
+    <string name="element_not_found">未找到元素</string>
+    <string name="no_parameter">未提供参数</string>
+    <string name="invalid_coordinate">无效坐标格式</string>
     
     <!-- AI Settings -->
     <string name="ai_settings">程序设置</string>

@@ -9,6 +9,7 @@ class A11yService : AccessibilityService() {
 
     private lateinit var appDataStore: AppDataStore
     private lateinit var notificationManager: NotificationManager
+    private lateinit var actionExecutor: ActionExecutor
     private lateinit var constraintManager: ConstraintManager
     private lateinit var screenshotAnalyzer: ScreenshotAnalyzer
     private lateinit var eventProcessor: EventProcessor
@@ -19,8 +20,9 @@ class A11yService : AccessibilityService() {
         
         appDataStore = AppDataStore(this)
         notificationManager = NotificationManager(this)
-        constraintManager = ConstraintManager(appDataStore, notificationManager, this)
-        screenshotAnalyzer = ScreenshotAnalyzer(this, appDataStore, constraintManager, notificationManager)
+        actionExecutor = ActionExecutor(this, notificationManager, this)
+        constraintManager = ConstraintManager(appDataStore, actionExecutor)
+        screenshotAnalyzer = ScreenshotAnalyzer(this, appDataStore, constraintManager, actionExecutor, notificationManager)
         eventProcessor = EventProcessor(this, appDataStore, notificationManager, screenshotAnalyzer)
         
         constraintManager.loadTimeConstraintStates()
