@@ -27,6 +27,7 @@ import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -38,6 +39,7 @@ import androidx.compose.ui.unit.sp
 import com.roderickqiu.seenot.R
 import com.roderickqiu.seenot.components.AddAppDialog
 import com.roderickqiu.seenot.components.MonitoringAppItem
+import com.roderickqiu.seenot.components.PermissionBanner
 import com.roderickqiu.seenot.components.UnifiedEditDialog
 import com.roderickqiu.seenot.data.ActionType
 import com.roderickqiu.seenot.data.ConditionType
@@ -47,7 +49,8 @@ import com.roderickqiu.seenot.data.Rule
 import com.roderickqiu.seenot.data.RuleAction
 import com.roderickqiu.seenot.data.RuleCondition
 import com.roderickqiu.seenot.ui.theme.SeeNotTheme
-import com.roderickqiu.seenot.settings.AiSettingsDialog
+import com.roderickqiu.seenot.settings.SettingsDialog
+import com.roderickqiu.seenot.utils.LanguageManager
 
 class MainActivity : ComponentActivity() {
     private lateinit var repository: MonitoringRepo
@@ -55,6 +58,8 @@ class MainActivity : ComponentActivity() {
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        // Apply saved language setting
+        LanguageManager.updateConfiguration(this)
         enableEdgeToEdge()
 
         repository = MonitoringRepo(this)
@@ -68,6 +73,17 @@ class MainActivity : ComponentActivity() {
                 var showPermissionSettings by remember { mutableStateOf(false) }
                 var showAiSettings by remember { mutableStateOf(false) }
                 var permissionRefreshKey by remember { mutableStateOf(0) }
+                var bannerRefreshKey by remember { mutableStateOf(0) }
+                var previousShowPermissionSettings by remember { mutableStateOf(false) }
+                
+                // Refresh banner when returning from permission settings
+                LaunchedEffect(showPermissionSettings) {
+                    // Only refresh when transitioning from true to false (returning from settings)
+                    if (previousShowPermissionSettings && !showPermissionSettings) {
+                        bannerRefreshKey++
+                    }
+                    previousShowPermissionSettings = showPermissionSettings
+                }
 
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
@@ -145,6 +161,14 @@ class MainActivity : ComponentActivity() {
                                 .padding(innerPadding)
                                 .padding(horizontal = 16.dp)
                         ) {
+                            PermissionBanner(
+                                modifier = Modifier.padding(vertical = 16.dp),
+                                onClick = {
+                                    showPermissionSettings = true
+                                },
+                                refreshSignal = bannerRefreshKey
+                            )
+                            
                             Text(
                                 text = context.getString(R.string.monitoring_software_list),
                                 fontSize = 16.sp,
@@ -201,8 +225,12 @@ class MainActivity : ComponentActivity() {
                 }
 
                 if (showAiSettings) {
-                    AiSettingsDialog(
-                        onDismiss = { showAiSettings = false }
+                    SettingsDialog(
+                        onDismiss = { showAiSettings = false },
+                        onLanguageChanged = {
+                            // Language change will trigger activity recreation
+                            LanguageManager.applyLanguage(this@MainActivity, LanguageManager.getSavedLanguage(this@MainActivity))
+                        }
                     )
                 }
             }

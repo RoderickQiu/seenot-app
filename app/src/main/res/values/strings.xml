@@ -103,6 +103,9 @@
     <string name="status_granted">已获取</string>
     <string name="status_not_granted">未获取</string>
     <string name="refresh_status">刷新状态</string>
+    <string name="permissions_required">需要权限</string>
+    <string name="accessibility_service_required">需要无障碍服务</string>
+    <string name="grant_permission">授予权限</string>
     
     <!-- Accessibility Service & Foreground Notification -->
     <string name="accessibility_service_label">SeeNot 专注助手</string>
@@ -144,4 +147,5 @@
     <string name="debug_options">调试选项</string>
     <string name="auto_save_screenshot">自动保存截图到图库</string>
     <string name="show_rule_result_toast">显示规则执行结果</string>
+    <string name="language_settings">语言设置</string>
 </resources>

@@ -34,11 +34,30 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.toSize
 import com.roderickqiu.seenot.R
+import com.roderickqiu.seenot.utils.LanguageManager
 
 // AI Model data class
 data class AiModel(
     val id: String,
     val displayName: String
+)
+
+// Language Option data class
+data class LanguageOption(
+    val code: String,
+    val displayName: String
+)
+
+private val LANGUAGES = listOf(
+    LanguageOption("auto", "跟随系统"),
+    LanguageOption("zh", "简体中文"),
+    LanguageOption("en", "English")
+)
+
+private val LANGUAGES_EN = listOf(
+    LanguageOption("auto", "Follow System"),
+    LanguageOption("zh", "简体中文"),
+    LanguageOption("en", "English")
 )
 
 // Available AI models list
@@ -90,7 +109,7 @@ private fun saveAiSettings(context: Context, modelId: String, apiKey: String, au
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AiSettingsDialog(onDismiss: () -> Unit) {
+fun SettingsDialog(onDismiss: () -> Unit, onLanguageChanged: (() -> Unit)? = null) {
     val context = LocalContext.current
 
     var expanded by remember { mutableStateOf(false) }
@@ -101,6 +120,29 @@ fun AiSettingsDialog(onDismiss: () -> Unit) {
     var apiKey by remember { mutableStateOf(loadAiKey(context)) }
     var autoSaveScreenshot by remember { mutableStateOf(loadAutoSaveScreenshot(context)) }
     var showRuleResultToast by remember { mutableStateOf(loadShowRuleResultToast(context)) }
+    
+    // Language settings
+    val currentLanguage = LanguageManager.getSavedLanguage(context)
+    var selectedLanguage by remember { mutableStateOf(currentLanguage) }
+    val systemLanguage = context.resources.configuration.locales[0].language
+    val languageList = remember(selectedLanguage, systemLanguage) {
+        val displayLang = when (selectedLanguage) {
+            "en" -> "en"
+            "auto" -> systemLanguage
+            else -> "zh"
+        }
+        if (displayLang == "en") {
+            LANGUAGES_EN
+        } else {
+            LANGUAGES
+        }
+    }
+    val selectedLanguageOption = remember(selectedLanguage, languageList) {
+        languageList.find { it.code == selectedLanguage } ?: languageList.first()
+    }
+    
+    var languageExpanded by remember { mutableStateOf(false) }
+    var languageTextFieldSize by remember { mutableStateOf(Size.Zero) }
 
     AlertDialog(
             onDismissRequest = onDismiss,
@@ -195,13 +237,68 @@ fun AiSettingsDialog(onDismiss: () -> Unit) {
                                 onCheckedChange = { showRuleResultToast = it }
                         )
                     }
+                    
+                    // Language settings section
+                    Text(
+                            text = context.getString(R.string.language_settings),
+                            modifier = Modifier.padding(top = 24.dp, bottom = 8.dp)
+                    )
+                    Box {
+                        OutlinedTextField(
+                                value = selectedLanguageOption.displayName,
+                                onValueChange = {},
+                                readOnly = true,
+                                modifier =
+                                        Modifier.fillMaxWidth()
+                                                .onGloballyPositioned { coordinates ->
+                                                    languageTextFieldSize = coordinates.size.toSize()
+                                                }
+                                                .clickable { languageExpanded = true },
+                                trailingIcon = {
+                                    IconButton(onClick = { languageExpanded = !languageExpanded }) {
+                                        Icon(
+                                                imageVector =
+                                                        if (languageExpanded) Icons.Filled.KeyboardArrowUp
+                                                        else Icons.Filled.KeyboardArrowDown,
+                                                contentDescription = null
+                                        )
+                                    }
+                                }
+                        )
+                        DropdownMenu(
+                                expanded = languageExpanded,
+                                onDismissRequest = { languageExpanded = false },
+                                modifier =
+                                        Modifier.width(
+                                                with(LocalDensity.current) {
+                                                    languageTextFieldSize.width.toDp()
+                                                }
+                                        )
+                        ) {
+                            languageList.forEach { language ->
+                                DropdownMenuItem(
+                                        text = { Text(language.displayName) },
+                                        onClick = {
+                                            selectedLanguage = language.code
+                                            languageExpanded = false
+                                        }
+                                )
+                            }
+                        }
+                    }
                 }
             },
             confirmButton = {
                 TextButton(
                         onClick = {
                             saveAiSettings(context, selectedModel.id, apiKey, autoSaveScreenshot, showRuleResultToast)
-                            onDismiss()
+                            if (selectedLanguage != currentLanguage) {
+                                LanguageManager.saveLanguage(context, selectedLanguage)
+                                onDismiss()
+                                onLanguageChanged?.invoke()
+                            } else {
+                                onDismiss()
+                            }
                         }
                 ) { Text(text = context.getString(R.string.save)) }
             },

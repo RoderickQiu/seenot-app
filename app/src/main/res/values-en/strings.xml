@@ -69,11 +69,11 @@
     <string name="please_input_minutes">Please input minutes</string>
     <string name="time_constraint">Time Constraint</string>
     <string name="enable_time_constraint">Enable time constraint</string>
-    <string name="time_constraint_type">Time Constraint Type</string>
+    <string name="time_constraint_type">Constraint Type</string>
     <string name="time_constraint_continuous">Match within short time</string>
     <string name="time_constraint_daily_total">Today\'s total</string>
     <string name="time_constraint_recent_total">Recent total</string>
-    <string name="time_constraint_desc_separator">(If</string>
+    <string name="time_constraint_desc_separator">\u0020(If:\u0020</string>
     <string name="time_constraint_desc_separator_end">)</string>
     <string name="time_constraint_continuous_desc">Match within %1$s minutes in short time</string>
     <string name="time_constraint_daily_total_desc">Today\'s total match %1$s minutes</string>
@@ -85,7 +85,7 @@
     <string name="please_input_hours">Please input hours</string>
     <string name="tab_condition">Condition</string>
     <string name="tab_action">Action</string>
-    <string name="tab_time_constraint">Time Constraint</string>
+    <string name="tab_time_constraint">Constraint</string>
     <string name="edit_dialog_title">Edit - %1$s</string>
     <string name="rule_count">Rule Count:</string>
     <string name="rule_management">Rule Management</string>
@@ -96,14 +96,17 @@
     <string name="back">Back</string>
     <string name="permission_notifications">Notifications</string>
     <string name="permission_overlay">Overlay</string>
-    <string name="permission_battery_optimizations">Battery optimization ignore</string>
+    <string name="permission_battery_optimizations">Battery saver ignore</string>
     <string name="permission_accessibility">Accessibility</string>
     <string name="permission_background_autostart">Autostart &amp; background</string>
-    <string name="permission_background_note">Cannot be automatically detected, please confirm manually</string>
+    <string name="permission_background_note">Check yourself</string>
     <string name="open_settings">Open Settings</string>
     <string name="status_granted">Granted</string>
     <string name="status_not_granted">Not granted</string>
     <string name="refresh_status">Refresh status</string>
+    <string name="permissions_required">Permissions Required</string>
+    <string name="accessibility_service_required">Accessibility service required</string>
+    <string name="grant_permission">Grant Permission</string>
     
     <!-- Accessibility Service & Foreground Notification -->
     <string name="accessibility_service_label">SeeNot Focus Assistant</string>
@@ -145,4 +148,5 @@
     <string name="debug_options">Debug Options</string>
     <string name="auto_save_screenshot">Auto save screenshots to gallery</string>
     <string name="show_rule_result_toast">Show rule execution results</string>
+    <string name="language_settings">Language Settings</string>
 </resources>

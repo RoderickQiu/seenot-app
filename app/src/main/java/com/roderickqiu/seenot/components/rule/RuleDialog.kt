@@ -11,8 +11,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Tab
-import androidx.compose.material3.TabRow
+import androidx.compose.material3.SegmentedButton
+import androidx.compose.material3.SegmentedButtonDefaults
+import androidx.compose.material3.SingleChoiceSegmentedButtonRow
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
@@ -22,7 +23,10 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.roderickqiu.seenot.R
 import com.roderickqiu.seenot.components.CoordPickOverlay
 import com.roderickqiu.seenot.data.ActionType
@@ -142,23 +146,57 @@ fun RuleDialog(
             Column(
                 modifier = Modifier.fillMaxWidth()
             ) {
-                // Tab Row
-                TabRow(selectedTabIndex = selectedTab) {
-                    Tab(
+                // Tab Row - Using SegmentedButtonRow for better text handling
+                val segmentedButtonColors = SegmentedButtonDefaults.colors(
+                    activeContainerColor = MaterialTheme.colorScheme.primary,
+                    activeContentColor = MaterialTheme.colorScheme.onPrimary,
+                    inactiveContainerColor = MaterialTheme.colorScheme.surfaceVariant,
+                    inactiveContentColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                    activeBorderColor = MaterialTheme.colorScheme.primary,
+                    inactiveBorderColor = MaterialTheme.colorScheme.surfaceVariant
+                )
+                SingleChoiceSegmentedButtonRow(
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    SegmentedButton(
                         selected = selectedTab == 0,
                         onClick = { selectedTab = 0 },
-                        text = { Text(context.getString(R.string.tab_condition)) }
-                    )
-                    Tab(
+                        shape = SegmentedButtonDefaults.itemShape(index = 0, count = 3),
+                        colors = segmentedButtonColors
+                    ) {
+                        Text(
+                            text = context.getString(R.string.tab_condition),
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    SegmentedButton(
                         selected = selectedTab == 1,
                         onClick = { selectedTab = 1 },
-                        text = { Text(context.getString(R.string.tab_action)) }
-                    )
-                    Tab(
+                        shape = SegmentedButtonDefaults.itemShape(index = 1, count = 3),
+                        colors = segmentedButtonColors
+                    ) {
+                        Text(
+                            text = context.getString(R.string.tab_action),
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    SegmentedButton(
                         selected = selectedTab == 2,
                         onClick = { selectedTab = 2 },
-                        text = { Text(context.getString(R.string.tab_time_constraint)) }
-                    )
+                        shape = SegmentedButtonDefaults.itemShape(index = 2, count = 3),
+                        colors = segmentedButtonColors
+                    ) {
+                        Text(
+                            text = context.getString(R.string.tab_time_constraint),
+                            fontSize = 12.sp,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
 
                 // Tab Content

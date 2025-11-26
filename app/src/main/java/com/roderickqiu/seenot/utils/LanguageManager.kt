@@ -1,0 +1,56 @@
+package com.roderickqiu.seenot.utils
+
+import android.content.Context
+import android.content.res.Configuration
+import android.os.Build
+import androidx.activity.ComponentActivity
+import java.util.Locale
+
+object LanguageManager {
+    private const val PREFS_NAME = "seenot_prefs"
+    private const val KEY_LANGUAGE = "language"
+    private const val DEFAULT_LANGUAGE = "auto" // "auto", "zh", "en"
+
+    fun getSavedLanguage(context: Context): String {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        return prefs.getString(KEY_LANGUAGE, DEFAULT_LANGUAGE) ?: DEFAULT_LANGUAGE
+    }
+
+    fun saveLanguage(context: Context, language: String) {
+        val prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        prefs.edit().putString(KEY_LANGUAGE, language).apply()
+    }
+
+    fun getLocale(language: String): Locale {
+        return when (language) {
+            "zh" -> Locale("zh", "CN")
+            "en" -> Locale("en", "US")
+            else -> Locale.getDefault() // "auto" uses system default
+        }
+    }
+
+    fun updateConfiguration(context: Context) {
+        val language = getSavedLanguage(context)
+        val locale = getLocale(language)
+        
+        val config = Configuration(context.resources.configuration)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            config.setLocale(locale)
+            val localeList = android.os.LocaleList(locale)
+            config.setLocales(localeList)
+        } else {
+            @Suppress("DEPRECATION")
+            config.locale = locale
+        }
+        
+        @Suppress("DEPRECATION")
+        context.resources.updateConfiguration(config, context.resources.displayMetrics)
+    }
+
+    fun applyLanguage(activity: ComponentActivity, language: String) {
+        saveLanguage(activity, language)
+        updateConfiguration(activity)
+        activity.recreate()
+    }
+}
+
