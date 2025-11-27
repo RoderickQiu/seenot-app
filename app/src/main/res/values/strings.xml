@@ -148,4 +148,12 @@
     <string name="auto_save_screenshot">自动保存截图到图库</string>
     <string name="show_rule_result_toast">显示规则执行结果</string>
     <string name="language_settings">语言设置</string>
+
+    <!-- About Dialog -->
+    <string name="about">关于程序</string>
+    <string name="about_app_description">一款使用 AI 技术帮您掌控注意力的 Android 应用程序。</string>
+    <string name="version">版本</string>
+    <string name="copyright">版权</string>
+    <string name="copyright_text">(c) 2025 Roderick Qiu</string>
+    <string name="ok">确定</string>
 </resources>

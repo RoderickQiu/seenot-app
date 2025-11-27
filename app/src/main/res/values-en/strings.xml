@@ -149,4 +149,12 @@
     <string name="auto_save_screenshot">Auto save screenshots to gallery</string>
     <string name="show_rule_result_toast">Show rule execution results</string>
     <string name="language_settings">Language Settings</string>
+
+    <!-- About Dialog -->
+    <string name="about">About App</string>
+    <string name="about_app_description">Android app that eliminates distractions using AI technology.</string>
+    <string name="version">Version</string>
+    <string name="copyright">Copyright</string>
+    <string name="copyright_text">(c) 2025 Roderick Qiu</string>
+    <string name="ok">OK</string>
 </resources>

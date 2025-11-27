@@ -4,16 +4,32 @@ plugins {
     alias(libs.plugins.kotlin.compose)
 }
 
+def getVersionCode() {
+    def versionFile = file('version.properties')
+    if (versionFile.canRead()) {
+        Properties versionProps = new Properties()
+        versionProps.load(new FileInputStream(versionFile))
+        def versionCode = versionProps['VERSION_CODE'].toInteger()
+        versionProps['VERSION_CODE'] = (++versionCode).toString()
+        versionProps.store(versionFile.newWriter(), null)
+        project.logger.lifecycle("Version Code: " + versionCode)
+        return versionCode
+    } else {
+        throw new GradleException("Could not find version.properties!")
+    }
+}
+
 android {
     namespace 'com.roderickqiu.seenot'
     compileSdk 36
 
+    def currentVersionCode = getVersionCode()
     defaultConfig {
         applicationId "com.roderickqiu.seenot"
         minSdk 30
         targetSdk 36
-        versionCode 1
-        versionName "1.0"
+        versionCode currentVersionCode
+        versionName "1.0.0-beta"
 
         testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
     }

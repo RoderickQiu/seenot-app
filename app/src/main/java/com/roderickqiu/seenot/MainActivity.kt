@@ -37,6 +37,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.roderickqiu.seenot.R
+import com.roderickqiu.seenot.components.AboutDialog
 import com.roderickqiu.seenot.components.AddAppDialog
 import com.roderickqiu.seenot.components.MonitoringAppItem
 import com.roderickqiu.seenot.components.PermissionBanner
@@ -72,6 +73,7 @@ class MainActivity : ComponentActivity() {
                 var showTopMenu by remember { mutableStateOf(false) }
                 var showPermissionSettings by remember { mutableStateOf(false) }
                 var showAiSettings by remember { mutableStateOf(false) }
+                var showAboutDialog by remember { mutableStateOf(false) }
                 var permissionRefreshKey by remember { mutableStateOf(0) }
                 var bannerRefreshKey by remember { mutableStateOf(0) }
                 var previousShowPermissionSettings by remember { mutableStateOf(false) }
@@ -122,6 +124,13 @@ class MainActivity : ComponentActivity() {
                                                 onClick = {
                                                     showTopMenu = false
                                                     showAiSettings = true
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text(text = context.getString(R.string.about)) },
+                                                onClick = {
+                                                    showTopMenu = false
+                                                    showAboutDialog = true
                                                 }
                                             )
                                         }
@@ -231,6 +240,14 @@ class MainActivity : ComponentActivity() {
                             // Language change will trigger activity recreation
                             LanguageManager.applyLanguage(this@MainActivity, LanguageManager.getSavedLanguage(this@MainActivity))
                         }
+                    )
+                }
+
+                if (showAboutDialog) {
+                    AboutDialog(
+                        onDismiss = { showAboutDialog = false },
+                        versionName = packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0",
+                        versionCode = packageManager.getPackageInfo(packageName, 0).longVersionCode.toInt()
                     )
                 }
             }
