@@ -57,17 +57,16 @@ fun MonitoringAppItem(
     val isDarkTheme = isSystemInDarkTheme()
     var showMenu by remember { mutableStateOf(false) }
     var showEditDialog by remember { mutableStateOf(false) }
-    var isEnabled by remember { mutableStateOf(app.isEnabled) }
 
     // Unified color scheme
     val iconColor = if (app.isEnabled) {
-        if (isDarkTheme) YellowGrey80 else YellowGrey40
+        colorScheme.secondaryContainer
     } else {
         colorScheme.outline.copy(alpha = 0.6f) // Gray color for disabled state
     }
 
     val textColor = if (app.isEnabled) {
-        Color.White
+        colorScheme.onSecondary
     } else {
         colorScheme.onSurface.copy(alpha = 0.6f)
     }

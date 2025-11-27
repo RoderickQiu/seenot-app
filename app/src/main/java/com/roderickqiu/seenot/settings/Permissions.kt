@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.PowerManager
 import android.provider.Settings
 import android.text.TextUtils
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -34,6 +35,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
 import com.roderickqiu.seenot.R
+import com.roderickqiu.seenot.ui.theme.*
 
 @Composable
 fun PermissionSettingsScreen(modifier: Modifier = Modifier, refreshSignal: Int = 0) {
@@ -150,7 +152,7 @@ private fun PermissionRow(
             Button(
                 onClick = onClick,
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
+                    containerColor = MaterialTheme.colorScheme.primaryContainer,
                     contentColor = MaterialTheme.colorScheme.onPrimary
                 )
             ) {
@@ -162,15 +164,16 @@ private fun PermissionRow(
 
 @Composable
 private fun StatusPill(text: String, positive: Boolean) {
+    val isDarkTheme = androidx.compose.foundation.isSystemInDarkTheme()
     val containerColor = if (positive) {
-        Color(0xFF2E7D32)
+        if (isDarkTheme) SuccessGreenContainer80 else SuccessGreenContainer40
     } else {
-        MaterialTheme.colorScheme.error
+        MaterialTheme.colorScheme.errorContainer
     }
     val contentColor = if (positive) {
-        Color.White
+        if (isDarkTheme) SuccessGreen80 else SuccessGreen40
     } else {
-        MaterialTheme.colorScheme.onError
+        MaterialTheme.colorScheme.onErrorContainer
     }
 
     Surface(
