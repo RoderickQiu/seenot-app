@@ -1,9 +1,13 @@
 package com.roderickqiu.seenot
 
+import android.content.Intent
 import android.os.Bundle
+import android.widget.Toast
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import com.google.gson.Gson
+import com.google.gson.GsonBuilder
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
@@ -39,6 +43,7 @@ import androidx.compose.ui.unit.sp
 import com.roderickqiu.seenot.R
 import com.roderickqiu.seenot.components.AboutDialog
 import com.roderickqiu.seenot.components.AddAppDialog
+import com.roderickqiu.seenot.components.ImportExportDialog
 import com.roderickqiu.seenot.components.MonitoringAppItem
 import com.roderickqiu.seenot.components.PermissionBanner
 import com.roderickqiu.seenot.components.UnifiedEditDialog
@@ -55,6 +60,71 @@ import com.roderickqiu.seenot.utils.LanguageManager
 
 class MainActivity : ComponentActivity() {
     private lateinit var repository: MonitoringRepo
+
+    /**
+     * Share all rules as JSON text
+     */
+    private fun exportRules() {
+        try {
+            val monitoringApps = repository.getAllApps()
+
+            // Create Gson with custom adapter for TimeConstraint
+            val gson = GsonBuilder()
+                .registerTypeAdapter(com.roderickqiu.seenot.data.TimeConstraint::class.java,
+                    com.roderickqiu.seenot.data.TimeConstraintAdapter())
+                .setPrettyPrinting()
+                .create()
+
+            val jsonString = gson.toJson(monitoringApps)
+
+            // Create share intent
+            val shareIntent = Intent().apply {
+                action = Intent.ACTION_SEND
+                type = "text/plain"
+                putExtra(Intent.EXTRA_TEXT, jsonString)
+                putExtra(Intent.EXTRA_SUBJECT, "SeeNot 规则导出")
+            }
+
+            // Start share activity
+            startActivity(Intent.createChooser(shareIntent, "分享规则"))
+        } catch (e: Exception) {
+            Toast.makeText(this, "分享失败：${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    /**
+     * Import rules from JSON text and replace all current apps
+     */
+    private fun importRules(jsonText: String, onImportComplete: () -> Unit) {
+        try {
+            // Create Gson with custom adapter for TimeConstraint
+            val gson = GsonBuilder()
+                .registerTypeAdapter(com.roderickqiu.seenot.data.TimeConstraint::class.java,
+                    com.roderickqiu.seenot.data.TimeConstraintAdapter())
+                .create()
+
+            // Parse JSON to list of MonitoringApp
+            val importedApps = gson.fromJson(jsonText, Array<com.roderickqiu.seenot.data.MonitoringApp>::class.java)
+                ?.toList() ?: emptyList()
+
+            // Validate that we have valid apps
+            if (importedApps.isEmpty()) {
+                Toast.makeText(this, getString(R.string.invalid_json_format), Toast.LENGTH_LONG).show()
+                return
+            }
+
+            // Replace all apps in data store
+            val dataStore = com.roderickqiu.seenot.data.AppDataStore(this)
+            dataStore.saveMonitoringApps(importedApps)
+
+            Toast.makeText(this, getString(R.string.rules_imported_successfully), Toast.LENGTH_LONG).show()
+
+            // Call the callback to refresh UI
+            onImportComplete()
+        } catch (e: Exception) {
+            Toast.makeText(this, "${getString(R.string.invalid_json_format)}: ${e.message}", Toast.LENGTH_LONG).show()
+        }
+    }
 
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -74,6 +144,7 @@ class MainActivity : ComponentActivity() {
                 var showPermissionSettings by remember { mutableStateOf(false) }
                 var showAiSettings by remember { mutableStateOf(false) }
                 var showAboutDialog by remember { mutableStateOf(false) }
+                var showImportExportDialog by remember { mutableStateOf(false) }
                 var permissionRefreshKey by remember { mutableStateOf(0) }
                 var bannerRefreshKey by remember { mutableStateOf(0) }
                 var previousShowPermissionSettings by remember { mutableStateOf(false) }
@@ -124,6 +195,13 @@ class MainActivity : ComponentActivity() {
                                                 onClick = {
                                                     showTopMenu = false
                                                     showAiSettings = true
+                                                }
+                                            )
+                                            DropdownMenuItem(
+                                                text = { Text(text = context.getString(R.string.import_export_rules)) },
+                                                onClick = {
+                                                    showTopMenu = false
+                                                    showImportExportDialog = true
                                                 }
                                             )
                                             DropdownMenuItem(
@@ -239,6 +317,20 @@ class MainActivity : ComponentActivity() {
                         onLanguageChanged = {
                             // Language change will trigger activity recreation
                             LanguageManager.applyLanguage(this@MainActivity, LanguageManager.getSavedLanguage(this@MainActivity))
+                        }
+                    )
+                }
+
+                if (showImportExportDialog) {
+                    ImportExportDialog(
+                        onDismiss = { showImportExportDialog = false },
+                        onExport = { exportRules() },
+                        onImport = { jsonText ->
+                            importRules(jsonText) {
+                                // Refresh monitoring apps after import
+                                monitoringApps = repository.getAllApps()
+                            }
+                            showImportExportDialog = false
                         }
                     )
                 }

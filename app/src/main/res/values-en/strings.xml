@@ -157,4 +157,14 @@
     <string name="copyright">Copyright</string>
     <string name="copyright_text">(c) 2025 Roderick Qiu</string>
     <string name="ok">OK</string>
+    <string name="export_rules">Export Rules</string>
+    <string name="import_export_rules">Import/Export</string>
+    <string name="import_rules">Import Rules</string>
+    <string name="import_rules_description">Import rule configurations from other devices or backups. This will replace all current rules.</string>
+    <string name="export_rules_description">Export all current rule configurations as JSON format that can be shared with other devices or saved as backup.</string>
+    <string name="confirm_import">Confirm Import</string>
+    <string name="import_warning">Warning: Importing rules will replace all current rule configurations. This action cannot be undone. Are you sure you want to continue?</string>
+    <string name="rules_imported_successfully">Rules imported successfully</string>
+    <string name="paste_json_here">Paste JSON content here</string>
+    <string name="invalid_json_format">Invalid JSON format</string>
 </resources>
