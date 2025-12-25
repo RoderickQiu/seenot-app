@@ -16,7 +16,6 @@ class EventProcessor(
 ) {
     private var lastTimeClassName: String? = null
     private var lastTimeClassCapable: Boolean = false
-    private var lastTimeCapableClass: String? = null
     private var foregroundWindowId: Int = -1
     private var currentMonitoredPackage: String? = null
     private var currentMonitoredAppName: String? = null
@@ -91,10 +90,6 @@ class EventProcessor(
                             )
                     lastTimeClassName = className
                     lastTimeClassCapable = capable
-                    if (capable && className != null) {
-                        lastTimeCapableClass = className
-                        screenshotAnalyzer.lastTimeCapableClass = className
-                    }
 
                     val packageName = e.packageName?.toString()
                     if (packageName != null && capable) {
@@ -159,10 +154,8 @@ class EventProcessor(
                 )
                 currentMonitoredPackage = null
                 currentMonitoredAppName = null
-                lastTimeCapableClass = null
                 screenshotAnalyzer.currentMonitoredPackage = null
                 screenshotAnalyzer.currentMonitoredAppName = null
-                screenshotAnalyzer.lastTimeCapableClass = null
             }
 
             // Then, if the new package is monitored

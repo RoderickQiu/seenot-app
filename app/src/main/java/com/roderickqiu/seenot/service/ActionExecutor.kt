@@ -3,6 +3,8 @@ package com.roderickqiu.seenot.service
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
 import android.graphics.Path
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import com.roderickqiu.seenot.data.ActionType
 import com.roderickqiu.seenot.data.Rule
@@ -53,15 +55,15 @@ class ActionExecutor(
                 Log.d("A11yService", "Triggered REMIND action: $message")
             }
             ActionType.AUTO_BACK -> {
+                notificationManager.showToast(context.getString(com.roderickqiu.seenot.R.string.action_auto_back_label), Toast.LENGTH_SHORT)
+                Log.d("A11yService", "Triggered AUTO_BACK action")
                 val success = accessibilityService.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
-                if (success) {
-                    notificationManager.showToast(context.getString(com.roderickqiu.seenot.R.string.action_auto_back_label), Toast.LENGTH_SHORT)
-                    Log.d("A11yService", "Triggered AUTO_BACK action")
-                } else {
-                    // If back action failed, go to home
+                if (!success) {
                     accessibilityService.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
                     notificationManager.showToast(context.getString(com.roderickqiu.seenot.R.string.back_last_failed), Toast.LENGTH_SHORT)
-                    Log.d("A11yService", "AUTO_BACK failed, went to home")
+                    Log.d("A11yService", "AUTO_BACK failed, went to home after toast")
+                } else {
+                    Log.d("A11yService", "AUTO_BACK successful")
                 }
             }
             ActionType.AUTO_CLICK -> {

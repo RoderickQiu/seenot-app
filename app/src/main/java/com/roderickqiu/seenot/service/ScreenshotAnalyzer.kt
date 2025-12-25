@@ -38,7 +38,6 @@ class ScreenshotAnalyzer(
     
     var currentMonitoredAppName: String? = null
     var currentMonitoredPackage: String? = null
-    var lastTimeCapableClass: String? = null
 
     fun tryTakeScreenshot(
         service: android.accessibilityservice.AccessibilityService,
@@ -225,16 +224,8 @@ class ScreenshotAnalyzer(
                         }
 
                         // Build app context with available information only
-                        val contextParts = mutableListOf<String>()
-                        if (currentMonitoredAppName != null && currentMonitoredPackage != null) {
-                            contextParts.add("Current app: $currentMonitoredAppName (package: $currentMonitoredPackage)")
-                        }
-                        if (lastTimeCapableClass != null) {
-                            contextParts.add("Current class: $lastTimeCapableClass")
-                        }
-                        
-                        val appContext = if (contextParts.isNotEmpty()) {
-                            contextParts.joinToString("\n")
+                        val appContext = if (currentMonitoredAppName != null && currentMonitoredPackage != null) {
+                            "Current app: $currentMonitoredAppName (package: $currentMonitoredPackage)"
                         } else {
                             null
                         }
