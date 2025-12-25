@@ -11,6 +11,9 @@ import com.roderickqiu.seenot.data.TimeConstraint
  * Utility class for formatting rules with i18n support
  */
 object RuleFormatter {
+    
+    // Maximum characters to display for condition parameter in list view
+    private const val MAX_CONDITION_PARAMETER_LENGTH = 15
 
     /**
      * Format a rule for display using i18n strings
@@ -38,6 +41,64 @@ object RuleFormatter {
     }
 
     /**
+     * Format a rule for list display with condition truncation only
+     * Only the condition part is truncated to MAX_CONDITION_DISPLAY_LENGTH characters
+     */
+    fun formatRuleForList(context: Context, rule: Rule): String {
+        // Format condition with truncation for list display
+        val conditionText = formatConditionForList(context, rule.condition)
+        val actionText = formatAction(context, rule.action)
+        
+        val baseRule = when (rule.condition.type) {
+            ConditionType.TIME_INTERVAL -> "$conditionText$actionText"
+            ConditionType.ON_ENTER -> "$conditionText$actionText"
+            ConditionType.ON_PAGE -> {
+                val comma = getCommaForLanguage(context)
+                "$conditionText$comma$actionText"
+            }
+        }
+        
+        // Append time constraint if present (no truncation)
+        val timeConstraintText = formatTimeConstraint(context, rule.timeConstraint)
+        return if (timeConstraintText.isNotEmpty()) {
+            "$baseRule${context.getString(R.string.time_constraint_desc_separator)}$timeConstraintText${context.getString(R.string.time_constraint_desc_separator_end)}"
+        } else {
+            baseRule
+        }
+    }
+    
+    /**
+     * Format condition for list display with parameter truncation only
+     * Only the parameter/description part is truncated, not the condition type itself
+     */
+    private fun formatConditionForList(
+        context: Context,
+        condition: com.roderickqiu.seenot.data.RuleCondition
+    ): String {
+        return when (condition.type) {
+            ConditionType.TIME_INTERVAL -> {
+                val interval = condition.timeInterval ?: 0
+                context.getString(R.string.condition_time_interval, interval)
+            }
+
+            ConditionType.ON_ENTER -> {
+                context.getString(R.string.condition_on_enter)
+            }
+
+            ConditionType.ON_PAGE -> {
+                val parameter = condition.parameter ?: ""
+                // Truncate only the parameter/description part to MAX_CONDITION_PARAMETER_LENGTH
+                val truncatedParameter = if (parameter.length > MAX_CONDITION_PARAMETER_LENGTH) {
+                    parameter.take(MAX_CONDITION_PARAMETER_LENGTH) + "..."
+                } else {
+                    parameter
+                }
+                context.getString(R.string.condition_on_page, truncatedParameter)
+            }
+        }
+    }
+
+    /**
      * Format condition part of a rule
      */
     private fun formatCondition(
@@ -56,7 +117,13 @@ object RuleFormatter {
 
             ConditionType.ON_PAGE -> {
                 val parameter = condition.parameter ?: ""
-                context.getString(R.string.condition_on_page, parameter)
+                // Truncate parameter if too long for display
+                val truncatedParameter = if (parameter.length > 30) {
+                    parameter.take(30) + "..."
+                } else {
+                    parameter
+                }
+                context.getString(R.string.condition_on_page, truncatedParameter)
             }
         }
     }

@@ -269,7 +269,14 @@ class ScreenshotAnalyzer(
                             // Show toast if debug option is enabled
                             if (AIServiceUtils.loadShowRuleResultToast(context)) {
                                 val resultText = if (isConditionMatch) "YES" else "NO"
-                                notificationManager.showToast("$question: $resultText", Toast.LENGTH_SHORT)
+                                // Truncate description to first 7 characters for toast display
+                                val description = condition.parameter ?: ""
+                                val truncatedDescription = if (description.length > 7) {
+                                    description.take(7) + "..."
+                                } else {
+                                    description
+                                }
+                                notificationManager.showToast("$truncatedDescription: $resultText", Toast.LENGTH_SHORT)
                             }
                             
                             // Handle time constraint if present

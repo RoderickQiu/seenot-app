@@ -130,7 +130,7 @@ fun MonitoringAppItem(
 
                 app.rules.forEach { rule ->
                     Text(
-                        text = RuleFormatter.formatRule(context, rule),
+                        text = RuleFormatter.formatRuleForList(context, rule),
                         fontSize = 14.sp,
                         color = colorScheme.onSurface.copy(alpha = 0.7f),
                         maxLines = 2,
