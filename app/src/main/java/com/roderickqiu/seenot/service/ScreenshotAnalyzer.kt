@@ -18,6 +18,8 @@ import com.aallam.openai.client.OpenAIHost
 import com.roderickqiu.seenot.data.AppDataStore
 import com.roderickqiu.seenot.data.ConditionType
 import com.roderickqiu.seenot.data.Rule
+import com.roderickqiu.seenot.data.RuleRecord
+import com.roderickqiu.seenot.data.RuleRecordRepo
 import com.roderickqiu.seenot.data.TimeConstraint
 import com.roderickqiu.seenot.service.AIServiceUtils
 import com.roderickqiu.seenot.service.BitmapUtils
@@ -31,7 +33,8 @@ class ScreenshotAnalyzer(
     private val appDataStore: AppDataStore,
     private val constraintManager: ConstraintManager,
     private val actionExecutor: ActionExecutor,
-    private val notificationManager: NotificationManager
+    private val notificationManager: NotificationManager,
+    private val ruleRecordRepo: RuleRecordRepo = RuleRecordRepo(context)
 ) {
     private var isTakingScreenshot: Boolean = false
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
@@ -198,6 +201,9 @@ class ScreenshotAnalyzer(
 
                 val imageContent = "data:image/png;base64,$base64Image"
 
+                // Save screenshot for records (create a copy since bitmap will be recycled)
+                val recordBitmap = bitmap.copy(Bitmap.Config.ARGB_8888, false)
+
                 // Process each activated rule
                 for ((appName, rule) in activatedRules) {
                     val startTime = System.currentTimeMillis()
@@ -265,7 +271,33 @@ class ScreenshotAnalyzer(
                             
                             // Parse AI result to check if condition matches
                             val isConditionMatch = AIServiceUtils.parseAIResult(result)
-                            
+
+                            // Create and save rule record if recording is enabled
+                            if (AIServiceUtils.loadEnableRuleRecording(context)) {
+                                try {
+                                    val record = RuleRecord(
+                                        appName = appName,
+                                        packageName = currentMonitoredPackage,
+                                        ruleId = rule.id,
+                                        condition = condition,
+                                        action = action,
+                                        isConditionMatched = isConditionMatch,
+                                        aiResult = result,
+                                        elapsedTimeMs = elapsedTime
+                                    )
+
+                                    // Save record with image
+                                    val savedRecord = ruleRecordRepo.saveRecord(record)
+
+                                    // Save screenshot for this record
+                                    ruleRecordRepo.saveScreenshotForRecord(savedRecord.id, recordBitmap)
+
+                                    Log.d("A11yService", "Saved rule record: ${savedRecord.id} for rule ${rule.id}")
+                                } catch (recordError: Exception) {
+                                    Log.e("A11yService", "Error saving rule record", recordError)
+                                }
+                            }
+
                             // Show toast if debug option is enabled
                             if (AIServiceUtils.loadShowRuleResultToast(context)) {
                                 val resultText = if (isConditionMatch) "YES" else "NO"
@@ -300,6 +332,9 @@ class ScreenshotAnalyzer(
                         }
                     }
                 }
+
+                // Recycle the record bitmap copy
+                recordBitmap.recycle()
             } catch (e: Exception) {
                 Log.e("A11yService", "Error in describeImageWithAI", e)
                 e.message?.let { Log.e("A11yService", "Error details: $it") }

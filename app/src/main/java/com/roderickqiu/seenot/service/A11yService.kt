@@ -8,6 +8,7 @@ import android.accessibilityservice.GestureDescription
 import android.widget.Toast
 import com.roderickqiu.seenot.R
 import com.roderickqiu.seenot.data.AppDataStore
+import com.roderickqiu.seenot.data.RuleRecordRepo
 
 class A11yService : AccessibilityService() {
 
@@ -26,7 +27,7 @@ class A11yService : AccessibilityService() {
         notificationManager = NotificationManager(this)
         actionExecutor = ActionExecutor(this, notificationManager, this)
         constraintManager = ConstraintManager(appDataStore, actionExecutor)
-        screenshotAnalyzer = ScreenshotAnalyzer(this, appDataStore, constraintManager, actionExecutor, notificationManager)
+        screenshotAnalyzer = ScreenshotAnalyzer(this, appDataStore, constraintManager, actionExecutor, notificationManager, RuleRecordRepo(this))
         eventProcessor = EventProcessor(this, appDataStore, notificationManager, screenshotAnalyzer, constraintManager)
         
         constraintManager.loadTimeConstraintStates()

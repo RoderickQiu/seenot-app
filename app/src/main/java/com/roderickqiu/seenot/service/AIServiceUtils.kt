@@ -42,6 +42,11 @@ object AIServiceUtils {
         return prefs.getBoolean("show_rule_result_toast", false)
     }
 
+    fun loadEnableRuleRecording(context: Context): Boolean {
+        val prefs = context.getSharedPreferences("seenot_ai", Context.MODE_PRIVATE)
+        return prefs.getBoolean("enable_rule_recording", true)
+    }
+
     fun parseAIResult(result: String): Boolean {
         // Parse AI result (assuming JSON format: {"answer": "yes"/"no", "reason": "..."})
         val yesPattern = Regex("\"answer\"\\s*:\\s*\"yes\"", RegexOption.IGNORE_CASE)

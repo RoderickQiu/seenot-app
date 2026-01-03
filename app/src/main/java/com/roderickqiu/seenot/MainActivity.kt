@@ -47,6 +47,7 @@ import com.roderickqiu.seenot.components.ImportExportDialog
 import com.roderickqiu.seenot.components.MonitoringAppItem
 import com.roderickqiu.seenot.components.PermissionBanner
 import com.roderickqiu.seenot.components.UnifiedEditDialog
+import com.roderickqiu.seenot.components.RuleRecordsPage
 import com.roderickqiu.seenot.data.ActionType
 import com.roderickqiu.seenot.data.ConditionType
 import com.roderickqiu.seenot.data.MonitoringApp
@@ -54,6 +55,7 @@ import com.roderickqiu.seenot.data.MonitoringRepo
 import com.roderickqiu.seenot.data.Rule
 import com.roderickqiu.seenot.data.RuleAction
 import com.roderickqiu.seenot.data.RuleCondition
+import com.roderickqiu.seenot.data.RuleRecordRepo
 import com.roderickqiu.seenot.ui.theme.SeeNotTheme
 import com.roderickqiu.seenot.settings.SettingsDialog
 import com.roderickqiu.seenot.utils.LanguageManager
@@ -145,6 +147,7 @@ class MainActivity : ComponentActivity() {
                 var showAiSettings by remember { mutableStateOf(false) }
                 var showAboutDialog by remember { mutableStateOf(false) }
                 var showImportExportDialog by remember { mutableStateOf(false) }
+                var showRuleRecordsPage by remember { mutableStateOf(false) }
                 var permissionRefreshKey by remember { mutableStateOf(0) }
                 var bannerRefreshKey by remember { mutableStateOf(0) }
                 var previousShowPermissionSettings by remember { mutableStateOf(false) }
@@ -161,7 +164,16 @@ class MainActivity : ComponentActivity() {
                 Scaffold(
                     modifier = Modifier.fillMaxSize(),
                     topBar = {
-                        if (showPermissionSettings) {
+                        if (showRuleRecordsPage) {
+                            CenterAlignedTopAppBar(
+                                title = { Text(context.getString(R.string.rule_records)) },
+                                navigationIcon = {
+                                    IconButton(onClick = { showRuleRecordsPage = false }) {
+                                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = context.getString(R.string.back))
+                                    }
+                                }
+                            )
+                        } else if (showPermissionSettings) {
                             CenterAlignedTopAppBar(
                                 title = { Text(context.getString(R.string.permission_settings)) },
                                 navigationIcon = {
@@ -205,6 +217,13 @@ class MainActivity : ComponentActivity() {
                                                 }
                                             )
                                             DropdownMenuItem(
+                                                text = { Text(text = context.getString(R.string.rule_records_menu)) },
+                                                onClick = {
+                                                    showTopMenu = false
+                                                    showRuleRecordsPage = true
+                                                }
+                                            )
+                                            DropdownMenuItem(
                                                 text = { Text(text = context.getString(R.string.about)) },
                                                 onClick = {
                                                     showTopMenu = false
@@ -218,7 +237,9 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     floatingActionButton = {
-                        if (showPermissionSettings) {
+                        if (showRuleRecordsPage) {
+                            // Rule Records page doesn't need FAB
+                        } else if (showPermissionSettings) {
                             androidx.compose.material3.ExtendedFloatingActionButton(
                                 onClick = { permissionRefreshKey++ },
                                 icon = { Icon(Icons.Default.Refresh, contentDescription = context.getString(R.string.refresh_status)) },
@@ -236,7 +257,11 @@ class MainActivity : ComponentActivity() {
                         }
                     }
                 ) { innerPadding ->
-                    if (showPermissionSettings) {
+                    if (showRuleRecordsPage) {
+                        RuleRecordsPage(
+                            modifier = Modifier.padding(innerPadding)
+                        )
+                    } else if (showPermissionSettings) {
                         com.roderickqiu.seenot.settings.PermissionSettingsScreen(
                             modifier = Modifier.padding(innerPadding),
                             refreshSignal = permissionRefreshKey

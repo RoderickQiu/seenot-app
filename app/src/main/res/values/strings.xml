@@ -149,6 +149,35 @@
     <string name="show_rule_result_toast">显示规则执行结果</string>
     <string name="language_settings">语言设置</string>
 
+    <!-- Rule Records -->
+    <string name="rule_records">规则记录</string>
+    <string name="rule_records_menu">规则记录</string>
+    <string name="enable_rule_recording">启用规则记录</string>
+    <string name="enable_rule_recording_desc">记录每次规则判断的结果和截图</string>
+    <string name="all_dates">全部日期</string>
+    <string name="all_hours">全部小时</string>
+    <string name="records_count">%1$d 条记录</string>
+    <string name="no_records_found">未找到记录</string>
+    <string name="export_records">导出记录</string>
+    <string name="export_records_desc">将所有记录和图片导出为ZIP文件</string>
+    <string name="clear_all_records">清空所有记录</string>
+    <string name="clear_all_records_confirm">确定要删除所有记录和图片吗？此操作无法撤销。</string>
+    <string name="record_details">记录详情</string>
+    <string name="app">应用</string>
+    <string name="condition">条件</string>
+    <string name="action">动作</string>
+    <string name="result">结果</string>
+    <string name="processing_time">处理时间</string>
+    <string name="ai_response">AI响应</string>
+    <string name="no_image_available">暂无图片</string>
+    <string name="matched">匹配</string>
+    <string name="not_matched">不匹配</string>
+    <string name="delete_record">删除记录</string>
+    <string name="delete_record_confirm">确定要删除这条记录吗？此操作无法撤销。</string>
+    <string name="rule">规则</string>
+    <string name="previous_record">上一条记录</string>
+    <string name="next_record">下一条记录</string>
+
     <!-- About Dialog -->
     <string name="about">关于程序</string>
     <string name="about_app_description">一款使用 AI 技术帮您掌控注意力的 Android 应用程序。</string>

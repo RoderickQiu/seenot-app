@@ -71,6 +71,7 @@ private const val KEY_MODEL = "model"
 private const val KEY_API_KEY = "api_key"
 private const val KEY_AUTO_SAVE_SCREENSHOT = "auto_save_screenshot"
 private const val KEY_SHOW_RULE_RESULT_TOAST = "show_rule_result_toast"
+private const val KEY_ENABLE_RULE_RECORDING = "enable_rule_recording"
 private const val DEFAULT_MODEL_ID = "qwen3-vl-plus"
 
 private fun loadAiModelId(context: Context): String {
@@ -97,13 +98,19 @@ private fun loadShowRuleResultToast(context: Context): Boolean {
     return prefs.getBoolean(KEY_SHOW_RULE_RESULT_TOAST, false)
 }
 
-private fun saveAiSettings(context: Context, modelId: String, apiKey: String, autoSaveScreenshot: Boolean, showRuleResultToast: Boolean) {
+private fun loadEnableRuleRecording(context: Context): Boolean {
+    val prefs = context.getSharedPreferences(AI_PREFS, Context.MODE_PRIVATE)
+    return prefs.getBoolean(KEY_ENABLE_RULE_RECORDING, true)
+}
+
+private fun saveAiSettings(context: Context, modelId: String, apiKey: String, autoSaveScreenshot: Boolean, showRuleResultToast: Boolean, enableRuleRecording: Boolean) {
     val prefs = context.getSharedPreferences(AI_PREFS, Context.MODE_PRIVATE)
     prefs.edit()
         .putString(KEY_MODEL, modelId)
         .putString(KEY_API_KEY, apiKey)
         .putBoolean(KEY_AUTO_SAVE_SCREENSHOT, autoSaveScreenshot)
         .putBoolean(KEY_SHOW_RULE_RESULT_TOAST, showRuleResultToast)
+        .putBoolean(KEY_ENABLE_RULE_RECORDING, enableRuleRecording)
         .apply()
 }
 
@@ -120,6 +127,7 @@ fun SettingsDialog(onDismiss: () -> Unit, onLanguageChanged: (() -> Unit)? = nul
     var apiKey by remember { mutableStateOf(loadAiKey(context)) }
     var autoSaveScreenshot by remember { mutableStateOf(loadAutoSaveScreenshot(context)) }
     var showRuleResultToast by remember { mutableStateOf(loadShowRuleResultToast(context)) }
+    var enableRuleRecording by remember { mutableStateOf(loadEnableRuleRecording(context)) }
     
     // Language settings
     val currentLanguage = LanguageManager.getSavedLanguage(context)
@@ -237,6 +245,27 @@ fun SettingsDialog(onDismiss: () -> Unit, onLanguageChanged: (() -> Unit)? = nul
                                 onCheckedChange = { showRuleResultToast = it }
                         )
                     }
+
+                    Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = context.getString(R.string.enable_rule_recording))
+                            Text(
+                                text = context.getString(R.string.enable_rule_recording_desc),
+                                style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp),
+                                color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                                checked = enableRuleRecording,
+                                onCheckedChange = { enableRuleRecording = it }
+                        )
+                    }
                     
                     // Language settings section
                     Text(
@@ -291,7 +320,7 @@ fun SettingsDialog(onDismiss: () -> Unit, onLanguageChanged: (() -> Unit)? = nul
             confirmButton = {
                 TextButton(
                         onClick = {
-                            saveAiSettings(context, selectedModel.id, apiKey, autoSaveScreenshot, showRuleResultToast)
+                            saveAiSettings(context, selectedModel.id, apiKey, autoSaveScreenshot, showRuleResultToast, enableRuleRecording)
                             if (selectedLanguage != currentLanguage) {
                                 LanguageManager.saveLanguage(context, selectedLanguage)
                                 onDismiss()
