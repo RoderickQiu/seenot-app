@@ -9,6 +9,7 @@ import android.util.Log
 import com.roderickqiu.seenot.data.ActionType
 import com.roderickqiu.seenot.data.Rule
 import android.widget.Toast
+import com.roderickqiu.seenot.components.AskOverlay
 
 class ActionExecutor(
     private val accessibilityService: AccessibilityService,
@@ -86,13 +87,43 @@ class ActionExecutor(
                 Log.d("A11yService", "Triggered AUTO_SCROLL_DOWN action")
             }
             ActionType.ASK -> {
-                // TODO: Implement ASK action
-                notificationManager.showToast(context.getString(com.roderickqiu.seenot.R.string.action_triggered, appName, rule.action.type.name), Toast.LENGTH_LONG)
-                Log.d("A11yService", "ASK action triggered (TODO)")
+                // Show floating overlay for user to manage rule states
+                val askOverlay = AskOverlay(
+                    context = context,
+                    appName = appName,
+                    onRulesUpdated = { ruleStates ->
+                        // Update rule states in constraint manager
+                        A11yService.getInstance()?.getConstraintManager()?.setMultipleRuleStates(ruleStates)
+                        Log.d("A11yService", "ASK action updated rule states: $ruleStates")
+                    },
+                    onDismiss = {
+                        Log.d("A11yService", "ASK overlay dismissed without changes")
+                    }
+                )
+                askOverlay.show()
+                Log.d("A11yService", "ASK overlay shown for $appName")
             }
         }
     }
-    
+
+    fun showAskOverlay(appName: String) {
+        // Show floating overlay for user to manage rule states (for askOnEnter setting)
+        val askOverlay = AskOverlay(
+            context = context,
+            appName = appName,
+            onRulesUpdated = { ruleStates ->
+                // Update rule states in constraint manager
+                A11yService.getInstance()?.getConstraintManager()?.setMultipleRuleStates(ruleStates)
+                Log.d("A11yService", "ASK overlay (askOnEnter) updated rule states: $ruleStates")
+            },
+            onDismiss = {
+                Log.d("A11yService", "ASK overlay (askOnEnter) dismissed without changes")
+            }
+        )
+        askOverlay.show()
+        Log.d("A11yService", "ASK overlay shown for $appName (askOnEnter)")
+    }
+
     private fun performAutoClickAtCoordinate(parameter: String) {
         // Parse coordinate from parameter (format: "x,y")
         val parts = parameter.split(",")

@@ -317,16 +317,7 @@ class MainActivity : ComponentActivity() {
                         onAddApp = { appName ->
                             val newApp = MonitoringApp(
                                 name = appName,
-                                rules = listOf(
-                                    Rule(
-                                        condition = RuleCondition(
-                                            type = ConditionType.ON_ENTER
-                                        ),
-                                        action = RuleAction(
-                                            type = ActionType.ASK
-                                        )
-                                    )
-                                )
+                                rules = emptyList()
                             )
                             repository.addApp(newApp)
                             monitoringApps = repository.getAllApps()

@@ -9,7 +9,8 @@
     <string name="delete">Delete</string>
     <string name="edit_app">Edit App</string>
     <string name="app_name_label">App Name</string>
-    <string name="enabled_status">Enabled Status</string>
+    <string name="ask_on_enter_label">Ask on Enter</string>
+    <string name="ask_on_enter_desc">Show rule selection interface when entering the app</string>
     <string name="save">Save</string>
     <string name="cancel">Cancel</string>
     

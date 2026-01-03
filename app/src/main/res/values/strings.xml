@@ -8,7 +8,8 @@
     <string name="delete">删除</string>
     <string name="edit_app">编辑应用</string>
     <string name="app_name_label">应用名称</string>
-    <string name="enabled_status">启用状态</string>
+    <string name="ask_on_enter_label">每次进入时询问</string>
+    <string name="ask_on_enter_desc">进入应用时显示规则选择界面</string>
     <string name="save">保存</string>
     <string name="cancel">取消</string>
     
@@ -51,6 +52,7 @@
     <string name="action_type">动作类型</string>
     <string name="action_remind_label">进行提醒</string>
     <string name="action_auto_click_label">自动点击</string>
+    <string name="action_auto_click_no_param">自动点击（无坐标）</string>
     <string name="action_auto_scroll_up_label">自动上滑</string>
     <string name="action_auto_scroll_down_label">自动下滑</string>
     <string name="action_auto_back_label">自动回退</string>
@@ -139,6 +141,15 @@
     <string name="coordinate_picker_test_click_inside_app">测试点击坐标 (%1$d, %2$d) [应用内测试，不执行点击]</string>
     <string name="coordinate_picker_error">无法显示坐标选择器，请检查悬浮窗权限</string>
     <string name="accessibility_required_for_coordinate_picker">需要启用无障碍服务才能使用坐标选择功能</string>
+
+    <!-- Ask Overlay -->
+    <string name="ask_overlay_title">调整规则状态</string>
+    <string name="ask_overlay_subtitle">%1$s触发了询问动作，请选择要启用/禁用的规则</string>
+    <string name="ask_overlay_timeout">操作超时，已自动关闭</string>
+    <string name="ask_overlay_confirm">确认</string>
+    <string name="ask_overlay_rule_enabled">启用</string>
+    <string name="ask_overlay_rule_disabled">禁用</string>
+    <string name="ask_overlay_no_rules">此应用没有配置规则</string>
     
     <!-- AI Settings -->
     <string name="ai_settings">程序设置</string>

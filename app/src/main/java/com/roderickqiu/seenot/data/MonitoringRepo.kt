@@ -33,6 +33,7 @@ class MonitoringRepo(private val context: Context) {
             MonitoringApp(
                 name = "知乎",
                 isEnabled = false,
+                askOnEnter = true,
                 rules = listOf(
                     Rule(
                         condition = RuleCondition(
@@ -51,14 +52,6 @@ class MonitoringRepo(private val context: Context) {
                         action = RuleAction(
                             type = ActionType.AUTO_CLICK,
                             parameter = "顶部"
-                        )
-                    ),
-                    Rule(
-                        condition = RuleCondition(
-                            type = ConditionType.ON_ENTER
-                        ),
-                        action = RuleAction(
-                            type = ActionType.ASK
                         )
                     )
                 )
@@ -81,15 +74,8 @@ class MonitoringRepo(private val context: Context) {
             ),
             MonitoringApp(
                 name = "QQ",
+                askOnEnter = true,
                 rules = listOf(
-                    Rule(
-                        condition = RuleCondition(
-                            type = ConditionType.ON_ENTER
-                        ),
-                        action = RuleAction(
-                            type = ActionType.ASK
-                        )
-                    ),
                     Rule(
                         condition = RuleCondition(
                             type = ConditionType.ON_PAGE,

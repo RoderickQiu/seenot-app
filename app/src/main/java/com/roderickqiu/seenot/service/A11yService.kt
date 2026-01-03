@@ -95,4 +95,8 @@ class A11yService : AccessibilityService() {
             constraintManager.setRulesEnabled(enabled)
         }
     }
+
+    fun getConstraintManager(): ConstraintManager? {
+        return if (::constraintManager.isInitialized) constraintManager else null
+    }
 }

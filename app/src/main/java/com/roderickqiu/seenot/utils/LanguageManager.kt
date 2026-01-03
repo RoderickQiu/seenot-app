@@ -23,8 +23,8 @@ object LanguageManager {
 
     fun getLocale(language: String): Locale {
         return when (language) {
-            "zh" -> Locale("zh", "CN")
-            "en" -> Locale("en", "US")
+            "zh" -> Locale.Builder().setLanguage("zh").setRegion("CN").build()
+            "en" -> Locale.Builder().setLanguage("en").setRegion("US").build()
             else -> Locale.getDefault() // "auto" uses system default
         }
     }

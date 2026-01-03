@@ -2,7 +2,6 @@ package com.roderickqiu.seenot.service
 
 import android.util.Log
 import com.roderickqiu.seenot.data.AppDataStore
-import com.roderickqiu.seenot.data.ConditionType
 import com.roderickqiu.seenot.data.Rule
 import com.roderickqiu.seenot.data.TimeConstraint
 import com.roderickqiu.seenot.utils.GenericUtils
@@ -14,6 +13,9 @@ class ConstraintManager(
 ) {
     @Volatile
     private var rulesEnabled = true
+
+    // Rule-level enable/disable states (ruleId -> enabled)
+    private val ruleEnabledStates = mutableMapOf<String, Boolean>()
 
     // State tracking for time constraints
     private val shortTermRecords = mutableMapOf<String, MutableList<TimeRecord>>()
@@ -32,8 +34,28 @@ class ConstraintManager(
 
     fun areRulesEnabled(): Boolean = rulesEnabled
 
+    // Rule-level enable/disable management
+    fun setRuleEnabled(ruleId: String, enabled: Boolean) {
+        ruleEnabledStates[ruleId] = enabled
+        Log.d("A11yService", "Rule $ruleId ${if (enabled) "enabled" else "disabled"}")
+    }
+
+    fun isRuleEnabled(ruleId: String): Boolean {
+        return ruleEnabledStates.getOrDefault(ruleId, true) // Default to enabled
+    }
+
+    fun getAllRuleStates(): Map<String, Boolean> {
+        return ruleEnabledStates.toMap()
+    }
+
+    fun setMultipleRuleStates(states: Map<String, Boolean>) {
+        ruleEnabledStates.putAll(states)
+        Log.d("A11yService", "Updated rule states: $states")
+    }
+
     fun handleTimeConstraint(rule: Rule, appName: String, isMatch: Boolean) {
         if (!areRulesEnabled()) return
+        if (!isRuleEnabled(rule.id)) return // Check if rule is individually disabled
         val constraint = rule.timeConstraint ?: return
         
         when (constraint) {
@@ -403,16 +425,11 @@ class ConstraintManager(
         try {
             val monitoringApps = appDataStore.loadMonitoringApps()
             val targetApp = monitoringApps.find { it.name == appName && it.isEnabled } ?: return
-            targetApp.rules.filter { it.condition.type == ConditionType.ON_ENTER }
-                .forEach { rule ->
-                    if (rule.timeConstraint != null) {
-                        Log.w(
-                            "A11yService",
-                            "Time constraints are not supported for ON_ENTER rules (ruleId=${rule.id}), executing immediately"
-                        )
-                    }
-                    actionExecutor.executeAction(rule, appName)
-                }
+
+            // Handle askOnEnter setting - show overlay if enabled
+            if (targetApp.askOnEnter) {
+                actionExecutor.showAskOverlay(appName)
+            }
         } catch (e: Exception) {
             Log.e("A11yService", "Failed to handle ON_ENTER rules for $appName", e)
         }

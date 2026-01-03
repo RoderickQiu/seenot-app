@@ -51,6 +51,7 @@ fun UnifiedEditDialog(
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var isEnabled by remember { mutableStateOf(app.isEnabled) }
+    var askOnEnter by remember { mutableStateOf(app.askOnEnter) }
     val rules = remember { mutableStateListOf<Rule>(*app.rules.toTypedArray()) }
     var showAddRuleDialog by remember { mutableStateOf(false) }
     var editingRuleIndex by remember { mutableStateOf<Int?>(null) }
@@ -89,6 +90,30 @@ fun UnifiedEditDialog(
                         Switch(
                             checked = isEnabled,
                             onCheckedChange = { isEnabled = it }
+                        )
+                    }
+
+                    // Ask on Enter Switch
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = context.getString(R.string.ask_on_enter_label),
+                                fontSize = 16.sp,
+                                fontWeight = androidx.compose.ui.text.font.FontWeight.Medium
+                            )
+                            Text(
+                                text = context.getString(R.string.ask_on_enter_desc),
+                                fontSize = 12.sp,
+                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.7f)
+                            )
+                        }
+                        Switch(
+                            checked = askOnEnter,
+                            onCheckedChange = { askOnEnter = it }
                         )
                     }
                     
@@ -207,6 +232,7 @@ fun UnifiedEditDialog(
                     onClick = {
                         val updatedApp = app.copy(
                             isEnabled = isEnabled,
+                            askOnEnter = askOnEnter,
                             rules = rules.toList()
                         )
                         onSaveApp(updatedApp)
