@@ -17,6 +17,9 @@ class ActionExecutor(
     private val notificationManager: NotificationManager,
     private val context: android.content.Context
 ) {
+    // Action deduplication related fields
+    private val recentActions = mutableMapOf<String, Long>()
+    private val deduplicationWindowMs = 3000L // 3 seconds deduplication window
     
     private inner class ClickGestureCallback(
         private val x: Float,
@@ -50,6 +53,19 @@ class ActionExecutor(
     }
     
     fun executeAction(rule: Rule, appName: String) {
+        // Action deduplication check
+        val actionKey = "${appName}_${rule.id}_${rule.action.type}"
+        val now = System.currentTimeMillis()
+        val lastExecuteTime = recentActions[actionKey] ?: 0
+
+        if (now - lastExecuteTime < deduplicationWindowMs) {
+            Log.d("A11yService", "Skipping duplicate action $actionKey, last executed ${now - lastExecuteTime}ms ago")
+            return
+        }
+
+        // Update execution timestamp
+        recentActions[actionKey] = now
+
         when (rule.action.type) {
             ActionType.REMIND -> {
                 val message = rule.action.parameter ?: "Reminder"
@@ -206,6 +222,25 @@ class ActionExecutor(
         val gestureDescription = gestureBuilder.addStroke(strokeDescription).build()
         
         accessibilityService.dispatchGesture(gestureDescription, ScrollGestureCallback(isScrollUp), null)
+    }
+
+    /**
+     * Clean up expired action records to prevent memory leaks
+     * Call this method periodically to clean up records beyond the deduplication window
+     */
+    fun cleanupExpiredActionRecords() {
+        val now = System.currentTimeMillis()
+        val expiredKeys = recentActions.filter { (_, timestamp) ->
+            now - timestamp >= deduplicationWindowMs
+        }.keys
+
+        expiredKeys.forEach { key ->
+            recentActions.remove(key)
+        }
+
+        if (expiredKeys.isNotEmpty()) {
+            Log.d("A11yService", "Cleaned up ${expiredKeys.size} expired action records")
+        }
     }
 }
 

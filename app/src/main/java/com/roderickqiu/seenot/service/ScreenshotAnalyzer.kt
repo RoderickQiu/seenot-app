@@ -39,6 +39,10 @@ class ScreenshotAnalyzer(
 ) {
     private var isTakingScreenshot: Boolean = false
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
+
+    // Screenshot hash deduplication related fields
+    private val processedScreenshotHashes = mutableSetOf<String>()
+    private val hashRetentionTimeMs = 10000L // Hash retention for 10 seconds
     
     var currentMonitoredAppName: String? = null
     var currentMonitoredPackage: String? = null
@@ -156,6 +160,21 @@ class ScreenshotAnalyzer(
             Log.w("A11yService", "AI API key not configured, skipping image description")
             return
         }
+
+        // Screenshot content deduplication check
+        val screenshotHash = generateScreenshotHash(bitmap)
+        if (processedScreenshotHashes.contains(screenshotHash)) {
+            Log.d("A11yService", "Skipping duplicate screenshot processing (hash: $screenshotHash)")
+            bitmap.recycle()
+            return
+        }
+
+        // Record processed hash
+        processedScreenshotHashes.add(screenshotHash)
+        cleanupExpiredHashes()
+
+        // Periodically clean up expired action records in ActionExecutor
+        actionExecutor.cleanupExpiredActionRecords()
 
         coroutineScope.launch {
             try {
@@ -342,6 +361,55 @@ class ScreenshotAnalyzer(
             } finally {
                 bitmap.recycle()
             }
+        }
+    }
+
+    /**
+     * Generate hash value for screenshot content
+     * Uses bitmap dimensions, pixel sampling, and simple hash algorithm
+     */
+    private fun generateScreenshotHash(bitmap: Bitmap): String {
+        try {
+            // Sample large images to improve performance
+            val sampleSize = maxOf(1, maxOf(bitmap.width, bitmap.height) / 100)
+            val sampledBitmap = Bitmap.createScaledBitmap(
+                bitmap,
+                bitmap.width / sampleSize,
+                bitmap.height / sampleSize,
+                false
+            )
+
+            // Calculate pixel data hash
+            val pixels = IntArray(sampledBitmap.width * sampledBitmap.height)
+            sampledBitmap.getPixels(pixels, 0, sampledBitmap.width, 0, 0, sampledBitmap.width, sampledBitmap.height)
+
+            // Use simple hash algorithm
+            var hash = 0L
+            for (pixel in pixels) {
+                hash = hash * 31 + pixel.toLong()
+            }
+
+            sampledBitmap.recycle()
+
+            // Combine dimension info and pixel hash
+            return "${bitmap.width}x${bitmap.height}_${hash.hashCode()}"
+
+        } catch (e: Exception) {
+            Log.w("A11yService", "Error generating screenshot hash", e)
+            // Fallback to dimension and timestamp based hash
+            return "${bitmap.width}x${bitmap.height}_${System.currentTimeMillis()}"
+        }
+    }
+
+    /**
+     * Clean up expired screenshot hash records
+     */
+    private fun cleanupExpiredHashes() {
+        // Simple timestamp record cleanup strategy
+        // Use a counter to clean up periodically instead of every time
+        if (processedScreenshotHashes.size > 50) {
+            Log.d("A11yService", "Cleaning up ${processedScreenshotHashes.size} screenshot hash records")
+            processedScreenshotHashes.clear()
         }
     }
 }
