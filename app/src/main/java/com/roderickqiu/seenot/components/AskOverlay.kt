@@ -26,6 +26,7 @@ import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.toColorInt
 import com.roderickqiu.seenot.R
+import com.roderickqiu.seenot.components.ToastOverlay
 import com.roderickqiu.seenot.data.ActionType
 import com.roderickqiu.seenot.data.AppDataStore
 import com.roderickqiu.seenot.data.Rule
@@ -125,22 +126,14 @@ class AskOverlay(
         val onDismissCallback = onDismiss ?: return
 
         if (!canDrawOverlays(ctx)) {
-            Toast.makeText(
-                ctx,
-                ctx.getString(R.string.coordinate_picker_error),
-                Toast.LENGTH_LONG
-            ).show()
+            ToastOverlay.show(ctx, ctx.getString(R.string.coordinate_picker_error), 5000L)
             onDismissCallback()
             return
         }
 
         // Check if accessibility service is enabled before showing the overlay
         if (!isAccessibilityServiceEnabled(ctx)) {
-            Toast.makeText(
-                ctx,
-                ctx.getString(R.string.accessibility_required_for_coordinate_picker),
-                Toast.LENGTH_LONG
-            ).show()
+            ToastOverlay.show(ctx, ctx.getString(R.string.accessibility_required_for_coordinate_picker), 5000L)
             onDismissCallback()
             return
         }
@@ -377,11 +370,7 @@ class AskOverlay(
             windowManager?.addView(controlOverlayView, controlParams)
         } catch (e: Exception) {
             contextRef.get()?.let { ctx ->
-                Toast.makeText(
-                    ctx,
-                    ctx.getString(R.string.coordinate_picker_error),
-                    Toast.LENGTH_SHORT
-                ).show()
+                ToastOverlay.show(ctx, ctx.getString(R.string.coordinate_picker_error), 3000L)
             }
             A11yService.getInstance()?.setRulesEnabled(true)
             onDismissRef.get()?.invoke()
@@ -545,7 +534,7 @@ class AskOverlay(
         autoDismissHandler = Handler(Looper.getMainLooper())
         autoDismissRunnable = Runnable {
             context?.let { ctx ->
-                Toast.makeText(ctx, ctx.getString(R.string.ask_overlay_timeout), Toast.LENGTH_SHORT).show()
+                ToastOverlay.show(ctx, ctx.getString(R.string.ask_overlay_timeout), 3000L)
             }
             dismiss()
         }

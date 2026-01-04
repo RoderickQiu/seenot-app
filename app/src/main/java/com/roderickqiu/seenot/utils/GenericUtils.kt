@@ -15,6 +15,11 @@ data class InstalledApp(
 object GenericUtils {
     
     /**
+     * Maximum length for truncated text in toast messages
+     */
+    const val TOAST_TEXT_MAX_LENGTH = 15
+    
+    /**
      * Get all installed apps on the device
      */
     fun getInstalledApps(context: Context): List<InstalledApp> {

@@ -4,6 +4,7 @@ import android.content.Intent
 import android.os.Bundle
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import com.roderickqiu.seenot.components.ToastOverlay
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import com.google.gson.Gson
@@ -90,7 +91,7 @@ class MainActivity : ComponentActivity() {
             // Start share activity
             startActivity(Intent.createChooser(shareIntent, "分享规则"))
         } catch (e: Exception) {
-            Toast.makeText(this, "分享失败：${e.message}", Toast.LENGTH_LONG).show()
+            ToastOverlay.show(this, "分享失败：${e.message}", 5000L)
         }
     }
 
@@ -111,7 +112,7 @@ class MainActivity : ComponentActivity() {
 
             // Validate that we have valid apps
             if (importedApps.isEmpty()) {
-                Toast.makeText(this, getString(R.string.invalid_json_format), Toast.LENGTH_LONG).show()
+                ToastOverlay.show(this, getString(R.string.invalid_json_format), 5000L)
                 return
             }
 
@@ -119,12 +120,12 @@ class MainActivity : ComponentActivity() {
             val dataStore = com.roderickqiu.seenot.data.AppDataStore(this)
             dataStore.saveMonitoringApps(importedApps)
 
-            Toast.makeText(this, getString(R.string.rules_imported_successfully), Toast.LENGTH_LONG).show()
+            ToastOverlay.show(this, getString(R.string.rules_imported_successfully), 5000L)
 
             // Call the callback to refresh UI
             onImportComplete()
         } catch (e: Exception) {
-            Toast.makeText(this, "${getString(R.string.invalid_json_format)}: ${e.message}", Toast.LENGTH_LONG).show()
+            ToastOverlay.show(this, "${getString(R.string.invalid_json_format)}: ${e.message}", 5000L)
         }
     }
 

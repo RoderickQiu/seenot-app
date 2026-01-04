@@ -6,6 +6,7 @@ import android.os.Build
 import android.provider.Settings
 import android.widget.Toast
 import androidx.compose.foundation.layout.Arrangement
+import com.roderickqiu.seenot.components.ToastOverlay
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.material3.AlertDialog
@@ -248,20 +249,12 @@ fun RuleDialog(
                 onClick = {
                     val trimmedActionParameter = actionParameter.trim()
                     if (selectedActionType == ActionType.REMIND && trimmedActionParameter.isEmpty()) {
-                        Toast.makeText(
-                            context,
-                            context.getString(R.string.error_remind_message_required),
-                            Toast.LENGTH_SHORT
-                        ).show()
+                        ToastOverlay.show(context, context.getString(R.string.error_remind_message_required), 3000L)
                         selectedTab = 1
                         return@Button
                     }
                     if (selectedActionType == ActionType.AUTO_CLICK && trimmedActionParameter.isEmpty()) {
-                        Toast.makeText(
-                            context,
-                            context.getString(R.string.error_coordinate_required),
-                            Toast.LENGTH_SHORT
-                        ).show()
+                        ToastOverlay.show(context, context.getString(R.string.error_coordinate_required), 3000L)
                         selectedTab = 1
                         return@Button
                     }

@@ -10,6 +10,7 @@ import com.roderickqiu.seenot.data.ActionType
 import com.roderickqiu.seenot.data.Rule
 import android.widget.Toast
 import com.roderickqiu.seenot.components.AskOverlay
+import com.roderickqiu.seenot.utils.GenericUtils
 
 class ActionExecutor(
     private val accessibilityService: AccessibilityService,
@@ -56,8 +57,19 @@ class ActionExecutor(
                 Log.d("A11yService", "Triggered REMIND action: $message")
             }
             ActionType.AUTO_BACK -> {
-                notificationManager.showToast(context.getString(com.roderickqiu.seenot.R.string.action_auto_back_label), Toast.LENGTH_SHORT)
-                Log.d("A11yService", "Triggered AUTO_BACK action")
+                val reason = rule.condition.parameter ?: ""
+                val truncatedReason = if (reason.length > GenericUtils.TOAST_TEXT_MAX_LENGTH) {
+                    reason.take(GenericUtils.TOAST_TEXT_MAX_LENGTH) + "..."
+                } else {
+                    reason
+                }
+                val toastMessage = if (truncatedReason.isNotEmpty()) {
+                    context.getString(com.roderickqiu.seenot.R.string.action_auto_back_label) + ": $truncatedReason"
+                } else {
+                    context.getString(com.roderickqiu.seenot.R.string.action_auto_back_label)
+                }
+                notificationManager.showToast(toastMessage, Toast.LENGTH_SHORT)
+                Log.d("A11yService", "Triggered AUTO_BACK action, reason: $reason")
                 val success = accessibilityService.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
                 if (!success) {
                     accessibilityService.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
@@ -78,13 +90,35 @@ class ActionExecutor(
             }
             ActionType.AUTO_SCROLL_UP -> {
                 performScrollGesture(true)
-                notificationManager.showToast(context.getString(com.roderickqiu.seenot.R.string.action_auto_scroll_up_label), Toast.LENGTH_SHORT)
-                Log.d("A11yService", "Triggered AUTO_SCROLL_UP action")
+                val reason = rule.condition.parameter ?: ""
+                val truncatedReason = if (reason.length > GenericUtils.TOAST_TEXT_MAX_LENGTH) {
+                    reason.take(GenericUtils.TOAST_TEXT_MAX_LENGTH) + "..."
+                } else {
+                    reason
+                }
+                val toastMessage = if (truncatedReason.isNotEmpty()) {
+                    context.getString(com.roderickqiu.seenot.R.string.action_auto_scroll_up_label) + ": $truncatedReason"
+                } else {
+                    context.getString(com.roderickqiu.seenot.R.string.action_auto_scroll_up_label)
+                }
+                notificationManager.showToast(toastMessage, Toast.LENGTH_SHORT)
+                Log.d("A11yService", "Triggered AUTO_SCROLL_UP action, reason: $reason")
             }
             ActionType.AUTO_SCROLL_DOWN -> {
                 performScrollGesture(false)
-                notificationManager.showToast(context.getString(com.roderickqiu.seenot.R.string.action_auto_scroll_down_label), Toast.LENGTH_SHORT)
-                Log.d("A11yService", "Triggered AUTO_SCROLL_DOWN action")
+                val reason = rule.condition.parameter ?: ""
+                val truncatedReason = if (reason.length > GenericUtils.TOAST_TEXT_MAX_LENGTH) {
+                    reason.take(GenericUtils.TOAST_TEXT_MAX_LENGTH) + "..."
+                } else {
+                    reason
+                }
+                val toastMessage = if (truncatedReason.isNotEmpty()) {
+                    context.getString(com.roderickqiu.seenot.R.string.action_auto_scroll_down_label) + ": $truncatedReason"
+                } else {
+                    context.getString(com.roderickqiu.seenot.R.string.action_auto_scroll_down_label)
+                }
+                notificationManager.showToast(toastMessage, Toast.LENGTH_SHORT)
+                Log.d("A11yService", "Triggered AUTO_SCROLL_DOWN action, reason: $reason")
             }
             ActionType.ASK -> {
                 // Show floating overlay for user to manage rule states

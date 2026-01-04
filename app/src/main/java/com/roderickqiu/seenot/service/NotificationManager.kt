@@ -12,12 +12,17 @@ import android.widget.Toast
 import androidx.core.app.NotificationCompat
 import com.roderickqiu.seenot.MainActivity
 import com.roderickqiu.seenot.R
+import com.roderickqiu.seenot.components.ToastOverlay
 
 class NotificationManager(private val context: Context) {
     private val mHandler = Handler(Looper.getMainLooper())
 
     fun showToast(message: String, duration: Int = Toast.LENGTH_SHORT) {
-        mHandler.post { Toast.makeText(context, message, duration).show() }
+        val toastDuration = when (duration) {
+            Toast.LENGTH_LONG -> 5000L // 5 seconds for long toast
+            else -> 3000L // 3 seconds for short toast
+        }
+        mHandler.post { ToastOverlay.show(context, message, toastDuration) }
     }
 
     fun startInForeground(service: android.accessibilityservice.AccessibilityService) {

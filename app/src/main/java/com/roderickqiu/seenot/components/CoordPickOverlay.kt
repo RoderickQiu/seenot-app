@@ -19,6 +19,7 @@ import android.widget.Toast
 import androidx.core.content.ContextCompat
 import androidx.core.graphics.toColorInt
 import com.roderickqiu.seenot.MainActivity
+import com.roderickqiu.seenot.components.ToastOverlay
 import kotlin.math.min
 import kotlin.math.roundToInt
 import com.roderickqiu.seenot.R
@@ -55,22 +56,14 @@ class CoordPickOverlay(
     @SuppressLint("ClickableViewAccessibility")
     fun show() {
         if (!canDrawOverlays()) {
-            Toast.makeText(
-                context,
-                context.getString(R.string.coordinate_picker_error),
-                Toast.LENGTH_LONG
-            ).show()
+            ToastOverlay.show(context, context.getString(R.string.coordinate_picker_error), 5000L)
             onDismiss()
             return
         }
 
         // Check if accessibility service is enabled before showing the overlay
         if (!isAccessibilityServiceEnabled()) {
-            Toast.makeText(
-                context,
-                context.getString(R.string.accessibility_required_for_coordinate_picker),
-                Toast.LENGTH_LONG
-            ).show()
+            ToastOverlay.show(context, context.getString(R.string.accessibility_required_for_coordinate_picker), 5000L)
             onDismiss()
             return
         }
@@ -231,11 +224,7 @@ class CoordPickOverlay(
         selectButton.setOnClickListener {
             // Check if accessibility service is enabled
             if (!isAccessibilityServiceEnabled()) {
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.accessibility_required_for_coordinate_picker),
-                    Toast.LENGTH_LONG
-                ).show()
+                ToastOverlay.show(context, context.getString(R.string.accessibility_required_for_coordinate_picker), 5000L)
                 return@setOnClickListener
             }
 
@@ -251,20 +240,12 @@ class CoordPickOverlay(
 
         // Set up test button functionality
         testButton.setOnClickListener {
-            Toast.makeText(
-                context,
-                context.getString(R.string.coordinate_picker_no_selection_warning),
-                Toast.LENGTH_SHORT
-            ).show()
+            ToastOverlay.show(context, context.getString(R.string.coordinate_picker_no_selection_warning), 3000L)
         }
 
         // Set up save button functionality
         saveButton.setOnClickListener {
-            Toast.makeText(
-                context,
-                context.getString(R.string.coordinate_picker_no_selection_warning),
-                Toast.LENGTH_SHORT
-            ).show()
+            ToastOverlay.show(context, context.getString(R.string.coordinate_picker_no_selection_warning), 3000L)
         }
 
         val primaryButtonRow = LinearLayout(context).apply {
@@ -375,11 +356,7 @@ class CoordPickOverlay(
         try {
             windowManager?.addView(controlOverlayView, controlParams)
         } catch (e: Exception) {
-            Toast.makeText(
-                context,
-                context.getString(R.string.coordinate_picker_error),
-                Toast.LENGTH_SHORT
-            ).show()
+            ToastOverlay.show(context, context.getString(R.string.coordinate_picker_error), 3000L)
             A11yService.getInstance()?.setRulesEnabled(true)
             onDismiss()
         }
@@ -415,11 +392,7 @@ class CoordPickOverlay(
         try {
             windowManager?.addView(fullScreenOverlayView, fullScreenParams)
         } catch (e: Exception) {
-            Toast.makeText(
-                context,
-                context.getString(R.string.coordinate_picker_error),
-                Toast.LENGTH_SHORT
-            ).show()
+            ToastOverlay.show(context, context.getString(R.string.coordinate_picker_error), 3000L)
         }
     }
 
@@ -476,11 +449,7 @@ class CoordPickOverlay(
             selectButton.setOnClickListener {
                 // Check if accessibility service is enabled
                 if (!isAccessibilityServiceEnabled()) {
-                    Toast.makeText(
-                        context,
-                        context.getString(R.string.accessibility_required_for_coordinate_picker),
-                        Toast.LENGTH_LONG
-                    ).show()
+                    ToastOverlay.show(context, context.getString(R.string.accessibility_required_for_coordinate_picker), 5000L)
                     return@setOnClickListener
                 }
 
@@ -499,11 +468,7 @@ class CoordPickOverlay(
         testButton.setOnClickListener {
             if (selectedX == 0 && selectedY == 0) {
                 // No coordinate selected yet
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.coordinate_picker_no_selection_warning),
-                    Toast.LENGTH_SHORT
-                ).show()
+                ToastOverlay.show(context, context.getString(R.string.coordinate_picker_no_selection_warning), 3000L)
                 return@setOnClickListener
             }
 
@@ -515,26 +480,22 @@ class CoordPickOverlay(
 
             if (foregroundApp != null && foregroundApp.startsWith("com.roderickqiu.seenot")) {
                 // We are inside SeeNot app, just show a toast
-                Toast.makeText(
+                ToastOverlay.show(
                     context,
                     context.getString(
                         R.string.coordinate_picker_test_click_inside_app,
                         selectedX,
                         selectedY
                     ),
-                    Toast.LENGTH_SHORT
-                ).show()
+                    3000L
+                )
             } else {
                 // We are outside SeeNot app, perform the actual click
                 val a11yService = com.roderickqiu.seenot.service.A11yService.getInstance()
                 if (a11yService != null) {
                     a11yService.performGlobalClick(selectedX, selectedY)
                 } else {
-                    Toast.makeText(
-                        context,
-                        context.getString(R.string.accessibility_required_for_coordinate_picker),
-                        Toast.LENGTH_LONG
-                    ).show()
+                    ToastOverlay.show(context, context.getString(R.string.accessibility_required_for_coordinate_picker), 5000L)
                 }
             }
         }
@@ -543,11 +504,7 @@ class CoordPickOverlay(
         saveButton.setOnClickListener {
             if (selectedX == 0 && selectedY == 0) {
                 // No coordinate selected yet
-                Toast.makeText(
-                    context,
-                    context.getString(R.string.coordinate_picker_no_selection_warning),
-                    Toast.LENGTH_SHORT
-                ).show()
+                ToastOverlay.show(context, context.getString(R.string.coordinate_picker_no_selection_warning), 3000L)
                 return@setOnClickListener
             }
 

@@ -7,6 +7,7 @@ import android.graphics.Path
 import android.accessibilityservice.GestureDescription
 import android.widget.Toast
 import com.roderickqiu.seenot.R
+import com.roderickqiu.seenot.components.ToastOverlay
 import com.roderickqiu.seenot.data.AppDataStore
 import com.roderickqiu.seenot.data.RuleRecordRepo
 
@@ -63,20 +64,12 @@ class A11yService : AccessibilityService() {
         dispatchGesture(gestureDescription, object : GestureResultCallback() {
             override fun onCompleted(gestureDescription: GestureDescription?) {
                 super.onCompleted(gestureDescription)
-                Toast.makeText(
-                    this@A11yService,
-                    getString(R.string.coordinate_picker_test_click, x, y),
-                    Toast.LENGTH_SHORT
-                ).show()
+                ToastOverlay.show(this@A11yService, getString(R.string.coordinate_picker_test_click, x, y), 3000L)
             }
             
             override fun onCancelled(gestureDescription: GestureDescription?) {
                 super.onCancelled(gestureDescription)
-                Toast.makeText(
-                    this@A11yService,
-                    getString(R.string.click_failed),
-                    Toast.LENGTH_SHORT
-                ).show()
+                ToastOverlay.show(this@A11yService, getString(R.string.click_failed), 3000L)
             }
         }, null)
     }

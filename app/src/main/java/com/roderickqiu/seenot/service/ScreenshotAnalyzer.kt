@@ -23,6 +23,7 @@ import com.roderickqiu.seenot.data.RuleRecordRepo
 import com.roderickqiu.seenot.data.TimeConstraint
 import com.roderickqiu.seenot.service.AIServiceUtils
 import com.roderickqiu.seenot.service.BitmapUtils
+import com.roderickqiu.seenot.utils.GenericUtils
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -301,10 +302,10 @@ class ScreenshotAnalyzer(
                             // Show toast if debug option is enabled
                             if (AIServiceUtils.loadShowRuleResultToast(context)) {
                                 val resultText = if (isConditionMatch) "YES" else "NO"
-                                // Truncate description to first 7 characters for toast display
+                                // Truncate description to first N characters for toast display
                                 val description = condition.parameter ?: ""
-                                val truncatedDescription = if (description.length > 7) {
-                                    description.take(7) + "..."
+                                val truncatedDescription = if (description.length > GenericUtils.TOAST_TEXT_MAX_LENGTH) {
+                                    description.take(GenericUtils.TOAST_TEXT_MAX_LENGTH) + "..."
                                 } else {
                                     description
                                 }

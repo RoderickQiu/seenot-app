@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import android.graphics.BitmapFactory
 import android.widget.Toast
 import androidx.compose.foundation.Image
+import com.roderickqiu.seenot.components.ToastOverlay
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -142,13 +143,13 @@ fun RuleRecordsPage(
 
                 if (exportUri != null) {
                     recordExporter.shareExportedFile(exportUri) { error ->
-                        Toast.makeText(context, error, Toast.LENGTH_LONG).show()
+                        ToastOverlay.show(context, error, 5000L)
                     }
                 } else {
-                    Toast.makeText(context, "Export failed", Toast.LENGTH_LONG).show()
+                    ToastOverlay.show(context, "Export failed", 5000L)
                 }
             } catch (e: Exception) {
-                Toast.makeText(context, "Export failed: ${e.message}", Toast.LENGTH_LONG).show()
+                ToastOverlay.show(context, "Export failed: ${e.message}", 5000L)
             } finally {
                 isExporting = false
                 exportProgress = ""
