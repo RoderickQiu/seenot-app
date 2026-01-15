@@ -41,8 +41,10 @@ class ScreenshotAnalyzer(
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
 
     // Screenshot hash deduplication related fields
-    private val processedScreenshotHashes = mutableSetOf<String>()
+    private val processedScreenshotHashes = mutableMapOf<String, Long>()
     private val hashRetentionTimeMs = 10000L // Hash retention for 10 seconds
+    // Store AI results for each hash: hash -> (appName -> ruleId -> isConditionMatch)
+    private val hashAiResults = mutableMapOf<String, MutableMap<String, MutableMap<String, Boolean>>>()
     
     var currentMonitoredAppName: String? = null
     var currentMonitoredPackage: String? = null
@@ -163,19 +165,89 @@ class ScreenshotAnalyzer(
 
         // Screenshot content deduplication check
         val screenshotHash = generateScreenshotHash(bitmap)
-        if (processedScreenshotHashes.contains(screenshotHash)) {
-            Log.d("A11yService", "Skipping duplicate screenshot processing (hash: $screenshotHash)")
-            bitmap.recycle()
-            return
-        }
+        val currentAppName = currentMonitoredAppName
+        
+        if (screenshotHash != null && currentAppName != null) {
+            val now = System.currentTimeMillis()
+            val existingTimestamp = processedScreenshotHashes[screenshotHash]
+            
+            if (existingTimestamp != null && (now - existingTimestamp) < hashRetentionTimeMs) {
+                // Reuse previous AI results for this duplicate screenshot
+                val previousResults = hashAiResults[screenshotHash]?.get(currentAppName)
+                if (previousResults != null) {
+                    Log.d("A11yService", "Reusing previous AI results for duplicate screenshot (hash: $screenshotHash, age: ${now - existingTimestamp}ms)")
+                    bitmap.recycle()
+                    reusePreviousResults(currentAppName, previousResults)
+                    return
+                } else {
+                    Log.d("A11yService", "Duplicate screenshot but no previous results found, processing normally (hash: $screenshotHash)")
+                }
+            }
 
-        // Record processed hash
-        processedScreenshotHashes.add(screenshotHash)
-        cleanupExpiredHashes()
+            // Record processed hash with timestamp
+            processedScreenshotHashes[screenshotHash] = now
+            cleanupExpiredHashes(now)
+        } else {
+            if (screenshotHash == null) {
+                Log.w("A11yService", "Failed to generate screenshot hash, skipping deduplication check")
+            }
+        }
 
         // Periodically clean up expired action records in ActionExecutor
         actionExecutor.cleanupExpiredActionRecords()
 
+        // Process with AI (will store results for future reuse)
+        processWithAI(bitmap, screenshotHash, currentAppName, apiKey, modelId)
+    }
+
+    private fun reusePreviousResults(appName: String, previousResults: Map<String, Boolean>) {
+        val monitoringApps = appDataStore.loadMonitoringApps()
+        val currentApp = monitoringApps.find { it.name == appName && it.isEnabled }
+        
+        if (currentApp == null) {
+            Log.d("A11yService", "App $appName not found or disabled, skipping result reuse")
+            return
+        }
+
+        for (rule in currentApp.rules) {
+            if (rule.condition.type != ConditionType.ON_PAGE) {
+                continue
+            }
+
+            val isConditionMatch = previousResults[rule.id] ?: continue
+
+            if (!constraintManager.areRulesEnabled()) {
+                Log.d("A11yService", "Rules paused - skipping rule ${rule.id} for $appName")
+                constraintManager.endShortTermRecord(rule.id, appName)
+                continue
+            }
+
+            // Show toast if debug option is enabled
+            if (AIServiceUtils.loadShowRuleResultToast(context)) {
+                val resultText = if (isConditionMatch) "YES" else "NO"
+                val description = rule.condition.parameter ?: ""
+                val truncatedDescription = if (description.length > GenericUtils.TOAST_TEXT_MAX_LENGTH) {
+                    description.take(GenericUtils.TOAST_TEXT_MAX_LENGTH) + "..."
+                } else {
+                    description
+                }
+                notificationManager.showToast("$truncatedDescription: $resultText (reused)", Toast.LENGTH_SHORT)
+            }
+
+            // Handle time constraint if present
+            if (isConditionMatch && rule.timeConstraint != null) {
+                constraintManager.handleTimeConstraint(rule, appName, isConditionMatch)
+            } else if (isConditionMatch && rule.timeConstraint == null) {
+                // No time constraint - trigger immediately
+                actionExecutor.executeAction(rule, appName)
+            } else {
+                // Condition doesn't match - end current record if any
+                constraintManager.endShortTermRecord(rule.id, appName)
+            }
+        }
+    }
+
+    private fun processWithAI(bitmap: Bitmap, screenshotHash: String?, appNameParam: String?, apiKey: String, modelId: String) {
         coroutineScope.launch {
             try {
                 // Convert bitmap to base64
@@ -183,8 +255,8 @@ class ScreenshotAnalyzer(
                 Log.d("A11yService", "Image converted to base64, size: ${base64Image.length} chars")
 
                 // Get activated rules only for the currently monitored app
-                val currentAppName = currentMonitoredAppName
-                if (currentAppName == null) {
+                val targetAppName = appNameParam ?: currentMonitoredAppName
+                if (targetAppName == null) {
                     Log.d("A11yService", "No currently monitored app, skipping AI evaluation")
                     bitmap.recycle()
                     return@launch
@@ -194,7 +266,7 @@ class ScreenshotAnalyzer(
                 val activatedRules = mutableListOf<Pair<String, Rule>>()
                 
                 // Find the current monitored app and get its rules
-                val currentApp = monitoringApps.find { it.name == currentAppName && it.isEnabled }
+                val currentApp = monitoringApps.find { it.name == targetAppName && it.isEnabled }
                 if (currentApp != null) {
                     for (rule in currentApp.rules) {
                         // Only process conditions that can be evaluated visually
@@ -204,7 +276,7 @@ class ScreenshotAnalyzer(
                     }
                 }
 
-                Log.d("A11yService", "Found ${activatedRules.size} activated rules to evaluate for app=$currentAppName")
+                Log.d("A11yService", "Found ${activatedRules.size} activated rules to evaluate for app=$targetAppName")
 
                 if (activatedRules.isEmpty()) {
                     Log.d("A11yService", "No activated rules found, skipping AI evaluation")
@@ -292,6 +364,12 @@ class ScreenshotAnalyzer(
                             // Parse AI result to check if condition matches
                             val isConditionMatch = AIServiceUtils.parseAIResult(result)
 
+                            // Store AI result for potential reuse
+                            if (screenshotHash != null) {
+                                hashAiResults.getOrPut(screenshotHash) { mutableMapOf() }
+                                    .getOrPut(appName) { mutableMapOf() }[rule.id] = isConditionMatch
+                            }
+
                             // Create and save rule record if recording is enabled
                             if (AIServiceUtils.loadEnableRuleRecording(context)) {
                                 try {
@@ -367,8 +445,9 @@ class ScreenshotAnalyzer(
     /**
      * Generate hash value for screenshot content
      * Uses bitmap dimensions, pixel sampling, and simple hash algorithm
+     * Returns null if hash generation fails (will skip deduplication)
      */
-    private fun generateScreenshotHash(bitmap: Bitmap): String {
+    private fun generateScreenshotHash(bitmap: Bitmap): String? {
         try {
             // Sample large images to improve performance
             val sampleSize = maxOf(1, maxOf(bitmap.width, bitmap.height) / 100)
@@ -395,21 +474,37 @@ class ScreenshotAnalyzer(
             return "${bitmap.width}x${bitmap.height}_${hash.hashCode()}"
 
         } catch (e: Exception) {
-            Log.w("A11yService", "Error generating screenshot hash", e)
-            // Fallback to dimension and timestamp based hash
-            return "${bitmap.width}x${bitmap.height}_${System.currentTimeMillis()}"
+            Log.w("A11yService", "Error generating screenshot hash, skipping deduplication", e)
+            return null
         }
     }
 
     /**
-     * Clean up expired screenshot hash records
+     * Clean up expired screenshot hash records based on time
      */
-    private fun cleanupExpiredHashes() {
-        // Simple timestamp record cleanup strategy
-        // Use a counter to clean up periodically instead of every time
-        if (processedScreenshotHashes.size > 50) {
-            Log.d("A11yService", "Cleaning up ${processedScreenshotHashes.size} screenshot hash records")
-            processedScreenshotHashes.clear()
+    private fun cleanupExpiredHashes(currentTime: Long) {
+        // Remove expired hashes (older than retention time)
+        val expiredKeys = processedScreenshotHashes.filter { (_, timestamp) ->
+            (currentTime - timestamp) >= hashRetentionTimeMs
+        }.keys
+        
+        if (expiredKeys.isNotEmpty()) {
+            expiredKeys.forEach { 
+                processedScreenshotHashes.remove(it)
+                hashAiResults.remove(it) // Also clean up associated AI results
+            }
+            Log.d("A11yService", "Cleaned up ${expiredKeys.size} expired screenshot hash records, remaining: ${processedScreenshotHashes.size}")
+        }
+        
+        // Safety cleanup: if still too many records, remove oldest ones
+        if (processedScreenshotHashes.size > 100) {
+            val sortedByTime = processedScreenshotHashes.toList().sortedBy { it.second }
+            val toRemove = sortedByTime.take(processedScreenshotHashes.size - 50).map { it.first }
+            toRemove.forEach { 
+                processedScreenshotHashes.remove(it)
+                hashAiResults.remove(it) // Also clean up associated AI results
+            }
+            Log.d("A11yService", "Safety cleanup: removed ${toRemove.size} oldest hash records, remaining: ${processedScreenshotHashes.size}")
         }
     }
 }
