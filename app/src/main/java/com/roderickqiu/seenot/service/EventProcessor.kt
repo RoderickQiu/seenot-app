@@ -147,11 +147,13 @@ class EventProcessor(
             // first
             val previousPackage = currentMonitoredPackage
             val previousAppName = currentMonitoredAppName
-            if (previousPackage != null && previousPackage != packageName) {
+            if (previousPackage != null && previousPackage != packageName && previousAppName != null) {
                 Log.d(
                         "A11yService",
                         "Exited monitored app: $previousAppName (package: $previousPackage)"
                 )
+                // Clear all ongoing judgments and execution for the exited app
+                constraintManager.clearAppJudgmentsAndExecution(previousAppName)
                 currentMonitoredPackage = null
                 currentMonitoredAppName = null
                 screenshotAnalyzer.currentMonitoredPackage = null

@@ -79,6 +79,7 @@
     <string name="time_constraint_continuous_desc">短时间内匹配%1$s分钟</string>
     <string name="time_constraint_daily_total_desc">今日总计匹配%1$s分钟</string>
     <string name="time_constraint_recent_total_desc">最近%1$d小时内总计匹配%2$s分钟</string>
+    <string name="time_constraint_decay_note">离开时时间慢慢减少，执行完后不直接清零而是快速衰减</string>
     <string name="input_continuous_minutes">输入连续分钟数</string>
     <string name="input_daily_total_minutes">输入今日总计分钟数</string>
     <string name="input_recent_hours">输入小时数（最近）</string>

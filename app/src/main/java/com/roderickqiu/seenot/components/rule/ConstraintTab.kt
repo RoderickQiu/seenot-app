@@ -165,6 +165,13 @@ fun ConstraintTab(
                     }
                 }
             }
+            
+            Text(
+                text = context.getString(R.string.time_constraint_decay_note),
+                fontSize = 11.sp,
+                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.6f),
+                modifier = Modifier.padding(top = 4.dp)
+            )
         }
     }
 }

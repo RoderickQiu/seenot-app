@@ -121,7 +121,10 @@ class AppDataStore(private val context: Context) {
      */
     data class TimeRecord(
         val startTime: Long,
-        val endTime: Long? = null // null means still active
+        val endTime: Long? = null, // null means still active
+        val leaveTime: Long? = null, // when temporarily left (for sub-linear decay)
+        val executionTime: Long? = null, // when execution happened (for exponential decay)
+        val initialDuration: Double? = null // duration before execution (for exponential decay)
     )
 
     /**
@@ -152,7 +155,15 @@ class AppDataStore(private val context: Context) {
                     constraintType = "Continuous",
                     constraintMinutes = constraint.minutes,
                     constraintHours = null,
-                    records = recordList.map { TimeRecord(it.startTime, it.endTime) }
+                    records = recordList.map { 
+                        TimeRecord(
+                            it.startTime, 
+                            it.endTime,
+                            it.leaveTime,
+                            it.executionTime,
+                            it.initialDuration
+                        ) 
+                    }
                 ))
             }
             
@@ -167,7 +178,15 @@ class AppDataStore(private val context: Context) {
                     constraintType = "DailyTotal",
                     constraintMinutes = constraint.minutes,
                     constraintHours = null,
-                    records = recordList.map { TimeRecord(it.startTime, it.endTime) }
+                    records = recordList.map { 
+                        TimeRecord(
+                            it.startTime, 
+                            it.endTime,
+                            it.leaveTime,
+                            it.executionTime,
+                            it.initialDuration
+                        ) 
+                    }
                 ))
             }
             
@@ -182,7 +201,15 @@ class AppDataStore(private val context: Context) {
                     constraintType = "RecentTotal",
                     constraintMinutes = constraint.minutes,
                     constraintHours = constraint.hours,
-                    records = recordList.map { TimeRecord(it.startTime, it.endTime) }
+                    records = recordList.map { 
+                        TimeRecord(
+                            it.startTime, 
+                            it.endTime,
+                            it.leaveTime,
+                            it.executionTime,
+                            it.initialDuration
+                        ) 
+                    }
                 ))
             }
             

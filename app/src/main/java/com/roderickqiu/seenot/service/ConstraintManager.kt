@@ -24,7 +24,10 @@ class ConstraintManager(
     
     data class TimeRecord(
         val startTime: Long,
-        val endTime: Long? = null // null means still active
+        val endTime: Long? = null, // null means still active
+        val leaveTime: Long? = null, // when temporarily left (for sub-linear decay)
+        val executionTime: Long? = null, // when execution happened (for exponential decay)
+        val initialDuration: Double? = null // duration before execution (for exponential decay)
     )
 
     fun setRulesEnabled(enabled: Boolean) {
@@ -51,6 +54,85 @@ class ConstraintManager(
     fun setMultipleRuleStates(states: Map<String, Boolean>) {
         ruleEnabledStates.putAll(states)
         Log.d("A11yService", "Updated rule states: $states")
+    }
+    
+    /**
+     * Calculate effective time with sub-linear decay after leaving
+     * Time progresses slower than linear (y=x) using inverse function
+     */
+    private fun calculateEffectiveTimeWithSubLinearDecay(
+        startTime: Long,
+        endTime: Long,
+        leaveTime: Long?
+    ): Double {
+        if (leaveTime == null || endTime <= leaveTime) {
+            // No decay needed, return normal time
+            return (endTime - startTime) / (1000.0 * 60.0)
+        }
+        
+        // Time before leaving (counted fully)
+        val beforeLeaveMs = leaveTime - startTime
+        val beforeLeaveMinutes = beforeLeaveMs / (1000.0 * 60.0)
+        
+        // Time after leaving (decay slower than linear)
+        val afterLeaveMs = endTime - leaveTime
+        val afterLeaveMinutes = afterLeaveMs / (1000.0 * 60.0)
+        
+        // Apply sub-linear decay: effective_time = actual_time / (1 + decay_rate * actual_time)
+        // This makes time progress slower than y=x
+        // Using decay rate of 0.05 per minute (makes 10 min = ~6.67 min effective)
+        val decayRate = 0.05
+        val effectiveAfterLeaveMinutes = afterLeaveMinutes / (1.0 + decayRate * afterLeaveMinutes)
+        
+        return beforeLeaveMinutes + effectiveAfterLeaveMinutes
+    }
+    
+    /**
+     * Calculate effective time with exponential decay after execution
+     * Records decay exponentially instead of being cleared immediately
+     */
+    private fun calculateEffectiveTimeWithExponentialDecay(
+        initialDuration: Double,
+        executionTime: Long,
+        now: Long
+    ): Double {
+        val elapsedSinceExecutionMs = now - executionTime
+        val elapsedSinceExecutionMinutes = elapsedSinceExecutionMs / (1000.0 * 60.0)
+        
+        // Exponential decay: effective = initial * e^(-decay_rate * time)
+        // Using decay rate of 0.7 per minute (half-life ~0.99 minutes)
+        val decayRate = 0.7
+        val decayFactor = Math.exp(-decayRate * elapsedSinceExecutionMinutes)
+        
+        return initialDuration * decayFactor
+    }
+    
+    /**
+     * Calculate effective minutes for a record considering all decay mechanisms
+     */
+    private fun calculateEffectiveMinutes(
+        record: TimeRecord,
+        cutoffTime: Long,
+        now: Long
+    ): Double {
+        val start = maxOf(record.startTime, cutoffTime)
+        val end = record.endTime ?: now
+        
+        // If execution happened, use exponential decay
+        if (record.executionTime != null && record.initialDuration != null) {
+            return calculateEffectiveTimeWithExponentialDecay(
+                record.initialDuration,
+                record.executionTime,
+                now
+            )
+        }
+        
+        // Otherwise, use sub-linear decay if left
+        return calculateEffectiveTimeWithSubLinearDecay(
+            start,
+            end,
+            record.leaveTime
+        )
     }
 
     fun handleTimeConstraint(rule: Rule, appName: String, isMatch: Boolean) {
@@ -95,6 +177,10 @@ class ConstraintManager(
                 // Start new record
                 records.add(TimeRecord(startTime = now))
                 Log.d("A11yService", "Started short-term tracking for rule ${rule.id}, target=${constraint.minutes} minutes, window=${windowSizeMinutes} minutes")
+            } else if (activeRecord.leaveTime != null) {
+                // Resume matching after leaving, clear leaveTime
+                val index = records.indexOf(activeRecord)
+                records[index] = activeRecord.copy(leaveTime = null)
             }
             
             // Remove old records outside the time window
@@ -103,34 +189,73 @@ class ConstraintManager(
                 recordEnd < cutoffTime
             }
             
-            // Check total matched time in the window
+            // Check total matched time in the window using effective time calculation
             val totalMinutes = records.sumOf { record ->
-                val start = maxOf(record.startTime, cutoffTime)
-                val end = record.endTime ?: now
-                maxOf(0.0, (end - start) / (1000.0 * 60.0))
+                calculateEffectiveMinutes(record, cutoffTime, now)
             }
             
             if (totalMinutes >= constraint.minutes) {
                 actionExecutor.executeAction(rule, appName)
-                // Clear records after triggering
-                records.clear()
-                Log.d("A11yService", "Short-term constraint met for rule ${rule.id} (matched ${totalMinutes} minutes in ${windowSizeMinutes} min window), triggered action")
+                // Mark records for exponential decay instead of clearing immediately
+                records.forEachIndexed { index, record ->
+                    if (record.executionTime == null) {
+                        // Calculate initial duration before marking for decay
+                        val start = maxOf(record.startTime, cutoffTime)
+                        val end = record.endTime ?: now
+                        val initialDuration = calculateEffectiveTimeWithSubLinearDecay(
+                            start,
+                            end,
+                            record.leaveTime
+                        )
+                        records[index] = record.copy(
+                            endTime = end, // Ensure endTime is set
+                            executionTime = now,
+                            initialDuration = initialDuration
+                        )
+                    }
+                }
+                Log.d("A11yService", "Short-term constraint met for rule ${rule.id} (matched ${totalMinutes} minutes in ${windowSizeMinutes} min window), triggered action, starting exponential decay")
                 saveTimeConstraintStates()
             } else {
+                // Log accumulated time and remaining time needed
+                val remainingMinutes = constraint.minutes - totalMinutes
+                Log.d("A11yService", "Constraint rule ${rule.id} (Continuous): accumulated ${String.format("%.2f", totalMinutes)} minutes, need ${String.format("%.2f", remainingMinutes)} more minutes to execute")
                 // Save state when records change
                 saveTimeConstraintStates()
             }
         } else {
-            // End current record if any
+            // End current record if any and mark leave time for sub-linear decay
             val hadActiveRecord = shortTermRecords[stateKey]?.any { it.endTime == null } == true
-            endShortTermRecord(rule.id, appName)
-            
-            // Clean up old records outside the window
             val records = shortTermRecords[stateKey]
+            records?.find { it.endTime == null }?.let { record ->
+                val index = records.indexOf(record)
+                records[index] = record.copy(
+                    endTime = now,
+                    leaveTime = now // Mark when we left for sub-linear decay
+                )
+                Log.d("A11yService", "Ended short-term record for rule ${rule.id}, marked leave time for sub-linear decay")
+            }
+            
+            // Clean up old records outside the window and decayed records
             val hadRecordsBeforeCleanup = records?.isNotEmpty() == true
             records?.removeAll { record -> 
                 val recordEnd = record.endTime ?: now
-                recordEnd < cutoffTime
+                // Remove if outside window
+                if (recordEnd < cutoffTime) {
+                    return@removeAll true
+                }
+                // Remove if exponentially decayed to near zero (less than 0.01 minutes)
+                if (record.executionTime != null && record.initialDuration != null) {
+                    val effectiveTime = calculateEffectiveTimeWithExponentialDecay(
+                        record.initialDuration,
+                        record.executionTime,
+                        now
+                    )
+                    if (effectiveTime < 0.01) {
+                        return@removeAll true
+                    }
+                }
+                false
             }
             
             // If all records are cleared and we're not matching, we can remove the entry
@@ -180,6 +305,9 @@ class ConstraintManager(
                 Log.d("A11yService", "Daily total constraint met for rule ${rule.id}, triggered action")
                 saveTimeConstraintStates()
             } else {
+                // Log accumulated time and remaining time needed
+                val remainingMinutes = constraint.minutes - totalMinutes
+                Log.d("A11yService", "Constraint rule ${rule.id} (DailyTotal): accumulated ${String.format("%.2f", totalMinutes)} minutes, need ${String.format("%.2f", remainingMinutes)} more minutes to execute")
                 // Save state when records change
                 saveTimeConstraintStates()
             }
@@ -231,6 +359,9 @@ class ConstraintManager(
                 Log.d("A11yService", "Recent total constraint met for rule ${rule.id}, triggered action")
                 saveTimeConstraintStates()
             } else {
+                // Log accumulated time and remaining time needed
+                val remainingMinutes = constraint.minutes - totalMinutes
+                Log.d("A11yService", "Constraint rule ${rule.id} (RecentTotal): accumulated ${String.format("%.2f", totalMinutes)} minutes, need ${String.format("%.2f", remainingMinutes)} more minutes to execute")
                 // Save state when records change
                 saveTimeConstraintStates()
             }
@@ -257,8 +388,11 @@ class ConstraintManager(
         val records = shortTermRecords[stateKey]
         records?.find { it.endTime == null }?.let { record ->
             val index = records.indexOf(record)
-            records[index] = record.copy(endTime = now)
-            Log.d("A11yService", "Ended short-term record for rule $ruleId")
+            records[index] = record.copy(
+                endTime = now,
+                leaveTime = now // Mark when we left for sub-linear decay
+            )
+            Log.d("A11yService", "Ended short-term record for rule $ruleId, marked leave time for sub-linear decay")
         }
         // Note: saveTimeConstraintStates() is called by the caller after cleanup
     }
@@ -293,7 +427,13 @@ class ConstraintManager(
             }
             
             val records = stateData.records.map { 
-                TimeRecord(it.startTime, it.endTime) 
+                TimeRecord(
+                    it.startTime, 
+                    it.endTime,
+                    it.leaveTime,
+                    it.executionTime,
+                    it.initialDuration
+                ) 
             }.toMutableList()
             var isValid = false
             
@@ -312,9 +452,7 @@ class ConstraintManager(
                         shortTermRecords[stateData.stateKey] = records
                         isValid = true
                         val totalMinutes = records.sumOf { record ->
-                            val start = maxOf(record.startTime, cutoffTime)
-                            val end = record.endTime ?: now
-                            maxOf(0.0, (end - start) / (1000.0 * 60.0))
+                            calculateEffectiveMinutes(record, cutoffTime, now)
                         }
                         Log.d("A11yService", "Restored Continuous constraint: $appName/${stateData.ruleId}, matched ${String.format("%.2f", totalMinutes)}/${stateData.constraintMinutes} minutes in window")
                     }
@@ -400,13 +538,37 @@ class ConstraintManager(
             
             // Convert TimeRecord to AppDataStore.TimeRecord
             val shortTermConverted = shortTermRecords.mapValues { (_, records) ->
-                records.map { AppDataStore.TimeRecord(it.startTime, it.endTime) }.toMutableList()
+                records.map { 
+                    AppDataStore.TimeRecord(
+                        it.startTime, 
+                        it.endTime,
+                        it.leaveTime,
+                        it.executionTime,
+                        it.initialDuration
+                    ) 
+                }.toMutableList()
             }
             val dailyTotalConverted = dailyTotalRecords.mapValues { (_, records) ->
-                records.map { AppDataStore.TimeRecord(it.startTime, it.endTime) }.toMutableList()
+                records.map { 
+                    AppDataStore.TimeRecord(
+                        it.startTime, 
+                        it.endTime,
+                        it.leaveTime,
+                        it.executionTime,
+                        it.initialDuration
+                    ) 
+                }.toMutableList()
             }
             val recentTotalConverted = recentTotalRecords.mapValues { (_, records) ->
-                records.map { AppDataStore.TimeRecord(it.startTime, it.endTime) }.toMutableList()
+                records.map { 
+                    AppDataStore.TimeRecord(
+                        it.startTime, 
+                        it.endTime,
+                        it.leaveTime,
+                        it.executionTime,
+                        it.initialDuration
+                    ) 
+                }.toMutableList()
             }
             
             appDataStore.saveTimeConstraintStates(
@@ -432,6 +594,45 @@ class ConstraintManager(
             }
         } catch (e: Exception) {
             Log.e("A11yService", "Failed to handle ON_ENTER rules for $appName", e)
+        }
+    }
+
+    /**
+     * Clear all ongoing judgments and execution for a given app when it exits
+     */
+    fun clearAppJudgmentsAndExecution(appName: String) {
+        try {
+            val monitoringApps = appDataStore.loadMonitoringApps()
+            val targetApp = monitoringApps.find { it.name == appName } ?: return
+
+            var clearedCount = 0
+
+            // Clear all records for all rules of this app
+            targetApp.rules.forEach { rule ->
+                val stateKey = "${appName}_${rule.id}"
+
+                // Clear short-term records
+                if (shortTermRecords.remove(stateKey) != null) {
+                    clearedCount++
+                }
+
+                // Clear daily total records
+                if (dailyTotalRecords.remove(stateKey) != null) {
+                    clearedCount++
+                }
+
+                // Clear recent total records
+                if (recentTotalRecords.remove(stateKey) != null) {
+                    clearedCount++
+                }
+            }
+
+            if (clearedCount > 0) {
+                Log.d("A11yService", "Cleared all ongoing judgments and execution for app: $appName ($clearedCount state keys)")
+                saveTimeConstraintStates()
+            }
+        } catch (e: Exception) {
+            Log.e("A11yService", "Failed to clear judgments and execution for $appName", e)
         }
     }
 }

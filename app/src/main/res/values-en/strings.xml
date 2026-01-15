@@ -79,6 +79,7 @@
     <string name="time_constraint_continuous_desc">Match within %1$s minutes in short time</string>
     <string name="time_constraint_daily_total_desc">Today\'s total match %1$s minutes</string>
     <string name="time_constraint_recent_total_desc">Recent %1$d hours total match %2$s minutes</string>
+    <string name="time_constraint_decay_note">Time slowly decreases when leaving; does not reset directly but decays quickly after execution</string>
     <string name="input_continuous_minutes">Input continuous minutes</string>
     <string name="input_daily_total_minutes">Input today\'s total minutes</string>
     <string name="input_recent_hours">Input hours (recent)</string>
