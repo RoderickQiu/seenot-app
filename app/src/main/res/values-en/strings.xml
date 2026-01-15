@@ -143,12 +143,20 @@
     <string name="coordinate_picker_error">Cannot show coordinate picker, please check overlay permission</string>
     <string name="accessibility_required_for_coordinate_picker">Accessibility service required to use coordinate picker</string>
     
+    <!-- Ask Overlay -->
+    <string name="ask_overlay_title">Adjust Rule Status</string>
+    <string name="ask_overlay_subtitle">%1$s triggered an ask action, please select rules to enable/disable</string>
+    <string name="ask_overlay_timeout">Operation timeout, automatically closed</string>
+    <string name="ask_overlay_confirm">Confirm</string>
+    <string name="ask_overlay_rule_enabled">Enable</string>
+    <string name="ask_overlay_rule_disabled">Disable</string>
+    <string name="ask_overlay_no_rules">This app has no configured rules</string>
+    
     <!-- AI Settings -->
     <string name="ai_settings">App Settings</string>
     <string name="ai_model">Model Selection</string>
     <string name="ai_key">Key Setting</string>
     <string name="debug_options">Debug Options</string>
-    <string name="auto_save_screenshot">Auto save screenshots to gallery</string>
     <string name="show_rule_result_toast">Show rule execution results</string>
     <string name="language_settings">Language Settings</string>
 
@@ -157,6 +165,8 @@
     <string name="rule_records_menu">Rule Records</string>
     <string name="enable_rule_recording">Enable Rule Recording</string>
     <string name="enable_rule_recording_desc">Record results and screenshots for each rule evaluation</string>
+    <string name="show_monitoring_indicator">Show Monitoring Indicator</string>
+    <string name="show_monitoring_indicator_desc">Show small button indicator when monitoring apps</string>
     <string name="all_dates">All Dates</string>
     <string name="all_hours">All Hours</string>
     <string name="records_count">%1$d records</string>

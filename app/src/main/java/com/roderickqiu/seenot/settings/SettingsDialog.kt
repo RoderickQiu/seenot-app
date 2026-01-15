@@ -69,9 +69,9 @@ private val AI_MODELS = listOf(
 private const val AI_PREFS = "seenot_ai"
 private const val KEY_MODEL = "model"
 private const val KEY_API_KEY = "api_key"
-private const val KEY_AUTO_SAVE_SCREENSHOT = "auto_save_screenshot"
 private const val KEY_SHOW_RULE_RESULT_TOAST = "show_rule_result_toast"
 private const val KEY_ENABLE_RULE_RECORDING = "enable_rule_recording"
+private const val KEY_SHOW_MONITORING_INDICATOR = "show_monitoring_indicator"
 private const val DEFAULT_MODEL_ID = "qwen3-vl-plus"
 
 private fun loadAiModelId(context: Context): String {
@@ -88,11 +88,6 @@ private fun loadAiKey(context: Context): String {
     return prefs.getString(KEY_API_KEY, "") ?: ""
 }
 
-private fun loadAutoSaveScreenshot(context: Context): Boolean {
-    val prefs = context.getSharedPreferences(AI_PREFS, Context.MODE_PRIVATE)
-    return prefs.getBoolean(KEY_AUTO_SAVE_SCREENSHOT, false)
-}
-
 private fun loadShowRuleResultToast(context: Context): Boolean {
     val prefs = context.getSharedPreferences(AI_PREFS, Context.MODE_PRIVATE)
     return prefs.getBoolean(KEY_SHOW_RULE_RESULT_TOAST, false)
@@ -103,14 +98,19 @@ private fun loadEnableRuleRecording(context: Context): Boolean {
     return prefs.getBoolean(KEY_ENABLE_RULE_RECORDING, true)
 }
 
-private fun saveAiSettings(context: Context, modelId: String, apiKey: String, autoSaveScreenshot: Boolean, showRuleResultToast: Boolean, enableRuleRecording: Boolean) {
+private fun loadShowMonitoringIndicator(context: Context): Boolean {
+    val prefs = context.getSharedPreferences(AI_PREFS, Context.MODE_PRIVATE)
+    return prefs.getBoolean(KEY_SHOW_MONITORING_INDICATOR, true)
+}
+
+private fun saveAiSettings(context: Context, modelId: String, apiKey: String, showRuleResultToast: Boolean, enableRuleRecording: Boolean, showMonitoringIndicator: Boolean) {
     val prefs = context.getSharedPreferences(AI_PREFS, Context.MODE_PRIVATE)
     prefs.edit()
         .putString(KEY_MODEL, modelId)
         .putString(KEY_API_KEY, apiKey)
-        .putBoolean(KEY_AUTO_SAVE_SCREENSHOT, autoSaveScreenshot)
         .putBoolean(KEY_SHOW_RULE_RESULT_TOAST, showRuleResultToast)
         .putBoolean(KEY_ENABLE_RULE_RECORDING, enableRuleRecording)
+        .putBoolean(KEY_SHOW_MONITORING_INDICATOR, showMonitoringIndicator)
         .apply()
 }
 
@@ -125,9 +125,9 @@ fun SettingsDialog(onDismiss: () -> Unit, onLanguageChanged: (() -> Unit)? = nul
     val initialModelId = loadAiModelId(context)
     var selectedModel by remember { mutableStateOf(getModelById(initialModelId)) }
     var apiKey by remember { mutableStateOf(loadAiKey(context)) }
-    var autoSaveScreenshot by remember { mutableStateOf(loadAutoSaveScreenshot(context)) }
     var showRuleResultToast by remember { mutableStateOf(loadShowRuleResultToast(context)) }
     var enableRuleRecording by remember { mutableStateOf(loadEnableRuleRecording(context)) }
+    var showMonitoringIndicator by remember { mutableStateOf(loadShowMonitoringIndicator(context)) }
     
     // Language settings
     val currentLanguage = LanguageManager.getSavedLanguage(context)
@@ -225,20 +225,6 @@ fun SettingsDialog(onDismiss: () -> Unit, onLanguageChanged: (() -> Unit)? = nul
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(text = context.getString(R.string.auto_save_screenshot))
-                        Switch(
-                                checked = autoSaveScreenshot,
-                                onCheckedChange = { autoSaveScreenshot = it }
-                        )
-                    }
-                    
-                    Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(top = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
                         Text(text = context.getString(R.string.show_rule_result_toast))
                         Switch(
                                 checked = showRuleResultToast,
@@ -264,6 +250,27 @@ fun SettingsDialog(onDismiss: () -> Unit, onLanguageChanged: (() -> Unit)? = nul
                         Switch(
                                 checked = enableRuleRecording,
                                 onCheckedChange = { enableRuleRecording = it }
+                        )
+                    }
+
+                    Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(top = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = context.getString(R.string.show_monitoring_indicator))
+                            Text(
+                                text = context.getString(R.string.show_monitoring_indicator_desc),
+                                style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp),
+                                color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Switch(
+                                checked = showMonitoringIndicator,
+                                onCheckedChange = { showMonitoringIndicator = it }
                         )
                     }
                     
@@ -318,9 +325,9 @@ fun SettingsDialog(onDismiss: () -> Unit, onLanguageChanged: (() -> Unit)? = nul
                 }
             },
             confirmButton = {
-                TextButton(
+                        TextButton(
                         onClick = {
-                            saveAiSettings(context, selectedModel.id, apiKey, autoSaveScreenshot, showRuleResultToast, enableRuleRecording)
+                            saveAiSettings(context, selectedModel.id, apiKey, showRuleResultToast, enableRuleRecording, showMonitoringIndicator)
                             if (selectedLanguage != currentLanguage) {
                                 LanguageManager.saveLanguage(context, selectedLanguage)
                                 onDismiss()

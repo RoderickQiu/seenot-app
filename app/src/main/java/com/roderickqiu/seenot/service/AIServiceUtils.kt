@@ -32,11 +32,6 @@ object AIServiceUtils {
         return prefs.getString("api_key", "") ?: ""
     }
 
-    fun loadAutoSaveScreenshot(context: Context): Boolean {
-        val prefs = context.getSharedPreferences("seenot_ai", Context.MODE_PRIVATE)
-        return prefs.getBoolean("auto_save_screenshot", false)
-    }
-
     fun loadShowRuleResultToast(context: Context): Boolean {
         val prefs = context.getSharedPreferences("seenot_ai", Context.MODE_PRIVATE)
         return prefs.getBoolean("show_rule_result_toast", false)

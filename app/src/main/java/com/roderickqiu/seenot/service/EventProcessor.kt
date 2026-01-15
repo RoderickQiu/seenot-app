@@ -1,18 +1,29 @@
 package com.roderickqiu.seenot.service
 
+import android.content.Context
 import android.content.pm.PackageManager
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
 import com.roderickqiu.seenot.R
+import com.roderickqiu.seenot.components.MonitoringIndicatorOverlay
 import com.roderickqiu.seenot.data.AppDataStore
+
+private const val AI_PREFS = "seenot_ai"
+private const val KEY_SHOW_MONITORING_INDICATOR = "show_monitoring_indicator"
+
+private fun shouldShowMonitoringIndicator(context: Context): Boolean {
+    val prefs = context.getSharedPreferences(AI_PREFS, Context.MODE_PRIVATE)
+    return prefs.getBoolean(KEY_SHOW_MONITORING_INDICATOR, true)
+}
 
 class EventProcessor(
     private val context: android.content.Context,
     private val appDataStore: AppDataStore,
     private val notificationManager: NotificationManager,
     private val screenshotAnalyzer: ScreenshotAnalyzer,
-    private val constraintManager: ConstraintManager
+    private val constraintManager: ConstraintManager,
+    private val actionExecutor: ActionExecutor
 ) {
     private var lastTimeClassName: String? = null
     private var lastTimeClassCapable: Boolean = false
@@ -154,6 +165,8 @@ class EventProcessor(
                 )
                 // Clear all ongoing judgments and execution for the exited app
                 constraintManager.clearAppJudgmentsAndExecution(previousAppName)
+                // Hide monitoring indicator
+                MonitoringIndicatorOverlay.dismiss()
                 currentMonitoredPackage = null
                 currentMonitoredAppName = null
                 screenshotAnalyzer.currentMonitoredPackage = null
@@ -174,6 +187,12 @@ class EventProcessor(
                     notificationManager.showToast(context.getString(R.string.monitor_app_entered) + appName)
                     screenshotAnalyzer.tryTakeScreenshot(service, "entered")
                     constraintManager.handleOnEnterRules(appName)
+                    // Show monitoring indicator if enabled
+                    if (shouldShowMonitoringIndicator(context)) {
+                        MonitoringIndicatorOverlay.show(context, appName) {
+                            actionExecutor.showAskOverlay(appName)
+                        }
+                    }
                 }
             }
         } catch (e: PackageManager.NameNotFoundException) {

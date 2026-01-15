@@ -168,6 +168,10 @@ class ActionExecutor(
             },
             onDismiss = {
                 Log.d("A11yService", "ASK overlay (askOnEnter) dismissed without changes")
+                // Re-show monitoring indicator to ensure it's on top
+                com.roderickqiu.seenot.components.MonitoringIndicatorOverlay.show(context, appName) {
+                    showAskOverlay(appName)
+                }
             }
         )
         askOverlay.show()

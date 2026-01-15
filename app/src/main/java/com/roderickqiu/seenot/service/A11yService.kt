@@ -29,7 +29,7 @@ class A11yService : AccessibilityService() {
         actionExecutor = ActionExecutor(this, notificationManager, this)
         constraintManager = ConstraintManager(appDataStore, actionExecutor)
         screenshotAnalyzer = ScreenshotAnalyzer(this, appDataStore, constraintManager, actionExecutor, notificationManager, RuleRecordRepo(this))
-        eventProcessor = EventProcessor(this, appDataStore, notificationManager, screenshotAnalyzer, constraintManager)
+        eventProcessor = EventProcessor(this, appDataStore, notificationManager, screenshotAnalyzer, constraintManager, actionExecutor)
         
         constraintManager.loadTimeConstraintStates()
         notificationManager.startInForeground(this)

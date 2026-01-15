@@ -65,6 +65,7 @@ dependencies {
     implementation libs.openai.client
     implementation libs.ktor.client.okhttp
     implementation libs.ktor.client.core
+    implementation libs.androidx.palette
     testImplementation libs.junit
     androidTestImplementation libs.androidx.junit
     androidTestImplementation libs.androidx.espresso.core

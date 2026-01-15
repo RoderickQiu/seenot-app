@@ -84,21 +84,6 @@ class ScreenshotAnalyzer(
                                     val mutableBitmap =
                                             hardwareBitmap.copy(Bitmap.Config.ARGB_8888, true)
 
-                                    // Save original screenshot to gallery if enabled
-                                    if (AIServiceUtils.loadAutoSaveScreenshot(context)) {
-                                        // Create a separate copy for saving to gallery to avoid interference
-                                        val galleryBitmap = mutableBitmap.copy(Bitmap.Config.ARGB_8888, false)
-                                        coroutineScope.launch {
-                                            try {
-                                                BitmapUtils.saveBitmapToGallery(context, galleryBitmap, currentMonitoredAppName, reason)
-                                                galleryBitmap.recycle()
-                                            } catch (e: Exception) {
-                                                Log.e("A11yService", "Error saving screenshot to gallery", e)
-                                                galleryBitmap.recycle()
-                                            }
-                                        }
-                                    }
-
                                     // Scale image: max 960px on longer side, maintain aspect ratio
                                     val maxSize = 960
                                     val scale = if (originalWidth > originalHeight) {

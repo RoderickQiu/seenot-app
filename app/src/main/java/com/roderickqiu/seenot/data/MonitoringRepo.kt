@@ -33,7 +33,6 @@ class MonitoringRepo(private val context: Context) {
             MonitoringApp(
                 name = "知乎",
                 isEnabled = false,
-                askOnEnter = true,
                 rules = listOf(
                     Rule(
                         condition = RuleCondition(
@@ -74,7 +73,6 @@ class MonitoringRepo(private val context: Context) {
             ),
             MonitoringApp(
                 name = "QQ",
-                askOnEnter = true,
                 rules = listOf(
                     Rule(
                         condition = RuleCondition(

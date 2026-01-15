@@ -586,12 +586,7 @@ class ConstraintManager(
         if (!areRulesEnabled()) return
         try {
             val monitoringApps = appDataStore.loadMonitoringApps()
-            val targetApp = monitoringApps.find { it.name == appName && it.isEnabled } ?: return
-
-            // Handle askOnEnter setting - show overlay if enabled
-            if (targetApp.askOnEnter) {
-                actionExecutor.showAskOverlay(appName)
-            }
+            monitoringApps.find { it.name == appName && it.isEnabled } ?: return
         } catch (e: Exception) {
             Log.e("A11yService", "Failed to handle ON_ENTER rules for $appName", e)
         }

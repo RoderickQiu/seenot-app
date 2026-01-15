@@ -157,7 +157,6 @@
     <string name="ai_model">模型选择</string>
     <string name="ai_key">Key 设定</string>
     <string name="debug_options">调试选项</string>
-    <string name="auto_save_screenshot">自动保存截图到图库</string>
     <string name="show_rule_result_toast">显示规则执行结果</string>
     <string name="language_settings">语言设置</string>
 
@@ -166,6 +165,8 @@
     <string name="rule_records_menu">规则记录</string>
     <string name="enable_rule_recording">启用规则记录</string>
     <string name="enable_rule_recording_desc">记录每次规则判断的结果和截图</string>
+    <string name="show_monitoring_indicator">显示监控指示器</string>
+    <string name="show_monitoring_indicator_desc">在监控应用时显示小按钮指示器</string>
     <string name="all_dates">全部日期</string>
     <string name="all_hours">全部小时</string>
     <string name="records_count">%1$d 条记录</string>
