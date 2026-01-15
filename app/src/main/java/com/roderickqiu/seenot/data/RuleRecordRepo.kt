@@ -144,7 +144,7 @@ class RuleRecordRepo(private val context: Context) {
             try {
                 val records = loadRecords()
 
-                // Delete all images
+                // Delete all images referenced in records
                 records.forEach { record ->
                     record.imagePath?.let { path ->
                         try {
@@ -155,12 +155,27 @@ class RuleRecordRepo(private val context: Context) {
                     }
                 }
 
+                // Delete all files in images directory to ensure complete cleanup
+                if (imagesDir.exists() && imagesDir.isDirectory) {
+                    imagesDir.listFiles()?.forEach { file ->
+                        try {
+                            if (file.isFile) {
+                                file.delete()
+                            } else if (file.isDirectory) {
+                                file.deleteRecursively()
+                            }
+                        } catch (e: Exception) {
+                            Log.w(TAG, "Failed to delete file: ${file.absolutePath}", e)
+                        }
+                    }
+                }
+
                 // Clear records file
                 if (recordsFile.exists()) {
                     recordsFile.writeText("[]")
                 }
 
-                Log.d(TAG, "Cleared all rule records")
+                Log.d(TAG, "Cleared all rule records and images")
                 true
             } catch (e: Exception) {
                 Log.e(TAG, "Error clearing rule records", e)
