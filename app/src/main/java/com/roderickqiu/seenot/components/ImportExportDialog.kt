@@ -30,6 +30,7 @@ import com.roderickqiu.seenot.R
 fun ImportExportDialog(
     onDismiss: () -> Unit,
     onExport: () -> Unit,
+    onExportLogs: () -> Unit,
     onImport: (String) -> Unit
 ) {
     val context = LocalContext.current
@@ -105,6 +106,23 @@ fun ImportExportDialog(
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Text(context.getString(R.string.export_rules))
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = context.getString(R.string.export_logs_description),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+
+                OutlinedButton(
+                    onClick = {
+                        onExportLogs()
+                        onDismiss()
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(context.getString(R.string.export_logs))
                 }
             }
         },

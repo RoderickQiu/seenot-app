@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import android.util.Log
 import com.google.gson.Gson
+import com.roderickqiu.seenot.utils.Logger
 import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
 import kotlinx.coroutines.Dispatchers
@@ -50,7 +51,7 @@ class RuleRecordRepo(private val context: Context) {
                             try {
                                 File(path).delete()
                             } catch (e: Exception) {
-                                Log.w(TAG, "Failed to delete old image: $path", e)
+                                Logger.w(TAG, "Failed to delete old image: $path", e)
                             }
                         }
                     }
@@ -61,10 +62,10 @@ class RuleRecordRepo(private val context: Context) {
                 val json = gson.toJson(records)
                 recordsFile.writeText(json)
 
-                Log.d(TAG, "Saved rule record: ${record.id} for app ${record.appName}")
+                Logger.d(TAG, "Saved rule record: ${record.id} for app ${record.appName}")
                 record
             } catch (e: Exception) {
-                Log.e(TAG, "Error saving rule record", e)
+                Logger.e(TAG, "Error saving rule record", e)
                 throw e
             }
         }
@@ -86,7 +87,7 @@ class RuleRecordRepo(private val context: Context) {
             // Ensure records are sorted by timestamp (newest first)
             records.sortedByDescending { it.timestamp }
         } catch (e: Exception) {
-            Log.e(TAG, "Error loading rule records", e)
+            Logger.e(TAG, "Error loading rule records for rule record repo", e)
             emptyList()
         }
     }
@@ -113,7 +114,7 @@ class RuleRecordRepo(private val context: Context) {
                         try {
                             File(path).delete()
                         } catch (e: Exception) {
-                            Log.w(TAG, "Failed to delete image: $path", e)
+                            Logger.w(TAG, "Failed to delete image: $path", e)
                         }
                     }
 
@@ -124,13 +125,13 @@ class RuleRecordRepo(private val context: Context) {
                     val json = gson.toJson(records)
                     recordsFile.writeText(json)
 
-                    Log.d(TAG, "Deleted rule record: $recordId")
+                    Logger.d(TAG, "Deleted rule record: $recordId")
                     true
                 } else {
                     false
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Error deleting rule record", e)
+                Logger.e(TAG, "Error deleting rule record", e)
                 false
             }
         }
@@ -150,7 +151,7 @@ class RuleRecordRepo(private val context: Context) {
                         try {
                             File(path).delete()
                         } catch (e: Exception) {
-                            Log.w(TAG, "Failed to delete image: $path", e)
+                            Logger.w(TAG, "Failed to delete image: $path", e)
                         }
                     }
                 }
@@ -165,7 +166,7 @@ class RuleRecordRepo(private val context: Context) {
                                 file.deleteRecursively()
                             }
                         } catch (e: Exception) {
-                            Log.w(TAG, "Failed to delete file: ${file.absolutePath}", e)
+                            Logger.w(TAG, "Failed to delete file: ${file.absolutePath}", e)
                         }
                     }
                 }
@@ -175,10 +176,10 @@ class RuleRecordRepo(private val context: Context) {
                     recordsFile.writeText("[]")
                 }
 
-                Log.d(TAG, "Cleared all rule records and images")
+                Logger.d(TAG, "Cleared all rule records and images")
                 true
             } catch (e: Exception) {
-                Log.e(TAG, "Error clearing rule records", e)
+                Logger.e(TAG, "Error clearing rule records", e)
                 false
             }
         }
@@ -200,14 +201,14 @@ class RuleRecordRepo(private val context: Context) {
                 }
 
                 val imagePath = imageFile.absolutePath
-                Log.d(TAG, "Saved screenshot for record $recordId: $imagePath")
+                Logger.d(TAG, "Saved screenshot for record $recordId: $imagePath")
                 
                 // Update record with imagePath
                 updateRecordImagePath(recordId, imagePath)
                 
                 imagePath
             } catch (e: Exception) {
-                Log.e(TAG, "Error saving screenshot for record", e)
+                Logger.e(TAG, "Error saving screenshot for record", e)
                 null
             }
         }
@@ -228,13 +229,11 @@ class RuleRecordRepo(private val context: Context) {
                     // Save updated records
                     val json = gson.toJson(records)
                     recordsFile.writeText(json)
-                    
-                    Log.d(TAG, "Updated imagePath for record $recordId: $imagePath")
                 } else {
-                    Log.w(TAG, "Record not found for updating imagePath: $recordId")
+                    Logger.w(TAG, "Record not found for updating imagePath: $recordId")
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Error updating record imagePath", e)
+                Logger.e(TAG, "Error updating record imagePath", e)
             }
         }
     }
@@ -306,14 +305,14 @@ class RuleRecordRepo(private val context: Context) {
                     val json = gson.toJson(records)
                     recordsFile.writeText(json)
 
-                    Log.d(TAG, "Marked record $recordId as $isMarked")
+                    Logger.d(TAG, "Marked record $recordId as $isMarked")
                     true
                 } else {
-                    Log.w(TAG, "Record not found for marking: $recordId")
+                    Logger.w(TAG, "Record not found for marking: $recordId")
                     false
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Error marking record", e)
+                Logger.e(TAG, "Error marking record", e)
                 false
             }
         }

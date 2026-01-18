@@ -11,6 +11,7 @@ import com.roderickqiu.seenot.data.Rule
 import android.widget.Toast
 import com.roderickqiu.seenot.components.AskOverlay
 import com.roderickqiu.seenot.utils.GenericUtils
+import com.roderickqiu.seenot.utils.Logger
 
 class ActionExecutor(
     private val accessibilityService: AccessibilityService,
@@ -28,13 +29,13 @@ class ActionExecutor(
         override fun onCompleted(gestureDescription: GestureDescription?) {
             super.onCompleted(gestureDescription)
             notificationManager.showToast(context.getString(com.roderickqiu.seenot.R.string.action_auto_click_label) + ": ($x, $y)", Toast.LENGTH_SHORT)
-            Log.d("A11yService", "AUTO_CLICK performed at coordinate: ($x, $y)")
+            Logger.d("A11yService", "AUTO_CLICK performed at coordinate: ($x, $y)")
         }
         
         override fun onCancelled(gestureDescription: GestureDescription?) {
             super.onCancelled(gestureDescription)
             notificationManager.showToast(context.getString(com.roderickqiu.seenot.R.string.action_auto_click_label) + ": " + context.getString(com.roderickqiu.seenot.R.string.click_failed), Toast.LENGTH_SHORT)
-            Log.d("A11yService", "AUTO_CLICK cancelled at coordinate: ($x, $y)")
+            Logger.d("A11yService", "AUTO_CLICK cancelled at coordinate: ($x, $y)")
         }
     }
     
@@ -43,12 +44,12 @@ class ActionExecutor(
     ) : android.accessibilityservice.AccessibilityService.GestureResultCallback() {
         override fun onCompleted(gestureDescription: GestureDescription?) {
             super.onCompleted(gestureDescription)
-            Log.d("A11yService", "Scroll gesture completed: ${if (isScrollUp) "UP" else "DOWN"}")
+            Logger.d("A11yService", "Scroll gesture completed: ${if (isScrollUp) "UP" else "DOWN"}")
         }
         
         override fun onCancelled(gestureDescription: GestureDescription?) {
             super.onCancelled(gestureDescription)
-            Log.d("A11yService", "Scroll gesture cancelled: ${if (isScrollUp) "UP" else "DOWN"}")
+            Logger.d("A11yService", "Scroll gesture cancelled: ${if (isScrollUp) "UP" else "DOWN"}")
         }
     }
     
@@ -59,7 +60,7 @@ class ActionExecutor(
         val lastExecuteTime = recentActions[actionKey] ?: 0
 
         if (now - lastExecuteTime < deduplicationWindowMs) {
-            Log.d("A11yService", "Skipping duplicate action $actionKey, last executed ${now - lastExecuteTime}ms ago")
+            Logger.d("A11yService", "Skipping duplicate action $actionKey, last executed ${now - lastExecuteTime}ms ago")
             return
         }
 
@@ -70,7 +71,7 @@ class ActionExecutor(
             ActionType.REMIND -> {
                 val message = rule.action.parameter ?: "Reminder"
                 notificationManager.showToast("$appName: $message", Toast.LENGTH_LONG)
-                Log.d("A11yService", "Triggered REMIND action: $message")
+                Logger.d("A11yService", "Triggered REMIND action: $message")
             }
             ActionType.AUTO_BACK -> {
                 val reason = rule.condition.parameter ?: ""
@@ -85,14 +86,14 @@ class ActionExecutor(
                     context.getString(com.roderickqiu.seenot.R.string.action_auto_back_label)
                 }
                 notificationManager.showToast(toastMessage, Toast.LENGTH_SHORT)
-                Log.d("A11yService", "Triggered AUTO_BACK action, reason: $reason")
+                Logger.d("A11yService", "Triggered AUTO_BACK action, reason: $reason")
                 val success = accessibilityService.performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
                 if (!success) {
                     accessibilityService.performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
                     notificationManager.showToast(context.getString(com.roderickqiu.seenot.R.string.back_last_failed), Toast.LENGTH_SHORT)
-                    Log.d("A11yService", "AUTO_BACK failed, went to home after toast")
+                    Logger.d("A11yService", "AUTO_BACK failed, went to home after toast")
                 } else {
-                    Log.d("A11yService", "AUTO_BACK successful")
+                    Logger.d("A11yService", "AUTO_BACK successful")
                 }
             }
             ActionType.AUTO_CLICK -> {
@@ -101,7 +102,7 @@ class ActionExecutor(
                     performAutoClickAtCoordinate(parameter)
                 } else {
                     notificationManager.showToast(context.getString(com.roderickqiu.seenot.R.string.action_auto_click_label) + ": " + context.getString(com.roderickqiu.seenot.R.string.no_parameter), Toast.LENGTH_SHORT)
-                    Log.d("A11yService", "AUTO_CLICK triggered but no parameter provided")
+                    Logger.d("A11yService", "AUTO_CLICK triggered but no parameter provided")
                 }
             }
             ActionType.AUTO_SCROLL_UP -> {
@@ -118,7 +119,7 @@ class ActionExecutor(
                     context.getString(com.roderickqiu.seenot.R.string.action_auto_scroll_up_label)
                 }
                 notificationManager.showToast(toastMessage, Toast.LENGTH_SHORT)
-                Log.d("A11yService", "Triggered AUTO_SCROLL_UP action, reason: $reason")
+                Logger.d("A11yService", "Triggered AUTO_SCROLL_UP action, reason: $reason")
             }
             ActionType.AUTO_SCROLL_DOWN -> {
                 performScrollGesture(false)
@@ -134,7 +135,7 @@ class ActionExecutor(
                     context.getString(com.roderickqiu.seenot.R.string.action_auto_scroll_down_label)
                 }
                 notificationManager.showToast(toastMessage, Toast.LENGTH_SHORT)
-                Log.d("A11yService", "Triggered AUTO_SCROLL_DOWN action, reason: $reason")
+                Logger.d("A11yService", "Triggered AUTO_SCROLL_DOWN action, reason: $reason")
             }
             ActionType.ASK -> {
                 // Show floating overlay for user to manage rule states
@@ -145,26 +146,26 @@ class ActionExecutor(
                         // Update rule states in constraint manager
                         val service = A11yService.getInstance()
                         if (service == null) {
-                            Log.e("A11yService", "A11yService instance is null!")
+                            Logger.e("A11yService", "A11yService instance is null!")
                             return@AskOverlay
                         }
                         val constraintManager = service.getConstraintManager()
                         if (constraintManager == null) {
-                            Log.e("A11yService", "ConstraintManager is null!")
+                            Logger.e("A11yService", "ConstraintManager is null!")
                             return@AskOverlay
                         }
                         constraintManager.setMultipleRuleStates(ruleStates)
-                        Log.d("A11yService", "ASK action updated rule states: $ruleStates")
+                        Logger.d("A11yService", "ASK action updated rule states: $ruleStates")
                         // Verify the states were set
                         val currentStates = constraintManager.getAllRuleStates()
-                        Log.d("A11yService", "Current rule states after update: $currentStates")
+                        Logger.d("A11yService", "Current rule states after update: $currentStates")
                     },
                     onDismiss = {
-                        Log.d("A11yService", "ASK overlay dismissed without changes")
+                        Logger.d("A11yService", "ASK overlay dismissed without changes")
                     }
                 )
                 askOverlay.show()
-                Log.d("A11yService", "ASK overlay shown for $appName")
+                Logger.d("A11yService", "ASK overlay shown for $appName")
             }
         }
     }
@@ -178,22 +179,22 @@ class ActionExecutor(
                 // Update rule states in constraint manager
                 val service = A11yService.getInstance()
                 if (service == null) {
-                    Log.e("A11yService", "A11yService instance is null!")
+                    Logger.e("A11yService", "A11yService instance is null!")
                     return@AskOverlay
                 }
                 val constraintManager = service.getConstraintManager()
                 if (constraintManager == null) {
-                    Log.e("A11yService", "ConstraintManager is null!")
+                    Logger.e("A11yService", "ConstraintManager is null!")
                     return@AskOverlay
                 }
                 constraintManager.setMultipleRuleStates(ruleStates)
-                Log.d("A11yService", "ASK overlay (askOnEnter) updated rule states: $ruleStates")
+                Logger.d("A11yService", "ASK overlay (askOnEnter) updated rule states: $ruleStates")
                 // Verify the states were set
                 val currentStates = constraintManager.getAllRuleStates()
-                Log.d("A11yService", "Current rule states after update: $currentStates")
+                Logger.d("A11yService", "Current rule states after update: $currentStates")
             },
             onDismiss = {
-                Log.d("A11yService", "ASK overlay (askOnEnter) dismissed without changes")
+                Logger.d("A11yService", "ASK overlay (askOnEnter) dismissed without changes")
                 // Re-show monitoring indicator to ensure it's on top
                 com.roderickqiu.seenot.components.MonitoringIndicatorOverlay.show(context, appName) {
                     showAskOverlay(appName)
@@ -201,7 +202,7 @@ class ActionExecutor(
             }
         )
         askOverlay.show()
-        Log.d("A11yService", "ASK overlay shown for $appName (askOnEnter)")
+        Logger.d("A11yService", "ASK overlay shown for $appName (askOnEnter)")
     }
 
     private fun performAutoClickAtCoordinate(parameter: String) {
@@ -209,7 +210,7 @@ class ActionExecutor(
         val parts = parameter.split(",")
         if (parts.size != 2) {
             notificationManager.showToast(context.getString(com.roderickqiu.seenot.R.string.action_auto_click_label) + ": " + context.getString(com.roderickqiu.seenot.R.string.invalid_coordinate), Toast.LENGTH_SHORT)
-            Log.d("A11yService", "AUTO_CLICK: invalid coordinate format: $parameter")
+            Logger.d("A11yService", "AUTO_CLICK: invalid coordinate format: $parameter")
             return
         }
         
@@ -230,7 +231,7 @@ class ActionExecutor(
             accessibilityService.dispatchGesture(gestureDescription, ClickGestureCallback(x, y), null)
         } catch (e: NumberFormatException) {
             notificationManager.showToast(context.getString(com.roderickqiu.seenot.R.string.action_auto_click_label) + ": " + context.getString(com.roderickqiu.seenot.R.string.invalid_coordinate), Toast.LENGTH_SHORT)
-            Log.d("A11yService", "AUTO_CLICK: invalid coordinate values: $parameter", e)
+            Logger.d("A11yService", "AUTO_CLICK: invalid coordinate values: $parameter", e)
         }
     }
     
@@ -269,7 +270,7 @@ class ActionExecutor(
         }
 
         if (expiredKeys.isNotEmpty()) {
-            Log.d("A11yService", "Cleaned up ${expiredKeys.size} expired action records")
+            Logger.d("A11yService", "Cleaned up ${expiredKeys.size} expired action records")
         }
     }
 }

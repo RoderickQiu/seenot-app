@@ -21,6 +21,7 @@ import android.util.Log
 import androidx.core.graphics.toColorInt
 import androidx.palette.graphics.Palette
 import com.roderickqiu.seenot.R
+import com.roderickqiu.seenot.utils.Logger
 import java.lang.ref.WeakReference
 import kotlin.math.roundToInt
 
@@ -131,7 +132,7 @@ class MonitoringIndicatorOverlay(
             val appInfo = packageManager.getApplicationInfo(ctx.packageName, 0)
             packageManager.getApplicationIcon(appInfo)
         } catch (e: Exception) {
-            Log.e("MonitoringIndicatorOverlay", "Failed to get SeeNot icon", e)
+            Logger.e("MonitoringIndicatorOverlay", "Failed to get SeeNot icon", e)
             null
         }
         
@@ -171,7 +172,7 @@ class MonitoringIndicatorOverlay(
         indicatorLayout.setOnTouchListener { view, event ->
             when (event.action) {
                 MotionEvent.ACTION_DOWN -> {
-                    Log.d("MonitoringIndicatorOverlay", "ACTION_DOWN received")
+                    Logger.d("MonitoringIndicatorOverlay", "ACTION_DOWN received for monitoring indicator overlay")
                     isDragging = false
                     lastX = event.rawX.toInt()
                     lastY = event.rawY.toInt()
@@ -193,13 +194,13 @@ class MonitoringIndicatorOverlay(
                     true
                 }
                 MotionEvent.ACTION_UP -> {
-                    Log.d("MonitoringIndicatorOverlay", "ACTION_UP received, isDragging: $isDragging")
+                    Logger.d("MonitoringIndicatorOverlay", "ACTION_UP received for monitoring indicator overlay, isDragging: $isDragging")
                     if (!isDragging) {
                         try {
                             onClickCallback()
-                            Log.d("MonitoringIndicatorOverlay", "Callback invoked")
+                            Logger.d("MonitoringIndicatorOverlay", "Callback invoked for monitoring indicator overlay")
                         } catch (e: Exception) {
-                            Log.e("MonitoringIndicatorOverlay", "Error invoking callback", e)
+                            Logger.e("MonitoringIndicatorOverlay", "Error invoking callback for monitoring indicator overlay", e)
                         }
                     } else {
                         indicatorParams?.let { params ->
@@ -225,7 +226,7 @@ class MonitoringIndicatorOverlay(
             windowManager?.addView(indicatorLayout, indicatorParams)
             indicatorView = indicatorLayout
         } catch (e: Exception) {
-            Log.e("MonitoringIndicatorOverlay", "Failed to show indicator", e)
+            Logger.e("MonitoringIndicatorOverlay", "Failed to show indicator for monitoring indicator overlay", e)
         }
     }
 
@@ -256,7 +257,7 @@ class MonitoringIndicatorOverlay(
             val palette = Palette.from(bitmap).generate()
             palette.getDominantColor(Color.parseColor(backgroundColor))
         } catch (e: Exception) {
-            Log.e("MonitoringIndicatorOverlay", "Failed to extract color from icon", e)
+            Logger.e("MonitoringIndicatorOverlay", "Failed to extract color from icon", e)
             null
         }
     }

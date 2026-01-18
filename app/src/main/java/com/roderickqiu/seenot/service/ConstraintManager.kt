@@ -5,6 +5,7 @@ import com.roderickqiu.seenot.data.AppDataStore
 import com.roderickqiu.seenot.data.Rule
 import com.roderickqiu.seenot.data.TimeConstraint
 import com.roderickqiu.seenot.utils.GenericUtils
+import com.roderickqiu.seenot.utils.Logger
 import kotlin.jvm.Volatile
 
 class ConstraintManager(
@@ -32,7 +33,7 @@ class ConstraintManager(
 
     fun setRulesEnabled(enabled: Boolean) {
         rulesEnabled = enabled
-        Log.d("A11yService", "Rule execution ${if (enabled) "resumed" else "paused"}")
+        Logger.d("A11yService", "Rule execution ${if (enabled) "resumed" else "paused"}")
     }
 
     fun areRulesEnabled(): Boolean = rulesEnabled
@@ -40,12 +41,12 @@ class ConstraintManager(
     // Rule-level enable/disable management
     fun setRuleEnabled(ruleId: String, enabled: Boolean) {
         ruleEnabledStates[ruleId] = enabled
-        Log.d("A11yService", "Rule $ruleId ${if (enabled) "enabled" else "disabled"}")
+        Logger.d("A11yService", "Rule $ruleId ${if (enabled) "enabled" else "disabled"}")
     }
 
     fun isRuleEnabled(ruleId: String): Boolean {
         val enabled = ruleEnabledStates.getOrDefault(ruleId, true) // Default to enabled
-        Log.d("A11yService", "Rule $ruleId enabled: $enabled (ruleEnabledStates: $ruleEnabledStates)")
+        Logger.d("A11yService", "Rule $ruleId enabled: $enabled (ruleEnabledStates: $ruleEnabledStates)")
         return enabled
     }
 
@@ -55,7 +56,7 @@ class ConstraintManager(
 
     fun setMultipleRuleStates(states: Map<String, Boolean>) {
         ruleEnabledStates.putAll(states)
-        Log.d("A11yService", "Updated rule states: $states")
+        Logger.d("A11yService", "Updated rule states: $states")
     }
     
     /**
@@ -139,11 +140,11 @@ class ConstraintManager(
 
     fun handleTimeConstraint(rule: Rule, appName: String, isMatch: Boolean) {
         if (!areRulesEnabled()) {
-            Log.d("A11yService", "Rules are globally disabled, skipping rule ${rule.id}")
+            Logger.d("A11yService", "Rules are globally disabled, skipping rule ${rule.id}")
             return
         }
         if (!isRuleEnabled(rule.id)) {
-            Log.d("A11yService", "Rule ${rule.id} is individually disabled, skipping")
+            Logger.d("A11yService", "Rule ${rule.id} is individually disabled, skipping")
             return // Check if rule is individually disabled
         }
         val constraint = rule.timeConstraint ?: return
@@ -184,7 +185,7 @@ class ConstraintManager(
             if (activeRecord == null) {
                 // Start new record
                 records.add(TimeRecord(startTime = now))
-                Log.d("A11yService", "Started short-term tracking for rule ${rule.id}, target=${constraint.minutes} minutes, window=${windowSizeMinutes} minutes")
+                Logger.d("A11yService", "Started short-term tracking for rule ${rule.id}, target=${constraint.minutes} minutes, window=${windowSizeMinutes} minutes")
             } else if (activeRecord.leaveTime != null) {
                 // Resume matching after leaving, clear leaveTime
                 val index = records.indexOf(activeRecord)
@@ -222,12 +223,12 @@ class ConstraintManager(
                         )
                     }
                 }
-                Log.d("A11yService", "Short-term constraint met for rule ${rule.id} (matched ${totalMinutes} minutes in ${windowSizeMinutes} min window), triggered action, starting exponential decay")
+                Logger.d("A11yService", "Short-term constraint met for rule ${rule.id} (matched ${totalMinutes} minutes in ${windowSizeMinutes} min window), triggered action, starting exponential decay")
                 saveTimeConstraintStates()
             } else {
                 // Log accumulated time and remaining time needed
                 val remainingMinutes = constraint.minutes - totalMinutes
-                Log.d("A11yService", "Constraint rule ${rule.id} (Continuous): accumulated ${String.format("%.2f", totalMinutes)} minutes, need ${String.format("%.2f", remainingMinutes)} more minutes to execute")
+                Logger.d("A11yService", "Constraint rule ${rule.id} (Continuous): accumulated ${String.format("%.2f", totalMinutes)} minutes, need ${String.format("%.2f", remainingMinutes)} more minutes to execute")
                 // Save state when records change
                 saveTimeConstraintStates()
             }
@@ -241,7 +242,7 @@ class ConstraintManager(
                     endTime = now,
                     leaveTime = now // Mark when we left for sub-linear decay
                 )
-                Log.d("A11yService", "Ended short-term record for rule ${rule.id}, marked leave time for sub-linear decay")
+                Logger.d("A11yService", "Ended short-term record for rule ${rule.id}, marked leave time for sub-linear decay")
             }
             
             // Clean up old records outside the window and decayed records
@@ -295,7 +296,7 @@ class ConstraintManager(
             if (activeRecord == null) {
                 // Start new record
                 records.add(TimeRecord(startTime = now))
-                Log.d("A11yService", "Started daily total tracking for rule ${rule.id}")
+                Logger.d("A11yService", "Started daily total tracking for rule ${rule.id}")
             }
             
             // Check total time today
@@ -310,12 +311,12 @@ class ConstraintManager(
                 actionExecutor.executeAction(rule, appName)
                 // Clear today's records after triggering
                 records.clear()
-                Log.d("A11yService", "Daily total constraint met for rule ${rule.id}, triggered action")
+                Logger.d("A11yService", "Daily total constraint met for rule ${rule.id}, triggered action")
                 saveTimeConstraintStates()
             } else {
                 // Log accumulated time and remaining time needed
                 val remainingMinutes = constraint.minutes - totalMinutes
-                Log.d("A11yService", "Constraint rule ${rule.id} (DailyTotal): accumulated ${String.format("%.2f", totalMinutes)} minutes, need ${String.format("%.2f", remainingMinutes)} more minutes to execute")
+                Logger.d("A11yService", "Constraint rule ${rule.id} (DailyTotal): accumulated ${String.format("%.2f", totalMinutes)} minutes, need ${String.format("%.2f", remainingMinutes)} more minutes to execute")
                 // Save state when records change
                 saveTimeConstraintStates()
             }
@@ -347,7 +348,7 @@ class ConstraintManager(
             
             if (activeRecord == null) {
                 records.add(TimeRecord(startTime = now))
-                Log.d("A11yService", "Started recent total tracking for rule ${rule.id}")
+                Logger.d("A11yService", "Started recent total tracking for rule ${rule.id}")
             }
             
             // Remove old records outside the time window
@@ -364,12 +365,12 @@ class ConstraintManager(
                 actionExecutor.executeAction(rule, appName)
                 // Clear records after triggering
                 records.clear()
-                Log.d("A11yService", "Recent total constraint met for rule ${rule.id}, triggered action")
+                Logger.d("A11yService", "Recent total constraint met for rule ${rule.id}, triggered action")
                 saveTimeConstraintStates()
             } else {
                 // Log accumulated time and remaining time needed
                 val remainingMinutes = constraint.minutes - totalMinutes
-                Log.d("A11yService", "Constraint rule ${rule.id} (RecentTotal): accumulated ${String.format("%.2f", totalMinutes)} minutes, need ${String.format("%.2f", remainingMinutes)} more minutes to execute")
+                Logger.d("A11yService", "Constraint rule ${rule.id} (RecentTotal): accumulated ${String.format("%.2f", totalMinutes)} minutes, need ${String.format("%.2f", remainingMinutes)} more minutes to execute")
                 // Save state when records change
                 saveTimeConstraintStates()
             }
@@ -400,7 +401,7 @@ class ConstraintManager(
                 endTime = now,
                 leaveTime = now // Mark when we left for sub-linear decay
             )
-            Log.d("A11yService", "Ended short-term record for rule $ruleId, marked leave time for sub-linear decay")
+            Logger.d("A11yService", "Ended short-term record for rule $ruleId, marked leave time for sub-linear decay")
         }
         // Note: saveTimeConstraintStates() is called by the caller after cleanup
     }
@@ -413,11 +414,11 @@ class ConstraintManager(
         val states = appDataStore.loadTimeConstraintStates()
         
         if (states.isEmpty()) {
-            Log.d("A11yService", "No persisted time constraint states found")
+            Logger.d("A11yService", "No persisted time constraint states found")
             return
         }
         
-        Log.d("A11yService", "Loading ${states.size} persisted time constraint states")
+        Logger.d("A11yService", "Loading ${states.size} persisted time constraint states")
         
         val monitoringApps = appDataStore.loadMonitoringApps()
         val ruleMap = monitoringApps.flatMap { app ->
@@ -430,7 +431,7 @@ class ConstraintManager(
         states.forEach { stateData ->
             val (appName, _) = ruleMap[stateData.stateKey] ?: run {
                 expiredCount++
-                Log.d("A11yService", "Skipping expired state: ${stateData.stateKey} (rule not found)")
+                Logger.d("A11yService", "Skipping expired state: ${stateData.stateKey} (rule not found)")
                 return@forEach
             }
             
@@ -462,7 +463,7 @@ class ConstraintManager(
                         val totalMinutes = records.sumOf { record ->
                             calculateEffectiveMinutes(record, cutoffTime, now)
                         }
-                        Log.d("A11yService", "Restored Continuous constraint: $appName/${stateData.ruleId}, matched ${String.format("%.2f", totalMinutes)}/${stateData.constraintMinutes} minutes in window")
+                        Logger.d("A11yService", "Restored Continuous constraint: $appName/${stateData.ruleId}, matched ${String.format("%.2f", totalMinutes)}/${stateData.constraintMinutes} minutes in window")
                     }
                 }
                 "DailyTotal" -> {
@@ -489,7 +490,7 @@ class ConstraintManager(
                             val end = record.endTime ?: now
                             maxOf(0.0, (end - start) / (1000.0 * 60.0))
                         }
-                        Log.d("A11yService", "Restored DailyTotal constraint: $appName/${stateData.ruleId}, matched ${String.format("%.2f", totalMinutes)}/${stateData.constraintMinutes} minutes today")
+                        Logger.d("A11yService", "Restored DailyTotal constraint: $appName/${stateData.ruleId}, matched ${String.format("%.2f", totalMinutes)}/${stateData.constraintMinutes} minutes today")
                     }
                 }
                 "RecentTotal" -> {
@@ -516,7 +517,7 @@ class ConstraintManager(
                             val end = record.endTime ?: now
                             maxOf(0.0, (end - start) / (1000.0 * 60.0))
                         }
-                        Log.d("A11yService", "Restored RecentTotal constraint: $appName/${stateData.ruleId}, matched ${String.format("%.2f", totalMinutes)}/${stateData.constraintMinutes} minutes in last ${stateData.constraintHours} hours")
+                        Logger.d("A11yService", "Restored RecentTotal constraint: $appName/${stateData.ruleId}, matched ${String.format("%.2f", totalMinutes)}/${stateData.constraintMinutes} minutes in last ${stateData.constraintHours} hours")
                     }
                 }
             }
@@ -528,7 +529,7 @@ class ConstraintManager(
             }
         }
         
-        Log.d("A11yService", "Time constraint states loaded: $validCount valid, $expiredCount expired")
+        Logger.d("A11yService", "Time constraint states loaded: $validCount valid, $expiredCount expired")
         
         // Save cleaned states back
         saveTimeConstraintStates()
@@ -586,7 +587,7 @@ class ConstraintManager(
                 rules
             )
         } catch (e: Exception) {
-            Log.e("A11yService", "Error saving time constraint states", e)
+            Logger.e("A11yService", "Error saving time constraint states", e)
         }
     }
 
@@ -596,7 +597,7 @@ class ConstraintManager(
             val monitoringApps = appDataStore.loadMonitoringApps()
             monitoringApps.find { it.name == appName && it.isEnabled } ?: return
         } catch (e: Exception) {
-            Log.e("A11yService", "Failed to handle ON_ENTER rules for $appName", e)
+            Logger.e("A11yService", "Failed to handle ON_ENTER rules for $appName", e)
         }
     }
 
@@ -636,11 +637,11 @@ class ConstraintManager(
             }
 
             if (clearedCount > 0) {
-                Log.d("A11yService", "Cleared all ongoing judgments and execution for app: $appName ($clearedCount state keys)")
+                Logger.d("A11yService", "Cleared all ongoing judgments and execution for app: $appName ($clearedCount state keys)")
                 saveTimeConstraintStates()
             }
         } catch (e: Exception) {
-            Log.e("A11yService", "Failed to clear judgments and execution for $appName", e)
+            Logger.e("A11yService", "Failed to clear judgments and execution for $appName", e)
         }
     }
 }

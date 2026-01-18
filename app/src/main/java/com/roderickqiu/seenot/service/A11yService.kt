@@ -3,6 +3,7 @@ package com.roderickqiu.seenot.service
 import android.accessibilityservice.AccessibilityService
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
+import com.roderickqiu.seenot.utils.Logger
 import android.graphics.Path
 import android.accessibilityservice.GestureDescription
 import android.widget.Toast
@@ -22,7 +23,7 @@ class A11yService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        Log.d("A11yService", "Accessibility service connected")
+        Logger.i("A11yService", "Accessibility service connected")
         
         appDataStore = AppDataStore(this)
         notificationManager = NotificationManager(this)
@@ -40,7 +41,7 @@ class A11yService : AccessibilityService() {
 
     override fun onCreate() {
         super.onCreate()
-        Log.d("A11yService", "Accessibility service created")
+        Logger.i("A11yService", "Accessibility service created")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
@@ -48,7 +49,7 @@ class A11yService : AccessibilityService() {
     }
 
     override fun onInterrupt() {
-        Log.d("A11yService", "Accessibility service interrupted")
+        Logger.d("A11yService", "Accessibility service interrupted")
     }
     
     // Method to perform a global click at specific coordinates

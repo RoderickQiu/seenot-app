@@ -2,6 +2,7 @@ package com.roderickqiu.seenot
 
 import android.content.Intent
 import android.os.Bundle
+import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
 import com.roderickqiu.seenot.components.ToastOverlay
@@ -60,9 +61,75 @@ import com.roderickqiu.seenot.data.RuleRecordRepo
 import com.roderickqiu.seenot.ui.theme.SeeNotTheme
 import com.roderickqiu.seenot.settings.SettingsDialog
 import com.roderickqiu.seenot.utils.LanguageManager
+import com.roderickqiu.seenot.utils.Logger
 
 class MainActivity : ComponentActivity() {
     private lateinit var repository: MonitoringRepo
+
+    /**
+     * Export all log files as a ZIP archive
+     */
+    private fun exportLogs() {
+        try {
+            val logFiles = Logger.getAllLogFiles()
+            if (logFiles.isEmpty()) {
+                ToastOverlay.show(this, "没有找到日志文件", 3000L)
+                return
+            }
+
+            // Create ZIP file in cache/exports directory (matches file_paths.xml)
+            val exportsDir = java.io.File(cacheDir, "exports").apply {
+                if (!exists()) mkdirs()
+            }
+            val timestamp = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.getDefault()).format(java.util.Date())
+            val zipFile = java.io.File(exportsDir, "seenot_logs_$timestamp.zip")
+
+            // Create ZIP archive
+            java.util.zip.ZipOutputStream(java.io.FileOutputStream(zipFile)).use { zos ->
+                logFiles.forEach { logFile ->
+                    try {
+                        java.io.FileInputStream(logFile).use { fis ->
+                            val entryName = logFile.absolutePath.substringAfter("logs/") // Keep relative path structure
+                            val zipEntry = java.util.zip.ZipEntry(entryName)
+                            zos.putNextEntry(zipEntry)
+
+                            val buffer = ByteArray(1024)
+                            var length: Int
+                            while (fis.read(buffer).also { length = it } > 0) {
+                                zos.write(buffer, 0, length)
+                            }
+                            zos.closeEntry()
+                        }
+                    } catch (e: Exception) {
+                        Logger.e("MainActivity", "Failed to add file ${logFile.name} to ZIP", e)
+                    }
+                }
+            }
+
+            // Share the ZIP file
+            val zipUri = androidx.core.content.FileProvider.getUriForFile(
+                this,
+                "${packageName}.fileprovider",
+                zipFile
+            )
+
+            val shareIntent = Intent().apply {
+                action = Intent.ACTION_SEND
+                type = "application/zip"
+                putExtra(Intent.EXTRA_STREAM, zipUri)
+                putExtra(Intent.EXTRA_SUBJECT, "SeeNot 日志导出")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+
+            startActivity(Intent.createChooser(shareIntent, "分享日志文件"))
+
+            Logger.i("MainActivity", "Exported ${logFiles.size} log files to ZIP archive")
+
+        } catch (e: Exception) {
+            Logger.e("MainActivity", "Failed to export logs", e)
+            ToastOverlay.show(this, "导出日志失败：${e.message}", 5000L)
+        }
+    }
 
     /**
      * Share all rules as JSON text
@@ -135,6 +202,20 @@ class MainActivity : ComponentActivity() {
         // Apply saved language setting
         LanguageManager.updateConfiguration(this)
         enableEdgeToEdge()
+
+        // Check external storage before initializing logger
+        val externalAvailable = Logger.isExternalStorageAvailable(this)
+        Log.i("MainActivity", "External storage available: $externalAvailable")
+        Log.i("MainActivity", "External storage state: ${Logger.getExternalStorageInfo()}")
+
+        // Initialize custom logger
+        Logger.init(this)
+
+        // Test logger with some initial messages
+        Logger.i(
+            "MainActivity",
+            "App started, log directory: ${Logger.getLogDirectoryPath()}, max entries per file: ${Logger.getMaxEntriesPerFile()}, debug logging enabled, external storage was available during init: $externalAvailable"
+        )
 
         repository = MonitoringRepo(this)
 
@@ -342,6 +423,7 @@ class MainActivity : ComponentActivity() {
                     ImportExportDialog(
                         onDismiss = { showImportExportDialog = false },
                         onExport = { exportRules() },
+                        onExportLogs = { exportLogs() },
                         onImport = { jsonText ->
                             importRules(jsonText) {
                                 // Refresh monitoring apps after import

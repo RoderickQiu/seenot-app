@@ -7,6 +7,7 @@ import android.provider.MediaStore
 import android.util.Base64
 import android.util.Log
 import java.io.ByteArrayOutputStream
+import com.roderickqiu.seenot.utils.Logger
 
 object BitmapUtils {
     fun bitmapToBase64(bitmap: Bitmap): String {
@@ -38,14 +39,14 @@ object BitmapUtils {
                 MediaStore.Images.Media.EXTERNAL_CONTENT_URI,
                 contentValues
             ) ?: run {
-                Log.e("BitmapUtils", "Failed to create MediaStore entry")
+                Logger.e("A11yService", "Failed to create MediaStore entry for saving screenshot to gallery")
                 return
             }
 
             context.contentResolver.openOutputStream(uri)?.use { outputStream ->
                 bitmap.compress(Bitmap.CompressFormat.JPEG, 90, outputStream)
             } ?: run {
-                Log.e("BitmapUtils", "Failed to open output stream")
+                Logger.e("A11yService", "Failed to open output stream for saving screenshot to gallery")
                 context.contentResolver.delete(uri, null, null)
                 return
             }
@@ -54,9 +55,9 @@ object BitmapUtils {
             contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
             context.contentResolver.update(uri, contentValues, null, null)
 
-            Log.d("BitmapUtils", "Screenshot saved to gallery: $displayName")
+            Logger.d("A11yService", "Screenshot saved to gallery: $displayName for saving screenshot to gallery")
         } catch (e: Exception) {
-            Log.e("BitmapUtils", "Error saving screenshot to gallery", e)
+            Logger.e("A11yService", "Error saving screenshot to gallery for saving screenshot to gallery", e)
         }
     }
 }

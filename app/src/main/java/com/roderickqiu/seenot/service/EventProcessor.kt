@@ -8,6 +8,7 @@ import android.view.accessibility.AccessibilityNodeInfo
 import com.roderickqiu.seenot.R
 import com.roderickqiu.seenot.components.MonitoringIndicatorOverlay
 import com.roderickqiu.seenot.data.AppDataStore
+import com.roderickqiu.seenot.utils.Logger
 
 private const val AI_PREFS = "seenot_ai"
 private const val KEY_SHOW_MONITORING_INDICATOR = "show_monitoring_indicator"
@@ -111,12 +112,12 @@ class EventProcessor(
                     // check for things once a time
                     val now = System.currentTimeMillis()
                     if (currentMonitoredPackage != null) {
-                        Log.d(
+                        Logger.d(
                                 "A11yService",
                                 "Accessibility event: ${eventTypeName(e.eventType)}, className: ${e.className?.toString()}, packageName: ${e.packageName?.toString()}, text: ${e.text.toString()}"
                         )
                         if (now - lastMonitoredLogTimeMs >= A11yService.LOG_INTERVAL_MS) {
-                            Log.d(
+                            Logger.d(
                                     "A11yService",
                                     "Active in monitored app: $currentMonitoredAppName (package: $currentMonitoredPackage) via event: ${eventTypeName(e.eventType)}"
                             )
@@ -159,7 +160,7 @@ class EventProcessor(
             val previousPackage = currentMonitoredPackage
             val previousAppName = currentMonitoredAppName
             if (previousPackage != null && previousPackage != packageName && previousAppName != null) {
-                Log.d(
+                Logger.d(
                         "A11yService",
                         "Exited monitored app: $previousAppName (package: $previousPackage)"
                 )
@@ -178,7 +179,7 @@ class EventProcessor(
                 val now = System.currentTimeMillis()
                 if (currentMonitoredPackage == null || currentMonitoredPackage != packageName) {
                     // entering a monitored app (first time or switched)
-                    Log.d("A11yService", "Entered monitored app: $appName (package: $packageName)")
+                    Logger.d("A11yService", "Entered monitored app: $appName (package: $packageName)")
                     currentMonitoredPackage = packageName
                     currentMonitoredAppName = appName
                     screenshotAnalyzer.currentMonitoredPackage = packageName
@@ -198,7 +199,7 @@ class EventProcessor(
         } catch (e: PackageManager.NameNotFoundException) {
             // App not found, ignore
         } catch (e: Exception) {
-            Log.e("A11yService", "Error checking monitored app", e)
+            Logger.e("A11yService", "Error checking monitored app", e)
         }
     }
 }

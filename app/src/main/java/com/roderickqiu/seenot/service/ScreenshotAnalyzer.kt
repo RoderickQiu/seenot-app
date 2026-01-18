@@ -24,6 +24,7 @@ import com.roderickqiu.seenot.data.TimeConstraint
 import com.roderickqiu.seenot.service.AIServiceUtils
 import com.roderickqiu.seenot.service.BitmapUtils
 import com.roderickqiu.seenot.utils.GenericUtils
+import com.roderickqiu.seenot.utils.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
@@ -67,10 +68,6 @@ class ScreenshotAnalyzer(
                                 screenshotResult: android.accessibilityservice.AccessibilityService.ScreenshotResult
                         ) {
                             isTakingScreenshot = false
-                            Log.d(
-                                    "A11yService",
-                                    "Screenshot success for $currentMonitoredAppName ($currentMonitoredPackage), reason=$reason"
-                            )
 
                             try {
                                 val hb = screenshotResult.hardwareBuffer
@@ -102,21 +99,21 @@ class ScreenshotAnalyzer(
                                                     true
                                             )
 
-                                    Log.d(
+                                    Logger.d(
                                             "A11yService",
-                                            "Bitmap created and scaled from screenshot: ${scaledBitmap.width}x${scaledBitmap.height} (original: ${originalWidth}x${originalHeight})"
+                                            "Screenshot success for $currentMonitoredAppName ($currentMonitoredPackage), reason=$reason, scaled: ${scaledBitmap.width}x${scaledBitmap.height} (original: ${originalWidth}x${originalHeight})"
                                     )
 
                                     // Describe image using AI
                                     describeImageWithAI(scaledBitmap)
                                 } else {
-                                    Log.w(
+                                    Logger.w(
                                             "A11yService",
                                             "Failed to wrap hardware buffer into Bitmap"
                                     )
                                 }
                             } catch (t: Throwable) {
-                                Log.e("A11yService", "Error creating Bitmap from screenshot", t)
+                                Logger.e("A11yService", "Error creating Bitmap from screenshot", t)
                             } finally {
                                 try {
                                     screenshotResult.hardwareBuffer.close()
@@ -126,7 +123,7 @@ class ScreenshotAnalyzer(
 
                         override fun onFailure(errorCode: Int) {
                             isTakingScreenshot = false
-                            Log.w(
+                            Logger.w(
                                     "A11yService",
                                     "Screenshot failed (code=$errorCode) for $currentMonitoredAppName ($currentMonitoredPackage), reason=$reason"
                             )
@@ -135,7 +132,7 @@ class ScreenshotAnalyzer(
             )
         } catch (t: Throwable) {
             isTakingScreenshot = false
-            Log.e("A11yService", "Screenshot exception for reason=$reason", t)
+            Logger.e("A11yService", "Screenshot exception for reason=$reason", t)
         }
     }
 
@@ -144,7 +141,7 @@ class ScreenshotAnalyzer(
         val modelId = AIServiceUtils.loadAiModelId(context)
 
         if (apiKey.isEmpty()) {
-            Log.w("A11yService", "AI API key not configured, skipping image description")
+            Logger.e("A11yService", "AI API key not configured, skipping image description")
             return
         }
 
@@ -160,12 +157,12 @@ class ScreenshotAnalyzer(
                 // Reuse previous AI results for this duplicate screenshot
                 val previousResults = hashAiResults[screenshotHash]?.get(currentAppName)
                 if (previousResults != null) {
-                    Log.d("A11yService", "Reusing previous AI results for duplicate screenshot (hash: $screenshotHash, age: ${now - existingTimestamp}ms)")
+                    Logger.d("A11yService", "Reusing previous AI results for duplicate screenshot (hash: $screenshotHash, age: ${now - existingTimestamp}ms)")
                     bitmap.recycle()
                     reusePreviousResults(currentAppName, previousResults)
                     return
                 } else {
-                    Log.d("A11yService", "Duplicate screenshot but no previous results found, processing normally (hash: $screenshotHash)")
+                    Logger.d("A11yService", "Duplicate screenshot but no previous results found, processing normally (hash: $screenshotHash)")
                 }
             }
 
@@ -174,7 +171,7 @@ class ScreenshotAnalyzer(
             cleanupExpiredHashes(now)
         } else {
             if (screenshotHash == null) {
-                Log.w("A11yService", "Failed to generate screenshot hash, skipping deduplication check")
+                Logger.w("A11yService", "Failed to generate screenshot hash, skipping deduplication check")
             }
         }
 
@@ -190,7 +187,7 @@ class ScreenshotAnalyzer(
         val currentApp = monitoringApps.find { it.name == appName && it.isEnabled }
         
         if (currentApp == null) {
-            Log.d("A11yService", "App $appName not found or disabled, skipping result reuse")
+            Logger.d("A11yService", "App $appName not found or disabled, skipping result reuse")
             return
         }
 
@@ -202,7 +199,7 @@ class ScreenshotAnalyzer(
             val isConditionMatch = previousResults[rule.id] ?: continue
 
             if (!constraintManager.areRulesEnabled()) {
-                Log.d("A11yService", "Rules paused - skipping rule ${rule.id} for $appName")
+                Logger.d("A11yService", "Rules paused - skipping rule ${rule.id} for $appName")
                 constraintManager.endShortTermRecord(rule.id, appName)
                 continue
             }
@@ -237,12 +234,11 @@ class ScreenshotAnalyzer(
             try {
                 // Convert bitmap to base64
                 val base64Image = BitmapUtils.bitmapToBase64(bitmap)
-                Log.d("A11yService", "Image converted to base64, size: ${base64Image.length} chars")
 
                 // Get activated rules only for the currently monitored app
                 val targetAppName = appNameParam ?: currentMonitoredAppName
                 if (targetAppName == null) {
-                    Log.d("A11yService", "No currently monitored app, skipping AI evaluation")
+                    Logger.d("A11yService", "No currently monitored app, skipping AI evaluation")
                     bitmap.recycle()
                     return@launch
                 }
@@ -261,10 +257,10 @@ class ScreenshotAnalyzer(
                     }
                 }
 
-                Log.d("A11yService", "Found ${activatedRules.size} activated rules to evaluate for app=$targetAppName")
+                Logger.d("A11yService", "Found ${activatedRules.size} activated rules to evaluate for app=$targetAppName")
 
                 if (activatedRules.isEmpty()) {
-                    Log.d("A11yService", "No activated rules found, skipping AI evaluation")
+                    Logger.d("A11yService", "No activated rules found, skipping AI evaluation")
                     bitmap.recycle()
                     return@launch
                 }
@@ -286,7 +282,7 @@ class ScreenshotAnalyzer(
                     val startTime = System.currentTimeMillis()
                     try {
                         if (!constraintManager.areRulesEnabled()) {
-                            Log.d("A11yService", "Rules paused - skipping rule ${rule.id} for $appName")
+                            Logger.d("A11yService", "Rules paused - skipping rule ${rule.id} for $appName")
                             constraintManager.endShortTermRecord(rule.id, appName)
                             continue
                         }
@@ -344,7 +340,7 @@ class ScreenshotAnalyzer(
                         // Extract and log response with both condition and action
                         val result = response.choices.firstOrNull()?.message?.content
                         if (result != null) {
-                            Log.d("A11yService", "AI Result for app=$appName, question=$question, context=$appContext, condition=${condition.type}, action=${action.type}: $result, elapsed time: ${elapsedTime}ms")
+                            Logger.d("A11yService", "AI Result for app=$appName, question=$question, context=$appContext, condition=${condition.type}, action=${action.type}: $result, elapsed time: ${elapsedTime}ms")
                             
                             // Parse AI result to check if condition matches
                             val isConditionMatch = AIServiceUtils.parseAIResult(result)
@@ -375,9 +371,9 @@ class ScreenshotAnalyzer(
                                     // Save screenshot for this record
                                     ruleRecordRepo.saveScreenshotForRecord(savedRecord.id, recordBitmap)
 
-                                    Log.d("A11yService", "Saved rule record: ${savedRecord.id} for rule ${rule.id}")
+                                    Logger.d("A11yService", "Saved rule record: ${savedRecord.id} for rule ${rule.id}")
                                 } catch (recordError: Exception) {
-                                    Log.e("A11yService", "Error saving rule record", recordError)
+                                    Logger.e("A11yService", "Error saving rule record", recordError)
                                 }
                             }
 
@@ -405,13 +401,13 @@ class ScreenshotAnalyzer(
                                 constraintManager.endShortTermRecord(rule.id, appName)
                             }
                         } else {
-                            Log.w("A11yService", "No result returned from AI for app=$appName, question=$question, context=$appContext, condition=${condition.type}, action=${action.type}, elapsed time: ${elapsedTime}ms")
+                            Logger.w("A11yService", "No result returned from AI for app=$appName, question=$question, context=$appContext, condition=${condition.type}, action=${action.type}, elapsed time: ${elapsedTime}ms")
                         }
                     } catch (e: Exception) {
                         val elapsedTime = System.currentTimeMillis() - startTime
-                        Log.e("A11yService", "Error evaluating rule for app=$appName, condition=${rule.condition.type}, action=${rule.action.type} (elapsed: ${elapsedTime}ms)", e)
+                        Logger.e("A11yService", "Error evaluating rule for app=$appName, condition=${rule.condition.type}, action=${rule.action.type} (elapsed: ${elapsedTime}ms)", e)
                         e.message?.let { 
-                            Log.e("A11yService", "Error details: $it")
+                            Logger.e("A11yService", "Error details: $it")
                         }
                     }
                 }
@@ -419,8 +415,8 @@ class ScreenshotAnalyzer(
                 // Recycle the record bitmap copy
                 recordBitmap.recycle()
             } catch (e: Exception) {
-                Log.e("A11yService", "Error in describeImageWithAI", e)
-                e.message?.let { Log.e("A11yService", "Error details: $it") }
+                Logger.e("A11yService", "Error in describing image with AI", e)
+                e.message?.let { Logger.e("A11yService", "Error details: $it") }
             } finally {
                 bitmap.recycle()
             }
@@ -459,7 +455,7 @@ class ScreenshotAnalyzer(
             return "${bitmap.width}x${bitmap.height}_${hash.hashCode()}"
 
         } catch (e: Exception) {
-            Log.w("A11yService", "Error generating screenshot hash, skipping deduplication", e)
+            Logger.w("A11yService", "Error generating screenshot hash, skipping deduplication", e)
             return null
         }
     }
@@ -478,7 +474,7 @@ class ScreenshotAnalyzer(
                 processedScreenshotHashes.remove(it)
                 hashAiResults.remove(it) // Also clean up associated AI results
             }
-            Log.d("A11yService", "Cleaned up ${expiredKeys.size} expired screenshot hash records, remaining: ${processedScreenshotHashes.size}")
+            Logger.d("A11yService", "Cleaned up ${expiredKeys.size} expired screenshot hash records, remaining: ${processedScreenshotHashes.size}")
         }
         
         // Safety cleanup: if still too many records, remove oldest ones
@@ -489,7 +485,7 @@ class ScreenshotAnalyzer(
                 processedScreenshotHashes.remove(it)
                 hashAiResults.remove(it) // Also clean up associated AI results
             }
-            Log.d("A11yService", "Safety cleanup: removed ${toRemove.size} oldest hash records, remaining: ${processedScreenshotHashes.size}")
+            Logger.d("A11yService", "Safety cleanup: removed ${toRemove.size} oldest hash records, remaining: ${processedScreenshotHashes.size}")
         }
     }
 }

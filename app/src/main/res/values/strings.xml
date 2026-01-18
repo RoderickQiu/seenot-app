@@ -207,10 +207,12 @@
     <string name="copyright_text">(c) 2025 Roderick Qiu</string>
     <string name="ok">确定</string>
     <string name="export_rules">导出规则</string>
+    <string name="export_logs">导出日志</string>
     <string name="import_export_rules">导入导出</string>
     <string name="import_rules">导入规则</string>
     <string name="import_rules_description">从其他设备或备份导入规则配置。这将覆盖当前的所有规则。</string>
     <string name="export_rules_description">将当前的所有规则配置导出为JSON格式，可以分享给其他设备或作为备份。</string>
+    <string name="export_logs_description">将所有日志文件打包成ZIP压缩包，便于查看和分析应用运行状况。</string>
     <string name="confirm_import">确认导入</string>
     <string name="import_warning">警告：导入规则将覆盖当前的所有规则配置，此操作无法撤销。确定要继续吗？</string>
     <string name="rules_imported_successfully">规则导入成功</string>

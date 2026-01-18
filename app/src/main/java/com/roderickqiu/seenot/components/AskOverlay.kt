@@ -32,6 +32,7 @@ import com.roderickqiu.seenot.data.AppDataStore
 import com.roderickqiu.seenot.data.Rule
 import com.roderickqiu.seenot.service.A11yService
 import com.roderickqiu.seenot.utils.RuleFormatter
+import com.roderickqiu.seenot.utils.Logger
 import java.lang.ref.WeakReference
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -279,12 +280,12 @@ class AskOverlay(
                 if (callback != null) {
                     try {
                         callback(ruleStates.toMap())
-                        Log.d("AskOverlay", "Rules updated successfully: $ruleStates")
+                        Logger.d("AskOverlay", "Rules updated successfully: $ruleStates")
                     } catch (e: Exception) {
-                        Log.e("AskOverlay", "Failed to update rules", e)
+                        Logger.e("AskOverlay", "Failed to update rules", e)
                     }
                 } else {
-                    Log.w("AskOverlay", "onRulesUpdated callback is null")
+                    Logger.w("AskOverlay", "onRulesUpdated callback is null")
                 }
                 // Always dismiss the overlay
                 dismiss()

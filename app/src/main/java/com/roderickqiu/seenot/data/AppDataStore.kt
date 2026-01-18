@@ -8,6 +8,7 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
 import com.roderickqiu.seenot.data.MonitoringApp
+import com.roderickqiu.seenot.utils.Logger
 
 class AppDataStore(private val context: Context) {
 
@@ -32,7 +33,7 @@ class AppDataStore(private val context: Context) {
             val json = gson.toJson(apps)
             prefs.edit { putString(KEY_MONITORING_APPS, json) }
         } catch (e: Exception) {
-            Log.e("AppDataStore", "Error saving monitoring apps", e)
+            Logger.e("AppDataStore", "Error saving monitoring apps", e)
             throw e
         }
     }
@@ -46,8 +47,8 @@ class AppDataStore(private val context: Context) {
         return try {
             gson.fromJson(json, type) ?: emptyList()
         } catch (e: Exception) {
-            Log.e("AppDataStore", "Error loading monitoring apps: ${e.message}", e)
-            Log.e("AppDataStore", "JSON content: $json")
+            Logger.e("AppDataStore", "Error loading monitoring apps: ${e.message}", e)
+            Logger.e("AppDataStore", "JSON content: $json")
             emptyList()
         }
     }
@@ -216,7 +217,7 @@ class AppDataStore(private val context: Context) {
             val json = gson.toJson(states)
             prefs.edit { putString(KEY_TIME_CONSTRAINT_STATES, json) }
         } catch (e: Exception) {
-            Log.e("AppDataStore", "Error saving time constraint states", e)
+            Logger.e("AppDataStore", "Error saving time constraint states", e)
         }
     }
 
@@ -229,7 +230,7 @@ class AppDataStore(private val context: Context) {
         return try {
             gson.fromJson<List<TimeConstraintStateData>>(json, type) ?: emptyList()
         } catch (e: Exception) {
-            Log.e("AppDataStore", "Error loading time constraint states: ${e.message}", e)
+            Logger.e("AppDataStore", "Error loading time constraint states: ${e.message}", e)
             emptyList()
         }
     }
