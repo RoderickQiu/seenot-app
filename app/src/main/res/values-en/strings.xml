@@ -53,6 +53,7 @@
     <string name="action_type">Action Type</string>
     <string name="action_remind_label">Remind</string>
     <string name="action_auto_click_label">Auto click</string>
+    <string name="action_auto_click_no_param">Auto click (no coordinate)</string>
     <string name="action_auto_scroll_up_label">Auto scroll up</string>
     <string name="action_auto_scroll_down_label">Auto scroll down</string>
     <string name="action_auto_back_label">Auto back</string>
@@ -191,6 +192,13 @@
     <string name="rule">Rule</string>
     <string name="previous_record">Previous Record</string>
     <string name="next_record">Next Record</string>
+    <string name="marked_only">Marked Only</string>
+    <string name="all_results">All Results</string>
+    <string name="matched_records">Matched Records</string>
+    <string name="not_matched_records">Not Matched Records</string>
+    <string name="mark_record">Mark Record</string>
+    <string name="unmark_record">Unmark Record</string>
+    <string name="export_marked_only">Export marked records only</string>
 
     <!-- About Dialog -->
     <string name="about">About App</string>

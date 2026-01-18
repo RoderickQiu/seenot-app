@@ -16,7 +16,8 @@ data class RuleRecord(
     val isConditionMatched: Boolean,
     val aiResult: String? = null, // Raw AI response text
     val imagePath: String? = null, // Path to saved screenshot image (internal storage)
-    val elapsedTimeMs: Long? = null // AI processing time
+    val elapsedTimeMs: Long? = null, // AI processing time
+    val isMarked: Boolean = false // Whether this record is marked/tagged by user
 ) {
     val date: Date
         get() = Date(timestamp)

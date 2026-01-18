@@ -289,6 +289,49 @@ class RuleRecordRepo(private val context: Context) {
             calendar.get(Calendar.HOUR_OF_DAY) == hour
         }
     }
+
+    /**
+     * Mark or unmark a specific record
+     */
+    suspend fun markRecord(recordId: String, isMarked: Boolean): Boolean {
+        return withContext(Dispatchers.IO) {
+            try {
+                val records = loadRecords().toMutableList()
+                val recordIndex = records.indexOfFirst { it.id == recordId }
+                if (recordIndex != -1) {
+                    val record = records[recordIndex]
+                    records[recordIndex] = record.copy(isMarked = isMarked)
+
+                    // Save updated records
+                    val json = gson.toJson(records)
+                    recordsFile.writeText(json)
+
+                    Log.d(TAG, "Marked record $recordId as $isMarked")
+                    true
+                } else {
+                    Log.w(TAG, "Record not found for marking: $recordId")
+                    false
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Error marking record", e)
+                false
+            }
+        }
+    }
+
+    /**
+     * Get only marked records
+     */
+    fun getMarkedRecords(): List<RuleRecord> {
+        return loadRecords().filter { it.isMarked }
+    }
+
+    /**
+     * Get records filtered by match status
+     */
+    fun getRecordsByMatchStatus(isMatched: Boolean): List<RuleRecord> {
+        return loadRecords().filter { it.isConditionMatched == isMatched }
+    }
 }
 
 data class RecordStats(

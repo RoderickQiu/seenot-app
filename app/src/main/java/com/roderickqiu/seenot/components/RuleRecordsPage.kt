@@ -19,8 +19,10 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.Star
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -68,6 +70,8 @@ fun RuleRecordsPage(
     var availableHours by remember { mutableStateOf<List<Int>>(emptyList()) }
     var isExporting by remember { mutableStateOf(false) }
     var exportProgress by remember { mutableStateOf("") }
+    var filterMarkedOnly by remember { mutableStateOf(false) }
+    var filterMatchStatus by remember { mutableStateOf<Boolean?>(null) } // null = all, true = matched, false = not matched
     
     val appDataStore = remember { AppDataStore(context) }
 
@@ -76,13 +80,23 @@ fun RuleRecordsPage(
     // Load records function
     suspend fun loadRecords() {
         withContext(Dispatchers.IO) {
-            records = if (selectedDate != null && selectedHour != null) {
+            var loadedRecords = if (selectedDate != null && selectedHour != null) {
                 ruleRecordRepo.getRecordsForDateAndHour(selectedDate!!, selectedHour!!)
             } else if (selectedDate != null) {
                 ruleRecordRepo.getRecordsForDate(selectedDate!!)
             } else {
                 ruleRecordRepo.loadRecords()
             }
+
+            // Apply filters
+            if (filterMarkedOnly) {
+                loadedRecords = loadedRecords.filter { it.isMarked }
+            }
+            if (filterMatchStatus != null) {
+                loadedRecords = loadedRecords.filter { it.isConditionMatched == filterMatchStatus }
+            }
+
+            records = loadedRecords
             availableDates = ruleRecordRepo.getRecordsGroupedByDate().keys.sortedDescending()
             isLoading = false
         }
@@ -131,13 +145,20 @@ fun RuleRecordsPage(
     }
 
     // Export records
-    fun exportRecords() {
+    fun exportRecords(exportMarkedOnly: Boolean = false) {
         coroutineScope.launch {
             try {
                 isExporting = true
                 exportProgress = "Preparing export..."
 
-                val exportUri = recordExporter.exportRecordsToZip(records) { progress ->
+                val recordsToExport = if (exportMarkedOnly) {
+                    // Get all marked records, not just the filtered ones
+                    ruleRecordRepo.getMarkedRecords()
+                } else {
+                    records
+                }
+
+                val exportUri = recordExporter.exportRecordsToZip(recordsToExport) { progress ->
                     exportProgress = progress
                 }
 
@@ -258,6 +279,90 @@ fun RuleRecordsPage(
             }
         }
 
+        // Filter buttons
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            // Custom FilterChip colors for better contrast
+            val filterChipColors = FilterChipDefaults.filterChipColors(
+                // Unselected state - use surface container for better contrast
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHighest,
+                labelColor = MaterialTheme.colorScheme.onSurface,
+                iconColor = MaterialTheme.colorScheme.onSurface,
+                // Selected state - use primary colors for clear indication
+                selectedContainerColor = MaterialTheme.colorScheme.primary,
+                selectedLabelColor = MaterialTheme.colorScheme.onPrimary,
+                selectedLeadingIconColor = MaterialTheme.colorScheme.onPrimary,
+                selectedTrailingIconColor = MaterialTheme.colorScheme.onPrimary
+            )
+
+            // Marked only filter
+            FilterChip(
+                selected = filterMarkedOnly,
+                onClick = {
+                    filterMarkedOnly = !filterMarkedOnly
+                    coroutineScope.launch { loadRecords() }
+                },
+                label = { Text(context.getString(R.string.marked_only)) },
+                leadingIcon = if (filterMarkedOnly) {
+                    { Icon(Icons.Default.Star, contentDescription = null) }
+                } else null,
+                colors = filterChipColors
+            )
+
+            // Match status filter
+            var showMatchFilterMenu by remember { mutableStateOf(false) }
+            FilterChip(
+                selected = filterMatchStatus != null,
+                onClick = { showMatchFilterMenu = true },
+                label = {
+                    Text(
+                        when (filterMatchStatus) {
+                            true -> context.getString(R.string.matched_records)
+                            false -> context.getString(R.string.not_matched_records)
+                            null -> context.getString(R.string.all_results)
+                        }
+                    )
+                },
+                trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+                colors = filterChipColors
+            )
+
+            DropdownMenu(
+                expanded = showMatchFilterMenu,
+                onDismissRequest = { showMatchFilterMenu = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text(context.getString(R.string.all_results)) },
+                    onClick = {
+                        filterMatchStatus = null
+                        showMatchFilterMenu = false
+                        coroutineScope.launch { loadRecords() }
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text(context.getString(R.string.matched_records)) },
+                    onClick = {
+                        filterMatchStatus = true
+                        showMatchFilterMenu = false
+                        coroutineScope.launch { loadRecords() }
+                    }
+                )
+                DropdownMenuItem(
+                    text = { Text(context.getString(R.string.not_matched_records)) },
+                    onClick = {
+                        filterMatchStatus = false
+                        showMatchFilterMenu = false
+                        coroutineScope.launch { loadRecords() }
+                    }
+                )
+            }
+        }
+
         // Records count
         Text(
             text = context.getString(R.string.records_count, records.size),
@@ -297,6 +402,12 @@ fun RuleRecordsPage(
                         onClick = { showImageDialog = record },
                         onDeleteClick = {
                             showDeleteConfirmDialog = record
+                        },
+                        onMarkClick = { isMarked ->
+                            coroutineScope.launch {
+                                ruleRecordRepo.markRecord(record.id, isMarked)
+                                loadRecords() // Refresh to show updated state
+                            }
                         }
                     )
                 }
@@ -305,6 +416,8 @@ fun RuleRecordsPage(
 
         // Export dialog
         if (showExportDialog) {
+            var exportMarkedOnly by remember { mutableStateOf(false) }
+
             AlertDialog(
                 onDismissRequest = { if (!isExporting) showExportDialog = false },
                 title = { Text(context.getString(R.string.export_records)) },
@@ -317,14 +430,34 @@ fun RuleRecordsPage(
                             Text(exportProgress, textAlign = TextAlign.Center)
                         }
                     } else {
-                        Text(context.getString(R.string.export_records_desc))
+                        Column(
+                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            Text(context.getString(R.string.export_records_desc))
+
+                            // Export options
+                            Row(
+                                verticalAlignment = Alignment.CenterVertically,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Checkbox(
+                                    checked = exportMarkedOnly,
+                                    onCheckedChange = { exportMarkedOnly = it }
+                                )
+                                Text(
+                                    text = context.getString(R.string.export_marked_only),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    modifier = Modifier.padding(start = 8.dp)
+                                )
+                            }
+                        }
                     }
                 },
                 confirmButton = {
                     TextButton(
                         onClick = {
                             if (!isExporting) {
-                                exportRecords()
+                                exportRecords(exportMarkedOnly)
                             }
                         },
                         enabled = !isExporting
@@ -550,6 +683,7 @@ fun RuleRecordItem(
     record: RuleRecord,
     onClick: () -> Unit,
     onDeleteClick: () -> Unit,
+    onMarkClick: (Boolean) -> Unit,
     context: Context = LocalContext.current
 ) {
     Card(
@@ -604,9 +738,22 @@ fun RuleRecordItem(
 
             Spacer(modifier = Modifier.width(8.dp))
 
+            // Mark button
+            IconButton(onClick = { onMarkClick(!record.isMarked) }) {
+                Icon(
+                    if (record.isMarked) Icons.Default.Star else Icons.Outlined.Star,
+                    contentDescription = if (record.isMarked) context.getString(R.string.unmark_record) else context.getString(R.string.mark_record),
+                    tint = if (record.isMarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+
             // Delete button - this should automatically stop event propagation
             IconButton(onClick = onDeleteClick) {
-                Icon(Icons.Default.Delete, contentDescription = context.getString(R.string.delete_record))
+                Icon(
+                    Icons.Default.Delete,
+                    contentDescription = context.getString(R.string.delete_record),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
             }
         }
     }

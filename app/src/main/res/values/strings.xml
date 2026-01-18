@@ -191,6 +191,13 @@
     <string name="rule">规则</string>
     <string name="previous_record">上一条记录</string>
     <string name="next_record">下一条记录</string>
+    <string name="marked_only">仅标记的</string>
+    <string name="all_results">全部结果</string>
+    <string name="matched_records">匹配记录</string>
+    <string name="not_matched_records">不匹配记录</string>
+    <string name="mark_record">标记记录</string>
+    <string name="unmark_record">取消标记</string>
+    <string name="export_marked_only">仅导出标记的记录</string>
 
     <!-- About Dialog -->
     <string name="about">关于程序</string>
