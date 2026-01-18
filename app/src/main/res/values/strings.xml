@@ -151,6 +151,7 @@
     <string name="ask_overlay_rule_enabled">启用</string>
     <string name="ask_overlay_rule_disabled">禁用</string>
     <string name="ask_overlay_no_rules">此应用没有配置规则</string>
+    <string name="ask_overlay_temporary_notice">注意：这些修改仅在本次会话中有效，退出应用后将重置</string>
     
     <!-- AI Settings -->
     <string name="ai_settings">程序设置</string>

@@ -213,6 +213,16 @@ class AskOverlay(
 
         bottomSheet.addView(helperText)
 
+        val temporaryNotice = TextView(ctx).apply {
+            text = ctx.getString(R.string.ask_overlay_temporary_notice)
+            textSize = 12f
+            setTextColor(Color.parseColor("#FF6B35")) // Orange color to draw attention
+            setPadding(0, 4.dp(), 0, 12.dp())
+            gravity = android.view.Gravity.CENTER
+        }
+
+        bottomSheet.addView(temporaryNotice)
+
         val divider = View(ctx).apply {
             setBackgroundColor("#1A000000".toColorInt())
             layoutParams = LinearLayout.LayoutParams(
@@ -235,7 +245,7 @@ class AskOverlay(
                 setPadding(0, 16.dp(), 0, 0)
             }
 
-            // Initialize rule states
+            // Initialize rule states - get current state from ConstraintManager
             targetApp.rules.forEach { rule ->
                 ruleStates[rule.id] = A11yService.getInstance()?.let { service ->
                     service.getConstraintManager()?.isRuleEnabled(rule.id) ?: true

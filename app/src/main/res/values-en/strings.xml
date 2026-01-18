@@ -151,6 +151,7 @@
     <string name="ask_overlay_rule_enabled">Enable</string>
     <string name="ask_overlay_rule_disabled">Disable</string>
     <string name="ask_overlay_no_rules">This app has no configured rules</string>
+    <string name="ask_overlay_temporary_notice">Note: These changes are temporary and will be reset when you exit the app</string>
     
     <!-- AI Settings -->
     <string name="ai_settings">App Settings</string>

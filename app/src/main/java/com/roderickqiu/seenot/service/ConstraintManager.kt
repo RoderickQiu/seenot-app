@@ -44,7 +44,9 @@ class ConstraintManager(
     }
 
     fun isRuleEnabled(ruleId: String): Boolean {
-        return ruleEnabledStates.getOrDefault(ruleId, true) // Default to enabled
+        val enabled = ruleEnabledStates.getOrDefault(ruleId, true) // Default to enabled
+        Log.d("A11yService", "Rule $ruleId enabled: $enabled (ruleEnabledStates: $ruleEnabledStates)")
+        return enabled
     }
 
     fun getAllRuleStates(): Map<String, Boolean> {
@@ -136,8 +138,14 @@ class ConstraintManager(
     }
 
     fun handleTimeConstraint(rule: Rule, appName: String, isMatch: Boolean) {
-        if (!areRulesEnabled()) return
-        if (!isRuleEnabled(rule.id)) return // Check if rule is individually disabled
+        if (!areRulesEnabled()) {
+            Log.d("A11yService", "Rules are globally disabled, skipping rule ${rule.id}")
+            return
+        }
+        if (!isRuleEnabled(rule.id)) {
+            Log.d("A11yService", "Rule ${rule.id} is individually disabled, skipping")
+            return // Check if rule is individually disabled
+        }
         val constraint = rule.timeConstraint ?: return
         
         when (constraint) {
@@ -618,6 +626,11 @@ class ConstraintManager(
 
                 // Clear recent total records
                 if (recentTotalRecords.remove(stateKey) != null) {
+                    clearedCount++
+                }
+
+                // Clear rule enabled states (temporary overlay modifications)
+                if (ruleEnabledStates.remove(rule.id) != null) {
                     clearedCount++
                 }
             }

@@ -143,8 +143,21 @@ class ActionExecutor(
                     appName = appName,
                     onRulesUpdated = { ruleStates ->
                         // Update rule states in constraint manager
-                        A11yService.getInstance()?.getConstraintManager()?.setMultipleRuleStates(ruleStates)
+                        val service = A11yService.getInstance()
+                        if (service == null) {
+                            Log.e("A11yService", "A11yService instance is null!")
+                            return@AskOverlay
+                        }
+                        val constraintManager = service.getConstraintManager()
+                        if (constraintManager == null) {
+                            Log.e("A11yService", "ConstraintManager is null!")
+                            return@AskOverlay
+                        }
+                        constraintManager.setMultipleRuleStates(ruleStates)
                         Log.d("A11yService", "ASK action updated rule states: $ruleStates")
+                        // Verify the states were set
+                        val currentStates = constraintManager.getAllRuleStates()
+                        Log.d("A11yService", "Current rule states after update: $currentStates")
                     },
                     onDismiss = {
                         Log.d("A11yService", "ASK overlay dismissed without changes")
@@ -163,8 +176,21 @@ class ActionExecutor(
             appName = appName,
             onRulesUpdated = { ruleStates ->
                 // Update rule states in constraint manager
-                A11yService.getInstance()?.getConstraintManager()?.setMultipleRuleStates(ruleStates)
+                val service = A11yService.getInstance()
+                if (service == null) {
+                    Log.e("A11yService", "A11yService instance is null!")
+                    return@AskOverlay
+                }
+                val constraintManager = service.getConstraintManager()
+                if (constraintManager == null) {
+                    Log.e("A11yService", "ConstraintManager is null!")
+                    return@AskOverlay
+                }
+                constraintManager.setMultipleRuleStates(ruleStates)
                 Log.d("A11yService", "ASK overlay (askOnEnter) updated rule states: $ruleStates")
+                // Verify the states were set
+                val currentStates = constraintManager.getAllRuleStates()
+                Log.d("A11yService", "Current rule states after update: $currentStates")
             },
             onDismiss = {
                 Log.d("A11yService", "ASK overlay (askOnEnter) dismissed without changes")
