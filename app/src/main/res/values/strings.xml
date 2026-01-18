@@ -204,7 +204,7 @@
     <string name="about_app_description">一款使用 AI 技术帮您掌控注意力的 Android 应用程序。</string>
     <string name="version">版本</string>
     <string name="copyright">版权</string>
-    <string name="copyright_text">(c) 2025 Roderick Qiu</string>
+    <string name="copyright_text">(c) 2025-2026 Roderick Qiu</string>
     <string name="ok">确定</string>
     <string name="export_rules">导出规则</string>
     <string name="export_logs">导出日志</string>

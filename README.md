@@ -14,4 +14,4 @@ Android app that eliminates distractions using AI technology.
 1. Open the project in Android Studio
 2. Connect your Android device and run the app
 
-(c) 2025 Roderick Qiu
+(c) 2025-2026 Roderick Qiu

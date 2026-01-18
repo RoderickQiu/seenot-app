@@ -205,7 +205,7 @@
     <string name="about_app_description">Android app that eliminates distractions using AI technology.</string>
     <string name="version">Version</string>
     <string name="copyright">Copyright</string>
-    <string name="copyright_text">(c) 2025 Roderick Qiu</string>
+    <string name="copyright_text">(c) 2025-2026 Roderick Qiu</string>
     <string name="ok">OK</string>
     <string name="export_rules">Export Rules</string>
     <string name="export_logs">Export Logs</string>
