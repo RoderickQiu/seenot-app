@@ -15,6 +15,7 @@ data class RuleRecord(
     val action: RuleAction,
     val isConditionMatched: Boolean,
     val aiResult: String? = null, // Raw AI response text
+    val confidence: Double? = null, // AI confidence score (0-100)
     val imagePath: String? = null, // Path to saved screenshot image (internal storage)
     val elapsedTimeMs: Long? = null, // AI processing time
     val isMarked: Boolean = false // Whether this record is marked/tagged by user

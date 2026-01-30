@@ -33,11 +33,13 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.roderickqiu.seenot.R
 import com.roderickqiu.seenot.data.AppDataStore
 import com.roderickqiu.seenot.data.RuleRecord
 import com.roderickqiu.seenot.data.RuleRecordRepo
+import com.roderickqiu.seenot.utils.Logger
 import com.roderickqiu.seenot.utils.RecordExporter
 import com.roderickqiu.seenot.utils.RuleFormatter
 import kotlinx.coroutines.Dispatchers
@@ -143,6 +145,7 @@ fun RuleRecordsPage(
             null
         }
     }
+
 
     // Export records
     fun exportRecords(exportMarkedOnly: Boolean = false) {
@@ -270,7 +273,7 @@ fun RuleRecordsPage(
             IconButton(onClick = { showExportDialog = true }) {
                 Icon(Icons.Default.Share, contentDescription = context.getString(R.string.export_records))
             }
-            
+
             // Delete all button
             IconButton(onClick = {
                 showDeleteAllConfirmDialog = true
@@ -545,6 +548,14 @@ fun RuleRecordsPage(
             val hasPrevious = currentIndex > 0
             val hasNext = currentIndex >= 0 && currentIndex < records.size - 1
             
+            // Track marked state for current record, update when record changes
+            var isMarked by remember(currentRecord.id) { mutableStateOf(currentRecord.isMarked) }
+            
+            // Update marked state when currentRecord changes
+            LaunchedEffect(currentRecord.id) {
+                isMarked = currentRecord.isMarked
+            }
+            
             Dialog(onDismissRequest = { showImageDialog = null }) {
                 Box(
                     modifier = Modifier
@@ -597,6 +608,30 @@ fun RuleRecordsPage(
                                 Icon(
                                     Icons.AutoMirrored.Filled.KeyboardArrowRight,
                                     contentDescription = context.getString(R.string.next_record)
+                                )
+                            }
+                            
+                            // Mark button
+                            IconButton(
+                                onClick = {
+                                    val newMarkedState = !isMarked
+                                    isMarked = newMarkedState
+                                    coroutineScope.launch {
+                                        ruleRecordRepo.markRecord(currentRecord.id, newMarkedState)
+                                        loadRecords() // Refresh to update the list
+                                        // Update the current dialog record if it's still showing
+                                        val updatedRecords = ruleRecordRepo.loadRecords()
+                                        val updatedRecord = updatedRecords.find { it.id == currentRecord.id }
+                                        if (updatedRecord != null) {
+                                            showImageDialog = updatedRecord
+                                        }
+                                    }
+                                }
+                            ) {
+                                Icon(
+                                    if (isMarked) Icons.Default.Star else Icons.Outlined.Star,
+                                    contentDescription = if (isMarked) context.getString(R.string.unmark_record) else context.getString(R.string.mark_record),
+                                    tint = if (isMarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                             
@@ -656,6 +691,9 @@ fun RuleRecordsPage(
                             }
                             
                             Text("${context.getString(R.string.result)}: ${if (currentRecord.isConditionMatched) context.getString(R.string.matched) else context.getString(R.string.not_matched)}", style = MaterialTheme.typography.bodyMedium)
+                            if (currentRecord.confidence != null) {
+                                Text("${context.getString(R.string.confidence)}: ${currentRecord.confidence!!.toInt()}%", style = MaterialTheme.typography.bodyMedium)
+                            }
                             currentRecord.elapsedTimeMs?.let {
                                 Text("${context.getString(R.string.processing_time)}: ${it}ms", style = MaterialTheme.typography.bodyMedium)
                             }
@@ -723,18 +761,34 @@ fun RuleRecordItem(
                 )
             }
 
-            // Result indicator
-            Box(
-                modifier = Modifier
-                    .size(12.dp)
-                    .background(
-                        color = if (record.isConditionMatched)
-                            MaterialTheme.colorScheme.primary
-                        else
-                            MaterialTheme.colorScheme.error,
-                        shape = RoundedCornerShape(6.dp)
+            // Confidence score
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
+                // Confidence indicator circle
+                Box(
+                    modifier = Modifier
+                        .size(12.dp)
+                        .background(
+                            color = if (record.isConditionMatched)
+                                MaterialTheme.colorScheme.primary
+                            else
+                                MaterialTheme.colorScheme.error,
+                            shape = RoundedCornerShape(6.dp)
+                        )
+                )
+
+                // Confidence score text
+                if (record.confidence != null) {
+                    Text(
+                        text = "${record.confidence!!.toInt()}%",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 10.sp
                     )
-            )
+                }
+            }
 
             Spacer(modifier = Modifier.width(8.dp))
 
@@ -757,4 +811,5 @@ fun RuleRecordItem(
             }
         }
     }
+
 }

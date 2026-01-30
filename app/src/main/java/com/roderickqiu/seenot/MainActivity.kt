@@ -217,6 +217,17 @@ class MainActivity : ComponentActivity() {
             "App started, log directory: ${Logger.getLogDirectoryPath()}, max entries per file: ${Logger.getMaxEntriesPerFile()}, debug logging enabled, external storage was available during init: $externalAvailable"
         )
 
+        // Perform logger health check
+        val healthCheck = Logger.performHealthCheck()
+        Logger.i("MainActivity", "Logger health check result:\n${healthCheck.getSummary()}")
+
+        if (!healthCheck.isHealthy()) {
+            Logger.w("MainActivity", "Logger health issues detected, recovery was attempted")
+        }
+
+        // Create missing day directories to ensure continuity
+        Logger.createMissingDayDirectories(30) // Create directories for last 30 days
+
         repository = MonitoringRepo(this)
 
         setContent {

@@ -340,11 +340,11 @@ class ScreenshotAnalyzer(
                         // Extract and log response with both condition and action
                         val result = response.choices.firstOrNull()?.message?.content
                         if (result != null) {
-                            Logger.d("A11yService", "AI Result for app=$appName, question=$question, context=$appContext, condition=${condition.type}, action=${action.type}: $result, elapsed time: ${elapsedTime}ms")
+                            val confidence = AIServiceUtils.parseConfidence(result)
+                            val isConditionMatch = confidence >= AIServiceUtils.CONFIDENCE_THRESHOLD
                             
-                            // Parse AI result to check if condition matches
-                            val isConditionMatch = AIServiceUtils.parseAIResult(result)
-
+                            Logger.d("A11yService", "AI Result for app=$appName, question=$question, context=$appContext, condition=${condition.type}, action=${action.type}: $result, confidence=$confidence, match=$isConditionMatch, elapsed time: ${elapsedTime}ms")
+                            
                             // Store AI result for potential reuse
                             if (screenshotHash != null) {
                                 hashAiResults.getOrPut(screenshotHash) { mutableMapOf() }
@@ -362,14 +362,15 @@ class ScreenshotAnalyzer(
                                         action = action,
                                         isConditionMatched = isConditionMatch,
                                         aiResult = result,
+                                        confidence = confidence,
                                         elapsedTimeMs = elapsedTime
                                     )
 
                                     // Save record with image
                                     val savedRecord = ruleRecordRepo.saveRecord(record)
 
-                                    // Save screenshot for this record
-                                    ruleRecordRepo.saveScreenshotForRecord(savedRecord.id, recordBitmap)
+                                    // Save screenshot for this record (marked status is false by default for new records)
+                                    ruleRecordRepo.saveScreenshotForRecord(savedRecord.id, recordBitmap, savedRecord.isMarked)
 
                                     Logger.d("A11yService", "Saved rule record: ${savedRecord.id} for rule ${rule.id}")
                                 } catch (recordError: Exception) {
@@ -379,7 +380,7 @@ class ScreenshotAnalyzer(
 
                             // Show toast if debug option is enabled
                             if (AIServiceUtils.loadShowRuleResultToast(context)) {
-                                val resultText = if (isConditionMatch) "YES" else "NO"
+                                val resultText = if (isConditionMatch) "YES ($confidence)" else "NO ($confidence)"
                                 // Truncate description to first N characters for toast display
                                 val description = condition.parameter ?: ""
                                 val truncatedDescription = if (description.length > GenericUtils.TOAST_TEXT_MAX_LENGTH) {

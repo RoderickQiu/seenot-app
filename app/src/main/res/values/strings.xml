@@ -181,6 +181,7 @@
     <string name="condition">条件</string>
     <string name="action">动作</string>
     <string name="result">结果</string>
+    <string name="confidence">置信度</string>
     <string name="processing_time">处理时间</string>
     <string name="ai_response">AI响应</string>
     <string name="no_image_available">暂无图片</string>
@@ -218,4 +219,23 @@
     <string name="rules_imported_successfully">规则导入成功</string>
     <string name="paste_json_here">在此粘贴JSON内容</string>
     <string name="invalid_json_format">无效的JSON格式</string>
+
+    <!-- Data Diagnostics -->
+    <string name="data_diagnostics">数据诊断</string>
+    <string name="running_diagnostics">正在运行诊断…</string>
+    <string name="recovering_data">正在恢复数据…</string>
+    <string name="diagnostics_file_info">文件信息</string>
+    <string name="diagnostics_file_exists">文件存在: %s</string>
+    <string name="diagnostics_file_size">文件大小: %s MB</string>
+    <string name="diagnostics_raw_count">原始记录数(估算): %d</string>
+    <string name="diagnostics_parsed_count">成功解析记录数: %d</string>
+    <string name="diagnostics_oldest_record">最旧记录: %s</string>
+    <string name="diagnostics_newest_record">最新记录: %s</string>
+    <string name="diagnostics_image_info">图片信息</string>
+    <string name="diagnostics_image_count">图片文件数: %d</string>
+    <string name="diagnostics_image_size">图片总大小: %s GB</string>
+    <string name="recovery_result">恢复结果</string>
+    <string name="recovery_success">成功恢复 %d 条记录</string>
+    <string name="recovery_failed">恢复失败: %s</string>
+    <string name="backup_created">备份已创建: %s</string>
 </resources>

@@ -182,6 +182,7 @@
     <string name="condition">Condition</string>
     <string name="action">Action</string>
     <string name="result">Result</string>
+    <string name="confidence">Confidence</string>
     <string name="processing_time">Processing Time</string>
     <string name="ai_response">AI Response</string>
     <string name="no_image_available">No image available</string>
@@ -219,4 +220,23 @@
     <string name="rules_imported_successfully">Rules imported successfully</string>
     <string name="paste_json_here">Paste JSON content here</string>
     <string name="invalid_json_format">Invalid JSON format</string>
+
+    <!-- Data Diagnostics -->
+    <string name="data_diagnostics">Data Diagnostics</string>
+    <string name="running_diagnostics">Running diagnostics…</string>
+    <string name="recovering_data">Recovering data…</string>
+    <string name="diagnostics_file_info">File Information</string>
+    <string name="diagnostics_file_exists">File exists: %s</string>
+    <string name="diagnostics_file_size">File size: %s MB</string>
+    <string name="diagnostics_raw_count">Raw record count (estimated): %d</string>
+    <string name="diagnostics_parsed_count">Successfully parsed records: %d</string>
+    <string name="diagnostics_oldest_record">Oldest record: %s</string>
+    <string name="diagnostics_newest_record">Newest record: %s</string>
+    <string name="diagnostics_image_info">Image Information</string>
+    <string name="diagnostics_image_count">Image file count: %d</string>
+    <string name="diagnostics_image_size">Total image size: %s GB</string>
+    <string name="recovery_result">Recovery Result</string>
+    <string name="recovery_success">Successfully recovered %d records</string>
+    <string name="recovery_failed">Recovery failed: %s</string>
+    <string name="backup_created">Backup created: %s</string>
 </resources>

@@ -161,6 +161,7 @@ class RecordExporter(private val context: Context) {
             - condition: Rule condition details
             - action: Rule action details
             - isConditionMatched: Whether the condition was matched (true/false)
+            - confidence: AI confidence score (0-100, optional)
             - aiResult: Raw AI response text (optional)
             - imagePath: Path to screenshot (in this archive)
             - elapsedTimeMs: AI processing time in milliseconds (optional)
