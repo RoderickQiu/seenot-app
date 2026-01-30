@@ -116,7 +116,7 @@ class EventProcessor(
                                 "A11yService",
                                 "Accessibility event: ${eventTypeName(e.eventType)}, className: ${e.className?.toString()}, packageName: ${e.packageName?.toString()}, text: ${e.text.toString()}"
                         )
-                        if (now - lastMonitoredLogTimeMs >= A11yService.LOG_INTERVAL_MS) {
+                        if (screenshotAnalyzer.shouldTakePeriodicScreenshot(lastMonitoredLogTimeMs)) {
                             Logger.d(
                                     "A11yService",
                                     "Active in monitored app: $currentMonitoredAppName (package: $currentMonitoredPackage) via event: ${eventTypeName(e.eventType)}"

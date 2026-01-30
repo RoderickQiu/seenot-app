@@ -201,6 +201,12 @@ class ToastOverlay private constructor(
     }
 
     fun dismiss() {
+        // Ensure dismiss runs on main thread
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            Handler(Looper.getMainLooper()).post { dismiss() }
+            return
+        }
+
         // Cancel auto-dismiss timer
         cancelAutoDismissTimer()
 
@@ -213,14 +219,31 @@ class ToastOverlay private constructor(
             }
         }
         toastView = null
+        
+        // Clear static reference if this is the current toast
+        if (currentToast === this) {
+            currentToast = null
+        }
     }
 
     private fun Int.dp(): Int = (this * density).roundToInt()
 
     companion object {
+        @SuppressLint("StaticFieldLeak")
+        private var currentToast: ToastOverlay? = null
+
         fun show(context: Context, message: String, duration: Long = 3000L) {
+            // Dismiss existing toast if any to prevent stacking and ensure clean state
+            currentToast?.dismiss()
+            
             val toast = ToastOverlay(context, message, duration)
+            currentToast = toast
             toast.show()
+        }
+
+        fun dismissAll() {
+            currentToast?.dismiss()
+            currentToast = null
         }
     }
 }

@@ -43,12 +43,32 @@ class ScreenshotAnalyzer(
 
     // Screenshot hash deduplication related fields
     private val processedScreenshotHashes = mutableMapOf<String, Long>()
-    private val hashRetentionTimeMs = 10000L // Hash retention for 10 seconds
+    private val hashRetentionTimeMs = 25000L // Hash retention for 25 seconds
     // Store AI results for each hash: hash -> (appName -> ruleId -> isConditionMatch)
     private val hashAiResults = mutableMapOf<String, MutableMap<String, MutableMap<String, Boolean>>>()
     
+    // Minimum time to allow user to read the feedback toast before next screenshot clears it
+    private var lastAiResultTime: Long = 0
+    private val MIN_FEEDBACK_READ_TIME_MS = 2000L
+    
     var currentMonitoredAppName: String? = null
     var currentMonitoredPackage: String? = null
+
+    fun shouldTakePeriodicScreenshot(lastScreenshotTime: Long): Boolean {
+        val now = System.currentTimeMillis()
+        val intervalPassed = (now - lastScreenshotTime) >= A11yService.LOG_INTERVAL_MS
+        
+        // If result toast is disabled in settings, we don't need to wait for feedback read time
+        if (!AIServiceUtils.loadShowRuleResultToast(context)) {
+            return intervalPassed
+        }
+        
+        // Ensure the user has enough time to read the previous result toast
+        // if one was shown recently
+        val feedbackReadTimePassed = (now - lastAiResultTime) >= MIN_FEEDBACK_READ_TIME_MS
+        
+        return intervalPassed && feedbackReadTimePassed
+    }
 
     fun tryTakeScreenshot(
         service: android.accessibilityservice.AccessibilityService,
@@ -58,6 +78,21 @@ class ScreenshotAnalyzer(
             return
         }
         isTakingScreenshot = true
+        
+        // Dismiss any existing overlay toasts to prevent them from appearing in the screenshot
+        notificationManager.dismissAllToasts()
+        
+        // Delay screenshot capture to allow UI to refresh after toast dismissal
+        // This ensures the toast is visually removed from the screen before capture
+        android.os.Handler(android.os.Looper.getMainLooper()).postDelayed({
+            takeScreenshotInternal(service, reason)
+        }, 100L) // 100ms delay for UI refresh (6 frames at 60fps)
+    }
+    
+    private fun takeScreenshotInternal(
+        service: android.accessibilityservice.AccessibilityService,
+        reason: String
+    ) {
         val executor = ContextCompat.getMainExecutor(context)
         try {
             service.takeScreenshot(
@@ -214,6 +249,7 @@ class ScreenshotAnalyzer(
                     description
                 }
                 notificationManager.showToast("$truncatedDescription: $resultText (reused)", Toast.LENGTH_SHORT)
+                lastAiResultTime = System.currentTimeMillis()
             }
 
             // Handle time constraint if present
@@ -389,6 +425,7 @@ class ScreenshotAnalyzer(
                                     description
                                 }
                                 notificationManager.showToast("$truncatedDescription: $resultText", Toast.LENGTH_SHORT)
+                                lastAiResultTime = System.currentTimeMillis()
                             }
                             
                             // Handle time constraint if present

@@ -25,6 +25,14 @@ class NotificationManager(private val context: Context) {
         mHandler.post { ToastOverlay.show(context, message, toastDuration) }
     }
 
+    fun dismissAllToasts() {
+        if (Looper.myLooper() == Looper.getMainLooper()) {
+            ToastOverlay.dismissAll()
+        } else {
+            mHandler.post { ToastOverlay.dismissAll() }
+        }
+    }
+
     fun startInForeground(service: android.accessibilityservice.AccessibilityService) {
         val channelId = CHANNEL_ID
         val channelName = context.getString(R.string.fg_channel_name)
