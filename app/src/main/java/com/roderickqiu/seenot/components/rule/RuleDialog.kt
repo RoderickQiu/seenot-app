@@ -45,7 +45,9 @@ import com.roderickqiu.seenot.data.TimeConstraint
 fun RuleDialog(
     rule: Rule? = null,
     onDismiss: () -> Unit,
-    onSaveRule: (Rule) -> Unit
+    onSaveRule: (Rule) -> Unit,
+    appName: String? = null,
+    packageName: String? = null
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     val isEditMode = rule != null
@@ -97,6 +99,7 @@ fun RuleDialog(
     var showRecentMinutesDialog by remember { mutableStateOf(false) }
     var coordPickOverlay by remember { mutableStateOf<CoordPickOverlay?>(null) }
     var showOverlayPermissionDialog by remember { mutableStateOf(false) }
+    var showFinetuneDialog by remember { mutableStateOf(false) }
 
     // Handle action parameter click
     val handleActionParameterClick: () -> Unit = {
@@ -210,6 +213,7 @@ fun RuleDialog(
                             onTimeIntervalClick = { showTimeIntervalDialog = true },
                             conditionParameter = conditionParameter,
                             onConditionParameterClick = { showConditionParameterDialog = true },
+                            onFinetuneClick = { showFinetuneDialog = true },
                             context = context
                         )
                     }
@@ -592,6 +596,20 @@ fun RuleDialog(
                     Text(context.getString(R.string.cancel))
                 }
             }
+        )
+    }
+
+    // Description Finetune Dialog
+    if (showFinetuneDialog) {
+        FinetuneDialog(
+            initialDescription = conditionParameter,
+            onDismiss = { showFinetuneDialog = false },
+            onSave = { newDescription ->
+                conditionParameter = newDescription
+                showFinetuneDialog = false
+            },
+            appName = appName,
+            packageName = packageName
         )
     }
 }

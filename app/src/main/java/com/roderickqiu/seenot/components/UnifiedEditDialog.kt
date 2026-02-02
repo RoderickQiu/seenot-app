@@ -42,6 +42,7 @@ import com.roderickqiu.seenot.data.RuleCondition
 import com.roderickqiu.seenot.data.RuleAction
 import com.roderickqiu.seenot.data.ConditionType
 import com.roderickqiu.seenot.data.ActionType
+import com.roderickqiu.seenot.utils.GenericUtils
 
 @Composable
 fun UnifiedEditDialog(
@@ -54,6 +55,13 @@ fun UnifiedEditDialog(
     val rules = remember { mutableStateListOf<Rule>(*app.rules.toTypedArray()) }
     var showAddRuleDialog by remember { mutableStateOf(false) }
     var editingRuleIndex by remember { mutableStateOf<Int?>(null) }
+    
+    // Find package name from app name
+    val packageName = remember {
+        GenericUtils.getInstalledApps(context)
+            .find { it.appName == app.name }
+            ?.packageName
+    }
     
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -230,7 +238,9 @@ fun UnifiedEditDialog(
             onSaveRule = { newRule ->
                 rules.add(newRule)
                 showAddRuleDialog = false
-            }
+            },
+            appName = app.name,
+            packageName = packageName
         )
     }
     
@@ -242,7 +252,9 @@ fun UnifiedEditDialog(
             onSaveRule = { updatedRule ->
                 rules[index] = updatedRule
                 editingRuleIndex = null
-            }
+            },
+            appName = app.name,
+            packageName = packageName
         )
     }
 }

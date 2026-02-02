@@ -194,12 +194,20 @@
     <string name="previous_record">Previous Record</string>
     <string name="next_record">Next Record</string>
     <string name="marked_only">Marked Only</string>
+    <string name="filter_match_status">Match Status</string>
     <string name="all_results">All Results</string>
     <string name="matched_records">Matched Records</string>
     <string name="not_matched_records">Not Matched Records</string>
+    <string name="filter_app_name">App Name</string>
+    <string name="all_apps">All Apps</string>
     <string name="mark_record">Mark Record</string>
     <string name="unmark_record">Unmark Record</string>
     <string name="export_marked_only">Export marked records only</string>
+    <string name="download_image">Download Image</string>
+    <string name="image_saved_to_gallery">Image saved to gallery</string>
+    <string name="failed_to_save_image">Failed to save image</string>
+    <string name="rule_recording_disabled">Rule recording is disabled</string>
+    <string name="rule_recording_disabled_desc">Rule recording is disabled, cannot display and save records. Please go to Settings to enable this feature.</string>
 
     <!-- About Dialog -->
     <string name="about">About App</string>
@@ -239,4 +247,36 @@
     <string name="recovery_success">Successfully recovered %d records</string>
     <string name="recovery_failed">Recovery failed: %s</string>
     <string name="backup_created">Backup created: %s</string>
+
+    <!-- Description Finetune -->
+    <string name="finetune_description">Optimize Description</string>
+    <string name="finetune_dialog_title">Optimize Description with Examples</string>
+    <string name="finetune_current_description">Current Description</string>
+    <string name="finetune_positive_examples">Should Match (Positive Examples)</string>
+    <string name="finetune_negative_examples">Should Not Match (Negative Examples)</string>
+    <string name="finetune_add_example">Add</string>
+    <string name="finetune_start">Start Optimization</string>
+    <string name="finetune_stop">Stop Optimization</string>
+    <string name="finetune_reconfigure">Reconfigure</string>
+    <string name="finetune_progress">Optimization Progress</string>
+    <string name="finetune_iteration_progress">Iteration %1$d / %2$d</string>
+    <string name="finetune_all_passed">All examples passed!</string>
+    <string name="finetune_apply_result">Apply Result</string>
+    <string name="finetune_passed">Passed</string>
+    <string name="finetune_failed">Failed</string>
+    <string name="finetune_no_examples_added">Please add at least one example</string>
+    <string name="finetune_starting">Starting optimization…</string>
+    <string name="finetune_iteration_start">Iteration %1$d/%2$d: Testing all examples…</string>
+    <string name="finetune_iteration_result">Test result: %1$d/%2$d passed</string>
+    <string name="finetune_generating_improvement">Generating improved description…</string>
+    <string name="finetune_description_updated">Description updated:</string>
+    <string name="finetune_no_improvement">AI could not generate a better description</string>
+    <string name="finetune_max_iterations_reached">Max iterations reached. Best result: %1$d/%2$d passed</string>
+    <string name="finetune_error">Optimization error: %1$s</string>
+    <string name="finetune_stopped">Optimization stopped</string>
+    <string name="finetune_optimize_with_examples">Optimize with examples</string>
+    <string name="finetune_view_original">View original</string>
+    <string name="finetune_view_optimized">View optimized</string>
+    <string name="finetune_original_description">Original</string>
+    <string name="finetune_optimized_description">Optimized</string>
 </resources>

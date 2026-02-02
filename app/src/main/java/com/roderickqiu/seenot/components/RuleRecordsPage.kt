@@ -6,6 +6,7 @@ import android.graphics.BitmapFactory
 import android.widget.Toast
 import androidx.compose.foundation.Image
 import com.roderickqiu.seenot.components.ToastOverlay
+import com.roderickqiu.seenot.components.RecordingDisabledBanner
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -20,6 +21,7 @@ import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.Star
+import com.roderickqiu.seenot.service.BitmapUtils
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.graphics.Color
@@ -32,6 +34,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.withStyle
+import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
@@ -74,6 +79,8 @@ fun RuleRecordsPage(
     var exportProgress by remember { mutableStateOf("") }
     var filterMarkedOnly by remember { mutableStateOf(false) }
     var filterMatchStatus by remember { mutableStateOf<Boolean?>(null) } // null = all, true = matched, false = not matched
+    var filterAppName by remember { mutableStateOf<String?>(null) } // null = all apps
+    var availableAppNames by remember { mutableStateOf<List<String>>(emptyList()) }
     
     val appDataStore = remember { AppDataStore(context) }
 
@@ -97,9 +104,14 @@ fun RuleRecordsPage(
             if (filterMatchStatus != null) {
                 loadedRecords = loadedRecords.filter { it.isConditionMatched == filterMatchStatus }
             }
+            if (filterAppName != null) {
+                loadedRecords = loadedRecords.filter { it.appName == filterAppName }
+            }
 
             records = loadedRecords
             availableDates = ruleRecordRepo.getRecordsGroupedByDate().keys.sortedDescending()
+            // Update available app names from all records
+            availableAppNames = ruleRecordRepo.loadRecords().map { it.appName }.distinct().sorted()
             isLoading = false
         }
     }
@@ -327,7 +339,7 @@ fun RuleRecordsPage(
                         when (filterMatchStatus) {
                             true -> context.getString(R.string.matched_records)
                             false -> context.getString(R.string.not_matched_records)
-                            null -> context.getString(R.string.all_results)
+                            null -> context.getString(R.string.filter_match_status)
                         }
                     )
                 },
@@ -364,7 +376,50 @@ fun RuleRecordsPage(
                     }
                 )
             }
+
+            // App name filter
+            var showAppNameFilterMenu by remember { mutableStateOf(false) }
+            FilterChip(
+                selected = filterAppName != null,
+                onClick = { showAppNameFilterMenu = true },
+                label = {
+                    Text(
+                        filterAppName ?: context.getString(R.string.filter_app_name)
+                    )
+                },
+                trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
+                colors = filterChipColors
+            )
+
+            DropdownMenu(
+                expanded = showAppNameFilterMenu,
+                onDismissRequest = { showAppNameFilterMenu = false }
+            ) {
+                DropdownMenuItem(
+                    text = { Text(context.getString(R.string.all_apps)) },
+                    onClick = {
+                        filterAppName = null
+                        showAppNameFilterMenu = false
+                        coroutineScope.launch { loadRecords() }
+                    }
+                )
+                availableAppNames.forEach { appName ->
+                    DropdownMenuItem(
+                        text = { Text(appName) },
+                        onClick = {
+                            filterAppName = appName
+                            showAppNameFilterMenu = false
+                            coroutineScope.launch { loadRecords() }
+                        }
+                    )
+                }
+            }
         }
+
+        // Recording disabled banner
+        RecordingDisabledBanner(
+            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
+        )
 
         // Records count
         Text(
@@ -611,30 +666,6 @@ fun RuleRecordsPage(
                                 )
                             }
                             
-                            // Mark button
-                            IconButton(
-                                onClick = {
-                                    val newMarkedState = !isMarked
-                                    isMarked = newMarkedState
-                                    coroutineScope.launch {
-                                        ruleRecordRepo.markRecord(currentRecord.id, newMarkedState)
-                                        loadRecords() // Refresh to update the list
-                                        // Update the current dialog record if it's still showing
-                                        val updatedRecords = ruleRecordRepo.loadRecords()
-                                        val updatedRecord = updatedRecords.find { it.id == currentRecord.id }
-                                        if (updatedRecord != null) {
-                                            showImageDialog = updatedRecord
-                                        }
-                                    }
-                                }
-                            ) {
-                                Icon(
-                                    if (isMarked) Icons.Default.Star else Icons.Outlined.Star,
-                                    contentDescription = if (isMarked) context.getString(R.string.unmark_record) else context.getString(R.string.mark_record),
-                                    tint = if (isMarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                            
                             // Close button
                             IconButton(onClick = { showImageDialog = null }) {
                                 Icon(Icons.Default.Close, contentDescription = "Close")
@@ -643,20 +674,100 @@ fun RuleRecordsPage(
 
                         Spacer(modifier = Modifier.height(16.dp))
 
-                        // Image
+                        // Image with download button
                         currentRecord.imagePath?.let { path ->
                             val imageFile = File(path)
                             if (imageFile.exists()) {
                                 loadBitmapFromFile(path)?.let { bitmap ->
-                                    Image(
-                                        bitmap = bitmap.asImageBitmap(),
-                                        contentDescription = "Screenshot",
+                                    Box(
                                         modifier = Modifier
                                             .weight(1f)
                                             .fillMaxWidth()
-                                            .clip(RoundedCornerShape(8.dp)),
-                                        contentScale = ContentScale.Fit
-                                    )
+                                    ) {
+                                        Image(
+                                            bitmap = bitmap.asImageBitmap(),
+                                            contentDescription = "Screenshot",
+                                            modifier = Modifier
+                                                .fillMaxSize()
+                                                .clip(RoundedCornerShape(8.dp)),
+                                            contentScale = ContentScale.Fit
+                                        )
+                                        
+                                        // Download and Mark buttons overlay
+                                        Column(
+                                            modifier = Modifier
+                                                .align(Alignment.TopEnd)
+                                                .padding(8.dp),
+                                            verticalArrangement = Arrangement.spacedBy(8.dp)
+                                        ) {
+                                            // Download button
+                                            IconButton(
+                                                onClick = {
+                                                    coroutineScope.launch {
+                                                        try {
+                                                            BitmapUtils.saveBitmapToGallery(
+                                                                context = context,
+                                                                bitmap = bitmap,
+                                                                appName = currentRecord.appName,
+                                                                reason = "record_${currentRecord.id}"
+                                                            )
+                                                            ToastOverlay.show(
+                                                                context,
+                                                                context.getString(R.string.image_saved_to_gallery),
+                                                                3000L
+                                                            )
+                                                        } catch (e: Exception) {
+                                                            ToastOverlay.show(
+                                                                context,
+                                                                context.getString(R.string.failed_to_save_image),
+                                                                3000L
+                                                            )
+                                                        }
+                                                    }
+                                                },
+                                                modifier = Modifier
+                                                    .background(
+                                                        MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                                                        RoundedCornerShape(8.dp)
+                                                    )
+                                            ) {
+                                                Icon(
+                                                    Icons.Default.FileDownload,
+                                                    contentDescription = context.getString(R.string.download_image),
+                                                    tint = MaterialTheme.colorScheme.onSurface
+                                                )
+                                            }
+                                            
+                                            // Mark button
+                                            IconButton(
+                                                onClick = {
+                                                    val newMarkedState = !isMarked
+                                                    isMarked = newMarkedState
+                                                    coroutineScope.launch {
+                                                        ruleRecordRepo.markRecord(currentRecord.id, newMarkedState)
+                                                        loadRecords() // Refresh to update the list
+                                                        // Update the current dialog record if it's still showing
+                                                        val updatedRecords = ruleRecordRepo.loadRecords()
+                                                        val updatedRecord = updatedRecords.find { it.id == currentRecord.id }
+                                                        if (updatedRecord != null) {
+                                                            showImageDialog = updatedRecord
+                                                        }
+                                                    }
+                                                },
+                                                modifier = Modifier
+                                                    .background(
+                                                        MaterialTheme.colorScheme.surface.copy(alpha = 0.9f),
+                                                        RoundedCornerShape(8.dp)
+                                                    )
+                                            ) {
+                                                Icon(
+                                                    if (isMarked) Icons.Default.Star else Icons.Outlined.Star,
+                                                    contentDescription = if (isMarked) context.getString(R.string.unmark_record) else context.getString(R.string.mark_record),
+                                                    tint = if (isMarked) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurface
+                                                )
+                                            }
+                                        }
+                                    }
                                 } ?: Text("${context.getString(R.string.invalid_json_format)}: $path")
                             } else {
                                 Text("${context.getString(R.string.no_image_available)}: $path")
@@ -672,7 +783,16 @@ fun RuleRecordsPage(
                                 .verticalScroll(rememberScrollState()),
                             verticalArrangement = Arrangement.spacedBy(4.dp)
                         ) {
-                            Text("${context.getString(R.string.app)}: ${currentRecord.appName}", style = MaterialTheme.typography.bodyMedium)
+                            val appLabel = context.getString(R.string.app)
+                            Text(
+                                buildAnnotatedString {
+                                    withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                        append("$appLabel: ")
+                                    }
+                                    append(currentRecord.appName)
+                                },
+                                style = MaterialTheme.typography.bodyMedium
+                            )
                             
                             // Get full rule information including timeConstraint
                             val monitoringApps = appDataStore.loadMonitoringApps()
@@ -681,21 +801,75 @@ fun RuleRecordsPage(
                                 .find { it.id == currentRecord.ruleId }
                             
                             if (fullRule != null) {
+                                val ruleLabel = context.getString(R.string.rule)
+                                val ruleText = RuleFormatter.formatRule(context, fullRule)
                                 Text(
-                                    text = "${context.getString(R.string.rule)}: ${RuleFormatter.formatRule(context, fullRule)}",
+                                    buildAnnotatedString {
+                                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                            append("$ruleLabel: ")
+                                        }
+                                        append(ruleText)
+                                    },
                                     style = MaterialTheme.typography.bodyMedium
                                 )
                             } else {
-                                Text("${context.getString(R.string.condition)}: ${currentRecord.condition.type}${if (currentRecord.condition.parameter != null) " - ${currentRecord.condition.parameter}" else ""}", style = MaterialTheme.typography.bodyMedium)
-                                Text("${context.getString(R.string.action)}: ${currentRecord.action.type}", style = MaterialTheme.typography.bodyMedium)
+                                val conditionLabel = context.getString(R.string.condition)
+                                val conditionText = "${currentRecord.condition.type.name}${if (currentRecord.condition.parameter != null) " - ${currentRecord.condition.parameter}" else ""}"
+                                Text(
+                                    buildAnnotatedString {
+                                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                            append("$conditionLabel: ")
+                                        }
+                                        append(conditionText)
+                                    },
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
+                                val actionLabel = context.getString(R.string.action)
+                                Text(
+                                    buildAnnotatedString {
+                                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                            append("$actionLabel: ")
+                                        }
+                                        append(currentRecord.action.type.name.toString())
+                                    },
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
                             }
                             
-                            Text("${context.getString(R.string.result)}: ${if (currentRecord.isConditionMatched) context.getString(R.string.matched) else context.getString(R.string.not_matched)}", style = MaterialTheme.typography.bodyMedium)
+                            val resultLabel = context.getString(R.string.result)
+                            val resultText = if (currentRecord.isConditionMatched) context.getString(R.string.matched) else context.getString(R.string.not_matched)
+                            Text(
+                                buildAnnotatedString {
+                                    withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                        append("$resultLabel: ")
+                                    }
+                                    append(resultText)
+                                },
+                                style = MaterialTheme.typography.bodyMedium
+                            )
                             if (currentRecord.confidence != null) {
-                                Text("${context.getString(R.string.confidence)}: ${currentRecord.confidence!!.toInt()}%", style = MaterialTheme.typography.bodyMedium)
+                                val confidenceLabel = context.getString(R.string.confidence)
+                                Text(
+                                    buildAnnotatedString {
+                                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                            append("$confidenceLabel: ")
+                                        }
+                                        append("${currentRecord.confidence!!.toInt()}%")
+                                    },
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
                             }
                             currentRecord.elapsedTimeMs?.let {
-                                Text("${context.getString(R.string.processing_time)}: ${it}ms", style = MaterialTheme.typography.bodyMedium)
+                                val processingTimeLabel = context.getString(R.string.processing_time)
+                                Text(
+                                    buildAnnotatedString {
+                                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                            append("$processingTimeLabel: ")
+                                        }
+                                        append("${it}ms")
+                                    },
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
                             }
                             currentRecord.aiResult?.let { aiResult ->
                                 // Try to parse reason from JSON, if failed show original text
@@ -706,7 +880,16 @@ fun RuleRecordsPage(
                                 } catch (e: Exception) {
                                     aiResult
                                 }
-                                Text("${context.getString(R.string.ai_response)}: $displayText", style = MaterialTheme.typography.bodyMedium)
+                                val aiResponseLabel = context.getString(R.string.ai_response)
+                                Text(
+                                    buildAnnotatedString {
+                                        withStyle(style = SpanStyle(fontWeight = FontWeight.Bold)) {
+                                            append("$aiResponseLabel: ")
+                                        }
+                                        append(displayText)
+                                    },
+                                    style = MaterialTheme.typography.bodyMedium
+                                )
                             }
                         }
                     }
