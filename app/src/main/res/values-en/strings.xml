@@ -160,13 +160,14 @@
     <string name="ai_key">Key Setting</string>
     <string name="debug_options">Debug Options</string>
     <string name="show_rule_result_toast">Show rule execution results</string>
+    <string name="show_rule_result_toast_desc">Display rule results via toast notification when monitoring apps</string>
     <string name="language_settings">Language Settings</string>
 
     <!-- Rule Records -->
     <string name="rule_records">Rule Records</string>
     <string name="rule_records_menu">Rule Records</string>
     <string name="enable_rule_recording">Enable Rule Recording</string>
-    <string name="enable_rule_recording_desc">Record results and screenshots for each rule evaluation</string>
+    <string name="enable_rule_recording_desc">Record results and screenshots for each rule\'s evaluation</string>
     <string name="show_monitoring_indicator">Show Monitoring Indicator</string>
     <string name="show_monitoring_indicator_desc">Show small button indicator when monitoring apps</string>
     <string name="all_dates">All Dates</string>

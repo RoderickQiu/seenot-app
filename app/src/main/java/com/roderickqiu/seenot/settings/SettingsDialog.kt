@@ -22,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TextField
 import androidx.compose.runtime.*
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Row
 import androidx.compose.ui.Alignment
@@ -210,7 +211,8 @@ fun SettingsDialog(onDismiss: () -> Unit, onLanguageChanged: (() -> Unit)? = nul
                             value = apiKey,
                             onValueChange = { apiKey = it },
                             modifier = Modifier.fillMaxWidth(),
-                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp)
+                            textStyle = androidx.compose.ui.text.TextStyle(fontSize = 14.sp),
+                            visualTransformation = PasswordVisualTransformation()
                     )
 
                     Text(
@@ -222,10 +224,17 @@ fun SettingsDialog(onDismiss: () -> Unit, onLanguageChanged: (() -> Unit)? = nul
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(top = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
+                            verticalAlignment = Alignment.Top,
                             horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text(text = context.getString(R.string.show_rule_result_toast))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(text = context.getString(R.string.show_rule_result_toast))
+                            Text(
+                                text = context.getString(R.string.show_rule_result_toast_desc),
+                                style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp),
+                                color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                         Switch(
                                 checked = showRuleResultToast,
                                 onCheckedChange = { showRuleResultToast = it }

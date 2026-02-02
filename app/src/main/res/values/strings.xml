@@ -158,7 +158,8 @@
     <string name="ai_model">模型选择</string>
     <string name="ai_key">Key 设定</string>
     <string name="debug_options">调试选项</string>
-    <string name="show_rule_result_toast">显示规则执行结果</string>
+    <string name="show_rule_result_toast">显示规则结果</string>
+    <string name="show_rule_result_toast_desc">在监控应用时通过 Toast 通知显示规则结果</string>
     <string name="language_settings">语言设置</string>
 
     <!-- Rule Records -->
