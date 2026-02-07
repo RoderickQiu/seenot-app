@@ -23,6 +23,8 @@ class AppDataStore(private val context: Context) {
         private const val KEY_MONITORING_APPS = "monitoring_apps"
         private const val KEY_IS_FIRST_LAUNCH = "is_first_launch"
         private const val KEY_TIME_CONSTRAINT_STATES = "time_constraint_states"
+        private const val KEY_RULE_REOPEN_AT = "rule_reopen_at"
+        private const val KEY_APP_REOPEN_AT = "app_reopen_at"
     }
 
     /**
@@ -232,6 +234,138 @@ class AppDataStore(private val context: Context) {
         } catch (e: Exception) {
             Logger.e("AppDataStore", "Error loading time constraint states: ${e.message}", e)
             emptyList()
+        }
+    }
+
+    /**
+     * Get when a rule should become enabled again (epoch ms). null = no scheduled reopen.
+     */
+    fun getRuleReopenAt(ruleId: String): Long? {
+        val map = loadRuleReopenAtMap()
+        return map[ruleId]
+    }
+
+    /**
+     * Get all rule reopen-at times (ruleId -> epoch ms). Used by UI to show per-rule enabled state.
+     */
+    fun getAllRuleReopenAt(): Map<String, Long> {
+        return loadRuleReopenAtMap()
+    }
+
+    /**
+     * Set when a rule should become enabled again (epoch ms). Use Long.MAX_VALUE for "disabled until manually re-enabled".
+     */
+    fun setRuleReopenAt(ruleId: String, untilMillis: Long) {
+        val map = loadRuleReopenAtMap().toMutableMap()
+        map[ruleId] = untilMillis
+        saveRuleReopenAtMap(map)
+    }
+
+    /**
+     * Clear scheduled reopen for a rule (re-enable immediately from reopen-at perspective).
+     */
+    fun clearRuleReopenAt(ruleId: String) {
+        val map = loadRuleReopenAtMap().toMutableMap()
+        map.remove(ruleId)
+        saveRuleReopenAtMap(map)
+    }
+
+    private fun loadRuleReopenAtMap(): Map<String, Long> {
+        val json = prefs.getString(KEY_RULE_REOPEN_AT, null) ?: return emptyMap()
+        val type = object : TypeToken<Map<String, Long>>() {}.type
+        return try {
+            gson.fromJson<Map<String, Long>>(json, type) ?: emptyMap()
+        } catch (e: Exception) {
+            Logger.e("AppDataStore", "Error loading rule reopen-at: ${e.message}", e)
+            emptyMap()
+        }
+    }
+
+    private fun saveRuleReopenAtMap(map: Map<String, Long>) {
+        val json = gson.toJson(map)
+        prefs.edit { putString(KEY_RULE_REOPEN_AT, json) }
+    }
+
+    // --- App-level reopen-at (pause whole app for a duration) ---
+
+    fun getAppReopenAt(appId: String): Long? = loadAppReopenAtMap()[appId]
+
+    fun setAppReopenAt(appId: String, untilMillis: Long) {
+        val map = loadAppReopenAtMap().toMutableMap()
+        map[appId] = untilMillis
+        saveAppReopenAtMap(map)
+    }
+
+    fun clearAppReopenAt(appId: String) {
+        val map = loadAppReopenAtMap().toMutableMap()
+        map.remove(appId)
+        saveAppReopenAtMap(map)
+    }
+
+    /**
+     * True if the app should be treated as enabled (either isEnabled is true, or reopen-at has passed).
+     * When reopen-at has passed, clears it and updates the saved app to isEnabled=true.
+     */
+    fun isAppEffectivelyEnabled(appId: String, isEnabled: Boolean): Boolean {
+        if (isEnabled) return true
+        val reopenAt = getAppReopenAt(appId) ?: return false
+        if (reopenAt == Long.MAX_VALUE) return false
+        val now = System.currentTimeMillis()
+        if (now < reopenAt) return false
+        clearAppReopenAt(appId)
+        val apps = loadMonitoringApps().toMutableList()
+        val index = apps.indexOfFirst { it.id == appId }
+        if (index >= 0) {
+            apps[index] = apps[index].copy(isEnabled = true)
+            saveMonitoringApps(apps)
+        }
+        return true
+    }
+
+    private fun loadAppReopenAtMap(): Map<String, Long> {
+        val json = prefs.getString(KEY_APP_REOPEN_AT, null) ?: return emptyMap()
+        val type = object : TypeToken<Map<String, Long>>() {}.type
+        return try {
+            gson.fromJson<Map<String, Long>>(json, type) ?: emptyMap()
+        } catch (e: Exception) {
+            Logger.e("AppDataStore", "Error loading app reopen-at: ${e.message}", e)
+            emptyMap()
+        }
+    }
+
+    private fun saveAppReopenAtMap(map: Map<String, Long>) {
+        val json = gson.toJson(map)
+        prefs.edit { putString(KEY_APP_REOPEN_AT, json) }
+    }
+
+    /**
+     * Called periodically by the accessibility service. Clears any rule or app reopen-at
+     * that has passed so that state is updated even when the user is not in the app or edit screen.
+     */
+    fun checkAndClearExpiredReopenAt() {
+        val now = System.currentTimeMillis()
+        // Rules: clear expired (not indefinite)
+        val ruleMap = loadRuleReopenAtMap().toMutableMap()
+        ruleMap.entries.removeAll { (_, until) -> until != Long.MAX_VALUE && now >= until }
+        if (ruleMap.size != loadRuleReopenAtMap().size) {
+            saveRuleReopenAtMap(ruleMap)
+            Logger.d("AppDataStore", "Cleared expired rule reopen-at entries")
+        }
+        // Apps: clear expired and set app to enabled
+        val appMap = loadAppReopenAtMap().toMutableMap()
+        val toClear = appMap.entries.filter { (_, until) -> until != Long.MAX_VALUE && now >= until }.map { it.key }
+        if (toClear.isNotEmpty()) {
+            toClear.forEach { appId -> appMap.remove(appId) }
+            saveAppReopenAtMap(appMap)
+            val apps = loadMonitoringApps().toMutableList()
+            toClear.forEach { appId ->
+                val index = apps.indexOfFirst { it.id == appId }
+                if (index >= 0) {
+                    apps[index] = apps[index].copy(isEnabled = true)
+                }
+            }
+            saveMonitoringApps(apps)
+            Logger.d("AppDataStore", "Cleared expired app reopen-at and re-enabled apps: $toClear")
         }
     }
 }

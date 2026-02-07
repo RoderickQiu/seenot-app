@@ -219,7 +219,7 @@ class ScreenshotAnalyzer(
 
     private fun reusePreviousResults(appName: String, previousResults: Map<String, Boolean>) {
         val monitoringApps = appDataStore.loadMonitoringApps()
-        val currentApp = monitoringApps.find { it.name == appName && it.isEnabled }
+        val currentApp = monitoringApps.find { it.name == appName && appDataStore.isAppEffectivelyEnabled(it.id, it.isEnabled) }
         
         if (currentApp == null) {
             Logger.d("A11yService", "App $appName not found or disabled, skipping result reuse")
@@ -283,7 +283,7 @@ class ScreenshotAnalyzer(
                 val activatedRules = mutableListOf<Pair<String, Rule>>()
                 
                 // Find the current monitored app and get its rules
-                val currentApp = monitoringApps.find { it.name == targetAppName && it.isEnabled }
+                val currentApp = monitoringApps.find { it.name == targetAppName && appDataStore.isAppEffectivelyEnabled(it.id, it.isEnabled) }
                 if (currentApp != null) {
                     for (rule in currentApp.rules) {
                         // Only process conditions that can be evaluated visually

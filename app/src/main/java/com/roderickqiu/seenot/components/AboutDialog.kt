@@ -1,5 +1,6 @@
 package com.roderickqiu.seenot.components
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
@@ -16,6 +17,11 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalUriHandler
+import androidx.compose.ui.text.SpanStyle
+import androidx.compose.ui.text.buildAnnotatedString
+import androidx.compose.ui.text.style.TextDecoration
+import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.roderickqiu.seenot.R
@@ -83,9 +89,24 @@ fun AboutDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.width(8.dp))
+                    val uriHandler = LocalUriHandler.current
+                    val copyrightText = buildAnnotatedString {
+                        append("(c) 2025-2026 ")
+                        pushStringAnnotation(tag = "URL", annotation = "https://r-q.name")
+                        withStyle(style = SpanStyle(textDecoration = TextDecoration.Underline)) {
+                            append("Roderick Qiu")
+                        }
+                        pop()
+                    }
                     Text(
-                        text = context.getString(R.string.copyright_text),
-                        style = MaterialTheme.typography.bodyMedium
+                        text = copyrightText,
+                        style = MaterialTheme.typography.bodyMedium,
+                        modifier = Modifier.clickable {
+                            copyrightText.getStringAnnotations("URL", 0, copyrightText.length)
+                                .firstOrNull()?.let { annotation ->
+                                    uriHandler.openUri(annotation.item)
+                                }
+                        }
                     )
                 }
             }

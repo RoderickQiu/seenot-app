@@ -45,6 +45,22 @@ class ConstraintManager(
     }
 
     fun isRuleEnabled(ruleId: String): Boolean {
+        val now = System.currentTimeMillis()
+        val reopenAt = appDataStore.getRuleReopenAt(ruleId)
+        if (reopenAt != null) {
+            if (reopenAt == Long.MAX_VALUE) {
+                // Disabled indefinitely until user re-enables in app
+                Logger.d("A11yService", "Rule $ruleId disabled indefinitely (reopen-at)")
+                return false
+            }
+            if (now < reopenAt) {
+                Logger.d("A11yService", "Rule $ruleId disabled until $reopenAt (now=$now)")
+                return false
+            }
+            // Time passed; clear reopen-at so rule can be enabled again
+            appDataStore.clearRuleReopenAt(ruleId)
+            Logger.d("A11yService", "Rule $ruleId reopen-at cleared (time passed)")
+        }
         val enabled = ruleEnabledStates.getOrDefault(ruleId, true) // Default to enabled
         Logger.d("A11yService", "Rule $ruleId enabled: $enabled (ruleEnabledStates: $ruleEnabledStates)")
         return enabled
@@ -595,7 +611,7 @@ class ConstraintManager(
         if (!areRulesEnabled()) return
         try {
             val monitoringApps = appDataStore.loadMonitoringApps()
-            monitoringApps.find { it.name == appName && it.isEnabled } ?: return
+            monitoringApps.find { it.name == appName && appDataStore.isAppEffectivelyEnabled(it.id, it.isEnabled) } ?: return
         } catch (e: Exception) {
             Logger.e("A11yService", "Failed to handle ON_ENTER rules for $appName", e)
         }

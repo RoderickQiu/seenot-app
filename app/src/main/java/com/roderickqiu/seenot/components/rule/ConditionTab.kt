@@ -139,7 +139,7 @@ fun ConditionTab(
                     )
                     Spacer(modifier = Modifier.width(4.dp))
                     Text(
-                        text = context.getString(R.string.finetune_optimize_with_examples),
+                        text = context.getString(R.string.finetune_dialog_title),
                         style = MaterialTheme.typography.labelMedium
                     )
                 }

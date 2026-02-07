@@ -1,6 +1,8 @@
 package com.roderickqiu.seenot.service
 
 import android.accessibilityservice.AccessibilityService
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import android.view.accessibility.AccessibilityEvent
 import com.roderickqiu.seenot.utils.Logger
@@ -21,6 +23,17 @@ class A11yService : AccessibilityService() {
     private lateinit var screenshotAnalyzer: ScreenshotAnalyzer
     private lateinit var eventProcessor: EventProcessor
 
+    private val reopenCheckHandler = Handler(Looper.getMainLooper())
+    private val reopenCheckIntervalMs = 120_000L // 2 minutes
+    private val reopenCheckRunnable = object : Runnable {
+        override fun run() {
+            if (::appDataStore.isInitialized) {
+                appDataStore.checkAndClearExpiredReopenAt()
+            }
+            reopenCheckHandler.postDelayed(this, reopenCheckIntervalMs)
+        }
+    }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
         Logger.i("A11yService", "Accessibility service connected")
@@ -35,6 +48,10 @@ class A11yService : AccessibilityService() {
         constraintManager.loadTimeConstraintStates()
         notificationManager.startInForeground(this)
         
+        // Run expired reopen-at check immediately and then every minute
+        appDataStore.checkAndClearExpiredReopenAt()
+        reopenCheckHandler.postDelayed(reopenCheckRunnable, reopenCheckIntervalMs)
+        
         // Store instance for CoordinatePickerOverlay to access
         Companion.instance = this
     }
@@ -42,6 +59,11 @@ class A11yService : AccessibilityService() {
     override fun onCreate() {
         super.onCreate()
         Logger.i("A11yService", "Accessibility service created")
+    }
+
+    override fun onDestroy() {
+        reopenCheckHandler.removeCallbacks(reopenCheckRunnable)
+        super.onDestroy()
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {

@@ -44,7 +44,9 @@ fun RuleItem(
     onToggleEnabled: (Boolean) -> Unit,
     onEditRule: (Rule) -> Unit,
     onDeleteRule: () -> Unit,
-    onDuplicateRule: () -> Unit
+    onDuplicateRule: () -> Unit,
+    /** When non-null, show a line like "将于 14:30 自动恢复" under the rule */
+    reopenAtText: String? = null
 ) {
     val context = androidx.compose.ui.platform.LocalContext.current
     var showMenu by remember { mutableStateOf(false) }
@@ -108,6 +110,15 @@ fun RuleItem(
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
+            if (reopenAtText != null) {
+                Text(
+                    text = reopenAtText,
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
         }
         
         // More options menu

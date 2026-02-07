@@ -153,6 +153,18 @@
     <string name="ask_overlay_rule_disabled">Disable</string>
     <string name="ask_overlay_no_rules">This app has no configured rules</string>
     <string name="ask_overlay_temporary_notice">Note: These changes are temporary and will be reset when you exit the app</string>
+
+    <!-- Disable rule duration (when closing a rule in config) -->
+    <string name="disable_rule_duration_title">Disable for how long?</string>
+    <string name="disable_rule_duration_message">Choose how long to disable this rule. It will turn back on automatically after that.</string>
+    <string name="disable_rule_duration_30min">30 minutes</string>
+    <string name="disable_rule_duration_1h">1 hour</string>
+    <string name="disable_rule_duration_2h">2 hours</string>
+    <string name="disable_rule_duration_rest_of_today">Rest of today (resume at midnight)</string>
+    <string name="disable_rule_duration_indefinite">Until I turn it back on</string>
+    <string name="disable_rule_duration_cancel">Cancel</string>
+    <string name="disable_rule_reopen_at">Will turn back on at %1$s</string>
+    <string name="disable_rule_reopen_indefinite">Disabled until you turn it back on</string>
     
     <!-- AI Settings -->
     <string name="ai_settings">App Settings</string>
@@ -215,7 +227,7 @@
     <string name="about_app_description">Android app that eliminates distractions using AI technology.</string>
     <string name="version">Version</string>
     <string name="copyright">Copyright</string>
-    <string name="copyright_text">(c) 2025-2026 Roderick Qiu</string>
+    <string name="copyright_text">(c) 2025-2026 %s</string>
     <string name="ok">OK</string>
     <string name="export_rules">Export Rules</string>
     <string name="export_logs">Export Logs</string>
@@ -256,13 +268,13 @@
     <string name="finetune_positive_examples">Should Match (Positive Examples)</string>
     <string name="finetune_negative_examples">Should Not Match (Negative Examples)</string>
     <string name="finetune_add_example">Add</string>
-    <string name="finetune_start">Start Optimization</string>
+    <string name="finetune_start">Start</string>
     <string name="finetune_stop">Stop Optimization</string>
-    <string name="finetune_reconfigure">Reconfigure</string>
+    <string name="finetune_reconfigure">Re-edit</string>
     <string name="finetune_progress">Optimization Progress</string>
     <string name="finetune_iteration_progress">Iteration %1$d / %2$d</string>
     <string name="finetune_all_passed">All examples passed!</string>
-    <string name="finetune_apply_result">Apply Result</string>
+    <string name="finetune_apply_result">Apply</string>
     <string name="finetune_passed">Passed</string>
     <string name="finetune_failed">Failed</string>
     <string name="finetune_no_examples_added">Please add at least one example</string>
@@ -275,7 +287,6 @@
     <string name="finetune_max_iterations_reached">Max iterations reached. Best result: %1$d/%2$d passed</string>
     <string name="finetune_error">Optimization error: %1$s</string>
     <string name="finetune_stopped">Optimization stopped</string>
-    <string name="finetune_optimize_with_examples">Optimize with examples</string>
     <string name="finetune_view_original">View original</string>
     <string name="finetune_view_optimized">View optimized</string>
     <string name="finetune_original_description">Original</string>

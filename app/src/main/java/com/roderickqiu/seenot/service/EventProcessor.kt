@@ -152,8 +152,8 @@ class EventProcessor(
             // Load monitoring apps from settings
             val monitoringApps = appDataStore.loadMonitoringApps()
 
-            // Check if the current app is in the monitoring list
-            val isMonitored = monitoringApps.any { it.name == appName && it.isEnabled }
+            // Check if the current app is in the monitoring list (consider app-level reopen-at)
+            val isMonitored = monitoringApps.any { it.name == appName && appDataStore.isAppEffectivelyEnabled(it.id, it.isEnabled) }
 
             // If we were in a monitored app and now switching to a different package, log exit
             // first
