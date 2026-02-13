@@ -46,7 +46,9 @@ class ScreenshotAnalyzer(
     private val hashRetentionTimeMs = 25000L // Hash retention for 25 seconds
     // Store AI results for each hash: hash -> (appName -> ruleId -> isConditionMatch)
     private val hashAiResults = mutableMapOf<String, MutableMap<String, MutableMap<String, Boolean>>>()
-    
+    // Discard rule result if processing took longer than this (likely outdated)
+    private val ruleProcessingTimeoutMs = 10_000L
+
     // Minimum time to allow user to read the feedback toast before next screenshot clears it
     private var lastAiResultTime: Long = 0
     private val MIN_FEEDBACK_READ_TIME_MS = 2000L
@@ -376,67 +378,72 @@ class ScreenshotAnalyzer(
                         // Extract and log response with both condition and action
                         val result = response.choices.firstOrNull()?.message?.content
                         if (result != null) {
-                            val confidence = AIServiceUtils.parseConfidence(result)
-                            val isConditionMatch = confidence >= AIServiceUtils.CONFIDENCE_THRESHOLD
-                            
-                            Logger.d("A11yService", "AI Result for app=$appName, question=$question, context=$appContext, condition=${condition.type}, action=${action.type}: $result, confidence=$confidence, match=$isConditionMatch, elapsed time: ${elapsedTime}ms")
-                            
-                            // Store AI result for potential reuse
-                            if (screenshotHash != null) {
-                                hashAiResults.getOrPut(screenshotHash) { mutableMapOf() }
-                                    .getOrPut(appName) { mutableMapOf() }[rule.id] = isConditionMatch
-                            }
-
-                            // Create and save rule record if recording is enabled
-                            if (AIServiceUtils.loadEnableRuleRecording(context)) {
-                                try {
-                                    val record = RuleRecord(
-                                        appName = appName,
-                                        packageName = currentMonitoredPackage,
-                                        ruleId = rule.id,
-                                        condition = condition,
-                                        action = action,
-                                        isConditionMatched = isConditionMatch,
-                                        aiResult = result,
-                                        confidence = confidence,
-                                        elapsedTimeMs = elapsedTime
-                                    )
-
-                                    // Save record with image
-                                    val savedRecord = ruleRecordRepo.saveRecord(record)
-
-                                    // Save screenshot for this record (marked status is false by default for new records)
-                                    ruleRecordRepo.saveScreenshotForRecord(savedRecord.id, recordBitmap, savedRecord.isMarked)
-
-                                    Logger.d("A11yService", "Saved rule record: ${savedRecord.id} for rule ${rule.id}")
-                                } catch (recordError: Exception) {
-                                    Logger.e("A11yService", "Error saving rule record", recordError)
-                                }
-                            }
-
-                            // Show toast if debug option is enabled
-                            if (AIServiceUtils.loadShowRuleResultToast(context)) {
-                                val resultText = if (isConditionMatch) "YES ($confidence)" else "NO ($confidence)"
-                                // Truncate description to first N characters for toast display
-                                val description = condition.parameter ?: ""
-                                val truncatedDescription = if (description.length > GenericUtils.TOAST_TEXT_MAX_LENGTH) {
-                                    description.take(GenericUtils.TOAST_TEXT_MAX_LENGTH) + "..."
-                                } else {
-                                    description
-                                }
-                                notificationManager.showToast("$truncatedDescription: $resultText", Toast.LENGTH_SHORT)
-                                lastAiResultTime = System.currentTimeMillis()
-                            }
-                            
-                            // Handle time constraint if present
-                            if (isConditionMatch && rule.timeConstraint != null) {
-                                constraintManager.handleTimeConstraint(rule, appName, isConditionMatch)
-                            } else if (isConditionMatch && rule.timeConstraint == null) {
-                                // No time constraint - trigger immediately
-                                actionExecutor.executeAction(rule, appName)
-                            } else {
-                                // Condition doesn't match - end current record if any
+                            if (elapsedTime > ruleProcessingTimeoutMs) {
+                                Logger.d("A11yService", "Rule result discarded (elapsed ${elapsedTime}ms > ${ruleProcessingTimeoutMs}ms), likely outdated")
                                 constraintManager.endShortTermRecord(rule.id, appName)
+                            } else {
+                                val confidence = AIServiceUtils.parseConfidence(result)
+                                val isConditionMatch = confidence >= AIServiceUtils.CONFIDENCE_THRESHOLD
+
+                                Logger.d("A11yService", "AI Result for app=$appName, question=$question, context=$appContext, condition=${condition.type}, action=${action.type}: $result, confidence=$confidence, match=$isConditionMatch, elapsed time: ${elapsedTime}ms")
+
+                                // Store AI result for potential reuse
+                                if (screenshotHash != null) {
+                                    hashAiResults.getOrPut(screenshotHash) { mutableMapOf() }
+                                        .getOrPut(appName) { mutableMapOf() }[rule.id] = isConditionMatch
+                                }
+
+                                // Create and save rule record if recording is enabled
+                                if (AIServiceUtils.loadEnableRuleRecording(context)) {
+                                    try {
+                                        val record = RuleRecord(
+                                            appName = appName,
+                                            packageName = currentMonitoredPackage,
+                                            ruleId = rule.id,
+                                            condition = condition,
+                                            action = action,
+                                            isConditionMatched = isConditionMatch,
+                                            aiResult = result,
+                                            confidence = confidence,
+                                            elapsedTimeMs = elapsedTime
+                                        )
+
+                                        // Save record with image
+                                        val savedRecord = ruleRecordRepo.saveRecord(record)
+
+                                        // Save screenshot for this record (marked status is false by default for new records)
+                                        ruleRecordRepo.saveScreenshotForRecord(savedRecord.id, recordBitmap, savedRecord.isMarked)
+
+                                        Logger.d("A11yService", "Saved rule record: ${savedRecord.id} for rule ${rule.id}")
+                                    } catch (recordError: Exception) {
+                                        Logger.e("A11yService", "Error saving rule record", recordError)
+                                    }
+                                }
+
+                                // Show toast if debug option is enabled
+                                if (AIServiceUtils.loadShowRuleResultToast(context)) {
+                                    val resultText = if (isConditionMatch) "YES ($confidence)" else "NO ($confidence)"
+                                    // Truncate description to first N characters for toast display
+                                    val description = condition.parameter ?: ""
+                                    val truncatedDescription = if (description.length > GenericUtils.TOAST_TEXT_MAX_LENGTH) {
+                                        description.take(GenericUtils.TOAST_TEXT_MAX_LENGTH) + "..."
+                                    } else {
+                                        description
+                                    }
+                                    notificationManager.showToast("$truncatedDescription: $resultText", Toast.LENGTH_SHORT)
+                                    lastAiResultTime = System.currentTimeMillis()
+                                }
+
+                                // Handle time constraint if present
+                                if (isConditionMatch && rule.timeConstraint != null) {
+                                    constraintManager.handleTimeConstraint(rule, appName, isConditionMatch)
+                                } else if (isConditionMatch && rule.timeConstraint == null) {
+                                    // No time constraint - trigger immediately
+                                    actionExecutor.executeAction(rule, appName)
+                                } else {
+                                    // Condition doesn't match - end current record if any
+                                    constraintManager.endShortTermRecord(rule.id, appName)
+                                }
                             }
                         } else {
                             Logger.w("A11yService", "No result returned from AI for app=$appName, question=$question, context=$appContext, condition=${condition.type}, action=${action.type}, elapsed time: ${elapsedTime}ms")
