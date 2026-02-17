@@ -49,6 +49,7 @@ import com.roderickqiu.seenot.components.ImportExportDialog
 import com.roderickqiu.seenot.components.MonitoringAppItem
 import com.roderickqiu.seenot.components.PermissionBanner
 import com.roderickqiu.seenot.components.UnifiedEditDialog
+import com.roderickqiu.seenot.components.LabelNormPage
 import com.roderickqiu.seenot.components.RuleRecordsPage
 import com.roderickqiu.seenot.data.ActionType
 import com.roderickqiu.seenot.data.ConditionType
@@ -241,6 +242,7 @@ class MainActivity : ComponentActivity() {
                 var showAboutDialog by remember { mutableStateOf(false) }
                 var showImportExportDialog by remember { mutableStateOf(false) }
                 var showRuleRecordsPage by remember { mutableStateOf(false) }
+                var showLabelNormPage by remember { mutableStateOf(false) }
                 var permissionRefreshKey by remember { mutableStateOf(0) }
                 var bannerRefreshKey by remember { mutableStateOf(0) }
                 var previousShowPermissionSettings by remember { mutableStateOf(false) }
@@ -262,6 +264,15 @@ class MainActivity : ComponentActivity() {
                                 title = { Text(context.getString(R.string.rule_records)) },
                                 navigationIcon = {
                                     IconButton(onClick = { showRuleRecordsPage = false }) {
+                                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = context.getString(R.string.back))
+                                    }
+                                }
+                            )
+                        } else if (showLabelNormPage) {
+                            CenterAlignedTopAppBar(
+                                title = { Text(context.getString(R.string.content_labels)) },
+                                navigationIcon = {
+                                    IconButton(onClick = { showLabelNormPage = false }) {
                                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = context.getString(R.string.back))
                                     }
                                 }
@@ -317,6 +328,13 @@ class MainActivity : ComponentActivity() {
                                                 }
                                             )
                                             DropdownMenuItem(
+                                                text = { Text(text = context.getString(R.string.content_labels_menu)) },
+                                                onClick = {
+                                                    showTopMenu = false
+                                                    showLabelNormPage = true
+                                                }
+                                            )
+                                            DropdownMenuItem(
                                                 text = { Text(text = context.getString(R.string.about)) },
                                                 onClick = {
                                                     showTopMenu = false
@@ -330,8 +348,8 @@ class MainActivity : ComponentActivity() {
                         }
                     },
                     floatingActionButton = {
-                        if (showRuleRecordsPage) {
-                            // Rule Records page doesn't need FAB
+                        if (showRuleRecordsPage || showLabelNormPage) {
+                            // Rule Records / Label Norm pages don't need FAB
                         } else if (showPermissionSettings) {
                             androidx.compose.material3.ExtendedFloatingActionButton(
                                 onClick = { permissionRefreshKey++ },
@@ -352,6 +370,10 @@ class MainActivity : ComponentActivity() {
                 ) { innerPadding ->
                     if (showRuleRecordsPage) {
                         RuleRecordsPage(
+                            modifier = Modifier.padding(innerPadding)
+                        )
+                    } else if (showLabelNormPage) {
+                        LabelNormPage(
                             modifier = Modifier.padding(innerPadding)
                         )
                     } else if (showPermissionSettings) {

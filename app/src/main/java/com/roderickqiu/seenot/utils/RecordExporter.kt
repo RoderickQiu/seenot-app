@@ -157,6 +157,7 @@ class RecordExporter(private val context: Context) {
             - timestamp: Evaluation timestamp (milliseconds since epoch)
             - appName: Name of the monitored application
             - packageName: Package name of the application (optional)
+            - screenshotHash: Hash for deduplicating the same screenshot content (optional)
             - ruleId: ID of the rule that was evaluated
             - condition: Rule condition details
             - action: Rule action details

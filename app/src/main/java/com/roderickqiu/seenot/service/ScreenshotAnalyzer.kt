@@ -36,7 +36,8 @@ class ScreenshotAnalyzer(
     private val constraintManager: ConstraintManager,
     private val actionExecutor: ActionExecutor,
     private val notificationManager: NotificationManager,
-    private val ruleRecordRepo: RuleRecordRepo = RuleRecordRepo(context)
+    private val ruleRecordRepo: RuleRecordRepo = RuleRecordRepo(context),
+    private val labelNormalizationService: LabelNormalizationService = LabelNormalizationService(context)
 ) {
     private var isTakingScreenshot: Boolean = false
     private val coroutineScope = CoroutineScope(Dispatchers.IO)
@@ -399,6 +400,7 @@ class ScreenshotAnalyzer(
                                         val record = RuleRecord(
                                             appName = appName,
                                             packageName = currentMonitoredPackage,
+                                            screenshotHash = screenshotHash,
                                             ruleId = rule.id,
                                             condition = condition,
                                             action = action,
@@ -413,6 +415,9 @@ class ScreenshotAnalyzer(
 
                                         // Save screenshot for this record (marked status is false by default for new records)
                                         ruleRecordRepo.saveScreenshotForRecord(savedRecord.id, recordBitmap, savedRecord.isMarked)
+
+                                        // Feed the normalization pipeline for reason -> label processing
+                                        labelNormalizationService.onRuleRecordSaved(savedRecord)
 
                                         Logger.d("A11yService", "Saved rule record: ${savedRecord.id} for rule ${rule.id}")
                                     } catch (recordError: Exception) {

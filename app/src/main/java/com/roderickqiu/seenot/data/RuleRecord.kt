@@ -10,6 +10,7 @@ data class RuleRecord(
     val timestamp: Long = System.currentTimeMillis(),
     val appName: String,
     val packageName: String? = null,
+    val screenshotHash: String? = null,
     val ruleId: String,
     val condition: RuleCondition,
     val action: RuleAction,

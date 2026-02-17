@@ -178,6 +178,8 @@
     <!-- Rule Records -->
     <string name="rule_records">Rule Records</string>
     <string name="rule_records_menu">Rule Records</string>
+    <string name="content_labels">Content Labels</string>
+    <string name="content_labels_menu">Content Labels</string>
     <string name="enable_rule_recording">Enable Rule Recording</string>
     <string name="enable_rule_recording_desc">Record results and screenshots for each rule\'s evaluation</string>
     <string name="show_monitoring_indicator">Show Monitoring Indicator</string>

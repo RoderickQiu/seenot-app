@@ -110,6 +110,11 @@ object AIServiceUtils {
         return prefs.getString("model", "qwen3-vl-plus") ?: "qwen3-vl-plus"
     }
 
+    fun loadNormalizationModelId(context: Context): String {
+        val prefs = context.getSharedPreferences("seenot_ai", Context.MODE_PRIVATE)
+        return prefs.getString("normalization_model", "qwen-plus") ?: "qwen-plus"
+    }
+
     fun loadAiKey(context: Context): String {
         val prefs = context.getSharedPreferences("seenot_ai", Context.MODE_PRIVATE)
         return prefs.getString("api_key", "") ?: ""
@@ -155,6 +160,29 @@ object AIServiceUtils {
         }
 
         return 0.0
+    }
+
+    fun parseReason(result: String?): String? {
+        if (result.isNullOrBlank()) return null
+        try {
+            val jsonStart = result.indexOf('{')
+            val jsonEnd = result.lastIndexOf('}')
+            if (jsonStart != -1 && jsonEnd != -1 && jsonStart < jsonEnd) {
+                val jsonString = result.substring(jsonStart, jsonEnd + 1)
+                val jsonObject = JSONObject(jsonString)
+                if (jsonObject.has("reason")) {
+                    return jsonObject.getString("reason")
+                }
+            }
+        } catch (_: Exception) {
+        }
+
+        val reasonPattern = Regex("\"reason\"\\s*:\\s*\"([^\"]+)\"", RegexOption.IGNORE_CASE)
+        val match = reasonPattern.find(result)
+        if (match != null) {
+            return match.groupValues[1]
+        }
+        return null
     }
 
     /**
