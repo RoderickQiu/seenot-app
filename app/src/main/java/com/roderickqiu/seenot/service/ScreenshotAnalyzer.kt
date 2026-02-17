@@ -413,8 +413,16 @@ class ScreenshotAnalyzer(
                                         // Save record with image
                                         val savedRecord = ruleRecordRepo.saveRecord(record)
 
-                                        // Save screenshot for this record (marked status is false by default for new records)
-                                        ruleRecordRepo.saveScreenshotForRecord(savedRecord.id, recordBitmap, savedRecord.isMarked)
+                                        // Save screenshot only when mode allows: all, matched_only, none
+                                        val screenshotMode = AIServiceUtils.loadRuleRecordScreenshotMode(context)
+                                        val shouldSaveScreenshot = when (screenshotMode) {
+                                            "matched_only" -> isConditionMatch
+                                            "none" -> false
+                                            else -> true // "all" or unknown
+                                        }
+                                        if (shouldSaveScreenshot) {
+                                            ruleRecordRepo.saveScreenshotForRecord(savedRecord.id, recordBitmap, savedRecord.isMarked)
+                                        }
 
                                         // Feed the normalization pipeline for reason -> label processing
                                         labelNormalizationService.onRuleRecordSaved(savedRecord)

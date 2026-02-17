@@ -5,9 +5,13 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material3.AlertDialog
@@ -71,7 +75,6 @@ private const val AI_PREFS = "seenot_ai"
 private const val KEY_MODEL = "model"
 private const val KEY_API_KEY = "api_key"
 private const val KEY_SHOW_RULE_RESULT_TOAST = "show_rule_result_toast"
-private const val KEY_ENABLE_RULE_RECORDING = "enable_rule_recording"
 private const val KEY_SHOW_MONITORING_INDICATOR = "show_monitoring_indicator"
 private const val DEFAULT_MODEL_ID = "qwen3-vl-plus"
 
@@ -94,30 +97,29 @@ private fun loadShowRuleResultToast(context: Context): Boolean {
     return prefs.getBoolean(KEY_SHOW_RULE_RESULT_TOAST, false)
 }
 
-private fun loadEnableRuleRecording(context: Context): Boolean {
-    val prefs = context.getSharedPreferences(AI_PREFS, Context.MODE_PRIVATE)
-    return prefs.getBoolean(KEY_ENABLE_RULE_RECORDING, true)
-}
-
 private fun loadShowMonitoringIndicator(context: Context): Boolean {
     val prefs = context.getSharedPreferences(AI_PREFS, Context.MODE_PRIVATE)
     return prefs.getBoolean(KEY_SHOW_MONITORING_INDICATOR, true)
 }
 
-private fun saveAiSettings(context: Context, modelId: String, apiKey: String, showRuleResultToast: Boolean, enableRuleRecording: Boolean, showMonitoringIndicator: Boolean) {
+private fun saveAiSettings(context: Context, modelId: String, apiKey: String, showRuleResultToast: Boolean, showMonitoringIndicator: Boolean) {
     val prefs = context.getSharedPreferences(AI_PREFS, Context.MODE_PRIVATE)
     prefs.edit()
         .putString(KEY_MODEL, modelId)
         .putString(KEY_API_KEY, apiKey)
         .putBoolean(KEY_SHOW_RULE_RESULT_TOAST, showRuleResultToast)
-        .putBoolean(KEY_ENABLE_RULE_RECORDING, enableRuleRecording)
         .putBoolean(KEY_SHOW_MONITORING_INDICATOR, showMonitoringIndicator)
         .apply()
 }
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun SettingsDialog(onDismiss: () -> Unit, onLanguageChanged: (() -> Unit)? = null) {
+fun SettingsDialog(
+    onDismiss: () -> Unit,
+    onLanguageChanged: (() -> Unit)? = null,
+    onImportExportClick: (() -> Unit)? = null,
+    onRuleRecordingClick: (() -> Unit)? = null
+) {
     val context = LocalContext.current
 
     var expanded by remember { mutableStateOf(false) }
@@ -127,7 +129,6 @@ fun SettingsDialog(onDismiss: () -> Unit, onLanguageChanged: (() -> Unit)? = nul
     var selectedModel by remember { mutableStateOf(getModelById(initialModelId)) }
     var apiKey by remember { mutableStateOf(loadAiKey(context)) }
     var showRuleResultToast by remember { mutableStateOf(loadShowRuleResultToast(context)) }
-    var enableRuleRecording by remember { mutableStateOf(loadEnableRuleRecording(context)) }
     var showMonitoringIndicator by remember { mutableStateOf(loadShowMonitoringIndicator(context)) }
     
     // Language settings
@@ -157,7 +158,13 @@ fun SettingsDialog(onDismiss: () -> Unit, onLanguageChanged: (() -> Unit)? = nul
             onDismissRequest = onDismiss,
             title = { Text(text = context.getString(R.string.ai_settings)) },
             text = {
-                Column(modifier = Modifier.fillMaxWidth()) {
+                val scrollState = rememberScrollState()
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .heightIn(max = 400.dp)
+                        .verticalScroll(scrollState)
+                ) {
                     Text(text = context.getString(R.string.ai_model))
                     Box {
                         OutlinedTextField(
@@ -241,25 +248,22 @@ fun SettingsDialog(onDismiss: () -> Unit, onLanguageChanged: (() -> Unit)? = nul
                         )
                     }
 
-                    Row(
+                    // Rule recording entry (opens RuleRecordingSettingsDialog)
+                    if (onRuleRecordingClick != null) {
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(top = 8.dp),
+                                .clickable { onRuleRecordingClick() }
+                                .padding(top = 8.dp, bottom = 8.dp),
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(text = context.getString(R.string.enable_rule_recording))
-                            Text(
-                                text = context.getString(R.string.enable_rule_recording_desc),
-                                style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp),
-                                color = androidx.compose.material3.MaterialTheme.colorScheme.onSurfaceVariant
+                        ) {
+                            Text(text = context.getString(R.string.rule_records))
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = null
                             )
                         }
-                        Switch(
-                                checked = enableRuleRecording,
-                                onCheckedChange = { enableRuleRecording = it }
-                        )
                     }
 
                     Row(
@@ -331,12 +335,30 @@ fun SettingsDialog(onDismiss: () -> Unit, onLanguageChanged: (() -> Unit)? = nul
                             }
                         }
                     }
+
+                    // Import/Export entry
+                    if (onImportExportClick != null) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { onImportExportClick() }
+                                .padding(top = 24.dp, bottom = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(text = context.getString(R.string.import_export_rules))
+                            Icon(
+                                imageVector = Icons.AutoMirrored.Filled.KeyboardArrowRight,
+                                contentDescription = null
+                            )
+                        }
+                    }
                 }
             },
             confirmButton = {
                         TextButton(
                         onClick = {
-                            saveAiSettings(context, selectedModel.id, apiKey, showRuleResultToast, enableRuleRecording, showMonitoringIndicator)
+                            saveAiSettings(context, selectedModel.id, apiKey, showRuleResultToast, showMonitoringIndicator)
                             if (selectedLanguage != currentLanguage) {
                                 LanguageManager.saveLanguage(context, selectedLanguage)
                                 onDismiss()

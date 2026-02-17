@@ -60,6 +60,7 @@ import com.roderickqiu.seenot.data.RuleAction
 import com.roderickqiu.seenot.data.RuleCondition
 import com.roderickqiu.seenot.data.RuleRecordRepo
 import com.roderickqiu.seenot.ui.theme.SeeNotTheme
+import com.roderickqiu.seenot.settings.RuleRecordingSettingsDialog
 import com.roderickqiu.seenot.settings.SettingsDialog
 import com.roderickqiu.seenot.utils.LanguageManager
 import com.roderickqiu.seenot.utils.Logger
@@ -241,6 +242,7 @@ class MainActivity : ComponentActivity() {
                 var showAiSettings by remember { mutableStateOf(false) }
                 var showAboutDialog by remember { mutableStateOf(false) }
                 var showImportExportDialog by remember { mutableStateOf(false) }
+                var showRuleRecordingDialog by remember { mutableStateOf(false) }
                 var showRuleRecordsPage by remember { mutableStateOf(false) }
                 var showLabelNormPage by remember { mutableStateOf(false) }
                 var permissionRefreshKey by remember { mutableStateOf(0) }
@@ -311,13 +313,6 @@ class MainActivity : ComponentActivity() {
                                                 onClick = {
                                                     showTopMenu = false
                                                     showAiSettings = true
-                                                }
-                                            )
-                                            DropdownMenuItem(
-                                                text = { Text(text = context.getString(R.string.import_export_rules)) },
-                                                onClick = {
-                                                    showTopMenu = false
-                                                    showImportExportDialog = true
                                                 }
                                             )
                                             DropdownMenuItem(
@@ -448,8 +443,20 @@ class MainActivity : ComponentActivity() {
                         onLanguageChanged = {
                             // Language change will trigger activity recreation
                             LanguageManager.applyLanguage(this@MainActivity, LanguageManager.getSavedLanguage(this@MainActivity))
+                        },
+                        onImportExportClick = {
+                            showAiSettings = false
+                            showImportExportDialog = true
+                        },
+                        onRuleRecordingClick = {
+                            showAiSettings = false
+                            showRuleRecordingDialog = true
                         }
                     )
+                }
+
+                if (showRuleRecordingDialog) {
+                    RuleRecordingSettingsDialog(onDismiss = { showRuleRecordingDialog = false })
                 }
 
                 if (showImportExportDialog) {

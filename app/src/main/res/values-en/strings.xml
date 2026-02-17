@@ -182,6 +182,10 @@
     <string name="content_labels_menu">Content Labels</string>
     <string name="enable_rule_recording">Enable Rule Recording</string>
     <string name="enable_rule_recording_desc">Record results and screenshots for each rule\'s evaluation</string>
+    <string name="rule_record_screenshot_save">Save screenshots</string>
+    <string name="rule_record_screenshot_all">All</string>
+    <string name="rule_record_screenshot_matched_only">Matched only</string>
+    <string name="rule_record_screenshot_none">None</string>
     <string name="show_monitoring_indicator">Show Monitoring Indicator</string>
     <string name="show_monitoring_indicator_desc">Show small button indicator when monitoring apps</string>
     <string name="all_dates">All Dates</string>

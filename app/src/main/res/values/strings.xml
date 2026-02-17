@@ -181,6 +181,10 @@
     <string name="content_labels_menu">内容标签</string>
     <string name="enable_rule_recording">启用规则记录</string>
     <string name="enable_rule_recording_desc">记录每次规则判断的结果和截图</string>
+    <string name="rule_record_screenshot_save">保存截图</string>
+    <string name="rule_record_screenshot_all">全部</string>
+    <string name="rule_record_screenshot_matched_only">仅匹配结果</string>
+    <string name="rule_record_screenshot_none">均不保存</string>
     <string name="show_monitoring_indicator">显示监控指示器</string>
     <string name="show_monitoring_indicator_desc">在监控应用时显示小按钮指示器</string>
     <string name="all_dates">全部日期</string>

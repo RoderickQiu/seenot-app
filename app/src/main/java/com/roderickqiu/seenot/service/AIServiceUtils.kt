@@ -130,6 +130,12 @@ object AIServiceUtils {
         return prefs.getBoolean("enable_rule_recording", true)
     }
 
+    /** Screenshot save mode for rule records: "all", "matched_only", "none" */
+    fun loadRuleRecordScreenshotMode(context: Context): String {
+        val prefs = context.getSharedPreferences("seenot_ai", Context.MODE_PRIVATE)
+        return prefs.getString("rule_record_screenshot_mode", "all") ?: "all"
+    }
+
     fun parseAIResult(result: String): Boolean {
         val confidence = parseConfidence(result)
         return confidence >= CONFIDENCE_THRESHOLD
