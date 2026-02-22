@@ -29,6 +29,19 @@ object LanguageManager {
         }
     }
 
+    /**
+     * Get the effective language code for the current context.
+     * Returns "zh" or "en" based on saved setting, resolving "auto" to system language.
+     */
+    fun getEffectiveLanguage(context: Context): String {
+        val saved = getSavedLanguage(context)
+        return when (saved) {
+            "zh" -> "zh"
+            "en" -> "en"
+            else -> Locale.getDefault().language // "auto" - use system language
+        }
+    }
+
     fun updateConfiguration(context: Context) {
         val language = getSavedLanguage(context)
         val locale = getLocale(language)

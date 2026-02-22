@@ -178,8 +178,8 @@
     <!-- Rule Records -->
     <string name="rule_records">Rule Records</string>
     <string name="rule_records_menu">Rule Records</string>
-    <string name="content_labels">Content Labels</string>
-    <string name="content_labels_menu">Content Labels</string>
+    <string name="content_labels">Activity Insights</string>
+    <string name="content_labels_menu">Activity Insights</string>
     <string name="clear_label_history">Clear History</string>
     <string name="clear_label_history_confirm">Are you sure you want to delete all label history data? This action cannot be undone.</string>
     <string name="label_tab_today">Today</string>
@@ -265,6 +265,27 @@
     <string name="rules_imported_successfully">Rules imported successfully</string>
     <string name="paste_json_here">Paste JSON content here</string>
     <string name="invalid_json_format">Invalid JSON format</string>
+
+    <!-- Import/Export Dialog -->
+    <string name="import_export_title">Import/Export</string>
+    <string name="rules">Rules</string>
+    <string name="rules_export_import_desc">Export or import rule configurations</string>
+    <string name="activity_insights">Activity Insights</string>
+    <string name="import_insights">Import Insights</string>
+    <string name="insights_export_import_desc">Export or import activity insights data (observations, labels, etc.)</string>
+    <string name="logs">Logs</string>
+    <string name="logs_export_desc">Export all log files for diagnostics</string>
+    <string name="import_action">Import</string>
+    <string name="export_action">Export</string>
+    <string name="import_from_file">Import from File</string>
+    <string name="export_to_file">Export to File</string>
+    <string name="close">Close</string>
+    <string name="confirm_import_rules">Confirm Import Rules</string>
+    <string name="import_rules_warning">Warning: Importing rules will replace all current rule configurations. This action cannot be undone. Are you sure you want to continue?</string>
+    <string name="confirm_import_insights">Confirm Import Insights</string>
+    <string name="import_insights_warning">Warning: Importing activity insights will replace current observations and labels. This action cannot be undone. Are you sure you want to continue?</string>
+    <string name="paste_rules_json_here">Paste rules JSON content here</string>
+    <string name="paste_insights_json_here">Paste insights JSON content here</string>
 
     <!-- Data Diagnostics -->
     <string name="data_diagnostics">Data Diagnostics</string>

@@ -177,8 +177,8 @@
     <!-- Rule Records -->
     <string name="rule_records">规则记录</string>
     <string name="rule_records_menu">规则记录</string>
-    <string name="content_labels">内容标签</string>
-    <string name="content_labels_menu">内容标签</string>
+    <string name="content_labels">使用洞察</string>
+    <string name="content_labels_menu">使用洞察</string>
     <string name="clear_label_history">删除当前历史</string>
     <string name="clear_label_history_confirm">确定要删除所有内容标签历史数据吗？此操作无法撤销。</string>
     <string name="label_tab_today">今天</string>
@@ -264,6 +264,27 @@
     <string name="rules_imported_successfully">规则导入成功</string>
     <string name="paste_json_here">在此粘贴JSON内容</string>
     <string name="invalid_json_format">无效的JSON格式</string>
+
+    <!-- Import/Export Dialog -->
+    <string name="import_export_title">导入导出</string>
+    <string name="rules">规则</string>
+    <string name="rules_export_import_desc">导出或导入规则配置</string>
+    <string name="activity_insights">使用洞察</string>
+    <string name="import_insights">导入使用洞察</string>
+    <string name="insights_export_import_desc">导出或导入使用洞察数据（观测记录、标签等）</string>
+    <string name="logs">日志</string>
+    <string name="logs_export_desc">导出所有日志文件用于诊断</string>
+    <string name="import_action">导入</string>
+    <string name="export_action">导出</string>
+    <string name="import_from_file">从文件导入</string>
+    <string name="export_to_file">导出到文件</string>
+    <string name="close">关闭</string>
+    <string name="confirm_import_rules">确认导入规则</string>
+    <string name="import_rules_warning">警告：导入规则将覆盖当前的所有规则配置，此操作无法撤销。确定要继续吗？</string>
+    <string name="confirm_import_insights">确认导入使用洞察</string>
+    <string name="import_insights_warning">警告：导入使用洞察数据将覆盖当前的观测记录和标签，此操作无法撤销。确定要继续吗？</string>
+    <string name="paste_rules_json_here">在此粘贴规则JSON内容</string>
+    <string name="paste_insights_json_here">在此粘贴使用洞察JSON内容</string>
 
     <!-- Data Diagnostics -->
     <string name="data_diagnostics">数据诊断</string>

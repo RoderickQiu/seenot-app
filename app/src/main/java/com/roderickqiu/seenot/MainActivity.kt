@@ -204,6 +204,120 @@ class MainActivity : ComponentActivity() {
         }
     }
 
+    /**
+     * Export Activity Insights data as JSON file
+     */
+    private fun exportActivityInsights() {
+        try {
+            val repo = LabelNormalizationRepo(this)
+            val observations = repo.loadObservations()
+            val labels = repo.loadLabels()
+            val mergeSuggestions = repo.loadMergeSuggestions()
+
+            val exportData = ActivityInsightsExport(
+                observations = observations,
+                labels = labels,
+                mergeSuggestions = mergeSuggestions,
+                exportDate = System.currentTimeMillis(),
+                exportVersion = "1.0"
+            )
+
+            val gson = GsonBuilder().setPrettyPrinting().create()
+            val jsonString = gson.toJson(exportData)
+
+            // Create file in cache directory
+            val exportsDir = java.io.File(cacheDir, "exports").apply {
+                if (!exists()) mkdirs()
+            }
+            val timestamp = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.getDefault()).format(java.util.Date())
+            val exportFile = java.io.File(exportsDir, "seenot_insights_$timestamp.json")
+            exportFile.writeText(jsonString)
+
+            // Share the file
+            val fileUri = androidx.core.content.FileProvider.getUriForFile(
+                this,
+                "${packageName}.fileprovider",
+                exportFile
+            )
+
+            val shareIntent = Intent().apply {
+                action = Intent.ACTION_SEND
+                type = "application/json"
+                putExtra(Intent.EXTRA_STREAM, fileUri)
+                putExtra(Intent.EXTRA_SUBJECT, "SeeNot Activity Insights Export")
+                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+            }
+
+            val chooserIntent = Intent.createChooser(shareIntent, "Share Activity Insights")
+            chooserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+            startActivity(chooserIntent)
+
+            ToastOverlay.show(this, "Activity Insights exported to file", 3000L)
+        } catch (e: Exception) {
+            Logger.e("MainActivity", "Failed to export activity insights", e)
+            ToastOverlay.show(this, "Export failed: ${e.message}", 5000L)
+        }
+    }
+
+    /**
+     * Launch file picker to import Activity Insights from file
+     */
+    private fun launchImportInsightsFilePicker() {
+        val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
+            addCategory(Intent.CATEGORY_OPENABLE)
+            type = "application/json"
+            putExtra(Intent.EXTRA_TITLE, "Select Activity Insights JSON file")
+        }
+        importInsightsLauncher.launch(intent)
+    }
+
+    /**
+     * Import Activity Insights from file URI
+     */
+    private fun importActivityInsightsFromUri(uri: android.net.Uri) {
+        try {
+            val jsonString = contentResolver.openInputStream(uri)?.use { stream ->
+                stream.bufferedReader().readText()
+            } ?: run {
+                ToastOverlay.show(this, "Cannot read file", 5000L)
+                return
+            }
+
+            val gson = GsonBuilder().create()
+            val exportData = gson.fromJson(jsonString, ActivityInsightsExport::class.java)
+
+            if (exportData == null) {
+                ToastOverlay.show(this, "Invalid JSON format", 5000L)
+                return
+            }
+
+            val repo = LabelNormalizationRepo(this)
+
+            // Save all data
+            exportData.observations?.let { repo.saveObservations(it) }
+            exportData.labels?.let { repo.saveLabels(it) }
+            exportData.mergeSuggestions?.let { repo.saveMergeSuggestions(it) }
+
+            ToastOverlay.show(this, "Activity Insights imported successfully", 3000L)
+        } catch (e: Exception) {
+            Logger.e("MainActivity", "Failed to import activity insights from file", e)
+            ToastOverlay.show(this, "Import failed: ${e.message}", 5000L)
+        }
+    }
+
+    /**
+     * Data class for Activity Insights export/import
+     */
+    data class ActivityInsightsExport(
+        val observations: List<com.roderickqiu.seenot.data.ScreenObservation>? = null,
+        val labels: List<com.roderickqiu.seenot.data.ContentLabel>? = null,
+        val mergeSuggestions: List<com.roderickqiu.seenot.data.LabelMergeSuggestion>? = null,
+        val exportDate: Long = System.currentTimeMillis(),
+        val exportVersion: String = "1.0"
+    )
+
+    private lateinit var importInsightsLauncher: androidx.activity.result.ActivityResultLauncher<android.content.Intent>
+
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -237,6 +351,17 @@ class MainActivity : ComponentActivity() {
         Logger.createMissingDayDirectories(30) // Create directories for last 30 days
 
         repository = MonitoringRepo(this)
+
+        // Register file picker for importing Activity Insights
+        importInsightsLauncher = registerForActivityResult(
+            androidx.activity.result.contract.ActivityResultContracts.StartActivityForResult()
+        ) { result ->
+            if (result.resultCode == RESULT_OK) {
+                result.data?.data?.let { uri ->
+                    importActivityInsightsFromUri(uri)
+                }
+            }
+        }
 
         setContent {
             SeeNotTheme {
@@ -519,12 +644,16 @@ class MainActivity : ComponentActivity() {
                         onDismiss = { showImportExportDialog = false },
                         onExport = { exportRules() },
                         onExportLogs = { exportLogs() },
+                        onExportInsights = { exportActivityInsights() },
                         onImport = { jsonText ->
                             importRules(jsonText) {
                                 // Refresh monitoring apps after import
                                 monitoringApps = repository.getAllApps()
                             }
                             showImportExportDialog = false
+                        },
+                        onImportInsightsFromFile = {
+                            launchImportInsightsFilePicker()
                         }
                     )
                 }

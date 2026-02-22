@@ -109,7 +109,10 @@ fun UnifiedEditDialog(
         val until = ruleReopenAtMap[rule.id] ?: return null
         if (System.currentTimeMillis() >= until && until != Long.MAX_VALUE) return null
         if (until == Long.MAX_VALUE) return context.getString(R.string.disable_rule_reopen_indefinite)
-        val dateFormat = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, Locale.getDefault())
+        val locale = com.roderickqiu.seenot.utils.LanguageManager.getLocale(
+            com.roderickqiu.seenot.utils.LanguageManager.getSavedLanguage(context)
+        )
+        val dateFormat = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, locale)
         val timeStr = dateFormat.format(Date(until))
         return context.getString(R.string.disable_rule_reopen_at, timeStr)
     }
@@ -125,7 +128,10 @@ fun UnifiedEditDialog(
         val until = appReopenAt ?: return null
         if (System.currentTimeMillis() >= until && until != Long.MAX_VALUE) return null
         if (until == Long.MAX_VALUE) return context.getString(R.string.disable_rule_reopen_indefinite)
-        val dateFormat = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, Locale.getDefault())
+        val locale = com.roderickqiu.seenot.utils.LanguageManager.getLocale(
+            com.roderickqiu.seenot.utils.LanguageManager.getSavedLanguage(context)
+        )
+        val dateFormat = DateFormat.getDateTimeInstance(DateFormat.MEDIUM, DateFormat.SHORT, locale)
         val timeStr = dateFormat.format(Date(until))
         return context.getString(R.string.disable_rule_reopen_at, timeStr)
     }

@@ -124,11 +124,10 @@ fun LabelNormPage(
     LaunchedEffect(refreshKey, selectedSummaryRange, selectedMainTab) {
         isLoading = true
         withContext(Dispatchers.IO) {
-            val locale = Locale.getDefault()
-            val langCode = locale.language
+            val langCode = com.roderickqiu.seenot.utils.LanguageManager.getEffectiveLanguage(context)
 
             if (langCode != "en") {
-                val targetLanguage = locale.getDisplayLanguage(Locale.ENGLISH)
+                val targetLanguage = Locale(langCode).getDisplayLanguage(Locale.ENGLISH)
                 repo.ensureLocalizedNames(
                     languageCode = langCode,
                     targetLanguage = targetLanguage,
@@ -792,7 +791,10 @@ private fun getDayLabel(dayIndex: Int, startMs: Long): String {
         0 -> stringResource(R.string.label_tab_today)
         1 -> stringResource(R.string.label_tab_yesterday)
         else -> {
-            val sdf = SimpleDateFormat("MM-dd", Locale.getDefault())
+            val context = LocalContext.current
+            val langCode = com.roderickqiu.seenot.utils.LanguageManager.getEffectiveLanguage(context)
+            val locale = Locale(langCode)
+            val sdf = SimpleDateFormat("MM-dd", locale)
             sdf.format(Date(startMs))
         }
     }

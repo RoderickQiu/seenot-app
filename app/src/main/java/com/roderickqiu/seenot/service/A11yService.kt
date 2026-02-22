@@ -13,6 +13,7 @@ import com.roderickqiu.seenot.R
 import com.roderickqiu.seenot.components.ToastOverlay
 import com.roderickqiu.seenot.data.AppDataStore
 import com.roderickqiu.seenot.data.RuleRecordRepo
+import com.roderickqiu.seenot.utils.LanguageManager
 
 class A11yService : AccessibilityService() {
 
@@ -58,6 +59,8 @@ class A11yService : AccessibilityService() {
 
     override fun onCreate() {
         super.onCreate()
+        // Apply saved language setting to ensure consistent language across the app
+        LanguageManager.updateConfiguration(this)
         Logger.i("A11yService", "Accessibility service created")
     }
 
