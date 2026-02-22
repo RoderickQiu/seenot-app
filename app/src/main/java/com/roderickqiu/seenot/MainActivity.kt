@@ -32,12 +32,18 @@ import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
+import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
+import com.roderickqiu.seenot.data.LabelNormalizationRepo
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.launch
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
@@ -245,7 +251,11 @@ class MainActivity : ComponentActivity() {
                 var showRuleRecordingDialog by remember { mutableStateOf(false) }
                 var showRuleRecordsPage by remember { mutableStateOf(false) }
                 var showLabelNormPage by remember { mutableStateOf(false) }
+                var showLabelNormMenu by remember { mutableStateOf(false) }
+                var showLabelNormClearConfirm by remember { mutableStateOf(false) }
+                var labelNormRefreshKey by remember { mutableStateOf(0) }
                 var permissionRefreshKey by remember { mutableStateOf(0) }
+                val scope = rememberCoroutineScope()
                 var bannerRefreshKey by remember { mutableStateOf(0) }
                 var previousShowPermissionSettings by remember { mutableStateOf(false) }
                 
@@ -276,6 +286,25 @@ class MainActivity : ComponentActivity() {
                                 navigationIcon = {
                                     IconButton(onClick = { showLabelNormPage = false }) {
                                         Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = context.getString(R.string.back))
+                                    }
+                                },
+                                actions = {
+                                    androidx.compose.foundation.layout.Box {
+                                        IconButton(onClick = { showLabelNormMenu = true }) {
+                                            Icon(Icons.Default.MoreVert, contentDescription = context.getString(R.string.more_options))
+                                        }
+                                        DropdownMenu(
+                                            expanded = showLabelNormMenu,
+                                            onDismissRequest = { showLabelNormMenu = false }
+                                        ) {
+                                            DropdownMenuItem(
+                                                text = { Text(context.getString(R.string.clear_label_history)) },
+                                                onClick = {
+                                                    showLabelNormMenu = false
+                                                    showLabelNormClearConfirm = true
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             )
@@ -369,7 +398,8 @@ class MainActivity : ComponentActivity() {
                         )
                     } else if (showLabelNormPage) {
                         LabelNormPage(
-                            modifier = Modifier.padding(innerPadding)
+                            modifier = Modifier.padding(innerPadding),
+                            refreshKey = labelNormRefreshKey
                         )
                     } else if (showPermissionSettings) {
                         com.roderickqiu.seenot.settings.PermissionSettingsScreen(
@@ -420,6 +450,31 @@ class MainActivity : ComponentActivity() {
                     }
                 }
                 
+                // Clear Label History Dialog
+                if (showLabelNormClearConfirm) {
+                    AlertDialog(
+                        onDismissRequest = { showLabelNormClearConfirm = false },
+                        title = { Text(context.getString(R.string.clear_label_history)) },
+                        text = { Text(context.getString(R.string.clear_label_history_confirm)) },
+                        confirmButton = {
+                            TextButton(onClick = {
+                                showLabelNormClearConfirm = false
+                                scope.launch(Dispatchers.IO) {
+                                    LabelNormalizationRepo(context).clearAll()
+                                    labelNormRefreshKey++
+                                }
+                            }) {
+                                Text(context.getString(R.string.delete))
+                            }
+                        },
+                        dismissButton = {
+                            TextButton(onClick = { showLabelNormClearConfirm = false }) {
+                                Text(context.getString(R.string.cancel))
+                            }
+                        }
+                    )
+                }
+
                 // Add App Dialog
                 if (showAddAppDialog) {
                     AddAppDialog(

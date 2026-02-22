@@ -10,6 +10,7 @@ import com.roderickqiu.seenot.components.RecordingDisabledBanner
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyColumn
@@ -298,7 +299,8 @@ fun RuleRecordsPage(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 8.dp),
+                .padding(horizontal = 16.dp, vertical = 8.dp)
+                .horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
@@ -322,7 +324,13 @@ fun RuleRecordsPage(
                     filterMarkedOnly = !filterMarkedOnly
                     coroutineScope.launch { loadRecords() }
                 },
-                label = { Text(context.getString(R.string.marked_only)) },
+                label = {
+                    Text(
+                        text = context.getString(R.string.marked_only),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                },
                 leadingIcon = if (filterMarkedOnly) {
                     { Icon(Icons.Default.Star, contentDescription = null) }
                 } else null,
@@ -336,11 +344,13 @@ fun RuleRecordsPage(
                 onClick = { showMatchFilterMenu = true },
                 label = {
                     Text(
-                        when (filterMatchStatus) {
+                        text = when (filterMatchStatus) {
                             true -> context.getString(R.string.matched_records)
                             false -> context.getString(R.string.not_matched_records)
                             null -> context.getString(R.string.filter_match_status)
-                        }
+                        },
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 },
                 trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },
@@ -384,7 +394,9 @@ fun RuleRecordsPage(
                 onClick = { showAppNameFilterMenu = true },
                 label = {
                     Text(
-                        filterAppName ?: context.getString(R.string.filter_app_name)
+                        text = filterAppName ?: context.getString(R.string.filter_app_name),
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
                     )
                 },
                 trailingIcon = { Icon(Icons.Default.ArrowDropDown, contentDescription = null) },

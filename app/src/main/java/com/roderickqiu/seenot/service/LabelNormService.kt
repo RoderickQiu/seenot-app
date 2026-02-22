@@ -21,6 +21,7 @@ import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 import org.json.JSONArray
 import org.json.JSONObject
+import java.util.Calendar
 import kotlin.time.Duration.Companion.seconds
 
 class LabelNormalizationService(
@@ -37,6 +38,7 @@ class LabelNormalizationService(
         private const val LAST_NORMALIZE_KEY = "last_normalize_at"
         private const val MAP_CONFIDENCE_THRESHOLD = 0.60
         private const val CREATE_CONFIDENCE_THRESHOLD = 0.75
+        private const val CREATE_HIGH_CONFIDENCE_THRESHOLD = 0.90 // skip repeats gate
         private const val MAX_BATCH_SIZE = 24
         private const val MAX_LABELS_IN_PROMPT = 80
     }
@@ -78,7 +80,19 @@ class LabelNormalizationService(
         repo.ensureUnknownLabel()
 
         val observations = repo.loadObservations().sortedBy { it.timestamp }
-        val pending = observations.filter { it.labelId.isNullOrBlank() }
+        val todayStartMs = Calendar.getInstance().apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        // Only normalize today's observations - historical data is not shown in the UI and
+        // doesn't need to be processed. Prioritize unlabeled (null) ones first; retry
+        // "unknown" ones only after all unclassified observations for today are handled.
+        val nullPending = observations.filter { it.labelId.isNullOrBlank() && it.timestamp >= todayStartMs }
+        val pending = nullPending.ifEmpty {
+            observations.filter { it.labelId == LabelNormalizationRepo.UNKNOWN_LABEL_ID && it.timestamp >= todayStartMs }
+        }
         if (pending.isEmpty()) {
             prefs.edit().putLong(LAST_NORMALIZE_KEY, now).apply()
             return false
@@ -165,7 +179,7 @@ class LabelNormalizationService(
             appendLine()
             appendLine("Rules:")
             appendLine("1) Prefer mapping to existing labels.")
-            appendLine("2) Use labelId in snake_case English.")
+            appendLine("2) labelId must be snake_case English. displayName and description must always be written in English, regardless of the observation language.")
             appendLine("3) Include confidence 0.0-1.0 for each decision.")
             appendLine("4) Output format:")
             appendLine(
@@ -231,10 +245,10 @@ class LabelNormalizationService(
         val isBootstrap = allLabels.size <= 2
         createCandidates.forEach { candidate ->
             val repeats = createCountByLabel[candidate.label.labelId] ?: 0
-            val canCreate = if (isBootstrap) {
-                candidate.confidence >= CREATE_CONFIDENCE_THRESHOLD
-            } else {
-                candidate.confidence >= CREATE_CONFIDENCE_THRESHOLD && repeats >= 2
+            val canCreate = when {
+                isBootstrap -> candidate.confidence >= CREATE_CONFIDENCE_THRESHOLD
+                candidate.confidence >= CREATE_HIGH_CONFIDENCE_THRESHOLD -> true
+                else -> candidate.confidence >= CREATE_CONFIDENCE_THRESHOLD && repeats >= 2
             }
 
             if (canCreate) {

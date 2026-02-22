@@ -19,7 +19,9 @@ data class ContentLabel(
     val description: String,
     val createdAt: Long = System.currentTimeMillis(),
     val createdInBatch: Int? = null,
-    val mergedInto: String? = null
+    val mergedInto: String? = null,
+    /** Cached translations keyed by BCP-47 language code, e.g. "zh" -> "聊天". */
+    val localizedNames: Map<String, String> = emptyMap()
 )
 
 data class LabelMergeSuggestion(
