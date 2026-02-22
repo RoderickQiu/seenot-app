@@ -48,6 +48,7 @@ import com.roderickqiu.seenot.data.RuleRecordRepo
 import com.roderickqiu.seenot.utils.Logger
 import com.roderickqiu.seenot.utils.RecordExporter
 import com.roderickqiu.seenot.utils.RuleFormatter
+import com.roderickqiu.seenot.service.AIServiceUtils
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -59,7 +60,8 @@ import java.util.*
 @Composable
 fun RuleRecordsPage(
     modifier: Modifier = Modifier,
-    ruleRecordRepo: RuleRecordRepo = RuleRecordRepo(LocalContext.current)
+    ruleRecordRepo: RuleRecordRepo = RuleRecordRepo(LocalContext.current),
+    onNavigateToSettings: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
     val coroutineScope = rememberCoroutineScope()
@@ -428,10 +430,59 @@ fun RuleRecordsPage(
             }
         }
 
-        // Recording disabled banner
-        RecordingDisabledBanner(
-            modifier = Modifier.padding(horizontal = 16.dp, vertical = 8.dp)
-        )
+        // Recording status card with navigate to settings button
+        val isRecordingEnabled = AIServiceUtils.loadEnableRuleRecording(context)
+        val screenshotMode = AIServiceUtils.loadRuleRecordScreenshotMode(context)
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = 16.dp, vertical = 4.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = if (isRecordingEnabled)
+                    MaterialTheme.colorScheme.primaryContainer
+                else
+                    MaterialTheme.colorScheme.errorContainer
+            )
+        ) {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 12.dp, vertical = 4.dp),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                val statusText = when {
+                    !isRecordingEnabled -> context.getString(R.string.rule_recording_status_disabled)
+                    screenshotMode == "all" -> context.getString(R.string.rule_recording_status_all)
+                    screenshotMode == "matched_only" -> context.getString(R.string.rule_recording_status_matched)
+                    else -> context.getString(R.string.rule_recording_status_none)
+                }
+                Text(
+                    text = statusText,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = if (isRecordingEnabled)
+                        MaterialTheme.colorScheme.onPrimaryContainer
+                    else
+                        MaterialTheme.colorScheme.onErrorContainer
+                )
+
+                if (onNavigateToSettings != null) {
+                    TextButton(
+                        onClick = onNavigateToSettings,
+                        modifier = Modifier.padding(0.dp)
+                    ) {
+                        Text(
+                            text = context.getString(R.string.go_to_settings),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = if (isRecordingEnabled)
+                                MaterialTheme.colorScheme.onPrimaryContainer
+                            else
+                                MaterialTheme.colorScheme.onErrorContainer
+                        )
+                    }
+                }
+            }
+        }
 
         // Records count
         Text(

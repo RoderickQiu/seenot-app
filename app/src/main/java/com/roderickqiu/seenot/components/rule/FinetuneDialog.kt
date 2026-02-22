@@ -462,6 +462,16 @@ fun FinetuneDialog(
                         )
                     }
                     
+                    // Hint about rule records
+                    item {
+                        Text(
+                            text = context.getString(R.string.finetune_examples_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(vertical = 4.dp)
+                        )
+                    }
+
                     // Positive Examples Section
                     item {
                         ExampleSection(
@@ -480,7 +490,7 @@ fun FinetuneDialog(
                             context = context
                         )
                     }
-                    
+
                     // Negative Examples Section
                     item {
                         ExampleSection(

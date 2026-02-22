@@ -21,11 +21,23 @@ object LanguageManager {
         prefs.edit().putString(KEY_LANGUAGE, language).apply()
     }
 
+    /**
+     * Get system locale (not app locale) for "auto" mode
+     */
+    private fun getSystemLocale(): Locale {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
+            android.content.res.Resources.getSystem().configuration.locales[0]
+        } else {
+            @Suppress("DEPRECATION")
+            android.content.res.Resources.getSystem().configuration.locale
+        }
+    }
+
     fun getLocale(language: String): Locale {
         return when (language) {
             "zh" -> Locale.Builder().setLanguage("zh").setRegion("CN").build()
             "en" -> Locale.Builder().setLanguage("en").setRegion("US").build()
-            else -> Locale.getDefault() // "auto" uses system default
+            else -> getSystemLocale() // "auto" uses system default
         }
     }
 
@@ -38,7 +50,7 @@ object LanguageManager {
         return when (saved) {
             "zh" -> "zh"
             "en" -> "en"
-            else -> Locale.getDefault().language // "auto" - use system language
+            else -> getSystemLocale().language // "auto" - use system language
         }
     }
 

@@ -12,6 +12,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
@@ -72,7 +73,21 @@ fun ActionTab(
                 }
             }
         }
-        
+        // Combine logic to show warning/hint for AUTO_BACK or ASK action
+        if (selectedActionType == ActionType.AUTO_BACK || selectedActionType == ActionType.ASK) {
+            val message = when (selectedActionType) {
+                ActionType.AUTO_BACK -> context.getString(R.string.auto_back_home_warning)
+                ActionType.ASK -> context.getString(R.string.ask_action_hint)
+                else -> ""
+            }
+            Text(
+                text = message,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.padding(horizontal = 8.dp)
+            )
+        }
+
         // Action Parameter input for REMIND and AUTO_CLICK actions
         if (selectedActionType == ActionType.REMIND || selectedActionType == ActionType.AUTO_CLICK) {
             OutlinedButton(

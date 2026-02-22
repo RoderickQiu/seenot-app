@@ -1,5 +1,6 @@
 package com.roderickqiu.seenot
 
+import android.content.Context
 import android.content.Intent
 import android.os.Bundle
 import android.util.Log
@@ -519,7 +520,10 @@ class MainActivity : ComponentActivity() {
                 ) { innerPadding ->
                     if (showRuleRecordsPage) {
                         RuleRecordsPage(
-                            modifier = Modifier.padding(innerPadding)
+                            modifier = Modifier.padding(innerPadding),
+                            onNavigateToSettings = {
+                                showRuleRecordingDialog = true
+                            }
                         )
                     } else if (showLabelNormPage) {
                         LabelNormPage(
@@ -667,5 +671,18 @@ class MainActivity : ComponentActivity() {
                 }
             }
         }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        // Re-apply language when returning from system settings (e.g., accessibility settings)
+        // because the system may reset the app's configuration
+        LanguageManager.updateConfiguration(this)
+    }
+
+    override fun attachBaseContext(newBase: Context?) {
+        // Apply language before super.attachBaseContext to ensure correct language in all cases
+        newBase?.let { LanguageManager.updateConfiguration(it) }
+        super.attachBaseContext(newBase)
     }
 }

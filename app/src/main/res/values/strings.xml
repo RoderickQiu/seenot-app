@@ -335,4 +335,19 @@
     <string name="finetune_view_optimized">查看优化后</string>
     <string name="finetune_original_description">原始描述</string>
     <string name="finetune_optimized_description">优化后描述</string>
+    <string name="finetune_examples_hint">提示：在设置中启用"规则记录"功能后，可在"规则记录"页面查看历史匹配失败的截图示例</string>
+
+    <!-- Rule Records Page -->
+    <string name="rule_recording_status_enabled">规则记录功能：已启用</string>
+    <string name="rule_recording_status_disabled">规则记录功能：已关闭</string>
+    <string name="rule_recording_status_all">已启用（保存全部截图）</string>
+    <string name="rule_recording_status_matched">已启用（仅保存匹配截图）</string>
+    <string name="rule_recording_status_none">已启用（不保存截图）</string>
+    <string name="go_to_settings">设置</string>
+
+    <!-- Auto Back Warning -->
+    <string name="auto_back_home_warning">注意：此操作不适用于 App 的首页，因为在多数 App 的首页按返回键一次不能直接退出软件</string>
+
+    <!-- Ask Action Hint -->
+    <string name="ask_action_hint">提示：触发时会弹出面板，让你临时启用或禁用规则</string>
 </resources>

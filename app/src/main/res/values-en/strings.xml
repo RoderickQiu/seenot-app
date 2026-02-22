@@ -336,4 +336,19 @@
     <string name="finetune_view_optimized">View optimized</string>
     <string name="finetune_original_description">Original</string>
     <string name="finetune_optimized_description">Optimized</string>
+    <string name="finetune_examples_hint">Tip: Enable "Rule Recording" in Settings to view historical matching failure screenshots on the "Rule Records" page</string>
+
+    <!-- Rule Records Page -->
+    <string name="rule_recording_status_enabled">Rule Recording: Enabled</string>
+    <string name="rule_recording_status_disabled">Rule Recording: Disabled</string>
+    <string name="rule_recording_status_all">Enabled (Save all screenshots)</string>
+    <string name="rule_recording_status_matched">Enabled (Matched only)</string>
+    <string name="rule_recording_status_none">Enabled (No screenshots)</string>
+    <string name="go_to_settings">Settings</string>
+
+    <!-- Auto Back Warning -->
+    <string name="auto_back_home_warning">Note: This action is not suitable for home pages, as pressing back once will not automatically exit the app in home page of most apps</string>
+
+    <!-- Ask Action Hint -->
+    <string name="ask_action_hint">Hint: A panel will pop up when triggered, allowing you to temporarily enable or disable rules</string>
 </resources>
