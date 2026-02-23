@@ -57,8 +57,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.roderickqiu.seenot.R
+import com.roderickqiu.seenot.data.ActionExecution
+import com.roderickqiu.seenot.data.ActionType
+import com.roderickqiu.seenot.data.AppSession
 import com.roderickqiu.seenot.data.AppUsage
+import com.roderickqiu.seenot.data.SessionItem
 import com.roderickqiu.seenot.data.LabelNormalizationRepo
+import com.roderickqiu.seenot.data.TimelineEvent
 import com.roderickqiu.seenot.data.UsageSummary
 import com.roderickqiu.seenot.data.UsageSegment
 import kotlinx.coroutines.Dispatchers
@@ -113,8 +118,8 @@ fun LabelNormPage(
     var summaryData by remember { mutableStateOf<UsageSummary?>(null) }
     var selectedSummaryRange by remember { mutableStateOf(SummaryRange.TODAY) }
 
-    // Timeline data - 7 days of segments
-    var timelineSegments by remember { mutableStateOf<List<List<UsageSegment>>>(emptyList()) }
+    // Timeline data - 7 days of mixed timeline events (sessions + action executions)
+    var timelineEvents by remember { mutableStateOf<List<List<TimelineEvent>>>(emptyList()) }
     var selectedTimelineDay by remember { mutableStateOf(6) } // 6 = today (last in the 7-day list, indices 0..6)
 
     // Main tab: 0 = Summary, 1 = Timeline
@@ -127,7 +132,7 @@ fun LabelNormPage(
             val langCode = com.roderickqiu.seenot.utils.LanguageManager.getEffectiveLanguage(context)
 
             if (langCode != "en") {
-                val targetLanguage = Locale(langCode).getDisplayLanguage(Locale.ENGLISH)
+                val targetLanguage = Locale.forLanguageTag(langCode).getDisplayLanguage(Locale.ENGLISH)
                 repo.ensureLocalizedNames(
                     languageCode = langCode,
                     targetLanguage = targetLanguage,
@@ -147,25 +152,28 @@ fun LabelNormPage(
                 }
                 summaryData = repo.computeSummary(startMs, endMs, langCode)
             } else {
-                // Timeline tab - load last 7 days segments
+                // Timeline tab - load last 7 days mixed timeline (sessions + action executions)
                 val dayRanges = lastNDaysRanges(7)
-                val segmentsList = dayRanges.map { (range, _) ->
-                    repo.segmentObservations(range.first, range.second, langCode)
+                val eventsList = dayRanges.map { (range, _) ->
+                    repo.buildMixedTimeline(range.first, range.second, langCode)
                 }
-                timelineSegments = segmentsList
+                timelineEvents = eventsList
                 // Ensure selected day index is valid
-                if (selectedTimelineDay >= segmentsList.size) {
-                    selectedTimelineDay = segmentsList.size - 1
+                if (selectedTimelineDay >= eventsList.size) {
+                    selectedTimelineDay = eventsList.size - 1
                 }
             }
             isLoading = false
         }
     }
 
-    // Build color map from all available data
-    val appColorMap = remember(summaryData, timelineSegments) {
+    // Build color map from all available data (including timeline events)
+    val appColorMap: Map<String, Color> = remember(summaryData, timelineEvents) {
         val allSummaries = listOfNotNull(summaryData)
-        buildAppColorMap(*allSummaries.toTypedArray())
+        val appNamesFromTimeline = timelineEvents.flatten().map { it.session.appName }.distinct()
+        // Combine app names from summary and timeline
+        val allAppNames = (allSummaries.flatMap { it.apps.map { a -> a.appName } } + appNamesFromTimeline).distinct().sorted()
+        allAppNames.mapIndexed { i, name -> name to APP_COLORS[i % APP_COLORS.size] }.toMap()
     }
 
     Column(modifier = modifier.fillMaxSize()) {
@@ -202,12 +210,12 @@ fun LabelNormPage(
                         DayInfo(
                             label = getDayLabel(dayIndex, range.first),
                             range = range,
-                            hasData = timelineSegments.getOrNull(index)?.isNotEmpty() ?: false
+                            hasData = timelineEvents.getOrNull(index)?.isNotEmpty() ?: false
                         )
                     },
                     selectedDayIndex = selectedTimelineDay,
                     onDaySelected = { selectedTimelineDay = it },
-                    segments = timelineSegments.getOrNull(selectedTimelineDay) ?: emptyList(),
+                    events = timelineEvents.getOrNull(selectedTimelineDay) ?: emptyList(),
                     appColorMap = appColorMap,
                     isLoading = isLoading
                 )
@@ -483,7 +491,7 @@ private fun TimelineWithDayPicker(
     days: List<DayInfo>,
     selectedDayIndex: Int,
     onDaySelected: (Int) -> Unit,
-    segments: List<UsageSegment>,
+    events: List<TimelineEvent>,
     appColorMap: Map<String, Color>,
     isLoading: Boolean
 ) {
@@ -524,8 +532,8 @@ private fun TimelineWithDayPicker(
 
         when {
             isLoading -> LoadingBox()
-            segments.isEmpty() -> EmptyBox(hint = stringResource(R.string.label_no_day_data))
-            else -> TimelineList(segments = segments, appColorMap = appColorMap)
+            events.isEmpty() -> EmptyBox(hint = stringResource(R.string.label_no_day_data))
+            else -> TimelineList(events = events, appColorMap = appColorMap)
         }
     }
 }
@@ -533,13 +541,6 @@ private fun TimelineWithDayPicker(
 // ---------------------------------------------------------------------------
 // App session grouping - consecutive segments of the same app
 // ---------------------------------------------------------------------------
-
-private data class AppSession(
-    val appName: String,
-    val startMs: Long,
-    val totalDurationMs: Long,
-    val segments: List<UsageSegment>
-)
 
 private fun groupIntoSessions(segments: List<UsageSegment>): List<AppSession> {
     if (segments.isEmpty()) return emptyList()
@@ -561,25 +562,25 @@ private fun List<UsageSegment>.toSession() = AppSession(
     appName = first().appName,
     startMs = first().startMs,
     totalDurationMs = sumOf { it.durationMs },
-    segments = this
+    items = map { SessionItem.SegmentItem(it) }
 )
 
 // ---------------------------------------------------------------------------
-// Timeline list
+// Timeline list - displays app sessions with embedded actions
 // ---------------------------------------------------------------------------
 
 @Composable
-private fun TimelineList(segments: List<UsageSegment>, appColorMap: Map<String, Color>) {
-    val sessions = remember(segments) { groupIntoSessions(segments) }
+private fun TimelineList(events: List<TimelineEvent>, appColorMap: Map<String, Color>) {
     LazyColumn(
         modifier = Modifier.fillMaxSize(),
         contentPadding = PaddingValues(start = 16.dp, end = 16.dp, bottom = 32.dp)
     ) {
-        itemsIndexed(sessions, key = { _, s -> s.startMs }) { index, session ->
+        itemsIndexed(events, key = { _, event -> "session_${event.session.startMs}" }) { index, event ->
+            val isLast = index == events.lastIndex
             AppSessionItem(
-                session = session,
-                color = appColor(session.appName, appColorMap),
-                isLast = index == sessions.lastIndex
+                session = event.session,
+                color = appColor(event.session.appName, appColorMap),
+                isLast = isLast
             )
         }
     }
@@ -588,7 +589,9 @@ private fun TimelineList(segments: List<UsageSegment>, appColorMap: Map<String, 
 @Composable
 private fun AppSessionItem(session: AppSession, color: Color, isLast: Boolean) {
     var expanded by remember { mutableStateOf(false) }
-    val hasMultiple = session.segments.size > 1
+    val hasMultiple = session.hasMultipleSegments
+    val hasActions = session.hasActions
+    val shouldExpand = hasMultiple || hasActions
 
     // IntrinsicSize.Min lets the connector line use weight(1f) to
     // fill exactly the content height - no hardcoded estimates needed.
@@ -606,7 +609,7 @@ private fun AppSessionItem(session: AppSession, color: Color, isLast: Boolean) {
         )
         Spacer(Modifier.width(10.dp))
 
-        // Connector dot + line
+        // Connector dot + line (app session uses app color)
         Column(
             horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.width(14.dp).fillMaxHeight()
@@ -632,6 +635,7 @@ private fun AppSessionItem(session: AppSession, color: Color, isLast: Boolean) {
                     style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
                     modifier = Modifier.weight(1f)
                 )
+
                 // Duration badge
                 Box(
                     modifier = Modifier
@@ -645,7 +649,17 @@ private fun AppSessionItem(session: AppSession, color: Color, isLast: Boolean) {
                         color = color
                     )
                 }
-                if (hasMultiple) {
+
+                Spacer(Modifier.width(6.dp))
+
+                // Action count tag (if has actions)
+                if (hasActions) {
+                    ActionCountTag(count = session.actions.size)
+                    Spacer(Modifier.width(4.dp))
+                }
+
+                // Expand button (if has multiple segments or actions)
+                if (shouldExpand) {
                     IconButton(onClick = { expanded = !expanded }, modifier = Modifier.size(28.dp)) {
                         Icon(
                             imageVector = if (expanded) Icons.Default.KeyboardArrowUp else Icons.Default.KeyboardArrowDown,
@@ -657,64 +671,232 @@ private fun AppSessionItem(session: AppSession, color: Color, isLast: Boolean) {
                 }
             }
 
-            // If single segment, always show label inline
-            if (!hasMultiple) {
-                Spacer(Modifier.height(2.dp))
-                Text(
-                    text = session.segments.first().displayName,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    fontSize = 12.sp
-                )
-            }
-
-            // Multi-segment: collapsed = top label only; expanded = all labels
-            if (hasMultiple) {
-                if (!expanded) {
+            // Collapsed state summary
+            if (!expanded) {
+                // Single segment: show label
+                if (!hasMultiple) {
+                    Spacer(Modifier.height(2.dp))
+                    Text(
+                        text = session.segments.first().displayName,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        fontSize = 12.sp
+                    )
+                } else {
+                    // Multiple segments: show summary
                     Spacer(Modifier.height(2.dp))
                     val topLabel = session.segments.first().displayName
+                    val summaryText = if (hasActions) {
+                        stringResource(R.string.label_session_summary_with_actions, topLabel, session.segments.size, session.actions.size)
+                    } else {
+                        stringResource(R.string.label_session_summary, topLabel, session.segments.size)
+                    }
                     Text(
-                        text = stringResource(R.string.label_session_summary, topLabel, session.segments.size),
+                        text = summaryText,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         fontSize = 12.sp
                     )
                 }
-                AnimatedVisibility(visible = expanded) {
-                    Column(modifier = Modifier.padding(top = 6.dp)) {
-                        session.segments.forEach { seg ->
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(vertical = 3.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Box(
-                                    modifier = Modifier
-                                        .size(6.dp)
-                                        .clip(CircleShape)
-                                        .background(color.copy(alpha = 0.5f))
-                                )
-                                Spacer(Modifier.width(8.dp))
-                                Text(
-                                    text = seg.displayName,
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.weight(1f),
-                                    fontSize = 12.sp
-                                )
-                                Text(
-                                    text = formatDuration(seg.durationMs),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = color.copy(alpha = 0.8f),
-                                    fontSize = 11.sp
-                                )
+            }
+
+            // Expanded state: show interleaved segments and actions
+            AnimatedVisibility(visible = expanded) {
+                Column(modifier = Modifier.padding(top = 6.dp)) {
+                    // Iterate through interleaved items (segments and actions mixed by timestamp)
+                    session.items.forEach { item ->
+                        when (item) {
+                            is SessionItem.SegmentItem -> {
+                                SegmentSubItem(segment = item.segment, color = color)
+                            }
+                            is SessionItem.ActionItem -> {
+                                ActionSubItem(action = item.action)
                             }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+private val subItemMarkerSize = 8.dp
+private val subItemMarkerGap = 8.dp
+
+@Composable
+private fun SegmentSubItem(segment: UsageSegment, color: Color) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Box(
+            modifier = Modifier
+                .size(subItemMarkerSize)
+                .clip(CircleShape)
+                .background(color.copy(alpha = 0.5f))
+        )
+        Spacer(Modifier.width(subItemMarkerGap))
+        Text(
+            text = segment.displayName,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f),
+            fontSize = 12.sp
+        )
+        Text(
+            text = formatDuration(segment.durationMs),
+            style = MaterialTheme.typography.labelSmall,
+            color = color.copy(alpha = 0.8f),
+            fontSize = 11.sp
+        )
+    }
+}
+
+@Composable
+private fun ActionCountTag(count: Int) {
+    val actionColor = Color(0xFFFF9800) // Orange for actions
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(10.dp))
+            .background(actionColor.copy(alpha = 0.15f))
+            .padding(horizontal = 6.dp, vertical = 2.dp)
+    ) {
+        Text(
+            text = stringResource(R.string.action_count_tag, count),
+            style = MaterialTheme.typography.labelSmall,
+            color = actionColor,
+            fontWeight = FontWeight.Medium,
+            fontSize = 10.sp
+        )
+    }
+}
+
+@Composable
+private fun ActionSubItem(action: ActionExecution) {
+    val actionColor = getActionColor(action.actionType)
+    val actionLabel = getActionLabel(action.actionType)
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(vertical = 3.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        // Diamond marker - same size/gap as SegmentSubItem for left alignment
+        Box(
+            modifier = Modifier
+                .size(subItemMarkerSize)
+                .clip(androidx.compose.foundation.shape.GenericShape { size, _ ->
+                    moveTo(size.width / 2, 0f)
+                    lineTo(size.width, size.height / 2)
+                    lineTo(size.width / 2, size.height)
+                    lineTo(0f, size.height / 2)
+                    close()
+                })
+                .background(actionColor)
+        )
+        Spacer(Modifier.width(subItemMarkerGap))
+
+        Column(modifier = Modifier.weight(1f)) {
+            // Action type badge + time
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .clip(RoundedCornerShape(3.dp))
+                        .background(actionColor.copy(alpha = 0.15f))
+                        .padding(horizontal = 4.dp, vertical = 1.dp)
+                ) {
+                    Text(
+                        text = actionLabel,
+                        style = MaterialTheme.typography.labelSmall,
+                        color = actionColor,
+                        fontSize = 10.sp
+                    )
+                }
+                Spacer(Modifier.width(6.dp))
+                Text(
+                    text = formatTime(action.timestamp),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    fontSize = 11.sp
+                )
+            }
+
+            // Condition description (truncated to 20 chars)
+            action.conditionDescription?.let { condition ->
+                if (condition.isNotBlank()) {
+                    val truncatedCondition = if (condition.length > 20) {
+                        condition.take(20) + "..."
+                    } else {
+                        condition
+                    }
+                    Spacer(Modifier.height(1.dp))
+                    Text(
+                        text = truncatedCondition,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        fontSize = 11.sp
+                    )
+                }
+            }
+
+            // Action parameter (for REMIND and AUTO_CLICK, truncated)
+            action.actionParameter?.let { param ->
+                if (param.isNotBlank()) {
+                    val displayText = when (action.actionType) {
+                        ActionType.REMIND -> {
+                            val truncated = if (param.length > 20) param.take(20) + "..." else param
+                            stringResource(R.string.action_remind_content_short, truncated)
+                        }
+                        ActionType.AUTO_CLICK -> stringResource(R.string.action_click_coordinate, param)
+                        else -> param
+                    }
+                    Spacer(Modifier.height(1.dp))
+                    Text(
+                        text = displayText,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                        fontSize = 11.sp
+                    )
+                }
+            }
+
+            // Error message if failed
+            if (!action.isSuccess && action.errorMessage != null) {
+                Spacer(Modifier.height(1.dp))
+                Text(
+                    text = action.errorMessage,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.error,
+                    fontSize = 11.sp
+                )
+            }
+        }
+    }
+}
+
+private fun getActionColor(actionType: ActionType): Color {
+    return when (actionType) {
+        ActionType.REMIND -> Color(0xFFFF9800)          // Orange
+        ActionType.AUTO_BACK -> Color(0xFFE91E63)       // Pink
+        ActionType.AUTO_CLICK -> Color(0xFF9C27B0)      // Purple
+        ActionType.AUTO_SCROLL_UP -> Color(0xFF00BCD4)  // Cyan
+        ActionType.AUTO_SCROLL_DOWN -> Color(0xFF03A9F4) // Light Blue
+        ActionType.ASK -> Color(0xFF4CAF50)              // Green
+    }
+}
+
+@Composable
+private fun getActionLabel(actionType: ActionType): String {
+    return when (actionType) {
+        ActionType.REMIND -> stringResource(R.string.action_remind_label_short)
+        ActionType.AUTO_BACK -> stringResource(R.string.action_auto_back_label_short)
+        ActionType.AUTO_CLICK -> stringResource(R.string.action_auto_click_label_short)
+        ActionType.AUTO_SCROLL_UP -> stringResource(R.string.action_auto_scroll_up_label_short)
+        ActionType.AUTO_SCROLL_DOWN -> stringResource(R.string.action_auto_scroll_down_label_short)
+        ActionType.ASK -> stringResource(R.string.action_ask_label_short)
     }
 }
 
@@ -793,7 +975,7 @@ private fun getDayLabel(dayIndex: Int, startMs: Long): String {
         else -> {
             val context = LocalContext.current
             val langCode = com.roderickqiu.seenot.utils.LanguageManager.getEffectiveLanguage(context)
-            val locale = Locale(langCode)
+            val locale = Locale.forLanguageTag(langCode)
             val sdf = SimpleDateFormat("MM-dd", locale)
             sdf.format(Date(startMs))
         }

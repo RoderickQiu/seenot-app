@@ -193,6 +193,13 @@
     <string name="label_collapse">收起</string>
     <string name="label_more_items">+ %1$d 项</string>
     <string name="label_session_summary">%1$s 等 %2$d 项</string>
+    <string name="label_session_summary_with_actions">%1$s 等 %2$d 项 · %3$d 个执行</string>
+
+    <!-- Action count tag -->
+    <string name="action_count_tag">%1$d 执行</string>
+
+    <!-- Action content (short, for timeline) -->
+    <string name="action_remind_content_short">内容: %1$s</string>
     <string name="label_summary">总结</string>
     <string name="label_timeline">时间轴</string>
     <string name="label_this_week">本周</string>
@@ -350,4 +357,17 @@
 
     <!-- Ask Action Hint -->
     <string name="ask_action_hint">提示：触发时会弹出面板，让你临时启用或禁用规则</string>
+
+    <!-- Action Timeline Labels (Short versions for timeline display) -->
+    <string name="action_remind_label_short">提醒</string>
+    <string name="action_auto_back_label_short">自动返回</string>
+    <string name="action_auto_click_label_short">自动点击</string>
+    <string name="action_auto_scroll_up_label_short">上滑</string>
+    <string name="action_auto_scroll_down_label_short">下滑</string>
+    <string name="action_ask_label_short">询问</string>
+
+    <!-- Action Timeline Details -->
+    <string name="action_triggered_by">触发条件: %1$s</string>
+    <string name="action_remind_content">提醒内容: %1$s</string>
+    <string name="action_click_coordinate">点击坐标: %1$s</string>
 </resources>

@@ -194,6 +194,13 @@
     <string name="label_collapse">Collapse</string>
     <string name="label_more_items">+ %1$d more</string>
     <string name="label_session_summary">%1$s and %2$d more</string>
+    <string name="label_session_summary_with_actions">%1$s and %2$d more · %3$d actions</string>
+
+    <!-- Action count tag -->
+    <string name="action_count_tag">%1$d actions</string>
+
+    <!-- Action content (short, for timeline) -->
+    <string name="action_remind_content_short">Msg: %1$s</string>
     <string name="label_summary">Summary</string>
     <string name="label_timeline">Timeline</string>
     <string name="label_this_week">This Week</string>
@@ -351,4 +358,17 @@
 
     <!-- Ask Action Hint -->
     <string name="ask_action_hint">Hint: A panel will pop up when triggered, allowing you to temporarily enable or disable rules</string>
+
+    <!-- Action Timeline Labels (Short versions for timeline display) -->
+    <string name="action_remind_label_short">Remind</string>
+    <string name="action_auto_back_label_short">Auto Back</string>
+    <string name="action_auto_click_label_short">Auto Click</string>
+    <string name="action_auto_scroll_up_label_short">Scroll Up</string>
+    <string name="action_auto_scroll_down_label_short">Scroll Down</string>
+    <string name="action_ask_label_short">Ask</string>
+
+    <!-- Action Timeline Details -->
+    <string name="action_triggered_by">Triggered by: %1$s</string>
+    <string name="action_remind_content">Message: %1$s</string>
+    <string name="action_click_coordinate">Coordinate: %1$s</string>
 </resources>

@@ -4,6 +4,7 @@ import android.content.Context
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.reflect.TypeToken
+import com.roderickqiu.seenot.data.AppSession
 import com.roderickqiu.seenot.service.AITranslationUtil
 import com.roderickqiu.seenot.utils.Logger
 import java.io.File
@@ -13,6 +14,7 @@ class LabelNormalizationRepo(private val context: Context) {
     private val observationsFile = File(context.filesDir, "screen_observations.json")
     private val labelsFile = File(context.filesDir, "content_labels.json")
     private val mergesFile = File(context.filesDir, "label_merge_suggestions.json")
+    private val actionExecutionRepo = ActionExecutionRepo(context)
 
     companion object {
         private const val TAG = "LabelNormalizationRepo"
@@ -358,6 +360,103 @@ class LabelNormalizationRepo(private val context: Context) {
         )
 
         return segments
+    }
+
+    /**
+     * Build a chronological list of timeline events (app sessions with embedded actions)
+     * for a date range. Events are sorted by timestamp in ascending order.
+     *
+     * This combines usage segments with action execution records to provide
+     * a complete timeline view of app usage and triggered actions.
+     * Actions are attached to the session they occurred within.
+     */
+    fun buildMixedTimeline(
+        startMs: Long,
+        endMs: Long,
+        languageCode: String? = null,
+        gapThresholdMs: Long = 5 * 60_000L,
+        sampleIntervalMs: Long = 5_000L
+    ): List<TimelineEvent> {
+        // Get usage segments
+        val segments = segmentObservations(startMs, endMs, languageCode, gapThresholdMs, sampleIntervalMs)
+
+        // Get action executions in the same time range
+        val actionExecutions = actionExecutionRepo.loadExecutionsInRange(startMs, endMs)
+
+        // Convert segments to sessions (group consecutive segments of same app) with actions
+        val sessions = groupSegmentsIntoSessionsWithActions(segments, actionExecutions)
+
+        // Build timeline events
+        return sessions.map { session ->
+            TimelineEvent(session = session, timestamp = session.startMs)
+        }
+    }
+
+    /**
+     * Group consecutive segments of the same app into sessions,
+     * and attach actions that occurred within each session's time range
+     */
+    private fun groupSegmentsIntoSessionsWithActions(
+        segments: List<UsageSegment>,
+        actions: List<ActionExecution>
+    ): List<AppSession> {
+        if (segments.isEmpty()) return emptyList()
+
+        val sessions = mutableListOf<AppSession>()
+        var currentSessionSegments = mutableListOf(segments[0])
+
+        for (i in 1 until segments.size) {
+            val current = segments[i]
+            val lastInSession = currentSessionSegments.last()
+
+            if (current.appName == lastInSession.appName) {
+                // Same app, add to current session
+                currentSessionSegments.add(current)
+            } else {
+                // Different app, finalize current session and start new one
+                val session = createSessionWithActions(currentSessionSegments, actions)
+                sessions.add(session)
+                currentSessionSegments = mutableListOf(current)
+            }
+        }
+
+        // Don't forget the last session
+        if (currentSessionSegments.isNotEmpty()) {
+            val session = createSessionWithActions(currentSessionSegments, actions)
+            sessions.add(session)
+        }
+
+        return sessions
+    }
+
+    private fun createSessionWithActions(
+        segments: List<UsageSegment>,
+        allActions: List<ActionExecution>
+    ): AppSession {
+        val sessionStart = segments.first().startMs
+        val sessionEnd = segments.last().endMs
+        val appName = segments.first().appName
+
+        // Find actions that belong to this session (same app and within time range)
+        val sessionActions = allActions.filter { action ->
+            action.appName == appName && action.timestamp in sessionStart..sessionEnd
+        }
+
+        // Create segment items
+        val segmentItems = segments.map { SessionItem.SegmentItem(it) }
+
+        // Create action items
+        val actionItems = sessionActions.map { SessionItem.ActionItem(it) }
+
+        // Interleave segments and actions by timestamp
+        val interleavedItems = (segmentItems + actionItems).sortedBy { it.timestamp }
+
+        return AppSession(
+            appName = appName,
+            startMs = sessionStart,
+            totalDurationMs = segments.sumOf { it.durationMs },
+            items = interleavedItems
+        )
     }
 
     /**
