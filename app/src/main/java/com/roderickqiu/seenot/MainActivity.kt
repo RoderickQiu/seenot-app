@@ -2,10 +2,13 @@ package com.roderickqiu.seenot
 
 import android.content.Context
 import android.content.Intent
+import android.net.Uri
 import android.os.Bundle
 import android.util.Log
 import android.widget.Toast
 import androidx.activity.ComponentActivity
+import java.io.FileOutputStream
+import java.util.Date
 import com.roderickqiu.seenot.components.ToastOverlay
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -206,116 +209,154 @@ class MainActivity : ComponentActivity() {
     }
 
     /**
-     * Export Activity Insights data as JSON file
+     * Export Activity Insights data as ZIP file
      */
+    @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
     private fun exportActivityInsights() {
-        try {
-            val repo = LabelNormalizationRepo(this)
-            val observations = repo.loadObservations()
-            val labels = repo.loadLabels()
-            val mergeSuggestions = repo.loadMergeSuggestions()
+        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+            try {
+                val repo = LabelNormalizationRepo(this@MainActivity)
 
-            val exportData = ActivityInsightsExport(
-                observations = observations,
-                labels = labels,
-                mergeSuggestions = mergeSuggestions,
-                exportDate = System.currentTimeMillis(),
-                exportVersion = "1.0"
-            )
+                // Create file in cache directory
+                val exportsDir = java.io.File(cacheDir, "exports").apply {
+                    if (!exists()) mkdirs()
+                }
+                val timestamp = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.getDefault()).format(java.util.Date())
+                val exportFile = java.io.File(exportsDir, "seenot_insights_$timestamp.zip")
 
-            val gson = GsonBuilder().setPrettyPrinting().create()
-            val jsonString = gson.toJson(exportData)
+                // Export to zip
+                FileOutputStream(exportFile).use { outputStream ->
+                    val result = repo.exportToZip(outputStream)
+                    if (result.isFailure) {
+                        throw result.exceptionOrNull() ?: Exception("Export failed")
+                    }
+                    val count = result.getOrDefault(0)
+                    Logger.i("MainActivity", "Exported $count observations to zip")
+                }
 
-            // Create file in cache directory
-            val exportsDir = java.io.File(cacheDir, "exports").apply {
-                if (!exists()) mkdirs()
+                // Share the file
+                val fileUri = androidx.core.content.FileProvider.getUriForFile(
+                    this@MainActivity,
+                    "${packageName}.fileprovider",
+                    exportFile
+                )
+
+                val shareIntent = Intent().apply {
+                    action = Intent.ACTION_SEND
+                    type = "application/zip"
+                    putExtra(Intent.EXTRA_STREAM, fileUri)
+                    putExtra(Intent.EXTRA_SUBJECT, "SeeNot Activity Insights Export")
+                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                }
+
+                val chooserIntent = Intent.createChooser(shareIntent, "Share Activity Insights")
+                chooserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                startActivity(chooserIntent)
+
+                kotlinx.coroutines.withContext(Dispatchers.Main) {
+                    ToastOverlay.show(this@MainActivity, "Activity Insights exported", 3000L)
+                }
+            } catch (e: Exception) {
+                Logger.e("MainActivity", "Failed to export activity insights", e)
+                kotlinx.coroutines.withContext(Dispatchers.Main) {
+                    ToastOverlay.show(this@MainActivity, "Export failed: ${e.message}", 5000L)
+                }
             }
-            val timestamp = java.text.SimpleDateFormat("yyyy-MM-dd_HH-mm-ss", java.util.Locale.getDefault()).format(java.util.Date())
-            val exportFile = java.io.File(exportsDir, "seenot_insights_$timestamp.json")
-            exportFile.writeText(jsonString)
-
-            // Share the file
-            val fileUri = androidx.core.content.FileProvider.getUriForFile(
-                this,
-                "${packageName}.fileprovider",
-                exportFile
-            )
-
-            val shareIntent = Intent().apply {
-                action = Intent.ACTION_SEND
-                type = "application/json"
-                putExtra(Intent.EXTRA_STREAM, fileUri)
-                putExtra(Intent.EXTRA_SUBJECT, "SeeNot Activity Insights Export")
-                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-
-            val chooserIntent = Intent.createChooser(shareIntent, "Share Activity Insights")
-            chooserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-            startActivity(chooserIntent)
-
-            ToastOverlay.show(this, "Activity Insights exported to file", 3000L)
-        } catch (e: Exception) {
-            Logger.e("MainActivity", "Failed to export activity insights", e)
-            ToastOverlay.show(this, "Export failed: ${e.message}", 5000L)
         }
     }
 
     /**
-     * Launch file picker to import Activity Insights from file
+     * Launch file picker to import Activity Insights from ZIP file
      */
     private fun launchImportInsightsFilePicker() {
         val intent = Intent(Intent.ACTION_OPEN_DOCUMENT).apply {
             addCategory(Intent.CATEGORY_OPENABLE)
-            type = "application/json"
-            putExtra(Intent.EXTRA_TITLE, "Select Activity Insights JSON file")
+            type = "application/zip"
+            putExtra(Intent.EXTRA_TITLE, "Select Activity Insights ZIP file")
         }
         importInsightsLauncher.launch(intent)
     }
 
     /**
-     * Import Activity Insights from file URI
+     * Import Activity Insights from file URI (supports both ZIP and legacy JSON)
      */
+    @OptIn(kotlinx.coroutines.DelicateCoroutinesApi::class)
     private fun importActivityInsightsFromUri(uri: android.net.Uri) {
-        try {
-            val jsonString = contentResolver.openInputStream(uri)?.use { stream ->
-                stream.bufferedReader().readText()
-            } ?: run {
-                ToastOverlay.show(this, "Cannot read file", 5000L)
-                return
+        kotlinx.coroutines.GlobalScope.launch(Dispatchers.IO) {
+            try {
+                val repo = LabelNormalizationRepo(this@MainActivity)
+                val fileName = getFileNameFromUri(uri)
+
+                contentResolver.openInputStream(uri)?.use { stream ->
+                    val result = if (fileName?.endsWith(".zip") == true) {
+                        // Import ZIP format
+                        repo.importFromZip(stream, merge = false)
+                    } else {
+                        // Try legacy JSON format
+                        val jsonString = stream.bufferedReader().readText()
+                        if (repo.importFromLegacyJson(jsonString, merge = false)) {
+                            Result.success(LabelNormalizationRepo.ImportResult(
+                                version = "1.0 (legacy)",
+                                labelsCount = 0,
+                                observationsCount = 0,
+                                mergeSuggestionsCount = 0
+                            ))
+                        } else {
+                            Result.failure(Exception("Failed to parse legacy JSON"))
+                        }
+                    }
+
+                    kotlinx.coroutines.withContext(Dispatchers.Main) {
+                        if (result.isSuccess) {
+                            val importResult = result.getOrNull()
+                            val message = if (importResult != null) {
+                                "Imported: ${importResult.observationsCount} observations, ${importResult.labelsCount} labels"
+                            } else {
+                                "Activity Insights imported successfully"
+                            }
+                            ToastOverlay.show(this@MainActivity, message, 3000L)
+                        } else {
+                            ToastOverlay.show(this@MainActivity, "Import failed: ${result.exceptionOrNull()?.message}", 5000L)
+                        }
+                    }
+                } ?: run {
+                    kotlinx.coroutines.withContext(Dispatchers.Main) {
+                        ToastOverlay.show(this@MainActivity, "Cannot read file", 5000L)
+                    }
+                }
+            } catch (e: Exception) {
+                Logger.e("MainActivity", "Failed to import activity insights from file", e)
+                kotlinx.coroutines.withContext(Dispatchers.Main) {
+                    ToastOverlay.show(this@MainActivity, "Import failed: ${e.message}", 5000L)
+                }
             }
-
-            val gson = GsonBuilder().create()
-            val exportData = gson.fromJson(jsonString, ActivityInsightsExport::class.java)
-
-            if (exportData == null) {
-                ToastOverlay.show(this, "Invalid JSON format", 5000L)
-                return
-            }
-
-            val repo = LabelNormalizationRepo(this)
-
-            // Save all data
-            exportData.observations?.let { repo.saveObservations(it) }
-            exportData.labels?.let { repo.saveLabels(it) }
-            exportData.mergeSuggestions?.let { repo.saveMergeSuggestions(it) }
-
-            ToastOverlay.show(this, "Activity Insights imported successfully", 3000L)
-        } catch (e: Exception) {
-            Logger.e("MainActivity", "Failed to import activity insights from file", e)
-            ToastOverlay.show(this, "Import failed: ${e.message}", 5000L)
         }
     }
 
     /**
-     * Data class for Activity Insights export/import
+     * Get file name from URI
      */
-    data class ActivityInsightsExport(
-        val observations: List<com.roderickqiu.seenot.data.ScreenObservation>? = null,
-        val labels: List<com.roderickqiu.seenot.data.ContentLabel>? = null,
-        val mergeSuggestions: List<com.roderickqiu.seenot.data.LabelMergeSuggestion>? = null,
-        val exportDate: Long = System.currentTimeMillis(),
-        val exportVersion: String = "1.0"
-    )
+    private fun getFileNameFromUri(uri: android.net.Uri): String? {
+        var result: String? = null
+        if (uri.scheme == "content") {
+            contentResolver.query(uri, null, null, null, null)?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    val displayNameIndex = cursor.getColumnIndex(android.provider.OpenableColumns.DISPLAY_NAME)
+                    if (displayNameIndex >= 0) {
+                        result = cursor.getString(displayNameIndex)
+                    }
+                }
+            }
+        }
+        if (result == null) {
+            result = uri.path
+            val cut = result?.lastIndexOf('/')
+            if (cut != -1) {
+                result = result?.substring(cut!! + 1)
+            }
+        }
+        return result
+    }
 
     private lateinit var importInsightsLauncher: androidx.activity.result.ActivityResultLauncher<android.content.Intent>
 
