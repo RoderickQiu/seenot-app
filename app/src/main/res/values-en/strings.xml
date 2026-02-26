@@ -371,4 +371,42 @@
     <string name="action_triggered_by">Triggered by: %1$s</string>
     <string name="action_remind_content">Message: %1$s</string>
     <string name="action_click_coordinate">Coordinate: %1$s</string>
+
+    <!-- Debug Stats -->
+    <string name="debug_stats">Debug Info</string>
+    <string name="debug_stats_title">AI Call Statistics</string>
+    <string name="stats_today">Today</string>
+    <string name="stats_this_week">This Week</string>
+    <string name="stats_overall">Overall</string>
+    <string name="stats_last_updated">Last updated: %1$s</string>
+    <string name="clear_stats">Clear Stats</string>
+    
+    <!-- AI Stats Labels -->
+    <string name="stats_requests_success_failed">Requests / Success / Failed</string>
+    <string name="stats_success_rate">Success Rate</string>
+    <string name="stats_rule_matches">Rule Matches</string>
+    <string name="stats_action_executions">Action Executions</string>
+    <string name="stats_total_tokens">Total Tokens</string>
+    <string name="stats_prompt_completion">Prompt / Completion</string>
+    <string name="stats_avg_latency">Avg Latency</string>
+    <string name="stats_latency_range">Latency Range</string>
+    <string name="stats_unit_ms">%1$d ms</string>
+    <string name="stats_latency_range_value">%1$d - %2$d ms</string>
+    <string name="stats_percent_value">%1$d%%</string>
+    
+    <!-- Debug Dialog - Activity Insights -->
+    <string name="debug_activity_insights">Activity Insights</string>
+    <string name="debug_apps_labels_count">%1$d apps · %2$d labels</string>
+    <string name="debug_no_labels">No labels</string>
+    <string name="debug_unused_labels">Unused Labels</string>
+    <string name="debug_all_labels">All Labels</string>
+    <string name="debug_app_label_count">%1$d labels</string>
+    <string name="debug_expand_labels">%1$d more labels · tap to expand</string>
+    <string name="debug_collapse">Collapse</string>
+    
+    <!-- Debug Dialog - Merge History -->
+    <string name="debug_merge_history">Merge History</string>
+    <string name="debug_merge_records_count">%1$d records</string>
+    <string name="debug_expand_all_records">%1$d more records · tap to expand all</string>
+    <string name="debug_no_merge_records">No merge records</string>
 </resources>

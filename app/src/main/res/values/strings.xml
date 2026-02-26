@@ -370,4 +370,42 @@
     <string name="action_triggered_by">触发条件: %1$s</string>
     <string name="action_remind_content">提醒内容: %1$s</string>
     <string name="action_click_coordinate">点击坐标: %1$s</string>
+
+    <!-- Debug Stats -->
+    <string name="debug_stats">调试信息</string>
+    <string name="debug_stats_title">AI 调用统计</string>
+    <string name="stats_today">当天</string>
+    <string name="stats_this_week">当周</string>
+    <string name="stats_overall">总体</string>
+    <string name="stats_last_updated">最后更新: %1$s</string>
+    <string name="clear_stats">清除统计</string>
+    
+    <!-- AI Stats Labels -->
+    <string name="stats_requests_success_failed">请求数 / 成功 / 失败</string>
+    <string name="stats_success_rate">成功率</string>
+    <string name="stats_rule_matches">规则匹配数</string>
+    <string name="stats_action_executions">执行次数</string>
+    <string name="stats_total_tokens">Token 总数</string>
+    <string name="stats_prompt_completion">Prompt / Completion</string>
+    <string name="stats_avg_latency">平均延迟</string>
+    <string name="stats_latency_range">延迟范围</string>
+    <string name="stats_unit_ms">%1$d ms</string>
+    <string name="stats_latency_range_value">%1$d - %2$d ms</string>
+    <string name="stats_percent_value">%1$d%%</string>
+    
+    <!-- Debug Dialog - Activity Insights -->
+    <string name="debug_activity_insights">使用洞察</string>
+    <string name="debug_apps_labels_count">%1$d 个应用 · %2$d 个标签</string>
+    <string name="debug_no_labels">暂无标签</string>
+    <string name="debug_unused_labels">未使用标签</string>
+    <string name="debug_all_labels">所有标签</string>
+    <string name="debug_app_label_count">%1$d 个标签</string>
+    <string name="debug_expand_labels">还有 %1$d 个标签 · 点击展开</string>
+    <string name="debug_collapse">收起</string>
+    
+    <!-- Debug Dialog - Merge History -->
+    <string name="debug_merge_history">合并历史</string>
+    <string name="debug_merge_records_count">%1$d 条记录</string>
+    <string name="debug_expand_all_records">还有 %1$d 条记录 · 点击展开全部</string>
+    <string name="debug_no_merge_records">暂无合并记录</string>
 </resources>

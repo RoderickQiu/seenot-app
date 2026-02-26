@@ -30,7 +30,8 @@ import com.roderickqiu.seenot.R
 fun AboutDialog(
     onDismiss: () -> Unit,
     versionName: String = "1.0",
-    versionCode: Int = 1
+    versionCode: Int = 1,
+    onDebugStatsClick: (() -> Unit)? = null
 ) {
     val context = LocalContext.current
 
@@ -108,6 +109,28 @@ fun AboutDialog(
                                 }
                         }
                     )
+                }
+
+                // Debug stats button
+                if (onDebugStatsClick != null) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Start,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        TextButton(
+                            onClick = onDebugStatsClick,
+                            colors = androidx.compose.material3.ButtonDefaults.textButtonColors(
+                                contentColor = MaterialTheme.colorScheme.secondary
+                            )
+                        ) {
+                            Text(
+                                text = context.getString(R.string.debug_stats),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
+                    }
                 }
             }
         },

@@ -8,6 +8,7 @@ import com.aallam.openai.api.http.Timeout
 import com.aallam.openai.api.model.ModelId
 import com.aallam.openai.client.OpenAI
 import com.aallam.openai.client.OpenAIHost
+import com.roderickqiu.seenot.data.AIStatsRepo
 import com.roderickqiu.seenot.utils.Logger
 import org.json.JSONObject
 import kotlin.time.Duration.Companion.seconds
@@ -43,9 +44,15 @@ object AITranslationUtil {
         val apiKey = AIServiceUtils.loadAiKey(context)
         if (apiKey.isBlank()) return items.associateWith { it }
 
+        val statsRepo = AIStatsRepo(context)
+        val startTime = System.currentTimeMillis()
+        var success = false
+        var promptTokens: Int? = null
+        var completionTokens: Int? = null
+
         val keyed = items.mapIndexed { i, s -> "item_$i" to s }
         val inputJson = keyed.joinToString(", ", "{", "}") { (k, v) ->
-            "\"$k\": ${JSONObject.quote(v)}"
+            """"$k": ${JSONObject.quote(v)}"""
         }
 
         val prompt = buildString {
@@ -69,8 +76,16 @@ object AITranslationUtil {
                 messages = listOf(ChatMessage(role = ChatRole.User, content = prompt)),
                 maxTokens = 800
             )
-            val raw = openAI.chatCompletion(request)
-                .choices.firstOrNull()?.message?.content.orEmpty()
+            val response = openAI.chatCompletion(request)
+            val raw = response.choices.firstOrNull()?.message?.content.orEmpty()
+
+            // Extract token usage if available
+            response.usage?.let {
+                promptTokens = it.promptTokens
+                completionTokens = it.completionTokens
+            }
+
+            success = raw.isNotBlank()
 
             val cleaned = raw.trim()
                 .removePrefix("```json").removePrefix("```")
@@ -83,10 +98,30 @@ object AITranslationUtil {
                 JSONObject(cleaned)
             }
 
-            keyed.associate { (k, original) ->
+            val result = keyed.associate { (k, original) ->
                 original to (json.optString(k).takeIf { it.isNotBlank() } ?: original)
             }
+
+            // Record stats after successful parsing
+            val latencyMs = System.currentTimeMillis() - startTime
+            statsRepo.recordApiCall(
+                success = success,
+                latencyMs = latencyMs,
+                promptTokens = promptTokens,
+                completionTokens = completionTokens,
+                matchedRules = 0
+            )
+
+            result
         } catch (e: Exception) {
+            val latencyMs = System.currentTimeMillis() - startTime
+            statsRepo.recordApiCall(
+                success = false,
+                latencyMs = latencyMs,
+                promptTokens = promptTokens,
+                completionTokens = completionTokens,
+                matchedRules = 0
+            )
             Logger.e(TAG, "translateBatch failed", e)
             items.associateWith { it }
         }

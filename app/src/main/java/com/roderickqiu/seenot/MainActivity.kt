@@ -55,6 +55,7 @@ import androidx.compose.ui.unit.sp
 import com.roderickqiu.seenot.R
 import com.roderickqiu.seenot.components.AboutDialog
 import com.roderickqiu.seenot.components.AddAppDialog
+import com.roderickqiu.seenot.components.DebugStatsDialog
 import com.roderickqiu.seenot.components.ImportExportDialog
 import com.roderickqiu.seenot.components.MonitoringAppItem
 import com.roderickqiu.seenot.components.PermissionBanner
@@ -414,6 +415,7 @@ class MainActivity : ComponentActivity() {
                 var showPermissionSettings by remember { mutableStateOf(false) }
                 var showAiSettings by remember { mutableStateOf(false) }
                 var showAboutDialog by remember { mutableStateOf(false) }
+                var showDebugStatsDialog by remember { mutableStateOf(false) }
                 var showImportExportDialog by remember { mutableStateOf(false) }
                 var showRuleRecordingDialog by remember { mutableStateOf(false) }
                 var showRuleRecordsPage by remember { mutableStateOf(false) }
@@ -707,7 +709,22 @@ class MainActivity : ComponentActivity() {
                     AboutDialog(
                         onDismiss = { showAboutDialog = false },
                         versionName = packageManager.getPackageInfo(packageName, 0).versionName ?: "1.0",
-                        versionCode = packageManager.getPackageInfo(packageName, 0).longVersionCode.toInt()
+                        versionCode = packageManager.getPackageInfo(packageName, 0).longVersionCode.toInt(),
+                        onDebugStatsClick = {
+                            showAboutDialog = false
+                            showDebugStatsDialog = true
+                        }
+                    )
+                }
+
+                if (showDebugStatsDialog) {
+                    DebugStatsDialog(
+                        onDismiss = { showDebugStatsDialog = false },
+                        onClearStats = {
+                            // Clear stats logic - would need to implement in AIStatsRepo
+                            // For now just dismiss
+                            showDebugStatsDialog = false
+                        }
                     )
                 }
             }

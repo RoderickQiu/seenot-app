@@ -12,6 +12,7 @@ import com.aallam.openai.api.http.Timeout
 import com.aallam.openai.api.model.ModelId
 import com.aallam.openai.client.OpenAI
 import com.aallam.openai.client.OpenAIHost
+import com.roderickqiu.seenot.data.AIStatsRepo
 import kotlin.text.RegexOption
 import kotlin.time.Duration.Companion.seconds
 import kotlinx.coroutines.Dispatchers
@@ -202,10 +203,15 @@ object AIServiceUtils {
     ): Pair<Double, String?> = withContext(Dispatchers.IO) {
         val apiKey = loadAiKey(context)
         val modelId = loadAiModelId(context)
+        val statsRepo = AIStatsRepo(context)
 
         if (apiKey.isEmpty()) {
             return@withContext Pair(0.0, "API key not configured")
         }
+
+        val startTime = System.currentTimeMillis()
+        var promptTokens: Int? = null
+        var completionTokens: Int? = null
 
         try {
             val base64Image = BitmapUtils.bitmapToBase64(bitmap)
@@ -239,13 +245,44 @@ object AIServiceUtils {
             val response = openAI.chatCompletion(request)
             val result = response.choices.firstOrNull()?.message?.content
 
+            // Extract token usage if available
+            response.usage?.let {
+                promptTokens = it.promptTokens
+                completionTokens = it.completionTokens
+            }
+
+            val latencyMs = System.currentTimeMillis() - startTime
+
             if (result != null) {
                 val confidence = parseConfidence(result)
+                // Record stats (1 rule match if confidence >= threshold)
+                statsRepo.recordApiCall(
+                    success = true,
+                    latencyMs = latencyMs,
+                    promptTokens = promptTokens,
+                    completionTokens = completionTokens,
+                    matchedRules = if (confidence >= CONFIDENCE_THRESHOLD) 1 else 0
+                )
                 Pair(confidence, null)
             } else {
+                statsRepo.recordApiCall(
+                    success = false,
+                    latencyMs = latencyMs,
+                    promptTokens = promptTokens,
+                    completionTokens = completionTokens,
+                    matchedRules = 0
+                )
                 Pair(0.0, "No response from AI")
             }
         } catch (e: Exception) {
+            val latencyMs = System.currentTimeMillis() - startTime
+            statsRepo.recordApiCall(
+                success = false,
+                latencyMs = latencyMs,
+                promptTokens = promptTokens,
+                completionTokens = completionTokens,
+                matchedRules = 0
+            )
             Log.e("AIServiceUtils", "Error evaluating description on image", e)
             Pair(0.0, e.message)
         }
@@ -265,6 +302,7 @@ object AIServiceUtils {
     ): String? = withContext(Dispatchers.IO) {
         val apiKey = loadAiKey(context)
         val modelId = loadAiModelId(context)
+        val statsRepo = AIStatsRepo(context)
 
         if (apiKey.isEmpty()) {
             return@withContext null
@@ -273,6 +311,11 @@ object AIServiceUtils {
         if (failedPositives.isEmpty() && failedNegatives.isEmpty()) {
             return@withContext null
         }
+
+        val startTime = System.currentTimeMillis()
+        var success = false
+        var promptTokens: Int? = null
+        var completionTokens: Int? = null
 
         try {
             val openAI = OpenAI(
@@ -331,6 +374,24 @@ object AIServiceUtils {
             val response = openAI.chatCompletion(request)
             val result = response.choices.firstOrNull()?.message?.content
 
+            // Extract token usage if available
+            response.usage?.let {
+                promptTokens = it.promptTokens
+                completionTokens = it.completionTokens
+            }
+
+            val latencyMs = System.currentTimeMillis() - startTime
+            success = result != null
+
+            // Record stats (no rule matches for description improvement calls)
+            statsRepo.recordApiCall(
+                success = success,
+                latencyMs = latencyMs,
+                promptTokens = promptTokens,
+                completionTokens = completionTokens,
+                matchedRules = 0
+            )
+
             if (result != null) {
                 // Parse the improved description from JSON response
                 val jsonStart = result.indexOf('{')
@@ -351,6 +412,14 @@ object AIServiceUtils {
             }
             null
         } catch (e: Exception) {
+            val latencyMs = System.currentTimeMillis() - startTime
+            statsRepo.recordApiCall(
+                success = false,
+                latencyMs = latencyMs,
+                promptTokens = promptTokens,
+                completionTokens = completionTokens,
+                matchedRules = 0
+            )
             Log.e("AIServiceUtils", "Error generating improved description", e)
             null
         }
