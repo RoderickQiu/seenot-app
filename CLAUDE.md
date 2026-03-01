@@ -93,7 +93,9 @@ Platform Service Layer
 - MediaRecorder for audio capture
 - DashScope STT (Paraformer) for speech-to-text
 - Fallback to manual text input
-- Auto-stop after 3 seconds of silence
+- Max recording duration: 30 seconds
+- Silence detection: 2 seconds triggers auto-stop
+- Audio format: M4A (AAC), 16kHz, 128kbps
 
 ### Intent Parser
 - Uses DashScope Qwen3 for NLU
@@ -112,6 +114,13 @@ Platform Service Layer
 - Continuous confirmation (2 consecutive violations for forced actions)
 - Cooldown period after forced actions
 - One-click override for false positives
+
+## Coding Conventions
+
+### API Design
+- Use real APIs only - no mocks or stubs
+- No legacy code - remove unused methods immediately
+- All API integrations must work end-to-end
 
 ## Project Structure
 

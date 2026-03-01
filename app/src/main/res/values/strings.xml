@@ -1,0 +1,94 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App -->
+    <string name="app_name">SeeNot</string>
+    <string name="app_tagline">AI 注意力管理助手</string>
+
+    <!-- Permissions -->
+    <string name="accessibility_service_description">SeeNot uses accessibility services to monitor app usage and enforce your declared intentions.</string>
+    <string name="permission_accessibility">无障碍服务</string>
+    <string name="permission_accessibility_desc">用于检测应用切换、截图和执行手势</string>
+    <string name="permission_overlay">悬浮窗权限</string>
+    <string name="permission_overlay_desc">用于显示语音输入和会话状态悬浮窗</string>
+
+    <!-- Tabs -->
+    <string name="tab_home">首页</string>
+    <string name="tab_apps">应用</string>
+    <string name="tab_settings">设置</string>
+
+    <!-- Home -->
+    <string name="welcome_title">欢迎使用 SeeNot</string>
+    <string name="permission_status">权限状态</string>
+    <string name="permissions_enabled">所有权限已开启，可以正常使用</string>
+    <string name="permissions_disabled">请开启所有必要权限</string>
+    <string name="usage_guide">使用说明</string>
+    <string name="step_1">在「应用」页面选择要管理的 App</string>
+    <string name="step_2">打开受控 App 时，语音声明你的意图</string>
+    <string name="step_3">AI 会实时守护你的意图，发现违规时提醒或干预</string>
+    <string name="example_utterance">例如：「只看工作消息，10分钟」</string>
+
+    <!-- Apps -->
+    <string name="search_apps">搜索应用...</string>
+    <string name="select_all">全选</string>
+    <string name="clear_all">清除</string>
+    <string name="controlled_apps">受控应用</string>
+
+    <!-- Settings -->
+    <string name="settings_title">设置</string>
+    <string name="language">语言 / Language</string>
+    <string name="intent_reuse_strategy">意图复用策略</string>
+    <string name="reuse_ask">每次询问</string>
+    <string name="reuse_reuse">默认复用上次意图</string>
+    <string name="reuse_new">默认新建意图</string>
+    <string name="auto_start">开机自启动</string>
+    <string name="auto_start_desc">系统启动时自动运行</string>
+    <string name="about">关于</string>
+    <string name="version">版本</string>
+
+    <!-- Voice Input -->
+    <string name="declare_intent">声明你的意图</string>
+    <string name="tap_to_speak">点击说话</string>
+    <string name="tap_to_stop">点击停止</string>
+    <string name="recording">正在录音...</string>
+    <string name="processing">正在解析...</string>
+    <string name="understanding_intent">正在理解你的意图...</string>
+    <string name="or_use_text">或使用文本输入</string>
+    <string name="skip">跳过</string>
+    <string name="confirm">确认</string>
+    <string name="try_again">再说一次</string>
+    <string name="continue_last_intent">继续使用上次意图</string>
+    <string name="input_your_intent">输入你的意图</string>
+    <string name="intent_placeholder">例如：只看工作消息，10分钟</string>
+
+    <!-- VoiceInputWindowOverlay -->
+    <string name="voice_input_title">声明你的意图</string>
+    <string name="voice_input_subtitle">用于 %s</string>
+    <string name="start_recording">开始录音</string>
+    <string name="stop_recording">停止录音</string>
+    <string name="use_text_input">使用文本输入</string>
+    <string name="input_intent_title">输入意图</string>
+    <string name="input_intent_hint">例如：只看工作消息，10分钟</string>
+    <string name="cancel">取消</string>
+    <string name="permission_required">需要权限</string>
+    <string name="open_settings">打开设置</string>
+
+    <!-- Session -->
+    <string name="session_active">会话进行中</string>
+    <string name="session_paused">会话已暂停</string>
+    <string name="time_remaining">剩余时间</string>
+    <string name="constraints">约束</string>
+    <string name="pause_session">暂停会话</string>
+    <string name="resume_session">继续会话</string>
+    <string name="end_session">结束会话</string>
+
+    <!-- Violations -->
+    <string name="violation_detected">检测到违规</string>
+    <string name="allow_once">这次放行</string>
+    <string name="attention">注意</string>
+
+    <!-- Foreground Service -->
+    <string name="fg_channel_name">SeeNot 运行中</string>
+    <string name="fg_channel_desc">用于保持 SeeNot 无障碍服务在后台运行</string>
+    <string name="fg_notification_title">SeeNot 正在运行</string>
+    <string name="fg_notification_text">AI 注意力管理已启用</string>
+</resources>

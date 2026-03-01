@@ -1,0 +1,76 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- App -->
+    <string name="app_name">SeeNot</string>
+    <string name="app_tagline">AI-Powered Attention Management</string>
+
+    <!-- Permissions -->
+    <string name="accessibility_service_description">SeeNot uses accessibility services to monitor app usage and enforce your declared intentions.</string>
+    <string name="permission_accessibility">Accessibility Service</string>
+    <string name="permission_accessibility_desc">Used to detect app switching, capture screenshots, and perform gestures</string>
+    <string name="permission_overlay">Overlay Permission</string>
+    <string name="permission_overlay_desc">Used to display voice input and session status floating windows</string>
+
+    <!-- Tabs -->
+    <string name="tab_home">Home</string>
+    <string name="tab_apps">Apps</string>
+    <string name="tab_settings">Settings</string>
+
+    <!-- Home -->
+    <string name="welcome_title">Welcome to SeeNot</string>
+    <string name="permission_status">Permission Status</string>
+    <string name="permissions_enabled">All permissions enabled, ready to use</string>
+    <string name="permissions_disabled">Please enable all required permissions</string>
+    <string name="usage_guide">How to Use</string>
+    <string name="step_1">Select apps to manage in the \"Apps\" tab</string>
+    <string name="step_2">When opening a controlled app, declare your intent via voice</string>
+    <string name="step_3">AI will monitor your intent in real-time and intervene when violations are detected</string>
+    <string name="example_utterance">Example: \"Only check work messages, 10 minutes\"</string>
+
+    <!-- Apps -->
+    <string name="search_apps">Search apps...</string>
+    <string name="select_all">Select All</string>
+    <string name="clear_all">Clear</string>
+    <string name="controlled_apps">Controlled Apps</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="language">Language</string>
+    <string name="intent_reuse_strategy">Intent Reuse Strategy</string>
+    <string name="reuse_ask">Ask Every Time</string>
+    <string name="reuse_reuse">Default to Reuse Last Intent</string>
+    <string name="reuse_new">Default to New Intent</string>
+    <string name="auto_start">Auto Start</string>
+    <string name="auto_start_desc">Run automatically when system starts</string>
+    <string name="about">About</string>
+    <string name="version">Version</string>
+
+    <!-- Voice Input -->
+    <string name="declare_intent">Declare Your Intent</string>
+    <string name="tap_to_speak">Tap to Speak</string>
+    <string name="tap_to_stop">Tap to Stop</string>
+    <string name="recording">Recording...</string>
+    <string name="processing">Processing...</string>
+    <string name="understanding_intent">Understanding your intent...</string>
+    <string name="or_use_text">Or use text input</string>
+    <string name="skip">Skip</string>
+    <string name="confirm">Confirm</string>
+    <string name="try_again">Try Again</string>
+    <string name="continue_last_intent">Continue Last Intent</string>
+    <string name="input_your_intent">Input your intent</string>
+    <string name="intent_placeholder">Example: Only check work messages, 10 minutes</string>
+
+    <!-- Session -->
+    <string name="session_active">Session Active</string>
+    <string name="session_paused">Session Paused</string>
+    <string name="time_remaining">Time Remaining</string>
+    <string name="constraints">Constraints</string>
+    <string name="pause_session">Pause Session</string>
+    <string name="resume_session">Resume Session</string>
+    <string name="end_session">End Session</string>
+
+    <!-- Violations -->
+    <string name="violation_detected">Violation Detected</string>
+    <string name="allow_once">Allow This Once</string>
+    <string name="attention">Attention</string>
+</resources>
