@@ -430,13 +430,13 @@ class ScreenAnalyzer(
             val session = sessionManager.activeSession.value
 
             if (session != null && session.constraints.isNotEmpty()) {
-                // Re-show overlay with session info
-                com.seenot.app.ui.overlay.FloatingIndicatorOverlay.show(
+                com.seenot.app.ui.overlay.FloatingIndicatorOverlay.showWithConstraints(
                     context = context,
                     appName = session.appDisplayName,
                     packageName = session.appPackageName,
                     sessionManager = sessionManager,
-                    onIntentConfirmed = { /* ignore - session already exists */ }
+                    constraints = session.constraints,
+                    onTapToReopen = { /* handled by service */ }
                 )
                 Log.d(TAG, "Re-showed floating overlay")
             }
@@ -752,22 +752,37 @@ class ScreenAnalyzer(
 
 ⚠️ 核心原则：简单直接，不要过度分析！
 
-1. **只识别界面类型**：
+**【关键】判断用户是否"正在使用"某功能，而不仅仅是"看到"某入口：**
+
+1. **区分"入口/列表" vs "详情/使用"**：
+   - 微信首页有"公众号"入口 → 不算违规（只是看到入口）
+   - 必须在公众号详情页/文章阅读界面 → 才算违规
+   - 小红书首页有"短视频"封面 → 不算违规（只是浏览列表）
+   - 必须是全屏播放短视频界面 → 才算违规
+   - 抖音/快手首页本身 → 算违规（本身就是短视频平台）
+
+2. **判断用户当前"所在"的位置**：
    - 用户在群聊界面 → 违反"禁止群"
    - 用户在文章阅读界面 → 违反"只看文章"
    - 用户在短视频界面 → 违反"不刷短视频"
    - 不要去分析内容是否"违规"，只判断界面类型
 
-2. **忽略悬浮窗**：右侧/角落的规则提示浮层不是内容，忽略。
+3. **忽略以下内容**：
+   - 右侧/角落的规则提示浮层
+   - 底部/顶部的导航栏
+   - 列表中的入口（如首页的推荐流中的公众号卡片）
 
-3. **只描述界面，不判断**：准确描述用户当前在什么界面即可。
+4. **只描述用户当前所在的界面**：
+   - "用户在微信-公众号详情页阅读文章" → 违规
+   - "用户在微信-首页浏览，有公众号入口" → 不违规
+   - "用户在抖音-首页推荐流" → 违规（因为抖音本身就是短视频）
 
 根据以下约束：
 $constraintsText
 
 输出JSON数组：
 [
-  { "constraint_id": "1", "reason": "界面描述", "decision": "matches/no_matches/unknown" }
+  { "constraint_id": "1", "reason": "用户当前所在的界面描述", "decision": "matches/no_matches/unknown" }
 ]
         """.trimIndent()
     }

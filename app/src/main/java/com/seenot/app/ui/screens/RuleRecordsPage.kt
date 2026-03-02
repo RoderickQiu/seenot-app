@@ -98,7 +98,8 @@ fun RuleRecordsPage(
     var currentDate by remember { mutableStateOf(Calendar.getInstance()) }
     var showDatePicker by remember { mutableStateOf(false) }
 
-    // Export state
+    // Export state: when non-null, export dialog exports this list (from multi-select)
+    var recordsToExport by remember { mutableStateOf<List<RuleRecord>?>(null) }
     var showExportDialog by remember { mutableStateOf(false) }
     var isExporting by remember { mutableStateOf(false) }
     var exportProgress by remember { mutableStateOf("") }
@@ -140,7 +141,10 @@ fun RuleRecordsPage(
                         Icon(Icons.Filled.DateRange, contentDescription = "选择日期")
                     }
                     IconButton(
-                        onClick = { showExportDialog = true },
+                        onClick = {
+                            recordsToExport = null
+                            showExportDialog = true
+                        },
                         enabled = records.isNotEmpty()
                     ) {
                         Icon(Icons.Filled.Share, contentDescription = "导出记录")
@@ -163,9 +167,17 @@ fun RuleRecordsPage(
                             val month = currentDate.get(Calendar.MONTH)
                             val day = currentDate.get(Calendar.DAY_OF_MONTH)
                             records = repository.getRecordsForDate(year, month, day)
+                            filteredRecords = when (selectedFilter) {
+                                RecordFilter.ALL -> records
+                                RecordFilter.MARKED -> records.filter { it.isMarked }
+                                RecordFilter.MATCHED -> records.filter { !it.isConditionMatched }
+                                RecordFilter.NOT_MATCHED -> records.filter { it.isConditionMatched }
+                            }
                         }
                     },
                     onExport = {
+                        recordsToExport = filteredRecords.filter { it.id in selectedRecords }
+                        showExportDialog = true
                         isMultiSelectMode = false
                         selectedRecords = emptySet()
                     },
@@ -329,23 +341,32 @@ fun RuleRecordsPage(
 
     // Export dialog
     if (showExportDialog) {
+        val recordsForDialog = recordsToExport ?: filteredRecords
         ExportRecordsDialog(
-            records = filteredRecords,
+            records = recordsForDialog,
+            exportFromSelection = recordsToExport != null,
             isExporting = isExporting,
             exportProgress = exportProgress,
-            onDismiss = { if (!isExporting) showExportDialog = false },
+            onDismiss = {
+                if (!isExporting) {
+                    recordsToExport = null
+                    showExportDialog = false
+                }
+            },
             onExport = { exportMarkedOnly ->
                 scope.launch {
                     isExporting = true
                     exportProgress = "正在准备导出..."
                     try {
-                        val recordsToExport = if (exportMarkedOnly) {
+                        val list = if (recordsToExport != null) {
+                            recordsToExport!!
+                        } else if (exportMarkedOnly) {
                             filteredRecords.filter { it.isMarked }
                         } else {
                             filteredRecords
                         }
 
-                        val exportUri = recordExporter.exportRecordsToZip(recordsToExport) { progress ->
+                        val exportUri = recordExporter.exportRecordsToZip(list) { progress ->
                             exportProgress = progress
                         }
 
@@ -361,6 +382,7 @@ fun RuleRecordsPage(
                     }
                     isExporting = false
                     exportProgress = ""
+                    recordsToExport = null
                     showExportDialog = false
                 }
             }
@@ -966,6 +988,7 @@ private fun RuleRecordsDatePickerDialog(
 @Composable
 private fun ExportRecordsDialog(
     records: List<com.seenot.app.data.model.RuleRecord>,
+    exportFromSelection: Boolean = false,
     isExporting: Boolean,
     exportProgress: String,
     onDismiss: () -> Unit,
@@ -995,23 +1018,29 @@ private fun ExportRecordsDialog(
                 } else {
                     // Show options
                     Text(
-                        text = "将 ${records.size} 条记录导出为 ZIP 文件，可包含截图。",
+                        text = if (exportFromSelection) {
+                            "将选中的 ${records.size} 条记录导出为 ZIP 文件，可包含截图。"
+                        } else {
+                            "将 ${records.size} 条记录导出为 ZIP 文件，可包含截图。"
+                        },
                         style = MaterialTheme.typography.bodyMedium
                     )
 
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Checkbox(
-                            checked = exportMarkedOnly,
-                            onCheckedChange = { exportMarkedOnly = it },
-                            enabled = records.any { it.isMarked }
-                        )
-                        Text(
-                            text = "仅导出已标记的记录 (${records.count { it.isMarked }} 条)",
-                            style = MaterialTheme.typography.bodyMedium
-                        )
+                    if (!exportFromSelection) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Checkbox(
+                                checked = exportMarkedOnly,
+                                onCheckedChange = { exportMarkedOnly = it },
+                                enabled = records.any { it.isMarked }
+                            )
+                            Text(
+                                text = "仅导出已标记的记录 (${records.count { it.isMarked }} 条)",
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                        }
                     }
                 }
             }
@@ -1019,7 +1048,7 @@ private fun ExportRecordsDialog(
         confirmButton = {
             if (!isExporting) {
                 Button(
-                    onClick = { onExport(exportMarkedOnly) },
+                    onClick = { onExport(if (exportFromSelection) false else exportMarkedOnly) },
                     enabled = records.isNotEmpty()
                 ) {
                     Text("导出")

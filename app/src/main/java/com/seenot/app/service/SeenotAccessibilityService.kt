@@ -25,6 +25,7 @@ import com.seenot.app.MainActivity
 import com.seenot.app.R
 import com.seenot.app.domain.SessionManager
 import com.seenot.app.ui.overlay.FloatingIndicatorOverlay
+import com.seenot.app.ui.overlay.IntentInputDialogOverlay
 import com.seenot.app.ui.overlay.VoiceInputOverlay
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -238,15 +239,13 @@ class SeenotAccessibilityService : AccessibilityService() {
                 // Switch from one monitored app to another
                 isSwitchingToDifferentApp && isControlledApp -> {
                     Log.d(TAG, "Case: Switching monitored app: $previousPackage -> $packageName")
-                    FloatingIndicatorOverlay.dismiss()
-                    VoiceInputOverlay.dismiss()
+                    dismissAllOverlays()
                     showIndicatorAndOverlay(packageName)
                 }
                 // Switch from monitored app to non-monitored app
                 isSwitchingToDifferentApp && !isControlledApp -> {
                     Log.d(TAG, "Case: Leaving monitored app: $previousPackage -> $packageName (non-controlled)")
 
-                    // End the active session if one exists
                     val currentSession = sessionManager.activeSession.value
                     if (currentSession != null) {
                         Log.d(TAG, "Ending session for $previousPackage")
@@ -255,8 +254,7 @@ class SeenotAccessibilityService : AccessibilityService() {
                         }
                     }
 
-                    FloatingIndicatorOverlay.dismiss()
-                    VoiceInputOverlay.dismiss()
+                    dismissAllOverlays()
                     currentMonitoredPackage = null
                 }
                 // Enter monitored app from non-monitored
@@ -279,17 +277,19 @@ class SeenotAccessibilityService : AccessibilityService() {
     }
 
     /**
-     * Show the floating indicator and prepare voice input overlay
+     * Show the overlay flow for a controlled app.
+     *
+     * If there's already an active session, show the compact indicator directly.
+     * Otherwise, show the intent input dialog first, then transition to the indicator
+     * after the user confirms rules.
      */
     private fun showIndicatorAndOverlay(packageName: String) {
         currentMonitoredPackage = packageName
 
         Log.d(TAG, "showIndicatorAndOverlay called for: $packageName")
 
-        // Get SessionManager
         val sessionManager = SessionManager.getInstance(this)
 
-        // Get app display name
         val appName = try {
             val appInfo = packageManager.getApplicationInfo(packageName, 0)
             packageManager.getApplicationLabel(appInfo).toString()
@@ -297,18 +297,39 @@ class SeenotAccessibilityService : AccessibilityService() {
             packageName
         }
 
-        Log.d(TAG, "Showing floating overlay for controlled app: $packageName")
+        val existingSession = sessionManager.activeSession.value
+        if (existingSession != null && existingSession.appPackageName == packageName) {
+            Log.d(TAG, "Active session exists, showing compact indicator for: $packageName")
+            showCompactIndicator(packageName, appName, sessionManager)
+            return
+        }
 
-        // Show the floating indicator overlay - 方案 A: 点击自动录音
-        // 用户点击悬浮球 → 自动开始录音 → 自动停止并处理 → 创建 Session
-        FloatingIndicatorOverlay.show(
+        Log.d(TAG, "No active session, showing intent input dialog for: $packageName")
+        showIntentInputDialog(packageName, appName, sessionManager)
+    }
+
+    private fun showIntentInputDialog(packageName: String, appName: String, sessionManager: SessionManager) {
+        IntentInputDialogOverlay.show(
             context = this,
             appName = appName,
             packageName = packageName,
             sessionManager = sessionManager,
             onIntentConfirmed = { constraints ->
-                // Create session in AccessibilityService (not MainScreen!)
-                Log.d(TAG, ">>> Creating session for $packageName")
+                Log.d(TAG, ">>> Intent confirmed, creating session for $packageName")
+                IntentInputDialogOverlay.dismiss()
+
+                FloatingIndicatorOverlay.showWithConstraints(
+                    context = this,
+                    appName = appName,
+                    packageName = packageName,
+                    sessionManager = sessionManager,
+                    constraints = constraints,
+                    onTapToReopen = {
+                        FloatingIndicatorOverlay.dismiss()
+                        showIntentInputDialog(packageName, appName, sessionManager)
+                    }
+                )
+
                 CoroutineScope(Dispatchers.Main + SupervisorJob()).launch {
                     try {
                         sessionManager.createSession(
@@ -321,28 +342,31 @@ class SeenotAccessibilityService : AccessibilityService() {
                         Log.e(TAG, "!!! Failed to create session: ${e.message}", e)
                     }
                 }
+            },
+            onDismissed = {
+                Log.d(TAG, "Dialog dismissed without confirming, showing compact indicator")
+                showCompactIndicator(packageName, appName, sessionManager)
             }
         )
     }
 
-    /**
-     * Show voice input overlay directly in the monitored app (like seenot-reborn's AskOverlay)
-     * Obsolete: FloatingIndicatorOverlay now handles everything directly
-     */
-    private fun showVoiceInputOverlay(packageName: String, appName: String) {
-        // Now handled by FloatingIndicatorOverlay directly
-        // This method kept for backward compatibility
-        val sessionManager = SessionManager.getInstance(this)
-
+    private fun showCompactIndicator(packageName: String, appName: String, sessionManager: SessionManager) {
         FloatingIndicatorOverlay.show(
             context = this,
             appName = appName,
             packageName = packageName,
             sessionManager = sessionManager,
-            onIntentConfirmed = { constraints ->
-                Log.d(TAG, "Session created for $packageName with ${constraints.size} constraints")
+            onTapToReopen = {
+                FloatingIndicatorOverlay.dismiss()
+                showIntentInputDialog(packageName, appName, sessionManager)
             }
         )
+    }
+
+    private fun dismissAllOverlays() {
+        IntentInputDialogOverlay.dismiss()
+        FloatingIndicatorOverlay.dismiss()
+        VoiceInputOverlay.dismiss()
     }
 
     override fun onInterrupt() {
@@ -352,7 +376,7 @@ class SeenotAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         super.onDestroy()
         stopForeground(STOP_FOREGROUND_REMOVE)
-        FloatingIndicatorOverlay.dismiss()
+        dismissAllOverlays()
         instance = null
         _isServiceReady.value = false
         Log.d(TAG, "AccessibilityService destroyed")

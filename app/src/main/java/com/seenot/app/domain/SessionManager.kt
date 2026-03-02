@@ -33,6 +33,10 @@ class SessionManager(private val context: Context) {
         private const val PREFS_NAME = "seenot_prefs"
         private const val KEY_CONTROLLED_APPS = "controlled_apps"
         private const val KEY_LAST_INTENT_PREFIX = "last_intent_"
+        private const val KEY_INTENT_HISTORY_PREFIX = "intent_history_"
+        private const val KEY_PRESET_RULES_PREFIX = "preset_rules_"
+        private const val KEY_AUTO_START = "auto_start"
+        private const val MAX_HISTORY_PER_APP = 10
 
         // Short vs long session pause threshold (ms)
         private const val SHORT_PAUSE_THRESHOLD = 30_000L // 30 seconds
@@ -431,10 +435,95 @@ class SessionManager(private val context: Context) {
     }
 
     /**
-     * Save last intent for an app (for "continue last intent" feature)
+     * Save intent for an app. Persists as "last intent" and also appends to
+     * the per-app history list (deduplicated by constraint fingerprint).
      */
     fun saveLastIntent(packageName: String, constraints: List<SessionConstraint>) {
-        val json = gson.toJson(constraints.map { constraint ->
+        val json = serializeConstraints(constraints)
+        prefs.edit().putString("${KEY_LAST_INTENT_PREFIX}$packageName", json).apply()
+        Log.d(TAG, "Saved last intent for $packageName: $json")
+
+        appendToIntentHistory(packageName, constraints)
+    }
+
+    /**
+     * Load last intent for an app
+     */
+    fun loadLastIntent(packageName: String): List<SessionConstraint>? {
+        val json = prefs.getString("${KEY_LAST_INTENT_PREFIX}$packageName", null) ?: return null
+        return deserializeConstraints(json)
+    }
+
+    /**
+     * Check if an app has last intent saved
+     */
+    fun hasLastIntent(packageName: String): Boolean {
+        return prefs.contains("${KEY_LAST_INTENT_PREFIX}$packageName")
+    }
+
+    /**
+     * Load all unique historical intents for a specific app.
+     * Most recent first. Each entry is a distinct rule set.
+     */
+    fun loadIntentHistory(packageName: String): List<List<SessionConstraint>> {
+        val json = prefs.getString("${KEY_INTENT_HISTORY_PREFIX}$packageName", null)
+            ?: return emptyList()
+        return try {
+            @Suppress("UNCHECKED_CAST")
+            val outerList = gson.fromJson(json, ArrayList::class.java) as ArrayList<ArrayList<Map<String, Any>>>
+            outerList.mapNotNull { entry -> deserializeConstraintList(entry) }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load intent history for $packageName", e)
+            emptyList()
+        }
+    }
+
+    private fun appendToIntentHistory(packageName: String, constraints: List<SessionConstraint>) {
+        val fingerprint = constraintFingerprint(constraints)
+
+        val existingJson = prefs.getString("${KEY_INTENT_HISTORY_PREFIX}$packageName", null)
+        val history = mutableListOf<List<Map<String, Any?>>>()
+
+        if (existingJson != null) {
+            try {
+                @Suppress("UNCHECKED_CAST")
+                val parsed = gson.fromJson(existingJson, ArrayList::class.java) as ArrayList<ArrayList<Map<String, Any>>>
+                for (entry in parsed) {
+                    val entryConstraints = deserializeConstraintList(entry)
+                    if (entryConstraints != null && constraintFingerprint(entryConstraints) != fingerprint) {
+                        history.add(entry.map { it.toMap() })
+                    }
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to parse existing history", e)
+            }
+        }
+
+        // Prepend the new entry (most recent first)
+        val newEntry = constraints.map { constraint ->
+            mapOf<String, Any?>(
+                "id" to constraint.id,
+                "type" to constraint.type.name,
+                "description" to constraint.description,
+                "timeLimitMs" to constraint.timeLimitMs,
+                "timeScope" to (constraint.timeScope?.name ?: "SESSION"),
+                "interventionLevel" to constraint.interventionLevel.name,
+                "isActive" to constraint.isActive
+            )
+        }
+        history.add(0, newEntry)
+
+        // Cap at MAX_HISTORY_PER_APP
+        val trimmed = history.take(MAX_HISTORY_PER_APP)
+        prefs.edit().putString("${KEY_INTENT_HISTORY_PREFIX}$packageName", gson.toJson(trimmed)).apply()
+        Log.d(TAG, "Updated intent history for $packageName, now ${trimmed.size} entries")
+    }
+
+    /**
+     * Save preset rules for a specific app.
+     */
+    fun savePresetRules(packageName: String, rules: List<SessionConstraint>) {
+        val json = gson.toJson(rules.map { constraint ->
             mapOf(
                 "id" to constraint.id,
                 "type" to constraint.type.name,
@@ -445,18 +534,101 @@ class SessionManager(private val context: Context) {
                 "isActive" to constraint.isActive
             )
         })
-        prefs.edit().putString("${KEY_LAST_INTENT_PREFIX}$packageName", json).apply()
-        Log.d(TAG, "Saved last intent for $packageName: $json")
+        prefs.edit().putString("${KEY_PRESET_RULES_PREFIX}$packageName", json).apply()
+        Log.d(TAG, "Saved ${rules.size} preset rules for $packageName")
     }
 
     /**
-     * Load last intent for an app
+     * Load preset rules for a specific app.
      */
+    fun loadPresetRules(packageName: String): List<SessionConstraint> {
+        val json = prefs.getString("${KEY_PRESET_RULES_PREFIX}$packageName", null) ?: return emptyList()
+        return try {
+            @Suppress("UNCHECKED_CAST")
+            val list = gson.fromJson(json, ArrayList::class.java) as ArrayList<Map<String, Any>>
+            list.mapNotNull { item ->
+                try {
+                    SessionConstraint(
+                        id = item["id"] as String,
+                        type = ConstraintType.valueOf(item["type"] as String),
+                        description = item["description"] as String,
+                        timeLimitMs = (item["timeLimitMs"] as? Number)?.toLong(),
+                        timeScope = try { TimeScope.valueOf(item["timeScope"] as? String ?: "SESSION") } catch (e: Exception) { TimeScope.SESSION },
+                        interventionLevel = try { InterventionLevel.valueOf(item["interventionLevel"] as? String ?: "MODERATE") } catch (e: Exception) { InterventionLevel.MODERATE },
+                        isActive = item["isActive"] as? Boolean ?: true
+                    )
+                } catch (e: Exception) {
+                    Log.e(TAG, "Failed to parse preset rule", e)
+                    null
+                }
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to load preset rules for $packageName", e)
+            emptyList()
+        }
+    }
+
+    /**
+     * Save intent history (for editing).
+     */
+    fun saveIntentHistory(packageName: String, history: List<List<SessionConstraint>>) {
+        val trimmed = history.take(MAX_HISTORY_PER_APP)
+        val json = gson.toJson(trimmed.map { constraints ->
+            constraints.map { constraint ->
+                mapOf<String, Any?>(
+                    "id" to constraint.id,
+                    "type" to constraint.type.name,
+                    "description" to constraint.description,
+                    "timeLimitMs" to constraint.timeLimitMs,
+                    "timeScope" to (constraint.timeScope?.name ?: "SESSION"),
+                    "interventionLevel" to constraint.interventionLevel.name,
+                    "isActive" to constraint.isActive
+                )
+            }
+        })
+        prefs.edit().putString("${KEY_INTENT_HISTORY_PREFIX}$packageName", json).apply()
+        Log.d(TAG, "Saved intent history for $packageName, ${trimmed.size} entries")
+    }
+
+    /**
+     * Fingerprint for deduplication: type+description+timeLimit sorted,
+     * so the same logical rule set won't appear twice.
+     */
+    private fun constraintFingerprint(constraints: List<SessionConstraint>): String {
+        return constraints
+            .sortedBy { "${it.type}|${it.description}|${it.timeLimitMs}" }
+            .joinToString(";") { "${it.type}|${it.description}|${it.timeLimitMs}" }
+    }
+
+    // --- Serialization helpers ---
+
+    private fun serializeConstraints(constraints: List<SessionConstraint>): String {
+        return gson.toJson(constraints.map { constraint ->
+            mapOf(
+                "id" to constraint.id,
+                "type" to constraint.type.name,
+                "description" to constraint.description,
+                "timeLimitMs" to constraint.timeLimitMs,
+                "timeScope" to (constraint.timeScope?.name ?: "SESSION"),
+                "interventionLevel" to constraint.interventionLevel.name,
+                "isActive" to constraint.isActive
+            )
+        })
+    }
+
     @Suppress("UNCHECKED_CAST")
-    fun loadLastIntent(packageName: String): List<SessionConstraint>? {
-        val json = prefs.getString("${KEY_LAST_INTENT_PREFIX}$packageName", null) ?: return null
+    private fun deserializeConstraints(json: String): List<SessionConstraint>? {
         return try {
             val list = gson.fromJson(json, ArrayList::class.java) as ArrayList<Map<String, Any>>
+            deserializeConstraintList(list)
+        } catch (e: Exception) {
+            Log.e(TAG, "Failed to deserialize constraints", e)
+            null
+        }
+    }
+
+    private fun deserializeConstraintList(list: List<Map<String, Any>>): List<SessionConstraint>? {
+        return try {
             list.mapNotNull { item ->
                 try {
                     SessionConstraint(
@@ -472,19 +644,13 @@ class SessionManager(private val context: Context) {
                     Log.e(TAG, "Failed to parse constraint", e)
                     null
                 }
-            }
+            }.ifEmpty { null }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to load last intent", e)
+            Log.e(TAG, "Failed to deserialize constraint list", e)
             null
         }
     }
 
-    /**
-     * Check if an app has last intent saved
-     */
-    fun hasLastIntent(packageName: String): Boolean {
-        return prefs.contains("${KEY_LAST_INTENT_PREFIX}$packageName")
-    }
 
     /**
      * Update controlled apps set
@@ -512,6 +678,21 @@ class SessionManager(private val context: Context) {
         _controlledApps.value = newApps
         saveControlledApps(newApps)
         Log.d(TAG, "Removed controlled app: $packageName")
+    }
+
+    /**
+     * Get auto-start setting
+     */
+    fun isAutoStartEnabled(): Boolean {
+        return prefs.getBoolean(KEY_AUTO_START, false)
+    }
+
+    /**
+     * Set auto-start setting
+     */
+    fun setAutoStartEnabled(enabled: Boolean) {
+        prefs.edit().putBoolean(KEY_AUTO_START, enabled).apply()
+        Log.d(TAG, "Auto-start set to: $enabled")
     }
 
     /**
@@ -591,3 +772,4 @@ enum class SessionEndReason {
     VIOLATION,
     COMPLETED
 }
+
