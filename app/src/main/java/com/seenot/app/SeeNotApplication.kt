@@ -9,8 +9,8 @@ class SeeNotApplication : Application() {
     companion object {
         private const val TAG = "SeeNotApplication"
 
-        // Default API key from .env - replace with actual key or set via settings
-        private const val DEFAULT_API_KEY = "REMOVED_API_KEY"
+        // Default API key from BuildConfig (loaded from local.properties)
+        private const val DEFAULT_API_KEY = BuildConfig.DASHSCOPE_API_KEY
         private const val DEFAULT_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     }
 

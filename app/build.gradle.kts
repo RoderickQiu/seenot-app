@@ -15,6 +15,10 @@ android {
         versionCode = 1
         versionName = "1.0.0"
 
+        // Load API key from local.properties (not committed to git)
+        val dashscopeKey = project.findProperty("DASHSCOPE_API_KEY") as? String ?: ""
+        buildConfigField("String", "DASHSCOPE_API_KEY", "\"$dashscopeKey\"")
+
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {
             useSupportLibrary = true
