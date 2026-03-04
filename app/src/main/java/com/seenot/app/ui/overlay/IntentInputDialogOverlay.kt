@@ -109,10 +109,12 @@ class IntentInputDialogOverlay(
     private var micIcon: ImageView? = null
     private var micBg: View? = null
     private var statusText: TextView? = null
+    private var presetContainer: LinearLayout? = null
     private var historyContainer: LinearLayout? = null
     private var confirmButton: LinearLayout? = null
     private var confirmText: TextView? = null
     private var rulesPreviewText: TextView? = null
+    private var presetRules: List<SessionConstraint> = emptyList()
 
     @SuppressLint("ClickableViewAccessibility")
     fun show() {
@@ -333,6 +335,49 @@ class IntentInputDialogOverlay(
         }
         card.addView(divider)
 
+        // Preset rules section title
+        val presetTitle = TextView(context).apply {
+            text = "预设规则"
+            textSize = 13f
+            setTextColor(subtleTextColor)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = 8.dp() }
+        }
+        card.addView(presetTitle)
+
+        // Preset rules list (scrollable)
+        val presetScrollView = ScrollView(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            isVerticalScrollBarEnabled = false
+        }
+
+        presetContainer = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+        presetScrollView.addView(presetContainer)
+        card.addView(presetScrollView)
+
+        // Divider between preset and history
+        val divider2 = View(context).apply {
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, 1
+            ).apply {
+                topMargin = 12.dp()
+                bottomMargin = 12.dp()
+            }
+            setBackgroundColor(cardBorderColor)
+        }
+        card.addView(divider2)
+
         // History section title
         val historyTitle = TextView(context).apply {
             text = "历史规则"
@@ -373,7 +418,8 @@ class IntentInputDialogOverlay(
         scrollView.addView(historyContainer)
         card.addView(scrollView)
 
-        // Populate history
+        // Populate preset and history
+        populatePresets()
         populateHistory()
 
         // Skip button at bottom
@@ -414,10 +460,82 @@ class IntentInputDialogOverlay(
     }
 
     @SuppressLint("SetTextI18n")
+    private fun populatePresets() {
+        presetContainer?.removeAllViews()
+
+        presetRules = sessionManager.loadPresetRules(packageName)
+
+        if (presetRules.isEmpty()) {
+            val emptyText = TextView(context).apply {
+                text = "暂无预设规则"
+                textSize = 13f
+                setTextColor(subtleTextColor)
+                gravity = Gravity.CENTER
+                setPadding(0, 12.dp(), 0, 12.dp())
+            }
+            presetContainer?.addView(emptyText)
+            return
+        }
+
+        for (constraints in presetRules) {
+            val row = buildPresetRow(constraints)
+            presetContainer?.addView(row)
+        }
+    }
+
+    @SuppressLint("SetTextI18n")
+    private fun buildPresetRow(constraints: SessionConstraint): View {
+        val row = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(14.dp(), 10.dp(), 14.dp(), 10.dp())
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = 6.dp() }
+            background = GradientDrawable().apply {
+                setColor(historyBgColor)
+                cornerRadius = 10.dp().toFloat()
+            }
+            setOnClickListener {
+                selectPresetIntent(constraints)
+            }
+        }
+
+        val constraintText = when (constraints.type) {
+            ConstraintType.ALLOW -> "允许 ${constraints.description.take(10)}"
+            ConstraintType.DENY -> "禁止 ${constraints.description.take(10)}"
+            ConstraintType.TIME_CAP -> {
+                val min = constraints.timeLimitMs?.let { it / 60000 } ?: 0
+                "限时 ${min}分"
+            }
+        }
+        val descText = TextView(context).apply {
+            text = constraintText
+            textSize = 14f
+            setTextColor(textColor)
+            maxLines = 2
+        }
+        row.addView(descText)
+
+        return row
+    }
+
+    private fun selectPresetIntent(constraints: SessionConstraint) {
+        pendingConstraints = listOf(constraints)
+        confirmAndTransition()
+    }
+
     private fun populateHistory() {
         historyContainer?.removeAllViews()
 
-        val history = sessionManager.loadIntentHistory(packageName)
+        // Load preset rules first to filter out duplicates
+        val loadedPresetRules = sessionManager.loadPresetRules(packageName)
+        val presetFingerprints = loadedPresetRules.map { sessionManager.getConstraintFingerprint(listOf(it)) }.toSet()
+
+        val history = sessionManager.loadIntentHistory(packageName).filter { historyEntry ->
+            val fingerprint = sessionManager.getConstraintFingerprint(historyEntry)
+            fingerprint !in presetFingerprints
+        }
 
         if (history.isEmpty()) {
             val emptyText = TextView(context).apply {

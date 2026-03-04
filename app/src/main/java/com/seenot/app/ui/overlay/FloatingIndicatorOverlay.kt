@@ -317,6 +317,10 @@ class FloatingIndicatorOverlay(
 
                 buildString {
                     append("限时 ")
+                    if (constraint.description.isNotEmpty()) {
+                        append(constraint.description.take(8))
+                        append(" ")
+                    }
                     append(timeStr)
                 }
             }

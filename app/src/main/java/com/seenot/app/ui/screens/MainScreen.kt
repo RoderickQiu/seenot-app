@@ -639,41 +639,133 @@ fun AppRulesDialog(
     var presetRules by remember { mutableStateOf<List<SessionConstraint>>(emptyList()) }
     var showAddPresetDialog by remember { mutableStateOf(false) }
     var editingRuleIndex by remember { mutableStateOf<Int?>(null) }
+    var editingPresetIndex by remember { mutableStateOf<Int?>(null) }
 
     // Load rules
     LaunchedEffect(app.packageName) {
-        historyRules = sessionManager.loadIntentHistory(app.packageName)
-        presetRules = sessionManager.loadPresetRules(app.packageName)
+        val loadedPresetRules = sessionManager.loadPresetRules(app.packageName)
+        presetRules = loadedPresetRules
+
+        // Filter out history rules that duplicate preset rules
+        val loadedHistoryRules = sessionManager.loadIntentHistory(app.packageName)
+        val presetFingerprints = loadedPresetRules.map { sessionManager.getConstraintFingerprint(listOf(it)) }.toSet()
+        historyRules = loadedHistoryRules.filter { history ->
+            val fingerprint = sessionManager.getConstraintFingerprint(history)
+            fingerprint !in presetFingerprints
+        }
     }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("${app.name} 的规则") },
         text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                // History Rules Section
-                Text(
-                    text = "历史规则",
-                    style = MaterialTheme.typography.titleSmall,
-                    color = MaterialTheme.colorScheme.primary
-                )
-                Spacer(modifier = Modifier.height(8.dp))
+            LazyColumn(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 400.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                // Preset Rules Section
+                item {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "预设规则",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        TextButton(onClick = { showAddPresetDialog = true }) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("添加")
+                        }
+                    }
+                }
 
-                if (historyRules.isEmpty()) {
-                    Text(
-                        text = "暂无历史规则",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else {
-                    historyRules.forEachIndexed { index, constraints ->
-                        Card(
+                item {
+                    if (presetRules.isEmpty()) {
+                        Text(
+                            text = "暂无预设规则，点击添加按钮创建",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                items(presetRules.size) { index ->
+                    val constraint = presetRules[index]
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { editingPresetIndex = index }
+                    ) {
+                        Row(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            onClick = { editingRuleIndex = index }
+                                .padding(8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
-                            Column(modifier = Modifier.padding(8.dp)) {
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = "${constraint.type.name}: ${constraint.description}",
+                                    style = MaterialTheme.typography.bodySmall
+                                )
+                            }
+                            IconButton(
+                                onClick = {
+                                    val newPresets = presetRules.toMutableList().apply { removeAt(index) }
+                                    presetRules = newPresets
+                                    sessionManager.savePresetRules(app.packageName, newPresets)
+                                },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = "删除",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
+                        }
+                    }
+                }
+
+                item {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "历史规则",
+                        style = MaterialTheme.typography.titleSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                item {
+                    if (historyRules.isEmpty()) {
+                        Text(
+                            text = "暂无历史规则",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                items(historyRules.size) { index ->
+                    val constraints = historyRules[index]
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        onClick = { editingRuleIndex = index }
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Column(modifier = Modifier.weight(1f)) {
                                 constraints.forEach { constraint ->
                                     Text(
                                         text = "${constraint.type.name}: ${constraint.description}",
@@ -681,73 +773,20 @@ fun AppRulesDialog(
                                     )
                                 }
                             }
-                        }
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(16.dp))
-
-                // Preset Rules Section
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Text(
-                        text = "预设规则",
-                        style = MaterialTheme.typography.titleSmall,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    TextButton(onClick = { showAddPresetDialog = true }) {
-                        Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(4.dp))
-                        Text("添加")
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                if (presetRules.isEmpty()) {
-                    Text(
-                        text = "暂无预设规则，点击添加按钮创建",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                } else {
-                    presetRules.forEachIndexed { index, constraint ->
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
+                            IconButton(
+                                onClick = {
+                                    val newHistory = historyRules.toMutableList().apply { removeAt(index) }
+                                    historyRules = newHistory
+                                    sessionManager.saveIntentHistory(app.packageName, newHistory)
+                                },
+                                modifier = Modifier.size(24.dp)
                             ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "${constraint.type.name}: ${constraint.description}",
-                                        style = MaterialTheme.typography.bodySmall
-                                    )
-                                }
-                                IconButton(
-                                    onClick = {
-                                        val newPresets = presetRules.toMutableList().apply { removeAt(index) }
-                                        presetRules = newPresets
-                                        sessionManager.savePresetRules(app.packageName, newPresets)
-                                    },
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Delete,
-                                        contentDescription = "删除",
-                                        tint = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.size(18.dp)
-                                    )
-                                }
+                                Icon(
+                                    Icons.Default.Delete,
+                                    contentDescription = "删除",
+                                    tint = MaterialTheme.colorScheme.error,
+                                    modifier = Modifier.size(18.dp)
+                                )
                             }
                         }
                     }
@@ -787,6 +826,24 @@ fun AppRulesDialog(
                     historyRules = newHistory
                     sessionManager.saveIntentHistory(app.packageName, newHistory)
                     editingRuleIndex = null
+                }
+            )
+        }
+    }
+
+    // Edit Preset Rule Dialog
+    editingPresetIndex?.let { index ->
+        if (index < presetRules.size) {
+            EditPresetRuleDialog(
+                constraint = presetRules[index],
+                onDismiss = { editingPresetIndex = null },
+                onSave = { updatedConstraint ->
+                    val newPresets = presetRules.toMutableList().apply {
+                        this[index] = updatedConstraint
+                    }
+                    presetRules = newPresets
+                    sessionManager.savePresetRules(app.packageName, newPresets)
+                    editingPresetIndex = null
                 }
             )
         }
@@ -939,6 +996,154 @@ fun AddPresetRuleDialog(
 }
 
 /**
+ * Edit Preset Rule Dialog
+ */
+@Composable
+fun EditPresetRuleDialog(
+    constraint: SessionConstraint,
+    onDismiss: () -> Unit,
+    onSave: (SessionConstraint) -> Unit
+) {
+    var ruleType by remember { mutableStateOf(constraint.type) }
+    var description by remember { mutableStateOf(constraint.description) }
+    var timeLimitMinutes by remember { mutableStateOf(constraint.timeLimitMs?.let { (it / 60000).toString() } ?: "") }
+    var interventionLevel by remember { mutableStateOf(constraint.interventionLevel) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("编辑预设规则") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Rule Type
+                Text(text = "规则类型", style = MaterialTheme.typography.labelMedium)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ConstraintType.entries.forEach { type ->
+                        FilterChip(
+                            selected = ruleType == type,
+                            onClick = { ruleType = type },
+                            label = {
+                                Text(
+                                    when (type) {
+                                        ConstraintType.ALLOW -> "允许"
+                                        ConstraintType.DENY -> "禁止"
+                                        ConstraintType.TIME_CAP -> "时间限制"
+                                    }
+                                )
+                            }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Description
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("描述") },
+                    placeholder = { Text("例如：短视频、游戏") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Time Limit (optional for TIME_CAP)
+                if (ruleType == ConstraintType.TIME_CAP) {
+                    OutlinedTextField(
+                        value = timeLimitMinutes,
+                        onValueChange = { timeLimitMinutes = it.filter { c -> c.isDigit() } },
+                        label = { Text("时间限制（分钟）") },
+                        placeholder = { Text("例如：30") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                // Intervention Level
+                Text(text = "干预级别", style = MaterialTheme.typography.labelMedium)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    InterventionLevel.entries.forEach { level ->
+                        FilterChip(
+                            selected = interventionLevel == level,
+                            onClick = { interventionLevel = level },
+                            label = {
+                                Text(
+                                    when (level) {
+                                        InterventionLevel.GENTLE -> "温柔"
+                                        InterventionLevel.MODERATE -> "中等"
+                                        InterventionLevel.STRICT -> "严格"
+                                    }
+                                )
+                            }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Intervention level description
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Text(
+                        text = when (interventionLevel) {
+                            InterventionLevel.GENTLE -> "仅提醒：弹出提示框提醒用户，但不阻止操作。用户可以继续当前行为。"
+                            InterventionLevel.MODERATE -> "提醒+返回：弹出提示框，并自动返回上一个界面。适合想要中断但不需要强制禁止的场景。"
+                            InterventionLevel.STRICT -> "强制返回：直接返回主屏幕，强制中断当前行为。适合需要强力遏制的场景。"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (description.isNotBlank()) {
+                        val timeLimitMs = if (ruleType == ConstraintType.TIME_CAP && timeLimitMinutes.isNotBlank()) {
+                            timeLimitMinutes.toLongOrNull()?.times(60 * 1000)
+                        } else null
+
+                        onSave(
+                            SessionConstraint(
+                                id = constraint.id,
+                                type = ruleType,
+                                description = description,
+                                timeLimitMs = timeLimitMs,
+                                timeScope = constraint.timeScope,
+                                interventionLevel = interventionLevel,
+                                isActive = constraint.isActive
+                            )
+                        )
+                    }
+                },
+                enabled = description.isNotBlank()
+            ) {
+                Text("保存")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消")
+            }
+        }
+    )
+}
+
+/**
  * Edit History Rule Dialog
  */
 @Composable
@@ -948,6 +1153,10 @@ fun EditHistoryRuleDialog(
     onSave: (List<SessionConstraint>) -> Unit
 ) {
     var editedConstraints by remember { mutableStateOf(constraints.toMutableList()) }
+    var editingIndex by remember { mutableStateOf<Int?>(null) }
+
+    // Edit single constraint dialog
+    val editingConstraint = editingIndex?.let { editedConstraints.getOrNull(it) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -967,22 +1176,39 @@ fun EditHistoryRuleDialog(
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
                                 Text(
-                                    text = constraint.type.name,
+                                    text = when (constraint.type) {
+                                        ConstraintType.ALLOW -> "允许"
+                                        ConstraintType.DENY -> "禁止"
+                                        ConstraintType.TIME_CAP -> "时间限制"
+                                    },
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.primary
                                 )
-                                IconButton(
-                                    onClick = {
-                                        editedConstraints = editedConstraints.toMutableList().apply { removeAt(index) }
-                                    },
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Delete,
-                                        contentDescription = "删除",
-                                        tint = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.size(18.dp)
-                                    )
+                                Row {
+                                    IconButton(
+                                        onClick = { editingIndex = index },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Edit,
+                                            contentDescription = "编辑",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            editedConstraints = editedConstraints.toMutableList().apply { removeAt(index) }
+                                        },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = "删除",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
                                 }
                             }
 
@@ -1027,6 +1253,168 @@ fun EditHistoryRuleDialog(
         confirmButton = {
             TextButton(onClick = onDismiss) {
                 Text("关闭")
+            }
+        }
+    )
+
+    // Edit single constraint dialog
+    editingConstraint?.let { constraint ->
+        val constraintIndex = editingIndex!!
+        EditConstraintDialog(
+            constraint = constraint,
+            onDismiss = { editingIndex = null },
+            onSave = { updatedConstraint ->
+                editedConstraints = editedConstraints.toMutableList().apply {
+                    this[constraintIndex] = updatedConstraint
+                }
+                editingIndex = null
+            }
+        )
+    }
+}
+
+/**
+ * Edit Single Constraint Dialog
+ */
+@Composable
+fun EditConstraintDialog(
+    constraint: SessionConstraint,
+    onDismiss: () -> Unit,
+    onSave: (SessionConstraint) -> Unit
+) {
+    var ruleType by remember { mutableStateOf(constraint.type) }
+    var description by remember { mutableStateOf(constraint.description) }
+    var timeLimitMinutes by remember {
+        mutableStateOf(constraint.timeLimitMs?.let { (it / 60000).toString() } ?: "")
+    }
+    var interventionLevel by remember { mutableStateOf(constraint.interventionLevel) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("编辑规则项") },
+        text = {
+            Column(modifier = Modifier.fillMaxWidth()) {
+                // Rule Type
+                Text(text = "规则类型", style = MaterialTheme.typography.labelMedium)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    ConstraintType.entries.forEach { type ->
+                        FilterChip(
+                            selected = ruleType == type,
+                            onClick = { ruleType = type },
+                            label = {
+                                Text(
+                                    when (type) {
+                                        ConstraintType.ALLOW -> "允许"
+                                        ConstraintType.DENY -> "禁止"
+                                        ConstraintType.TIME_CAP -> "时间限制"
+                                    }
+                                )
+                            }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Description
+                OutlinedTextField(
+                    value = description,
+                    onValueChange = { description = it },
+                    label = { Text("描述") },
+                    placeholder = { Text("例如：短视频、游戏") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Time Limit (optional for TIME_CAP)
+                if (ruleType == ConstraintType.TIME_CAP) {
+                    OutlinedTextField(
+                        value = timeLimitMinutes,
+                        onValueChange = { timeLimitMinutes = it.filter { c -> c.isDigit() } },
+                        label = { Text("时间限制（分钟）") },
+                        placeholder = { Text("例如：30") },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                // Intervention Level
+                Text(text = "干预级别", style = MaterialTheme.typography.labelMedium)
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    InterventionLevel.entries.forEach { level ->
+                        FilterChip(
+                            selected = interventionLevel == level,
+                            onClick = { interventionLevel = level },
+                            label = {
+                                Text(
+                                    when (level) {
+                                        InterventionLevel.GENTLE -> "温柔"
+                                        InterventionLevel.MODERATE -> "中等"
+                                        InterventionLevel.STRICT -> "严格"
+                                    }
+                                )
+                            }
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                // Intervention level description
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Text(
+                        text = when (interventionLevel) {
+                            InterventionLevel.GENTLE -> "仅提醒：弹出提示框提醒用户，但不阻止操作。"
+                            InterventionLevel.MODERATE -> "提醒+返回：弹出提示框，并自动返回上一个界面。"
+                            InterventionLevel.STRICT -> "强制返回：直接返回主屏幕，强制中断当前行为。"
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(12.dp)
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = {
+                    if (description.isNotBlank()) {
+                        val timeLimitMs = if (ruleType == ConstraintType.TIME_CAP && timeLimitMinutes.isNotBlank()) {
+                            timeLimitMinutes.toLongOrNull()?.times(60 * 1000)
+                        } else null
+
+                        onSave(
+                            constraint.copy(
+                                type = ruleType,
+                                description = description,
+                                timeLimitMs = timeLimitMs,
+                                interventionLevel = interventionLevel
+                            )
+                        )
+                    }
+                },
+                enabled = description.isNotBlank()
+            ) {
+                Text("保存")
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("取消")
             }
         }
     )

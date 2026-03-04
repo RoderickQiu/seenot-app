@@ -594,10 +594,14 @@ class SessionManager(private val context: Context) {
      * Fingerprint for deduplication: type+description+timeLimit sorted,
      * so the same logical rule set won't appear twice.
      */
-    private fun constraintFingerprint(constraints: List<SessionConstraint>): String {
+    fun getConstraintFingerprint(constraints: List<SessionConstraint>): String {
         return constraints
             .sortedBy { "${it.type}|${it.description}|${it.timeLimitMs}" }
             .joinToString(";") { "${it.type}|${it.description}|${it.timeLimitMs}" }
+    }
+
+    private fun constraintFingerprint(constraints: List<SessionConstraint>): String {
+        return getConstraintFingerprint(constraints)
     }
 
     // --- Serialization helpers ---
