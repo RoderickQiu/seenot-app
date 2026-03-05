@@ -106,19 +106,53 @@ class FloatingIndicatorOverlay(
 
     private fun observeSession() {
         scope.launch {
+            var lastSessionId: String? = null
             sessionManager.activeSession.collectLatest { session ->
-                updateState {
-                    copy(
-                        session = session,
-                        hasActiveSession = session != null && session.constraints.isNotEmpty(),
-                        displayedConstraints = if (session != null && session.constraints.isNotEmpty()) {
-                            session.constraints
-                        } else {
-                            displayedConstraints
-                        }
-                    )
+                val sessionId = session?.constraints?.joinToString { it.id } ?: ""
+                
+                // Only re-render if session started/ended or constraints changed
+                if (sessionId != lastSessionId) {
+                    lastSessionId = sessionId
+                    updateState {
+                        copy(
+                            session = session,
+                            hasActiveSession = session != null && session.constraints.isNotEmpty(),
+                            displayedConstraints = if (session != null && session.constraints.isNotEmpty()) {
+                                session.constraints
+                            } else {
+                                displayedConstraints
+                            }
+                        )
+                    }
                 }
+                
+                // Update UI elements directly without full re-render
+                updateTimeDisplay(session)
             }
+        }
+    }
+
+    /**
+     * Update time display without full re-render
+     */
+    private fun updateTimeDisplay(session: com.seenot.app.domain.ActiveSession?) {
+        try {
+            val currentSession = state.session
+            if (currentSession == null || session == null) return
+            
+            // Only update if time remaining actually changed
+            if (currentSession.timeRemainingMs == session.timeRemainingMs) return
+            
+            // Update state but don't re-render
+            state = state.copy(session = session)
+            
+            // Update dot color based on new time
+            dotView?.let { dot ->
+                val dotColor = getTimeColor(session, state.hasActiveSession)
+                (dot.background as? android.graphics.drawable.GradientDrawable)?.setColor(dotColor)
+            }
+        } catch (e: Exception) {
+            // Ignore update errors
         }
     }
 
@@ -297,7 +331,7 @@ class FloatingIndicatorOverlay(
                     append("允许")
                     if (constraint.description.isNotEmpty()) {
                         append(" ")
-                        append(constraint.description.take(8))
+                        append(constraint.description.take(10))
                     }
                 }
             }
@@ -306,7 +340,7 @@ class FloatingIndicatorOverlay(
                     append("禁止")
                     if (constraint.description.isNotEmpty()) {
                         append(" ")
-                        append(constraint.description.take(8))
+                        append(constraint.description.take(10))
                     }
                 }
             }
@@ -324,7 +358,7 @@ class FloatingIndicatorOverlay(
                 buildString {
                     append("限时 ")
                     if (constraint.description.isNotEmpty()) {
-                        append(constraint.description.take(8))
+                        append(constraint.description.take(10))
                         append(" ")
                     }
                     append(timeStr)

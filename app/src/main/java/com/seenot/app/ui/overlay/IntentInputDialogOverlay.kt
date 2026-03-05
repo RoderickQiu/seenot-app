@@ -506,7 +506,8 @@ class IntentInputDialogOverlay(
             ConstraintType.DENY -> "禁止 ${constraints.description.take(10)}"
             ConstraintType.TIME_CAP -> {
                 val min = constraints.timeLimitMs?.let { it / 60000 } ?: 0
-                "限时 ${min}分"
+                val desc = constraints.description.take(10)
+                if (desc.isNotEmpty()) "限时 $desc ${min}分" else "限时 ${min}分"
             }
         }
         val descText = TextView(context).apply {
@@ -593,7 +594,8 @@ class IntentInputDialogOverlay(
                 ConstraintType.DENY -> "禁止 ${c.description.take(10)}"
                 ConstraintType.TIME_CAP -> {
                     val min = c.timeLimitMs?.let { it / 60000 } ?: 0
-                    "限时 ${min}分"
+                    val desc = c.description.take(10)
+                    if (desc.isNotEmpty()) "限时 $desc ${min}分" else "限时 ${min}分"
                 }
             }
         }
@@ -676,7 +678,8 @@ class IntentInputDialogOverlay(
                         ConstraintType.DENY -> "禁止: ${c.description}"
                         ConstraintType.TIME_CAP -> {
                             val min = c.timeLimitMs?.let { it / 60000 } ?: 0
-                            "限时: ${min}分钟"
+                            val desc = c.description
+                            if (desc.isNotEmpty()) "限时: $desc ${min}分钟" else "限时: ${min}分钟"
                         }
                     }
                 } ?: ""
