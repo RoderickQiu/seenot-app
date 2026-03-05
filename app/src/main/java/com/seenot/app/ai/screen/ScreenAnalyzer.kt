@@ -2,12 +2,18 @@ package com.seenot.app.ai.screen
 
 import android.app.NotificationManager
 import android.content.Context
+import android.content.res.Configuration
 import android.graphics.Bitmap
+import android.graphics.Canvas
+import android.graphics.Color
 import android.graphics.Matrix
+import android.graphics.Paint
 import android.os.Handler
 import android.os.Looper
 import android.util.Log
 import android.widget.Toast
+import com.seenot.app.ui.overlay.FloatingIndicatorOverlay
+import com.seenot.app.ui.overlay.VoiceInputOverlay
 import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversation
 import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationParam
 import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationResult
@@ -41,6 +47,7 @@ import java.util.Collections
  * - Confidence thresholds with fallback strategies
  * - Continuous confirmation (2 consecutive violations for forced actions)
  */
+@OptIn(kotlinx.coroutines.ExperimentalCoroutinesApi::class)
 class ScreenAnalyzer(
     private val context: Context,
     private val ruleRecordRepository: RuleRecordRepository = RuleRecordRepository(context)
@@ -312,7 +319,7 @@ class ScreenAnalyzer(
                             appName = packageName,
                             packageName = packageName,
                             screenshotHash = hash,
-                            constraintId = match.constraint.id?.toLongOrNull(),
+                            constraintId = match.constraint.id.toLongOrNull(),
                             constraintType = match.constraint.type,
                             constraintContent = match.constraint.description,
                             isConditionMatched = !match.isViolation,
@@ -407,9 +414,9 @@ class ScreenAnalyzer(
     private suspend fun captureScreenshotWithDelay(): Bitmap? = suspendCancellableCoroutine { continuation ->
         // Small delay to ensure toasts are dismissed, but keep overlay visible
         Handler(Looper.getMainLooper()).postDelayed({
-            val service = com.seenot.app.service.SeenotAccessibilityService.instance
-            if (service != null) {
-                service.takeScreenshot { bitmap ->
+            val svc = com.seenot.app.service.SeenotAccessibilityService.instance
+            if (svc != null) {
+                svc.takeScreenshot { bitmap ->
                     continuation.resume(bitmap, null)
                 }
             } else {
@@ -425,7 +432,8 @@ class ScreenAnalyzer(
      */
     fun reShowOverlayIfNeeded() {
         try {
-            val service = com.seenot.app.service.SeenotAccessibilityService.instance ?: return
+            // Just check that service is available, don't assign
+            com.seenot.app.service.SeenotAccessibilityService.instance ?: return
             val sessionManager = com.seenot.app.domain.SessionManager.getInstance(context)
             val session = sessionManager.activeSession.value
 
@@ -453,7 +461,88 @@ class ScreenAnalyzer(
         val scaled = scaleBitmap(bitmap, MAX_LONG_EDGE_PX)
 
         // Convert to mutable bitmap if needed
-        return ensureMutableBitmap(scaled)
+        val mutable = ensureMutableBitmap(scaled)
+
+        // Calculate scale factor for overlay mask
+        val scaleFactor = if (bitmap.width > MAX_LONG_EDGE_PX || bitmap.height > MAX_LONG_EDGE_PX) {
+            MAX_LONG_EDGE_PX.toFloat() / maxOf(bitmap.width, bitmap.height)
+        } else {
+            1f
+        }
+
+        // Draw white mask over overlay area to avoid AI confusion
+        drawOverlayMask(mutable, scaleFactor)
+
+        return mutable
+    }
+
+    /**
+     * Draw mask over floating overlay areas in screenshot
+     * Uses white in light mode, black in dark mode
+     * @param scaleFactor the scaling factor applied to the original screenshot
+     */
+    private fun drawOverlayMask(bitmap: Bitmap, scaleFactor: Float) {
+        try {
+            val canvas = Canvas(bitmap)
+
+            // Detect dark mode and use appropriate mask color
+            val isDarkMode = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
+                    Configuration.UI_MODE_NIGHT_YES
+            val maskColor = if (isDarkMode) Color.BLACK else Color.WHITE
+
+            Log.d(TAG, "Dark mode: $isDarkMode, using mask color: ${if (isDarkMode) "BLACK" else "WHITE"}")
+
+            val paint = Paint().apply {
+                color = maskColor
+                style = Paint.Style.FILL
+            }
+
+            // Mask FloatingIndicatorOverlay
+            val indicatorBounds = FloatingIndicatorOverlay.getCurrentOverlayBounds()
+            if (indicatorBounds != null) {
+                val scaledLeft = (indicatorBounds.left * scaleFactor).toInt()
+                val scaledTop = (indicatorBounds.top * scaleFactor).toInt()
+                val scaledRight = (indicatorBounds.right * scaleFactor).toInt()
+                val scaledBottom = (indicatorBounds.bottom * scaleFactor).toInt()
+
+                Log.d(TAG, "Masking FloatingIndicatorOverlay at: left=$scaledLeft, top=$scaledTop, right=$scaledRight, bottom=$scaledBottom")
+
+                canvas.drawRect(
+                    scaledLeft.toFloat(),
+                    scaledTop.toFloat(),
+                    scaledRight.toFloat(),
+                    scaledBottom.toFloat(),
+                    paint
+                )
+            }
+
+            // Mask VoiceInputOverlay
+            val voiceBounds = VoiceInputOverlay.getCurrentOverlayBounds()
+            if (voiceBounds != null) {
+                val scaledLeft = (voiceBounds.left * scaleFactor).toInt()
+                val scaledTop = (voiceBounds.top * scaleFactor).toInt()
+                val scaledRight = (voiceBounds.right * scaleFactor).toInt()
+                val scaledBottom = (voiceBounds.bottom * scaleFactor).toInt()
+
+                Log.d(TAG, "Masking VoiceInputOverlay at: left=$scaledLeft, top=$scaledTop, right=$scaledRight, bottom=$scaledBottom")
+
+                canvas.drawRect(
+                    scaledLeft.toFloat(),
+                    scaledTop.toFloat(),
+                    scaledRight.toFloat(),
+                    scaledBottom.toFloat(),
+                    paint
+                )
+            }
+
+            if (indicatorBounds == null && voiceBounds == null) {
+                Log.d(TAG, "No overlay bounds available for masking")
+            } else {
+                Log.d(TAG, "Overlay masks drawn successfully")
+            }
+        } catch (e: Exception) {
+            Log.w(TAG, "Failed to draw overlay mask: ${e.message}")
+        }
     }
 
     /**

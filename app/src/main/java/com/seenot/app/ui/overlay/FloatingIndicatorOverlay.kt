@@ -144,8 +144,14 @@ class FloatingIndicatorOverlay(
         updateState { copy(isViolating = true) }
 
         try {
-            val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
-            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+            if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.S) {
+                // Use VibratorManager for Android 12+
+                val vibratorManager = context.getSystemService(Context.VIBRATOR_MANAGER_SERVICE) as android.os.VibratorManager
+                val vibrator = vibratorManager.defaultVibrator
+                vibrator.vibrate(VibrationEffect.createOneShot(200, VibrationEffect.DEFAULT_AMPLITUDE))
+            } else if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.O) {
+                @Suppress("DEPRECATION")
+                val vibrator = context.getSystemService(Context.VIBRATOR_SERVICE) as Vibrator
                 vibrator.vibrate(VibrationEffect.createOneShot(200, VibrationEffect.DEFAULT_AMPLITUDE))
             }
         } catch (e: Exception) { /* ignore */ }
@@ -358,6 +364,49 @@ class FloatingIndicatorOverlay(
         indicatorView = null
     }
 
+    /**
+     * Get overlay position and size for masking in screenshots
+     * Returns null if overlay is not visible
+     */
+    fun getOverlayBounds(): android.graphics.Rect? {
+        val view = indicatorView ?: return null
+        val params = indicatorParams ?: return null
+
+        // Get view dimensions (may be 0 if not measured yet)
+        val width = if (view.width > 0) view.width else params.width
+        val height = if (view.height > 0) view.height else params.height
+
+        if (width <= 0 || height <= 0) {
+            // Try to estimate based on typical size
+            val estimatedWidth = 150.dp() // Approximate width in pixels
+            val estimatedHeight = 40.dp()
+            // For WRAP_CONTENT, estimate based on typical text width
+            val actualWidth = 150.dp()
+            val actualHeight = 40.dp()
+            // Convert from right-aligned coordinates (Gravity.END) to screen coordinates
+            val screenWidth = (context.resources.displayMetrics.widthPixels)
+            val left = screenWidth - params.x - actualWidth
+            return android.graphics.Rect(
+                left,
+                params.y,
+                left + actualWidth,
+                params.y + actualHeight
+            )
+        }
+
+        // Convert from right-aligned coordinates (Gravity.END) to screen coordinates
+        // params.x is the distance from the right edge
+        val screenWidth = (context.resources.displayMetrics.widthPixels)
+        val left = screenWidth - params.x - width
+
+        return android.graphics.Rect(
+            left,
+            params.y,
+            left + width,
+            params.y + height
+        )
+    }
+
     private fun Int.dp() = (this * density).roundToInt()
 
     companion object {
@@ -393,6 +442,13 @@ class FloatingIndicatorOverlay(
         fun dismiss() {
             currentOverlay?.dismiss()
             currentOverlay = null
+        }
+
+        /**
+         * Get current overlay bounds for masking in screenshots
+         */
+        fun getCurrentOverlayBounds(): android.graphics.Rect? {
+            return currentOverlay?.getOverlayBounds()
         }
     }
 }

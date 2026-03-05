@@ -794,6 +794,47 @@ class VoiceInputOverlay(
         autoDismissHandler = null
     }
 
+    /**
+     * Get overlay position and size for masking in screenshots
+     */
+    fun getOverlayBounds(): android.graphics.Rect? {
+        val view = overlayView ?: return null
+        val layoutParams = params ?: return null
+
+        val width = if (view.width > 0) view.width else layoutParams.width
+        val height = if (view.height > 0) view.height else layoutParams.height
+
+        val screenWidth = context.resources.displayMetrics.widthPixels
+        val screenHeight = context.resources.displayMetrics.heightPixels
+
+        // Calculate actual left position based on gravity
+        val gravity = layoutParams.gravity and android.view.Gravity.HORIZONTAL_GRAVITY_MASK
+        val left = when (gravity) {
+            android.view.Gravity.END -> screenWidth - layoutParams.x - width
+            android.view.Gravity.CENTER_HORIZONTAL -> (screenWidth - width) / 2 + layoutParams.x
+            else -> layoutParams.x // START or default
+        }
+
+        if (width <= 0 || height <= 0) {
+            // Estimate based on typical voice input overlay size
+            val estimatedWidth = (280 * density).toInt()
+            val estimatedHeight = (200 * density).toInt()
+            return android.graphics.Rect(
+                left,
+                layoutParams.y,
+                left + estimatedWidth,
+                layoutParams.y + estimatedHeight
+            )
+        }
+
+        return android.graphics.Rect(
+            left,
+            layoutParams.y,
+            left + width,
+            layoutParams.y + height
+        )
+    }
+
     companion object {
         private var currentOverlay: VoiceInputOverlay? = null
 
@@ -822,6 +863,13 @@ class VoiceInputOverlay(
         fun dismiss() {
             currentOverlay?.dismiss()
             currentOverlay = null
+        }
+
+        /**
+         * Get current voice input overlay bounds for masking in screenshots
+         */
+        fun getCurrentOverlayBounds(): android.graphics.Rect? {
+            return currentOverlay?.getOverlayBounds()
         }
     }
 }
