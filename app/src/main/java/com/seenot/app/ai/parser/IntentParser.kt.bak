@@ -106,9 +106,19 @@ Action Input: {"param": "value"}
         } catch (e: Exception) { return ExecutionResult.Error(e.message ?: "处理失败") }
     }
 
+                        else -> msg
+                    }
+                }
+                is ActionResult.Error -> "⚠️ ${result.message}"
+            }
+        }
+
+        return messages.joinToString("\n")
+    }
+
     private fun parseActions(response: String): List<AIAction> {
         val actions = mutableListOf<AIAction>()
-        Regex("""Action:\s*(\w+)[\s\n]*Action Input:\s*(\{[^}]+\})""", RegexOption.IGNORE_CASE).findAll(response).forEach { match ->
+        Regex("""Action:\\s*(\\w+)[\\s\\n]*Action Input:\\s*(\\{[^}]+\\})""", RegexOption.IGNORE_CASE).findAll(response).forEach { match ->
             try {
                 val json = JsonParser.parseString(match.groupValues[2]).asJsonObject
                 when (match.groupValues[1].lowercase()) {

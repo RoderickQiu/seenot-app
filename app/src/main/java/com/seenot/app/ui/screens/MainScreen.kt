@@ -26,6 +26,7 @@ import com.seenot.app.domain.SessionManager
 import com.seenot.app.service.SeenotAccessibilityService
 import com.seenot.app.ai.voice.VoiceInputManager
 import com.seenot.app.ai.voice.VoiceRecordingState
+import com.seenot.app.ai.parser.AppInfo
 import com.seenot.app.ui.overlay.VoiceInputOverlay
 import com.seenot.app.data.repository.RuleRecordRepository
 import com.seenot.app.data.model.ConstraintType
@@ -165,7 +166,7 @@ fun MainScreen(
                 }
             }
         ) { padding ->
-            Box(modifier = Modifier.fillMaxSize()) {
+            Box(modifier = Modifier.fillMaxWidth()) {
                 when (selectedTab) {
                     0 -> HomeTab(
                         isAccessibilityEnabled = isAccessibilityEnabled,
@@ -266,7 +267,7 @@ fun HomeTab(
 ) {
     Column(
         modifier = modifier
-            .fillMaxSize()
+            .fillMaxWidth()
             .padding(16.dp)
     ) {
         Text(
@@ -501,6 +502,7 @@ fun AppsTab(modifier: Modifier = Modifier) {
 
     // State for add app dialog
     var showAddAppDialog by remember { mutableStateOf(false) }
+    var showAIRuleAssistantDialog by remember { mutableStateOf(false) }
 
     // State for app rules dialog
     var selectedAppForRules by remember { mutableStateOf<AppInfo?>(null) }
@@ -527,7 +529,7 @@ fun AppsTab(modifier: Modifier = Modifier) {
         }
     }.sortedBy { it.name }
 
-    Column(modifier = modifier.fillMaxSize()) {
+    Column(modifier = modifier.fillMaxWidth()) {
         // Header with add button
         Row(
             modifier = Modifier
@@ -556,7 +558,7 @@ fun AppsTab(modifier: Modifier = Modifier) {
             // Empty state
             Box(
                 modifier = Modifier
-                    .fillMaxSize()
+                    .fillMaxWidth()
                     .padding(32.dp),
                 contentAlignment = Alignment.Center
             ) {
@@ -584,7 +586,7 @@ fun AppsTab(modifier: Modifier = Modifier) {
         } else {
             // Controlled app list
             LazyColumn(
-                modifier = Modifier.fillMaxSize(),
+                modifier = Modifier.fillMaxWidth(),
                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
@@ -599,6 +601,21 @@ fun AppsTab(modifier: Modifier = Modifier) {
                         }
                     )
                 }
+            }
+        }
+
+        // AI Assistant FAB - positioned at bottom right
+        Box(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            contentAlignment = Alignment.BottomEnd
+        ) {
+            FloatingActionButton(
+                onClick = { showAIRuleAssistantDialog = true },
+                containerColor = MaterialTheme.colorScheme.primaryContainer
+            ) {
+                Icon(Icons.Default.Psychology, contentDescription = "AI助手")
             }
         }
     }
@@ -621,6 +638,16 @@ fun AppsTab(modifier: Modifier = Modifier) {
             app = app,
             sessionManager = sessionManager,
             onDismiss = { selectedAppForRules = null }
+        )
+    }
+
+    // AI Rule Assistant Dialog
+    if (showAIRuleAssistantDialog) {
+        AIRuleAssistantDialog(
+            context = context,
+            sessionManager = sessionManager,
+            monitoredApps = controlledAppList,
+            onDismiss = { showAIRuleAssistantDialog = false }
         )
     }
 }
@@ -1503,7 +1530,7 @@ fun SettingsTab(
 
     Column(
         modifier = modifier
-            .fillMaxSize()
+            .fillMaxWidth()
             .padding(16.dp)
     ) {
         Text(
