@@ -505,9 +505,10 @@ class IntentInputDialogOverlay(
             ConstraintType.ALLOW -> "允许 ${constraints.description.take(10)}"
             ConstraintType.DENY -> "禁止 ${constraints.description.take(10)}"
             ConstraintType.TIME_CAP -> {
-                val min = constraints.timeLimitMs?.let { it / 60000 } ?: 0
+                val min = constraints.timeLimitMs?.let { it / 60000.0 } ?: 0.0
+                val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
                 val desc = constraints.description.take(10)
-                if (desc.isNotEmpty()) "限时 $desc ${min}分" else "限时 ${min}分"
+                if (desc.isNotEmpty()) "限时 $desc ${minText}分" else "限时 ${minText}分"
             }
         }
         val descText = TextView(context).apply {
@@ -593,9 +594,10 @@ class IntentInputDialogOverlay(
                 ConstraintType.ALLOW -> "允许 ${c.description.take(10)}"
                 ConstraintType.DENY -> "禁止 ${c.description.take(10)}"
                 ConstraintType.TIME_CAP -> {
-                    val min = c.timeLimitMs?.let { it / 60000 } ?: 0
+                    val min = c.timeLimitMs?.let { it / 60000.0 } ?: 0.0
+                    val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
                     val desc = c.description.take(10)
-                    if (desc.isNotEmpty()) "限时 $desc ${min}分" else "限时 ${min}分"
+                    if (desc.isNotEmpty()) "限时 $desc ${minText}分" else "限时 ${minText}分"
                 }
             }
         }
@@ -677,9 +679,10 @@ class IntentInputDialogOverlay(
                         ConstraintType.ALLOW -> "允许: ${c.description}"
                         ConstraintType.DENY -> "禁止: ${c.description}"
                         ConstraintType.TIME_CAP -> {
-                            val min = c.timeLimitMs?.let { it / 60000 } ?: 0
+                            val min = c.timeLimitMs?.let { it / 60000.0 } ?: 0.0
+                            val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
                             val desc = c.description
-                            if (desc.isNotEmpty()) "限时: $desc ${min}分钟" else "限时: ${min}分钟"
+                            if (desc.isNotEmpty()) "限时: $desc ${minText}分钟" else "限时: ${minText}分钟"
                         }
                     }
                 } ?: ""

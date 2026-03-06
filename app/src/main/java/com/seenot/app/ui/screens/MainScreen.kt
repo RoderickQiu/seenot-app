@@ -936,9 +936,9 @@ fun AddPresetRuleDialog(
                 if (ruleType == ConstraintType.TIME_CAP) {
                     OutlinedTextField(
                         value = timeLimitMinutes,
-                        onValueChange = { timeLimitMinutes = it.filter { c -> c.isDigit() } },
+                        onValueChange = { timeLimitMinutes = it.filter { c -> c.isDigit() || c == '.' } },
                         label = { Text("时间限制（分钟）") },
-                        placeholder = { Text("例如：30") },
+                        placeholder = { Text("例如：30 或 0.5") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
@@ -995,7 +995,7 @@ fun AddPresetRuleDialog(
                 onClick = {
                     if (description.isNotBlank()) {
                         val timeLimitMs = if (ruleType == ConstraintType.TIME_CAP && timeLimitMinutes.isNotBlank()) {
-                            timeLimitMinutes.toLongOrNull()?.times(60 * 1000)
+                            timeLimitMinutes.toDoubleOrNull()?.times(60 * 1000)?.toLong()
                         } else null
 
                         onConfirm(
@@ -1033,7 +1033,7 @@ fun EditPresetRuleDialog(
 ) {
     var ruleType by remember { mutableStateOf(constraint.type) }
     var description by remember { mutableStateOf(constraint.description) }
-    var timeLimitMinutes by remember { mutableStateOf(constraint.timeLimitMs?.let { (it / 60000).toString() } ?: "") }
+    var timeLimitMinutes by remember { mutableStateOf(constraint.timeLimitMs?.let { (it / 60000.0).toString() } ?: "") }
     var interventionLevel by remember { mutableStateOf(constraint.interventionLevel) }
 
     AlertDialog(
@@ -1082,9 +1082,9 @@ fun EditPresetRuleDialog(
                 if (ruleType == ConstraintType.TIME_CAP) {
                     OutlinedTextField(
                         value = timeLimitMinutes,
-                        onValueChange = { timeLimitMinutes = it.filter { c -> c.isDigit() } },
+                        onValueChange = { timeLimitMinutes = it.filter { c -> c.isDigit() || c == '.' } },
                         label = { Text("时间限制（分钟）") },
-                        placeholder = { Text("例如：30") },
+                        placeholder = { Text("例如：30 或 0.5") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
@@ -1141,7 +1141,7 @@ fun EditPresetRuleDialog(
                 onClick = {
                     if (description.isNotBlank()) {
                         val timeLimitMs = if (ruleType == ConstraintType.TIME_CAP && timeLimitMinutes.isNotBlank()) {
-                            timeLimitMinutes.toLongOrNull()?.times(60 * 1000)
+                            timeLimitMinutes.toDoubleOrNull()?.times(60 * 1000)?.toLong()
                         } else null
 
                         onSave(
@@ -1245,8 +1245,14 @@ fun EditHistoryRuleDialog(
                             )
 
                             if (constraint.timeLimitMs != null) {
+                                val minutes = constraint.timeLimitMs / 60000.0
+                                val timeText = if (minutes % 1.0 == 0.0) {
+                                    "时间限制: ${minutes.toInt()} 分钟"
+                                } else {
+                                    "时间限制: $minutes 分钟"
+                                }
                                 Text(
-                                    text = "时间限制: ${constraint.timeLimitMs / 60000} 分钟",
+                                    text = timeText,
                                     style = MaterialTheme.typography.bodySmall,
                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
@@ -1362,9 +1368,9 @@ fun EditConstraintDialog(
                 if (ruleType == ConstraintType.TIME_CAP) {
                     OutlinedTextField(
                         value = timeLimitMinutes,
-                        onValueChange = { timeLimitMinutes = it.filter { c -> c.isDigit() } },
+                        onValueChange = { timeLimitMinutes = it.filter { c -> c.isDigit() || c == '.' } },
                         label = { Text("时间限制（分钟）") },
-                        placeholder = { Text("例如：30") },
+                        placeholder = { Text("例如：30 或 0.5") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
@@ -1421,7 +1427,7 @@ fun EditConstraintDialog(
                 onClick = {
                     if (description.isNotBlank()) {
                         val timeLimitMs = if (ruleType == ConstraintType.TIME_CAP && timeLimitMinutes.isNotBlank()) {
-                            timeLimitMinutes.toLongOrNull()?.times(60 * 1000)
+                            timeLimitMinutes.toDoubleOrNull()?.times(60 * 1000)?.toLong()
                         } else null
 
                         onSave(
