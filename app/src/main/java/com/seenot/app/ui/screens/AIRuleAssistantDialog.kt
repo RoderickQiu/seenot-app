@@ -94,7 +94,7 @@ fun AIRuleAssistantDialog(
     }
 
     // Listen for voice results
-    LaunchedEffect(voiceInputManager, messages) {
+    LaunchedEffect(voiceInputManager) {
         voiceInputManager?.recognizedText?.collect { text ->
             if (!text.isNullOrBlank() && !isRecording) {
                 // Execute request
@@ -147,7 +147,7 @@ fun AIRuleAssistantDialog(
         Surface(
             modifier = Modifier
                 .fillMaxWidth()
-                .fillMaxHeight(0.9f)
+                .fillMaxHeight(0.75f)
                 .padding(16.dp),
             shape = RoundedCornerShape(16.dp),
             color = MaterialTheme.colorScheme.surface
