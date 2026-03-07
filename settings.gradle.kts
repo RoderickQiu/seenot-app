@@ -11,8 +11,10 @@ dependencyResolutionManagement {
     repositories {
         google()
         mavenCentral()
+        maven("https://maven.aliyun.com/repository/public")
     }
 }
 
 rootProject.name = "SeeNot"
 include(":app")
+include(":ai-debugger")
