@@ -1646,14 +1646,6 @@ fun SettingsTab(
 }
 
 /**
- * App Info
- */
-data class AppInfo(
-    val name: String,
-    val packageName: String
-)
-
-/**
  * Get installed apps (only apps with launcher icons, excluding SeeNot itself)
  */
 private fun getInstalledApps(context: android.content.Context): List<AppInfo> {

@@ -29,7 +29,7 @@ import androidx.core.content.ContextCompat
 import com.seenot.app.ai.parser.AppInfo
 import com.seenot.app.ai.parser.ChatMessage
 import com.seenot.app.ai.parser.ExecutionResult
-import com.seenot.app.ai.parser.IntentParser
+import com.seenot.app.ai.parser.RuleAssistant
 import com.seenot.app.ai.voice.VoiceInputManager
 import com.seenot.app.domain.SessionManager
 import kotlinx.coroutines.CoroutineScope
@@ -103,7 +103,7 @@ fun AIRuleAssistantDialog(
 
                 CoroutineScope(Dispatchers.Main).launch {
                     try {
-                        val parser = IntentParser(context)
+                        val parser = RuleAssistant(context)
                         val result = parser.planAndExecute(
                             userMessage = text,
                             conversationHistory = messages,
@@ -257,7 +257,7 @@ fun AIRuleAssistantDialog(
 
                                     CoroutineScope(Dispatchers.Main).launch {
                                         try {
-                                            val parser = IntentParser(context)
+                                            val parser = RuleAssistant(context)
                                             val result = parser.planAndExecute(
                                                 userMessage = text,
                                                 conversationHistory = messages,
@@ -296,7 +296,7 @@ fun AIRuleAssistantDialog(
 
                                 CoroutineScope(Dispatchers.Main).launch {
                                     try {
-                                        val parser = IntentParser(context)
+                                        val parser = RuleAssistant(context)
                                         val result = parser.planAndExecute(
                                             userMessage = text,
                                             conversationHistory = messages,

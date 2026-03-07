@@ -77,7 +77,7 @@ class VoiceInputManager(private val context: Context) {
             sttEngine = SttEngine(context)
         }
         if (intentParser == null) {
-            intentParser = IntentParser(context)
+            intentParser = IntentParser()
         }
     }
 
@@ -245,7 +245,6 @@ class VoiceInputManager(private val context: Context) {
         isRecording = false
         scope.cancel()
         sttEngine?.release()
-        intentParser?.release()
         sttEngine = null
         intentParser = null
     }
