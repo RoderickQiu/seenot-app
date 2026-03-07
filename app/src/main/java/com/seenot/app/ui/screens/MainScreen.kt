@@ -1654,31 +1654,33 @@ data class AppInfo(
 )
 
 /**
- * Get installed apps (excluding system apps and SeeNot itself)
+ * Get installed apps (only apps with launcher icons, excluding SeeNot itself)
  */
 private fun getInstalledApps(context: android.content.Context): List<AppInfo> {
     val pm = context.packageManager
 
-    // First, get all packages without filtering to see the total count
-    val allPackages = pm.getInstalledPackages(PackageManager.GET_META_DATA)
-    android.util.Log.d("AppsTab", "Total installed packages: ${allPackages.size}")
-
-    val apps = allPackages
-        .filter { packageInfo ->
-            // Filter out system apps
-            val appInfo = packageInfo.applicationInfo
-            appInfo != null && (appInfo.flags and ApplicationInfo.FLAG_SYSTEM) == 0
+    // Get all apps that have a launcher intent (user-visible apps)
+    val launchIntent = Intent(Intent.ACTION_MAIN, null).apply {
+        addCategory(Intent.CATEGORY_LAUNCHER)
+    }
+    val apps = pm.queryIntentActivities(launchIntent, 0)
+        .map { it.activityInfo.packageName }
+        .distinct()
+        .filter { it != context.packageName }
+        .mapNotNull { packageName ->
+            try {
+                val appInfo = pm.getApplicationInfo(packageName, 0)
+                AppInfo(
+                    name = pm.getApplicationLabel(appInfo).toString(),
+                    packageName = packageName
+                )
+            } catch (e: Exception) {
+                null
+            }
         }
-        .map { packageInfo ->
-            val appInfo = packageInfo.applicationInfo!!
-            AppInfo(
-                name = pm.getApplicationLabel(appInfo).toString(),
-                packageName = packageInfo.packageName
-            )
-        }
-        .filter { it.packageName != context.packageName }
+        .sortedBy { it.name }
 
-    android.util.Log.d("AppsTab", "Filtered user apps: ${apps.size}")
+    android.util.Log.d("AppsTab", "Found ${apps.size} launchable apps")
     return apps
 }
 
