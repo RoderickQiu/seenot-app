@@ -1,7 +1,7 @@
 package com.seenot.app.ai.voice
 
 import android.content.Context
-import android.util.Log
+import com.seenot.app.utils.Logger
 import com.seenot.app.ai.parser.IntentParser
 import com.seenot.app.ai.parser.ParsedConstraint
 import com.seenot.app.ai.parser.ParsedIntentResult
@@ -40,7 +40,7 @@ class VoiceInputManager(private val context: Context) {
     fun setCurrentApp(packageName: String, appName: String) {
         currentPackageName = packageName
         currentAppName = appName
-        Log.d(TAG, "Set current app: $appName ($packageName)")
+        Logger.d(TAG, "Set current app: $appName ($packageName)")
     }
 
     /**
@@ -86,7 +86,7 @@ class VoiceInputManager(private val context: Context) {
      */
     fun startRecording(): Boolean {
         if (isRecording) {
-            Log.w(TAG, "Already recording")
+            Logger.w(TAG, "Already recording")
             return false
         }
 
@@ -95,7 +95,7 @@ class VoiceInputManager(private val context: Context) {
         // Set up callback for real-time transcription results
         sttEngine?.setCallback(object : SttEngine.TranscriptionCallback {
             override fun onIntermediateResult(text: String) {
-                Log.d(TAG, "Intermediate: $text")
+                Logger.d(TAG, "Intermediate: $text")
                 // Update state on main thread for Compose to recompose
                 scope.launch {
                     _recognizedText.value = text
@@ -103,21 +103,21 @@ class VoiceInputManager(private val context: Context) {
             }
 
             override fun onFinalResult(text: String) {
-                Log.d(TAG, "Final result callback: $text")
+                Logger.d(TAG, "Final result callback: $text")
                 scope.launch {
                     _recognizedText.value = text
                 }
             }
 
             override fun onError(error: String) {
-                Log.e(TAG, "STT Error callback: $error")
+                Logger.e(TAG, "STT Error callback: $error")
                 scope.launch {
                     _error.value = error
                 }
             }
 
             override fun onComplete() {
-                Log.d(TAG, "STT Complete callback")
+                Logger.d(TAG, "STT Complete callback")
             }
         })
 
@@ -132,7 +132,7 @@ class VoiceInputManager(private val context: Context) {
             _parsedIntent.value = null
             _error.value = null
 
-            Log.d(TAG, "Recording started with real-time STT")
+            Logger.d(TAG, "Recording started with real-time STT")
         } else {
             _error.value = "启动录音失败"
             _recordingState.value = VoiceRecordingState.ERROR
@@ -146,7 +146,7 @@ class VoiceInputManager(private val context: Context) {
      */
     fun stopRecording() {
         if (!isRecording) {
-            Log.w(TAG, "Not recording")
+            Logger.w(TAG, "Not recording")
             return
         }
 
@@ -160,7 +160,7 @@ class VoiceInputManager(private val context: Context) {
 
         if (!finalText.isNullOrBlank()) {
             _recordingState.value = VoiceRecordingState.PROCESSING
-            Log.d(TAG, "Stop called, using current recognized text: $finalText")
+            Logger.d(TAG, "Stop called, using current recognized text: $finalText")
             // Parse immediately without waiting for final callback
             parseIntent(finalText, currentPackageName, currentAppName)
         } else {
@@ -206,7 +206,7 @@ class VoiceInputManager(private val context: Context) {
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Intent parsing failed", e)
+                Logger.e(TAG, "Intent parsing failed", e)
                 _error.value = "解析失败: ${e.message}"
                 _recordingState.value = VoiceRecordingState.ERROR
             }

@@ -2,11 +2,11 @@ package com.seenot.app.data.repository
 
 import android.content.Context
 import android.graphics.Bitmap
-import android.util.Log
 import com.seenot.app.data.local.SeenotDatabase
 import com.seenot.app.data.local.entity.RuleRecordEntity
 import com.seenot.app.data.model.RecordStats
 import com.seenot.app.data.model.RuleRecord
+import com.seenot.app.utils.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -62,14 +62,14 @@ class RuleRecordRepository(private val context: Context) {
                 }
 
                 val imagePath = imageFile.absolutePath
-                Log.d(TAG, "Saved screenshot for record $recordId: $imagePath")
+                Logger.d(TAG, "Saved screenshot for record $recordId: $imagePath")
 
                 // Update record with imagePath
                 dao.updateImagePath(recordId, imagePath)
 
                 imagePath
             } catch (e: Exception) {
-                Log.e(TAG, "Error saving screenshot for record", e)
+                Logger.e(TAG, "Error saving screenshot for record", e)
                 null
             }
         }
@@ -142,7 +142,7 @@ class RuleRecordRepository(private val context: Context) {
             dao.updateMarkedStatus(recordId, isMarked)
             true
         } catch (e: Exception) {
-            Log.e(TAG, "Error marking record", e)
+            Logger.e(TAG, "Error marking record", e)
             false
         }
     }
@@ -158,13 +158,13 @@ class RuleRecordRepository(private val context: Context) {
                     try {
                         File(path).delete()
                     } catch (e: Exception) {
-                        Log.w(TAG, "Failed to delete image: $path", e)
+                        Logger.w(TAG, "Failed to delete image: $path", e)
                     }
                 }
                 dao.deleteById(recordId)
                 true
             } catch (e: Exception) {
-                Log.e(TAG, "Error deleting record", e)
+                Logger.e(TAG, "Error deleting record", e)
                 false
             }
         }
@@ -183,17 +183,17 @@ class RuleRecordRepository(private val context: Context) {
                             file.delete()
                         }
                     } catch (e: Exception) {
-                        Log.w(TAG, "Failed to delete file: ${file.absolutePath}", e)
+                        Logger.w(TAG, "Failed to delete file: ${file.absolutePath}", e)
                     }
                 }
 
                 // Clear records from database
                 dao.deleteAll()
 
-                Log.d(TAG, "Cleared all rule records and images")
+                Logger.d(TAG, "Cleared all rule records and images")
                 true
             } catch (e: Exception) {
-                Log.e(TAG, "Error clearing records", e)
+                Logger.e(TAG, "Error clearing records", e)
                 false
             }
         }

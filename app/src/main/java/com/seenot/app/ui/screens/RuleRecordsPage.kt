@@ -528,18 +528,29 @@ private fun RecordItem(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
-                    // Match status indicator
-                    Box(
-                        modifier = Modifier
-                            .size(8.dp)
-                            .clip(RoundedCornerShape(4.dp))
-                            .background(
-                                if (record.isConditionMatched)
-                                    MaterialTheme.colorScheme.primary  // 正常
-                                else
-                                    MaterialTheme.colorScheme.error  // 违反规则
-                            )
-                    )
+                    // Action or judgement indicator
+                    if (record.actionType != null) {
+                        // Action record - show lightning icon
+                        Icon(
+                            imageVector = Icons.Filled.FlashOn,
+                            contentDescription = "干预动作",
+                            modifier = Modifier.size(16.dp),
+                            tint = MaterialTheme.colorScheme.error
+                        )
+                    } else {
+                        // Judgement record - show status dot
+                        Box(
+                            modifier = Modifier
+                                .size(8.dp)
+                                .clip(RoundedCornerShape(4.dp))
+                                .background(
+                                    if (record.isConditionMatched)
+                                        MaterialTheme.colorScheme.primary
+                                    else
+                                        MaterialTheme.colorScheme.error
+                                )
+                        )
+                    }
                     Text(
                         text = record.appName,
                         style = MaterialTheme.typography.titleSmall,
@@ -551,15 +562,26 @@ private fun RecordItem(
 
                 Spacer(modifier = Modifier.height(4.dp))
 
-                // Constraint info
-                record.constraintType?.let { type ->
+                // Show action type or constraint info
+                if (record.actionType != null) {
                     Text(
-                        text = "${type.name}: ${record.constraintContent ?: ""}",
+                        text = "动作: ${record.actionType} (${record.actionReason ?: "unknown"})",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        color = MaterialTheme.colorScheme.error,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                } else {
+                    // Constraint info
+                    record.constraintType?.let { type ->
+                        Text(
+                            text = "${type.name}: ${record.constraintContent ?: ""}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(4.dp))
@@ -723,25 +745,43 @@ private fun RecordDetailDialog(
                     item {
                         Card(
                             colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                containerColor = if (record.actionType != null) {
+                                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                                } else {
+                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                }
                             )
                         ) {
                             Column(
                                 modifier = Modifier.padding(16.dp),
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
-                                Text(
-                                    text = "基本信息",
-                                    style = MaterialTheme.typography.titleSmall,
-                                    fontWeight = FontWeight.Bold
-                                )
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Text(
+                                        text = if (record.actionType != null) "⚡ 干预动作" else "基本信息",
+                                        style = MaterialTheme.typography.titleSmall,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
                                 DetailRow("应用", record.appName)
                                 record.packageName?.let { DetailRow("包名", it) }
                                 DetailRow("时间", timeFormat.format(Date(record.timestamp)))
-                                DetailRow(
-                                    "匹配状态",
-                                    if (record.isConditionMatched) "正常 (未违反规则)" else "违规 (已违反规则)"
-                                )
+
+                                if (record.actionType != null) {
+                                    // Action record
+                                    DetailRow("动作类型", record.actionType)
+                                    record.actionReason?.let { DetailRow("触发原因", it) }
+                                } else {
+                                    // Judgement record
+                                    DetailRow(
+                                        "匹配状态",
+                                        if (record.isConditionMatched) "正常 (未违反规则)" else "违规 (已违反规则)"
+                                    )
+                                }
+
                                 record.constraintType?.let { type ->
                                     DetailRow("约束类型", type.name)
                                 }

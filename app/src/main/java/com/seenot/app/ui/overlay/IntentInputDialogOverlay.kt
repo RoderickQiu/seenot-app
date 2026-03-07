@@ -11,7 +11,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
+import com.seenot.app.utils.Logger
 import android.view.Gravity
 import android.view.MotionEvent
 import android.view.View
@@ -455,7 +455,7 @@ class IntentInputDialogOverlay(
         try {
             windowManager?.addView(rootView, params)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to show dialog overlay", e)
+            Logger.e(TAG, "Failed to show dialog overlay", e)
         }
     }
 

@@ -1,7 +1,7 @@
 package com.seenot.app.ai.parser
 
 import android.content.Context
-import android.util.Log
+import com.seenot.app.utils.Logger
 import com.google.gson.JsonParser
 import com.seenot.app.config.ApiConfig
 import com.seenot.app.data.model.ConstraintType
@@ -39,13 +39,13 @@ class RuleAssistant(private val context: Context) {
                 currentRound++
                 val prompt = buildReActPrompt(userMessage, conversationHistory, selectedApp, availableApps, sessionManager, executionHistory)
                 val response = callLLM(prompt)
-                Log.d(TAG, "Round $currentRound LLM Response: $response")
+                Logger.d(TAG, "Round $currentRound LLM Response: $response")
 
                 val actions = parseActions(response)
                 if (actions.isEmpty()) {
                     val extracted = extractFinalResponse(response)
                     if (extracted.isNullOrBlank()) {
-                        Log.e(TAG, "LLM returned no actions and no response")
+                        Logger.e(TAG, "LLM returned no actions and no response")
                         return@withContext ExecutionResult.Error("AI无法理解你的请求，请换个说法试试")
                     }
                     finalResponse = extracted
@@ -75,7 +75,7 @@ class RuleAssistant(private val context: Context) {
             }
 
             if (finalResponse.isBlank() && executionHistory.isNotEmpty()) {
-                Log.d(TAG, "No final response, asking LLM to summarize")
+                Logger.d(TAG, "No final response, asking LLM to summarize")
                 val summaryPrompt = """
 用户问题: $userMessage
 
@@ -104,7 +104,7 @@ ${executionHistory.joinToString("\n\n")}
 
             ExecutionResult.Success(emptyList(), finalResponse)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to plan and execute", e)
+            Logger.e(TAG, "Failed to plan and execute", e)
             ExecutionResult.Error(e.message ?: "处理失败")
         }
     }
@@ -210,7 +210,7 @@ Action Input: {"param": "value"}
                     "chat" -> actions.add(AIAction.Chat(json.get("response_text")?.asString ?: "好的。"))
                     "ask" -> actions.add(AIAction.Ask(json.get("question")?.asString ?: "请问你想做什么？"))
                 }
-            } catch (e: Exception) { Log.w(TAG, "Parse action error", e) }
+            } catch (e: Exception) { Logger.w(TAG, "Parse action error", e) }
         }
         return actions
     }
@@ -405,7 +405,7 @@ Action Input: {"param": "value"}
         for (attempt in 1..3) try {
             val param = GenerationParam.builder().apiKey(apiKey).model("qwen-plus").messages(listOf(Message.builder().role(Role.SYSTEM.value).content("你是一个智能的规则管理助手。").build(), Message.builder().role(Role.USER.value).content(prompt).build())).resultFormat(GenerationParam.ResultFormat.MESSAGE).temperature(0.3f).build()
             return generation.call(param).output.choices[0].message.content
-        } catch (e: Exception) { Log.w(TAG, "LLM error: ${e.message}"); if(attempt<3) Thread.sleep(1000L*attempt) }
+        } catch (e: Exception) { Logger.w(TAG, "LLM error: ${e.message}"); if(attempt<3) Thread.sleep(1000L*attempt) }
         throw Exception("LLM call failed")
     }
 }

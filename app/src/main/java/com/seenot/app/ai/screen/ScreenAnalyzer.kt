@@ -10,7 +10,8 @@ import android.graphics.Matrix
 import android.graphics.Paint
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
+
+import com.seenot.app.utils.Logger
 import android.widget.Toast
 import com.seenot.app.ui.overlay.FloatingIndicatorOverlay
 import com.seenot.app.ui.overlay.VoiceInputOverlay
@@ -121,7 +122,7 @@ class ScreenAnalyzer(
         currentPackageName = packageName
 
         if (constraints.isEmpty()) {
-            Log.d(TAG, "No constraints to analyze")
+            Logger.d(TAG, "No constraints to analyze")
             return
         }
 
@@ -209,29 +210,29 @@ class ScreenAnalyzer(
     suspend fun analyzeScreen(constraints: List<SessionConstraint>): ScreenAnalysisResult {
         _isAnalyzing.value = true
 
-        Log.d(TAG, "═══════════════════════════════════════")
-        Log.d(TAG, "🔍 Starting screen analysis")
-        Log.d(TAG, "📋 Constraints (${constraints.size}):")
+        Logger.d(TAG, "═══════════════════════════════════════")
+        Logger.d(TAG, "🔍 Starting screen analysis")
+        Logger.d(TAG, "📋 Constraints (${constraints.size}):")
         constraints.forEachIndexed { index, c ->
-            Log.d(TAG, "   ${index + 1}. [${c.type}] ${c.description}")
+            Logger.d(TAG, "   ${index + 1}. [${c.type}] ${c.description}")
         }
-        Log.d(TAG, "═══════════════════════════════════════")
+        Logger.d(TAG, "═══════════════════════════════════════")
 
         try {
             val totalStart = System.currentTimeMillis()
 
             // Dismiss all toasts before screenshot
-            Log.d(TAG, "📴 Dismissing all toasts...")
+            Logger.d(TAG, "📴 Dismissing all toasts...")
             dismissAllToasts()
 
             // Capture screenshot with delay to avoid toast
-            Log.d(TAG, "📸 Capturing screenshot (delay ${TOAST_DISMISS_DELAY_MS}ms)...")
+            Logger.d(TAG, "📸 Capturing screenshot (delay ${TOAST_DISMISS_DELAY_MS}ms)...")
             val screenshotStart = System.currentTimeMillis()
             val screenshot = captureScreenshotWithDelay()
             val screenshotDuration = System.currentTimeMillis() - screenshotStart
 
             if (screenshot == null) {
-                Log.e(TAG, "❌ Failed to capture screenshot!")
+                Logger.e(TAG, "❌ Failed to capture screenshot!")
                 showToast("截图失败")
                 return ScreenAnalysisResult(
                     timestamp = System.currentTimeMillis(),
@@ -240,28 +241,28 @@ class ScreenAnalyzer(
                     constraintMatches = emptyList()
                 )
             }
-            Log.d(TAG, "✅ Screenshot captured: ${screenshot.width}x${screenshot.height} (${screenshotDuration}ms)")
+            Logger.d(TAG, "✅ Screenshot captured: ${screenshot.width}x${screenshot.height} (${screenshotDuration}ms)")
 
             // Process screenshot: scale + mutable copy
-            Log.d(TAG, "⚙️ Processing screenshot (scale to max $MAX_LONG_EDGE_PX px)...")
+            Logger.d(TAG, "⚙️ Processing screenshot (scale to max $MAX_LONG_EDGE_PX px)...")
             val processStart = System.currentTimeMillis()
             val processedBitmap = processScreenshot(screenshot)
             if (screenshot != processedBitmap) {
                 screenshot.recycle()
             }
             val processDuration = System.currentTimeMillis() - processStart
-            Log.d(TAG, "✅ Screenshot processed: ${processedBitmap.width}x${processedBitmap.height} (${processDuration}ms)")
+            Logger.d(TAG, "✅ Screenshot processed: ${processedBitmap.width}x${processedBitmap.height} (${processDuration}ms)")
 
             // Compute hash after processing
             val hash = computeHash(processedBitmap)
-            Log.d(TAG, "📝 Screenshot hash: ${hash.take(12)}...")
+            Logger.d(TAG, "📝 Screenshot hash: ${hash.take(12)}...")
 
             // Check hash result cache first (reuse previous AI result)
             val cachedResult = hashResultCache[hash]
             if (cachedResult != null) {
                 val age = System.currentTimeMillis() - cachedResult.timestamp
                 if (age <= HASH_RESULT_CACHE_TTL_MS) {
-                    Log.d(TAG, "♻️ Reusing cached AI result (age: ${age}ms)")
+                    Logger.d(TAG, "♻️ Reusing cached AI result (age: ${age}ms)")
                     showAnalysisToast(cachedResult.constraintMatches, constraints)
                     processedBitmap.recycle()
                     return ScreenAnalysisResult(
@@ -272,20 +273,20 @@ class ScreenAnalyzer(
                         constraintMatches = cachedResult.constraintMatches
                     )
                 } else {
-                    Log.d(TAG, "🗑️ Cache expired (age: ${age}ms), re-analyzing")
+                    Logger.d(TAG, "🗑️ Cache expired (age: ${age}ms), re-analyzing")
                 }
             }
 
             // Call AI to analyze
-            Log.d(TAG, "🤖 Calling AI analysis...")
+            Logger.d(TAG, "🤖 Calling AI analysis...")
             val aiStart = System.currentTimeMillis()
             val matches = callAIAnalysis(processedBitmap, constraints)
             val aiDuration = System.currentTimeMillis() - aiStart
-            Log.d(TAG, "✅ AI analysis complete (${aiDuration}ms)")
+            Logger.d(TAG, "✅ AI analysis complete (${aiDuration}ms)")
 
             // Log violation results
             val totalDuration = System.currentTimeMillis() - totalStart
-            Log.d(TAG, "📊 Total analysis time: ${totalDuration}ms")
+            Logger.d(TAG, "📊 Total analysis time: ${totalDuration}ms")
 
             // Update content match states in SessionManager
             val sessionManager = com.seenot.app.domain.SessionManager.getInstance(context)
@@ -303,11 +304,11 @@ class ScreenAnalyzer(
             // Log violation results
             val violations = matches.filter { it.isViolation }
             if (violations.isEmpty()) {
-                Log.d(TAG, "✅ No violations detected")
+                Logger.d(TAG, "✅ No violations detected")
             } else {
-                Log.w(TAG, "⚠️ VIOLATIONS DETECTED (${violations.size}):")
+                Logger.w(TAG, "⚠️ VIOLATIONS DETECTED (${violations.size}):")
                 violations.forEach { v ->
-                    Log.w(TAG, "   - ${v.constraint.description} (confidence: ${v.confidence})")
+                    Logger.w(TAG, "   - ${v.constraint.description} (confidence: ${v.confidence})")
                 }
             }
 
@@ -352,19 +353,19 @@ class ScreenAnalyzer(
 
                         // Save screenshot for the record (synchronous, before bitmap is recycled)
                         ruleRecordRepository.saveScreenshotForRecord(savedRecord.id, bitmapToSave, false)
-                        Log.d(TAG, "💾 Saved screenshot for record: ${savedRecord.id}")
+                        Logger.d(TAG, "💾 Saved screenshot for record: ${savedRecord.id}")
 
-                        Log.d(TAG, "💾 Saved rule record for constraint: ${match.constraint.description}")
+                        Logger.d(TAG, "💾 Saved rule record for constraint: ${match.constraint.description}")
                     }
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed to save rule records", e)
+                    Logger.e(TAG, "Failed to save rule records", e)
                 }
             }
 
             // Cache the result
             if (matches.isNotEmpty()) {
                 hashResultCache[hash] = CachedAnalysisResult(hash, matches, System.currentTimeMillis())
-                Log.d(TAG, "💾 Cached result (${hashResultCache.size} entries)")
+                Logger.d(TAG, "💾 Cached result (${hashResultCache.size} entries)")
             }
 
             // Recycle bitmap AFTER saving is complete
@@ -380,7 +381,7 @@ class ScreenAnalyzer(
         } catch (e: Exception) {
             // Don't show toast for cancelled coroutines (user left app)
             if (e.message?.contains("cancelled", ignoreCase = true) == true) {
-                Log.d(TAG, "Analysis cancelled (user left app)")
+                Logger.d(TAG, "Analysis cancelled (user left app)")
                 return ScreenAnalysisResult(
                     timestamp = System.currentTimeMillis(),
                     success = false,
@@ -389,7 +390,7 @@ class ScreenAnalyzer(
                 )
             }
 
-            Log.e(TAG, "❌ Analysis failed: ${e.message}", e)
+            Logger.e(TAG, "❌ Analysis failed: ${e.message}", e)
             showToast("分析失败: ${e.message}")
             return ScreenAnalysisResult(
                 timestamp = System.currentTimeMillis(),
@@ -411,7 +412,7 @@ class ScreenAnalyzer(
                 Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to show toast: ${e.message}")
+            Logger.w(TAG, "Failed to show toast: ${e.message}")
         }
     }
 
@@ -468,7 +469,7 @@ class ScreenAnalyzer(
             // cancelAll() removes all active notifications, including toast notifications
             notificationManager.cancelAll()
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to dismiss toasts", e)
+            Logger.w(TAG, "Failed to dismiss toasts", e)
         }
     }
 
@@ -511,10 +512,10 @@ class ScreenAnalyzer(
                     constraints = session.constraints,
                     onTapToReopen = { /* handled by service */ }
                 )
-                Log.d(TAG, "Re-showed floating overlay")
+                Logger.d(TAG, "Re-showed floating overlay")
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to re-show overlay: ${e.message}")
+            Logger.w(TAG, "Failed to re-show overlay: ${e.message}")
         }
     }
 
@@ -555,7 +556,7 @@ class ScreenAnalyzer(
                     Configuration.UI_MODE_NIGHT_YES
             val maskColor = if (isDarkMode) Color.BLACK else Color.WHITE
 
-            Log.d(TAG, "Dark mode: $isDarkMode, using mask color: ${if (isDarkMode) "BLACK" else "WHITE"}")
+            Logger.d(TAG, "Dark mode: $isDarkMode, using mask color: ${if (isDarkMode) "BLACK" else "WHITE"}")
 
             val paint = Paint().apply {
                 color = maskColor
@@ -570,7 +571,7 @@ class ScreenAnalyzer(
                 val scaledRight = (indicatorBounds.right * scaleFactor).toInt()
                 val scaledBottom = (indicatorBounds.bottom * scaleFactor).toInt()
 
-                Log.d(TAG, "Masking FloatingIndicatorOverlay at: left=$scaledLeft, top=$scaledTop, right=$scaledRight, bottom=$scaledBottom")
+                Logger.d(TAG, "Masking FloatingIndicatorOverlay at: left=$scaledLeft, top=$scaledTop, right=$scaledRight, bottom=$scaledBottom")
 
                 canvas.drawRect(
                     scaledLeft.toFloat(),
@@ -589,7 +590,7 @@ class ScreenAnalyzer(
                 val scaledRight = (voiceBounds.right * scaleFactor).toInt()
                 val scaledBottom = (voiceBounds.bottom * scaleFactor).toInt()
 
-                Log.d(TAG, "Masking VoiceInputOverlay at: left=$scaledLeft, top=$scaledTop, right=$scaledRight, bottom=$scaledBottom")
+                Logger.d(TAG, "Masking VoiceInputOverlay at: left=$scaledLeft, top=$scaledTop, right=$scaledRight, bottom=$scaledBottom")
 
                 canvas.drawRect(
                     scaledLeft.toFloat(),
@@ -601,12 +602,12 @@ class ScreenAnalyzer(
             }
 
             if (indicatorBounds == null && voiceBounds == null) {
-                Log.d(TAG, "No overlay bounds available for masking")
+                Logger.d(TAG, "No overlay bounds available for masking")
             } else {
-                Log.d(TAG, "Overlay masks drawn successfully")
+                Logger.d(TAG, "Overlay masks drawn successfully")
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to draw overlay mask: ${e.message}")
+            Logger.w(TAG, "Failed to draw overlay mask: ${e.message}")
         }
     }
 
@@ -660,20 +661,20 @@ class ScreenAnalyzer(
 
         // Convert bitmap to base64
         val imageBase64 = bitmapToBase64(screenshot)
-        Log.d(TAG, "[AI] Image base64 size: ${imageBase64.length} chars")
+        Logger.d(TAG, "[AI] Image base64 size: ${imageBase64.length} chars")
 
         // Build prompt with constraints
         val prompt = buildAnalysisPrompt(constraints)
-        Log.d(TAG, "[AI] Prompt length: ${prompt.length} chars")
+        Logger.d(TAG, "[AI] Prompt length: ${prompt.length} chars")
 
         try {
             val apiKey = ApiConfig.getApiKey()
             if (apiKey.isBlank()) {
-                Log.e(TAG, "[AI] API key is empty!")
+                Logger.e(TAG, "[AI] API key is empty!")
                 return@withContext emptyList()
             }
 
-            Log.d(TAG, "[AI] Using DashScope SDK with model: qwen-vl-plus")
+            Logger.d(TAG, "[AI] Using DashScope SDK with model: qwen-vl-plus")
 
             // Build user message with image and text
             val userContent = listOf(
@@ -696,7 +697,7 @@ class ScreenAnalyzer(
                 .enableThinking(false)
                 .build()
 
-            Log.d(TAG, "[AI] Calling DashScope SDK...")
+            Logger.d(TAG, "[AI] Calling DashScope SDK...")
 
             // Call SDK with timing
             val callStart = System.currentTimeMillis()
@@ -704,32 +705,32 @@ class ScreenAnalyzer(
             val result: MultiModalConversationResult = conversation.call(param)
             val callDuration = System.currentTimeMillis() - callStart
 
-            Log.d(TAG, "[AI] SDK call completed, duration: ${callDuration}ms")
+            Logger.d(TAG, "[AI] SDK call completed, duration: ${callDuration}ms")
 
             // Parse response
             val responseContent = result.output.choices[0].message.content
             if (responseContent != null && responseContent.isNotEmpty()) {
                 val responseText = responseContent[0]["text"] as? String ?: ""
-                Log.d(TAG, "[AI] Response text length: ${responseText.length} chars")
-                Log.d(TAG, "[AI] Response (full): $responseText")
+                Logger.d(TAG, "[AI] Response text length: ${responseText.length} chars")
+                Logger.d(TAG, "[AI] Response (full): $responseText")
 
                 // Parse the JSON response from AI
                 val matches = parseAIResponseFromText(responseText, constraints)
-                Log.d(TAG, "[AI] Parsed ${matches.size} constraint matches")
+                Logger.d(TAG, "[AI] Parsed ${matches.size} constraint matches")
                 matches
             } else {
-                Log.e(TAG, "[AI] Empty response from SDK")
+                Logger.e(TAG, "[AI] Empty response from SDK")
                 emptyList()
             }
 
         } catch (e: NoApiKeyException) {
-            Log.e(TAG, "[AI] No API key: ${e.message}", e)
+            Logger.e(TAG, "[AI] No API key: ${e.message}", e)
             emptyList()
         } catch (e: ApiException) {
-            Log.e(TAG, "[AI] API error: ${e.message}", e)
+            Logger.e(TAG, "[AI] API error: ${e.message}", e)
             emptyList()
         } catch (e: Exception) {
-            Log.e(TAG, "[AI] Analysis failed: ${e.message}", e)
+            Logger.e(TAG, "[AI] Analysis failed: ${e.message}", e)
             emptyList()
         }
     }
@@ -741,7 +742,7 @@ class ScreenAnalyzer(
         return try {
             // Clean the response text - extract JSON from potential markdown or text wrapper
             val cleanedText = cleanJSONResponse(responseText)
-            Log.d(TAG, "[AI] Cleaned response length: ${cleanedText.length} chars")
+            Logger.d(TAG, "[AI] Cleaned response length: ${cleanedText.length} chars")
 
             // Use lenient parsing
             val parser = com.google.gson.JsonParser.parseString(cleanedText)
@@ -760,7 +761,7 @@ class ScreenAnalyzer(
                     com.google.gson.JsonArray().apply { add(obj) }
                 }
             } else {
-                Log.e(TAG, "[AI] Unexpected JSON type: ${parser}")
+                Logger.e(TAG, "[AI] Unexpected JSON type: ${parser}")
                 return emptyList()
             }
 
@@ -809,15 +810,15 @@ class ScreenAnalyzer(
                         reason = reason.ifBlank { "未知界面" }
                     )
                 } catch (e: Exception) {
-                    Log.w(TAG, "[AI] Failed to parse result element: ${e.message}")
+                    Logger.w(TAG, "[AI] Failed to parse result element: ${e.message}")
                     null
                 }
             }.also { matches ->
-                Log.d(TAG, "[AI] Successfully parsed ${matches.size} constraint matches")
+                Logger.d(TAG, "[AI] Successfully parsed ${matches.size} constraint matches")
             }
         } catch (e: Exception) {
-            Log.e(TAG, "[AI] Failed to parse response: ${e.message}")
-            Log.d(TAG, "[AI] Raw response for debug: ${responseText.take(500)}")
+            Logger.e(TAG, "[AI] Failed to parse response: ${e.message}")
+            Logger.d(TAG, "[AI] Raw response for debug: ${responseText.take(500)}")
             emptyList()
         }
     }
@@ -1027,7 +1028,7 @@ $decisionValues
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to parse AI response", e)
+            Logger.e(TAG, "Failed to parse AI response", e)
             emptyList()
         }
     }
@@ -1072,7 +1073,7 @@ $decisionValues
             // Combine dimension info and pixel hash
             return "${bitmap.width}x${bitmap.height}_${hash.hashCode()}"
         } catch (e: Exception) {
-            Log.w(TAG, "Error generating screenshot hash, using fallback", e)
+            Logger.w(TAG, "Error generating screenshot hash, using fallback", e)
             // Fallback to original method if sampling fails
             return computeHashFallback(bitmap)
         }

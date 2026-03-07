@@ -5,7 +5,7 @@ import android.media.AudioFormat
 import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.os.Build
-import android.util.Log
+import com.seenot.app.utils.Logger
 import com.alibaba.dashscope.audio.asr.recognition.RecognitionParam
 import com.alibaba.dashscope.utils.Constants
 import com.seenot.app.config.ApiConfig
@@ -61,7 +61,7 @@ class SttEngine(private val context: Context) {
      */
     fun startRecording(): Boolean {
         if (recordingActive) {
-            Log.w(TAG, "Already recording")
+            Logger.w(TAG, "Already recording")
             return false
         }
 
@@ -70,7 +70,7 @@ class SttEngine(private val context: Context) {
             val minBufferSize = AudioRecord.getMinBufferSize(SAMPLE_RATE, CHANNEL_CONFIG, AUDIO_FORMAT_PCM)
             // Use larger buffer for AudioRecord (at least 4x the send buffer)
             val audioRecordBufferSize = maxOf(minBufferSize, 4096)
-            Log.d(TAG, "AudioRecord buffer size: $audioRecordBufferSize, minBufferSize: $minBufferSize")
+            Logger.d(TAG, "AudioRecord buffer size: $audioRecordBufferSize, minBufferSize: $minBufferSize")
 
             audioRecord = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
                 AudioRecord(
@@ -92,14 +92,14 @@ class SttEngine(private val context: Context) {
             }
 
             if (audioRecord?.state != AudioRecord.STATE_INITIALIZED) {
-                Log.e(TAG, "AudioRecord initialization failed")
+                Logger.e(TAG, "AudioRecord initialization failed")
                 return false
             }
 
             // Configure DashScope API key
             val apiKey = ApiConfig.getApiKey()
             if (apiKey.isBlank()) {
-                Log.e(TAG, "API key is empty")
+                Logger.e(TAG, "API key is empty")
                 return false
             }
 
@@ -122,24 +122,24 @@ class SttEngine(private val context: Context) {
             // Set up callback for recognition results
             recognitionHelper?.setCallback(object : RecognitionCallback {
                 override fun onIntermediateResult(text: String) {
-                    Log.d(TAG, "Intermediate Result: $text")
+                    Logger.d(TAG, "Intermediate Result: $text")
                     if (text.isNotBlank()) {
                         transcriptionCallback?.onIntermediateResult(text)
                     }
                 }
 
                 override fun onFinalResult(text: String) {
-                    Log.d(TAG, "Final Result: $text")
+                    Logger.d(TAG, "Final Result: $text")
                     transcriptionCallback?.onFinalResult(text)
                 }
 
                 override fun onError(error: String) {
-                    Log.e(TAG, "RecognitionCallback error: $error")
+                    Logger.e(TAG, "RecognitionCallback error: $error")
                     transcriptionCallback?.onError(error)
                 }
 
                 override fun onComplete() {
-                    Log.d(TAG, "Recognition complete")
+                    Logger.d(TAG, "Recognition complete")
                     transcriptionCallback?.onComplete()
                 }
             })
@@ -158,11 +158,11 @@ class SttEngine(private val context: Context) {
                 sendAudioData()
             }
 
-            Log.d(TAG, "Recording and recognition started")
+            Logger.d(TAG, "Recording and recognition started")
             return true
 
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to start recording", e)
+            Logger.e(TAG, "Failed to start recording", e)
             cleanup()
             return false
         }
@@ -174,7 +174,7 @@ class SttEngine(private val context: Context) {
         // ByteBuffer for sending audio data
         val readBuffer = ByteArray(sendBufferSize)
 
-        Log.d(TAG, "Starting audio capture and streaming")
+        Logger.d(TAG, "Starting audio capture and streaming")
 
         try {
             while (recordingActive) {
@@ -187,25 +187,25 @@ class SttEngine(private val context: Context) {
                     // Sleep to prevent CPU overuse (recording rate limitation)
                     Thread.sleep(20)
                 } else if (read < 0) {
-                    Log.e(TAG, "AudioRecord error: $read")
+                    Logger.e(TAG, "AudioRecord error: $read")
                     break
                 }
 
                 // Check max duration
                 if (getRecordingDuration() >= MAX_RECORDING_DURATION_MS) {
-                    Log.d(TAG, "Max recording duration exceeded")
+                    Logger.d(TAG, "Max recording duration exceeded")
                     break
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error sending audio data", e)
+            Logger.e(TAG, "Error sending audio data", e)
             transcriptionCallback?.onError(e.message ?: "Audio sending error")
         } finally {
-            Log.d(TAG, "Audio capture loop finished, stopping recognition")
+            Logger.d(TAG, "Audio capture loop finished, stopping recognition")
             try {
                 recognitionHelper?.stop()
             } catch (e: Exception) {
-                Log.e(TAG, "Error stopping recognition", e)
+                Logger.e(TAG, "Error stopping recognition", e)
             }
         }
     }
@@ -215,7 +215,7 @@ class SttEngine(private val context: Context) {
      */
     fun stopRecording() {
         if (!recordingActive) {
-            Log.w(TAG, "Not recording")
+            Logger.w(TAG, "Not recording")
             return
         }
 
@@ -227,7 +227,7 @@ class SttEngine(private val context: Context) {
                 release()
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error stopping recorder", e)
+            Logger.e(TAG, "Error stopping recorder", e)
         }
 
         audioRecord = null
@@ -236,7 +236,7 @@ class SttEngine(private val context: Context) {
         try {
             recognitionHelper?.stop()
         } catch (e: Exception) {
-            Log.e(TAG, "Error stopping recognition", e)
+            Logger.e(TAG, "Error stopping recognition", e)
         }
 
         recognitionHelper = null
@@ -245,7 +245,7 @@ class SttEngine(private val context: Context) {
         recognitionExecutor?.shutdown()
         recognitionExecutor = null
 
-        Log.d(TAG, "Recording stopped")
+        Logger.d(TAG, "Recording stopped")
     }
 
     /**
@@ -334,7 +334,7 @@ class SttEngine(private val context: Context) {
         try {
             val apiKey = ApiConfig.getApiKey()
             if (apiKey.isBlank()) {
-                Log.e(TAG, "API key is empty")
+                Logger.e(TAG, "API key is empty")
                 return@withContext SttResult.Error("API key not configured")
             }
 
@@ -365,12 +365,12 @@ class SttEngine(private val context: Context) {
                 }
 
                 override fun onError(error: String) {
-                    Log.e(TAG, "Recognition error: $error")
+                    Logger.e(TAG, "Recognition error: $error")
                     finalResult = SttResult.Error(error)
                 }
 
                 override fun onComplete() {
-                    Log.d(TAG, "Recognition complete")
+                    Logger.d(TAG, "Recognition complete")
                 }
             })
 
@@ -383,7 +383,7 @@ class SttEngine(private val context: Context) {
                 recognitionHelper?.sendAudioFrame(buffer)
                 recognitionHelper?.stop()
             } catch (e: Exception) {
-                Log.e(TAG, "Error during transcription", e)
+                Logger.e(TAG, "Error during transcription", e)
             }
 
             // Wait a bit for results
@@ -401,7 +401,7 @@ class SttEngine(private val context: Context) {
             finalResult
 
         } catch (e: Exception) {
-            Log.e(TAG, "Transcription failed", e)
+            Logger.e(TAG, "Transcription failed", e)
             audioFile.delete()
             SttResult.Error(e.message ?: "Unknown error")
         }

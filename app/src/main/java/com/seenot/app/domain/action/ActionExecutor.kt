@@ -4,12 +4,12 @@ import android.content.Context
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import android.util.Log
 import android.widget.Toast
 import com.seenot.app.data.model.InterventionLevel
 import com.seenot.app.data.repository.RuleRecordRepository
 import com.seenot.app.domain.SessionConstraint
 import com.seenot.app.service.SeenotAccessibilityService
+import com.seenot.app.utils.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -58,37 +58,39 @@ class ActionExecutor(private val context: Context) {
     fun executeIntervention(
         constraint: SessionConstraint,
         confidence: Double,
-        reason: String = "violation" // "violation" or "timeout"
+        reason: String = "violation", // "violation" or "timeout"
+        appName: String = "unknown",
+        packageName: String? = null
     ) {
-        Log.d(TAG, "=== executeIntervention called ===")
-        Log.d(TAG, "Constraint: ${constraint.description}")
-        Log.d(TAG, "Type: ${constraint.type}, Intervention: ${constraint.interventionLevel}")
-        Log.d(TAG, "Confidence: $confidence")
-        Log.d(TAG, "Reason: $reason")
+        Logger.d(TAG, "=== executeIntervention called ===")
+        Logger.d(TAG, "Constraint: ${constraint.description}")
+        Logger.d(TAG, "Type: ${constraint.type}, Intervention: ${constraint.interventionLevel}")
+        Logger.d(TAG, "Confidence: $confidence")
+        Logger.d(TAG, "Reason: $reason")
 
         // Check cooldown
         if (System.currentTimeMillis() < cooldownEndTime) {
-            Log.d(TAG, "❌ In cooldown period (until ${cooldownEndTime - System.currentTimeMillis()}ms left), skipping action")
+            Logger.d(TAG, "❌ In cooldown period (until ${cooldownEndTime - System.currentTimeMillis()}ms left), skipping action")
             return
         } else {
-            Log.d(TAG, "✅ Cooldown passed, can execute action")
+            Logger.d(TAG, "✅ Cooldown passed, can execute action")
         }
 
         // Check throttle
         val now = System.currentTimeMillis()
         if (now - lastActionTime < ACTION_THROTTLE_MS && lastActionType == ActionType.GO_HOME) {
-            Log.d(TAG, "❌ Action throttled (last action ${now - lastActionTime}ms ago), skipping")
+            Logger.d(TAG, "❌ Action throttled (last action ${now - lastActionTime}ms ago), skipping")
             return
         }
 
         val interventionLevel = constraint.interventionLevel
-        Log.d(TAG, "Intervention level: $interventionLevel")
+        Logger.d(TAG, "Intervention level: $interventionLevel")
 
         // Determine action based on confidence and intervention level
         val action = determineAction(interventionLevel, confidence)
-        Log.d(TAG, "→ Determined action: $action")
+        Logger.d(TAG, "→ Determined action: $action")
 
-        executeAction(action, constraint, reason)
+        executeAction(action, constraint, reason, appName, packageName)
     }
 
     /**
@@ -100,16 +102,16 @@ class ActionExecutor(private val context: Context) {
     ): ActionType {
         val action = when (level) {
             InterventionLevel.GENTLE -> {
-                Log.d(TAG, "[determineAction] GENTLE level → TOAST")
+                Logger.d(TAG, "[determineAction] GENTLE level → TOAST")
                 ActionType.TOAST
             }
 
             InterventionLevel.MODERATE -> {
                 if (confidence >= 0.9) {
-                    Log.d(TAG, "[determineAction] MODERATE level, confidence=$confidence ≥ 0.9 → AUTO_BACK")
+                    Logger.d(TAG, "[determineAction] MODERATE level, confidence=$confidence ≥ 0.9 → AUTO_BACK")
                     ActionType.AUTO_BACK
                 } else {
-                    Log.d(TAG, "[determineAction] MODERATE level, confidence=$confidence < 0.9 → TOAST")
+                    Logger.d(TAG, "[determineAction] MODERATE level, confidence=$confidence < 0.9 → TOAST")
                     ActionType.TOAST
                 }
             }
@@ -117,15 +119,15 @@ class ActionExecutor(private val context: Context) {
             InterventionLevel.STRICT -> {
                 when {
                     confidence >= 0.9 -> {
-                        Log.d(TAG, "[determineAction] STRICT level, confidence=$confidence ≥ 0.9 → GO_HOME")
+                        Logger.d(TAG, "[determineAction] STRICT level, confidence=$confidence ≥ 0.9 → GO_HOME")
                         ActionType.GO_HOME
                     }
                     confidence >= 0.7 -> {
-                        Log.d(TAG, "[determineAction] STRICT level, confidence=$confidence ≥ 0.7 → AUTO_BACK")
+                        Logger.d(TAG, "[determineAction] STRICT level, confidence=$confidence ≥ 0.7 → AUTO_BACK")
                         ActionType.AUTO_BACK
                     }
                     else -> {
-                        Log.d(TAG, "[determineAction] STRICT level, confidence=$confidence < 0.7 → TOAST")
+                        Logger.d(TAG, "[determineAction] STRICT level, confidence=$confidence < 0.7 → TOAST")
                         ActionType.TOAST
                     }
                 }
@@ -137,18 +139,18 @@ class ActionExecutor(private val context: Context) {
     /**
      * Execute the action
      */
-    private fun executeAction(action: ActionType, constraint: SessionConstraint, reason: String) {
+    private fun executeAction(action: ActionType, constraint: SessionConstraint, reason: String, appName: String, packageName: String?) {
         val now = System.currentTimeMillis()
         lastActionTime = now
         lastActionType = action
 
-        Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
-        Log.d(TAG, "🎯 EXECUTING ACTION: $action")
-        Log.d(TAG, "📋 Constraint: ${constraint.description}")
-        Log.d(TAG, "📋 Type: ${constraint.type}")
-        Log.d(TAG, "📋 Reason: $reason")
-        Log.d(TAG, "⏰ Timestamp: $now")
-        Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        Logger.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
+        Logger.d(TAG, "🎯 EXECUTING ACTION: $action")
+        Logger.d(TAG, "📋 Constraint: ${constraint.description}")
+        Logger.d(TAG, "📋 Type: ${constraint.type}")
+        Logger.d(TAG, "📋 Reason: $reason")
+        Logger.d(TAG, "⏰ Timestamp: $now")
+        Logger.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
         when (action) {
             ActionType.TOAST -> executeToast(constraint)
@@ -159,14 +161,14 @@ class ActionExecutor(private val context: Context) {
         }
 
         // Record action to database
-        recordAction(constraint, action, reason, now)
+        recordAction(constraint, action, reason, now, appName, packageName)
 
         // Set cooldown for forced actions
         if (action == ActionType.AUTO_BACK || action == ActionType.GO_HOME) {
             cooldownEndTime = now + COOLDOWN_MS
-            Log.d(TAG, "⏳ Set cooldown: ${COOLDOWN_MS}ms (until ${cooldownEndTime})")
+            Logger.d(TAG, "⏳ Set cooldown: ${COOLDOWN_MS}ms (until ${cooldownEndTime})")
         } else {
-            Log.d(TAG, "⏭️ No cooldown for action: $action")
+            Logger.d(TAG, "⏭️ No cooldown for action: $action")
         }
 
         // Notify listeners
@@ -176,13 +178,13 @@ class ActionExecutor(private val context: Context) {
     /**
      * Record action to database
      */
-    private fun recordAction(constraint: SessionConstraint, action: ActionType, reason: String, timestamp: Long) {
+    private fun recordAction(constraint: SessionConstraint, action: ActionType, reason: String, timestamp: Long, appName: String, packageName: String?) {
         scope.launch {
             try {
                 val record = com.seenot.app.data.model.RuleRecord(
                     sessionId = 0, // TODO: get actual session ID
-                    appName = "unknown", // Will be updated if we have package name
-                    packageName = null,
+                    appName = appName,
+                    packageName = packageName,
                     constraintId = constraint.id.toLongOrNull(),
                     constraintType = constraint.type,
                     constraintContent = constraint.description,
@@ -192,9 +194,9 @@ class ActionExecutor(private val context: Context) {
                     actionTimestamp = timestamp
                 )
                 ruleRecordRepository.saveRecord(record)
-                Log.d(TAG, "💾 Recorded action: ${action.name} for ${constraint.description}")
+                Logger.d(TAG, "💾 Recorded action: ${action.name} for ${constraint.description}")
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to record action", e)
+                Logger.e(TAG, "Failed to record action", e)
             }
         }
     }
@@ -227,16 +229,16 @@ class ActionExecutor(private val context: Context) {
             }
         }
 
-        Log.d(TAG, "[executeToast] Showing toast: $message")
+        Logger.d(TAG, "[executeToast] Showing toast: $message")
         Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
-        Log.d(TAG, "[executeToast] Toast shown ✓")
+        Logger.d(TAG, "[executeToast] Toast shown ✓")
     }
 
     /**
      * Perform auto-back gesture
      */
     private fun executeAutoBack(constraint: SessionConstraint) {
-        Log.d(TAG, "[executeAutoBack] Attempting auto-back gesture...")
+        Logger.d(TAG, "[executeAutoBack] Attempting auto-back gesture...")
 
         // Show toast before action
         val message = when (constraint.type) {
@@ -248,10 +250,10 @@ class ActionExecutor(private val context: Context) {
         val service = SeenotAccessibilityService.instance
         if (service != null) {
             service.performBackGesture { success ->
-                Log.d(TAG, "[executeAutoBack] Auto-back gesture result: ${if (success) "✅ SUCCESS" else "❌ FAILED"}")
+                Logger.d(TAG, "[executeAutoBack] Auto-back gesture result: ${if (success) "✅ SUCCESS" else "❌ FAILED"}")
             }
         } else {
-            Log.w(TAG, "[executeAutoBack] AccessibilityService is null, cannot perform gesture")
+            Logger.w(TAG, "[executeAutoBack] AccessibilityService is null, cannot perform gesture")
         }
     }
 
@@ -259,7 +261,7 @@ class ActionExecutor(private val context: Context) {
      * Go to home screen
      */
     private fun executeGoHome(constraint: SessionConstraint) {
-        Log.d(TAG, "[executeGoHome] Attempting to go home...")
+        Logger.d(TAG, "[executeGoHome] Attempting to go home...")
 
         // Show toast before action
         val message = when (constraint.type) {
@@ -271,10 +273,10 @@ class ActionExecutor(private val context: Context) {
         val service = SeenotAccessibilityService.instance
         if (service != null) {
             service.performHomeGesture { success ->
-                Log.d(TAG, "[executeGoHome] Go home gesture result: ${if (success) "✅ SUCCESS" else "❌ FAILED"}")
+                Logger.d(TAG, "[executeGoHome] Go home gesture result: ${if (success) "✅ SUCCESS" else "❌ FAILED"}")
             }
         } else {
-            Log.w(TAG, "[executeGoHome] AccessibilityService is null, cannot perform gesture")
+            Logger.w(TAG, "[executeGoHome] AccessibilityService is null, cannot perform gesture")
         }
     }
 
@@ -307,7 +309,7 @@ class ActionExecutor(private val context: Context) {
                 vibrator.vibrate(200)
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Vibration failed", e)
+            Logger.e(TAG, "Vibration failed", e)
         }
     }
 
@@ -315,7 +317,7 @@ class ActionExecutor(private val context: Context) {
      * Allow this once - override for false positives
      */
     fun allowOnce() {
-        Log.d(TAG, "Allow once triggered")
+        Logger.d(TAG, "Allow once triggered")
         cooldownEndTime = System.currentTimeMillis() + COOLDOWN_MS
     }
 

@@ -1,6 +1,6 @@
 package com.seenot.app.ai.parser
 
-import android.util.Log
+import com.seenot.app.utils.Logger
 import com.google.gson.JsonParser
 import com.seenot.app.config.ApiConfig
 import com.seenot.app.data.model.ConstraintType
@@ -109,7 +109,7 @@ class IntentParser {
                     source = UtteranceSource.VOICE
                 )
             } catch (e: Exception) {
-                Log.e(TAG, "parseIntent failed", e)
+                Logger.e(TAG, "parseIntent failed", e)
                 ParsedIntentResult.Error(e.message ?: "解析失败")
             }
         }
@@ -161,7 +161,7 @@ class IntentParser {
                 }
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Failed to parse constraints from JSON", e)
+            Logger.w(TAG, "Failed to parse constraints from JSON", e)
         }
         return constraints
     }
@@ -172,7 +172,7 @@ class IntentParser {
         for (attempt in 1..3) try {
             val param = GenerationParam.builder().apiKey(apiKey).model("qwen-plus").messages(listOf(Message.builder().role(Role.SYSTEM.value).content("你是一个智能的意图解析助手。").build(), Message.builder().role(Role.USER.value).content(prompt).build())).resultFormat(GenerationParam.ResultFormat.MESSAGE).temperature(0.3f).build()
             return generation.call(param).output.choices[0].message.content
-        } catch (e: Exception) { Log.w(TAG, "LLM error: ${e.message}"); if(attempt<3) Thread.sleep(1000L*attempt) }
+        } catch (e: Exception) { Logger.w(TAG, "LLM error: ${e.message}"); if(attempt<3) Thread.sleep(1000L*attempt) }
         throw Exception("LLM call failed")
     }
 }

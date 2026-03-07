@@ -1627,6 +1627,32 @@ fun SettingsTab(
 
         Spacer(modifier = Modifier.height(24.dp))
 
+        // Logs Section
+        Text(
+            text = "日志管理",
+            style = MaterialTheme.typography.titleMedium
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        var showLogExportDialog by remember { mutableStateOf(false) }
+
+        OutlinedButton(
+            onClick = { showLogExportDialog = true },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Default.Download, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text("导出日志")
+        }
+
+        if (showLogExportDialog) {
+            LogExportDialog(
+                onDismiss = { showLogExportDialog = false }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
         // About
         Text(
             text = "关于",
@@ -2150,6 +2176,181 @@ fun VoiceInputDialog(
                     enabled = recordingState != VoiceRecordingState.PROCESSING
                 ) {
                     Text("跳过")
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun LogExportDialog(
+    onDismiss: () -> Unit
+) {
+    val context = LocalContext.current
+    val scope = rememberCoroutineScope()
+
+    var startDate by remember { mutableStateOf("") }
+    var endDate by remember { mutableStateOf("") }
+    var isExporting by remember { mutableStateOf(false) }
+    var exportMessage by remember { mutableStateOf("") }
+
+    // Get current date as default
+    val currentDate = remember {
+        java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(java.util.Date())
+    }
+
+    // Set default dates (last 7 days to today)
+    LaunchedEffect(Unit) {
+        val calendar = java.util.Calendar.getInstance()
+        endDate = currentDate
+        calendar.add(java.util.Calendar.DAY_OF_MONTH, -7)
+        startDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(calendar.time)
+    }
+
+    Dialog(onDismissRequest = onDismiss) {
+        Card(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(16.dp),
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                Text(
+                    text = "分享日志",
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold
+                )
+
+                // Start date
+                OutlinedTextField(
+                    value = startDate,
+                    onValueChange = { startDate = it },
+                    label = { Text("开始日期 (yyyy-MM-dd)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isExporting
+                )
+
+                // End date
+                OutlinedTextField(
+                    value = endDate,
+                    onValueChange = { endDate = it },
+                    label = { Text("结束日期 (yyyy-MM-dd)") },
+                    modifier = Modifier.fillMaxWidth(),
+                    enabled = !isExporting
+                )
+
+                // Export message
+                if (exportMessage.isNotEmpty()) {
+                    Text(
+                        text = exportMessage,
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = if (exportMessage.contains("成功")) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.error
+                        }
+                    )
+                }
+
+                // Buttons
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    // Export all logs button
+                    OutlinedButton(
+                        onClick = {
+                            scope.launch {
+                                isExporting = true
+                                exportMessage = "正在分享所有日志..."
+
+                                try {
+                                    val success = com.seenot.app.utils.Logger.shareAllLogs(context)
+                                    exportMessage = if (success) {
+                                        "分享成功！"
+                                    } else {
+                                        "分享失败，请检查日志"
+                                    }
+                                    if (success) {
+                                        kotlinx.coroutines.delay(1000)
+                                        onDismiss()
+                                    }
+                                } catch (e: Exception) {
+                                    exportMessage = "分享失败: ${e.message}"
+                                } finally {
+                                    isExporting = false
+                                }
+                            }
+                        },
+                        enabled = !isExporting,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        if (isExporting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp
+                            )
+                        } else {
+                            Text("分享全部")
+                        }
+                    }
+
+                    // Export range button
+                    Button(
+                        onClick = {
+                            scope.launch {
+                                isExporting = true
+                                exportMessage = "正在分享日志..."
+
+                                try {
+                                    val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
+                                    val start = dateFormat.parse(startDate)
+                                    val end = dateFormat.parse(endDate)
+
+                                    if (start != null && end != null) {
+                                        val success = com.seenot.app.utils.Logger.shareLogs(context, start, end)
+                                        exportMessage = if (success) {
+                                            "分享成功！"
+                                        } else {
+                                            "分享失败，请检查日期格式和日志"
+                                        }
+                                        if (success) {
+                                            kotlinx.coroutines.delay(1000)
+                                            onDismiss()
+                                        }
+                                    } else {
+                                        exportMessage = "日期格式错误"
+                                    }
+                                } catch (e: Exception) {
+                                    exportMessage = "分享失败: ${e.message}"
+                                } finally {
+                                    isExporting = false
+                                }
+                            }
+                        },
+                        enabled = !isExporting && startDate.isNotEmpty() && endDate.isNotEmpty(),
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        if (isExporting) {
+                            CircularProgressIndicator(
+                                modifier = Modifier.size(16.dp),
+                                strokeWidth = 2.dp,
+                                color = MaterialTheme.colorScheme.onPrimary
+                            )
+                        } else {
+                            Text("分享范围")
+                        }
+                    }
+                }
+
+                // Close button
+                TextButton(
+                    onClick = onDismiss,
+                    modifier = Modifier.align(Alignment.End)
+                ) {
+                    Text("关闭")
                 }
             }
         }

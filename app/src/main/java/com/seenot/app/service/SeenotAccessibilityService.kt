@@ -15,7 +15,7 @@ import android.graphics.Path
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
+import com.seenot.app.utils.Logger
 import android.view.Display
 import android.view.accessibility.AccessibilityEvent
 import android.view.accessibility.AccessibilityNodeInfo
@@ -69,15 +69,19 @@ class SeenotAccessibilityService : AccessibilityService() {
 
     override fun onServiceConnected() {
         super.onServiceConnected()
-        instance = this
-        _isServiceReady.value = true
-        Log.d(TAG, "AccessibilityService connected")
-
-        // Start foreground service to prevent being killed
         try {
-            startForegroundService()
+            instance = this
+            _isServiceReady.value = true
+            Logger.d(TAG, "AccessibilityService connected")
+
+            // Start foreground service to prevent being killed
+            try {
+                startForegroundService()
+            } catch (e: Exception) {
+                Logger.e(TAG, "Failed to start foreground service", e)
+            }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to start foreground service", e)
+            Logger.e(TAG, "Error in onServiceConnected", e)
         }
     }
 
@@ -88,7 +92,7 @@ class SeenotAccessibilityService : AccessibilityService() {
         try {
             createNotificationChannel()
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to create notification channel", e)
+            Logger.e(TAG, "Failed to create notification channel", e)
             return
         }
 
@@ -115,13 +119,13 @@ class SeenotAccessibilityService : AccessibilityService() {
                     // ForegroundService.SPECIAL_USE = 4
                     method.invoke(this, 4)
                 } catch (e: Exception) {
-                    Log.w(TAG, "Failed to set foreground service type", e)
+                    Logger.w(TAG, "Failed to set foreground service type", e)
                 }
             }
             startForeground(NOTIFICATION_ID, notification)
-            Log.d(TAG, "Foreground notification started")
+            Logger.d(TAG, "Foreground notification started")
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to start foreground", e)
+            Logger.e(TAG, "Failed to start foreground", e)
         }
     }
 
@@ -145,41 +149,45 @@ class SeenotAccessibilityService : AccessibilityService() {
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
-        event ?: return
+        try {
+            event ?: return
 
-        when (event.eventType) {
-            AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
-                val packageName = event.packageName?.toString()
-                val className = event.className?.toString()
-                Log.d(TAG, "TYPE_WINDOW_STATE_CHANGED: $packageName, class: $className, current: ${_currentPackage.value}")
+            when (event.eventType) {
+                AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
+                    val packageName = event.packageName?.toString()
+                    val className = event.className?.toString()
+                    Logger.d(TAG, "TYPE_WINDOW_STATE_CHANGED: $packageName, class: $className, current: ${_currentPackage.value}")
 
-                if (packageName == null) return
+                    if (packageName == null) return
 
-                // Debounce: ignore rapid switches
-                val now = System.currentTimeMillis()
-                if (now - lastAppSwitchTime < APP_SWITCH_DEBOUNCE_MS) {
-                    Log.d(TAG, "Debouncing app switch: $packageName (${now - lastAppSwitchTime}ms)")
-                    return
+                    // Debounce: ignore rapid switches
+                    val now = System.currentTimeMillis()
+                    if (now - lastAppSwitchTime < APP_SWITCH_DEBOUNCE_MS) {
+                        Logger.d(TAG, "Debouncing app switch: $packageName (${now - lastAppSwitchTime}ms)")
+                        return
+                    }
+
+                    // Ignore system apps (except launcher)
+                    if (isSystemApp(packageName) && !isLauncher(packageName)) {
+                        Logger.d(TAG, "Ignoring system app: $packageName")
+                        return
+                    }
+
+                    if (packageName != _currentPackage.value) {
+                        Logger.d(TAG, "App switched to: $packageName")
+                        lastAppSwitchTime = now
+                        _currentPackage.value = packageName
+                        checkAndShowOverlay(packageName, className)
+                    } else {
+                        Logger.d(TAG, "Same package, skipping: $packageName")
+                    }
                 }
-
-                // Ignore system apps (except launcher)
-                if (isSystemApp(packageName) && !isLauncher(packageName)) {
-                    Log.d(TAG, "Ignoring system app: $packageName")
-                    return
-                }
-
-                if (packageName != _currentPackage.value) {
-                    Log.d(TAG, "App switched to: $packageName")
-                    lastAppSwitchTime = now
-                    _currentPackage.value = packageName
-                    checkAndShowOverlay(packageName, className)
-                } else {
-                    Log.d(TAG, "Same package, skipping: $packageName")
+                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
+                    // Can be used for content monitoring if needed
                 }
             }
-            AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
-                // Can be used for content monitoring if needed
-            }
+        } catch (e: Exception) {
+            Logger.e(TAG, "Error in onAccessibilityEvent", e)
         }
     }
 
@@ -218,7 +226,7 @@ class SeenotAccessibilityService : AccessibilityService() {
     private fun checkAndShowOverlay(packageName: String, className: String? = null) {
         // Ignore empty or null package names - these are likely transient system events
         if (packageName.isNullOrBlank()) {
-            Log.d(TAG, "Empty package name, skipping")
+            Logger.d(TAG, "Empty package name, skipping")
             return
         }
 
@@ -226,13 +234,13 @@ class SeenotAccessibilityService : AccessibilityService() {
         // This prevents false triggers during navigation within the same app
         val isCapable = isCapableClass(className)
         if (!isCapable) {
-            Log.d(TAG, "Not a capable class: $className, skipping")
+            Logger.d(TAG, "Not a capable class: $className, skipping")
             return
         }
 
         // Ignore SeeNot's own package to prevent overlay dismissal
         if (packageName == this.packageName) {
-            Log.d(TAG, "Own package $packageName, skipping")
+            Logger.d(TAG, "Own package $packageName, skipping")
             return
         }
 
@@ -240,10 +248,10 @@ class SeenotAccessibilityService : AccessibilityService() {
             // Get controlled apps from SessionManager
             val sessionManager = SessionManager.getInstance(this)
             val controlledApps = sessionManager.controlledApps.value
-            Log.d(TAG, "controlledApps: $controlledApps")
+            Logger.d(TAG, "controlledApps: $controlledApps")
 
             val isControlledApp = packageName in controlledApps
-            Log.d(TAG, "isControlledApp: $isControlledApp for $packageName")
+            Logger.d(TAG, "isControlledApp: $isControlledApp for $packageName")
 
             // Get previous monitored package
             val previousPackage = currentMonitoredPackage
@@ -257,33 +265,33 @@ class SeenotAccessibilityService : AccessibilityService() {
             when {
                 // Switch from one monitored app to another
                 isSwitchingToDifferentApp && isControlledApp -> {
-                    Log.d(TAG, "Case: Switching monitored app: $previousPackage -> $packageName")
+                    Logger.d(TAG, "Case: Switching monitored app: $previousPackage -> $packageName")
                     dismissAllOverlays()
                     showIndicatorAndOverlay(packageName)
                 }
                 // Switch from monitored app to non-monitored app
                 isSwitchingToDifferentApp && !isControlledApp -> {
-                    Log.d(TAG, "Case: Leaving monitored app: $previousPackage -> $packageName (non-controlled)")
+                    Logger.d(TAG, "Case: Leaving monitored app: $previousPackage -> $packageName (non-controlled)")
                     // SessionManager will handle pause/resume logic automatically
                     dismissAllOverlays()
                     currentMonitoredPackage = null
                 }
                 // Enter monitored app from non-monitored
                 !wasInMonitoredApp && isControlledApp -> {
-                    Log.d(TAG, "Case: Entering monitored app: $packageName")
+                    Logger.d(TAG, "Case: Entering monitored app: $packageName")
                     showIndicatorAndOverlay(packageName)
                 }
                 // Already in same monitored app - do nothing (prevent flickering)
                 wasInMonitoredApp && previousPackage == packageName -> {
-                    Log.d(TAG, "Case: Same package $packageName, skipping")
+                    Logger.d(TAG, "Case: Same package $packageName, skipping")
                 }
                 // Not in monitored app and not entering one - do nothing
                 else -> {
-                    Log.d(TAG, "Case: No state change relevant for $packageName")
+                    Logger.d(TAG, "Case: No state change relevant for $packageName")
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Error in checkAndShowOverlay", e)
+            Logger.e(TAG, "Error in checkAndShowOverlay", e)
         }
     }
 
@@ -314,7 +322,7 @@ class SeenotAccessibilityService : AccessibilityService() {
     private fun showIndicatorAndOverlay(packageName: String) {
         currentMonitoredPackage = packageName
 
-        Log.d(TAG, "showIndicatorAndOverlay called for: $packageName")
+        Logger.d(TAG, "showIndicatorAndOverlay called for: $packageName")
 
         val sessionManager = SessionManager.getInstance(this)
 
@@ -327,12 +335,12 @@ class SeenotAccessibilityService : AccessibilityService() {
 
         val existingSession = sessionManager.activeSession.value
         if (existingSession != null && existingSession.appPackageName == packageName) {
-            Log.d(TAG, "Active session exists, showing compact indicator for: $packageName")
+            Logger.d(TAG, "Active session exists, showing compact indicator for: $packageName")
             showCompactIndicator(packageName, appName, sessionManager)
             return
         }
 
-        Log.d(TAG, "No active session, showing intent input dialog for: $packageName")
+        Logger.d(TAG, "No active session, showing intent input dialog for: $packageName")
         showIntentInputDialog(packageName, appName, sessionManager)
     }
 
@@ -343,7 +351,7 @@ class SeenotAccessibilityService : AccessibilityService() {
             packageName = packageName,
             sessionManager = sessionManager,
             onIntentConfirmed = { constraints ->
-                Log.d(TAG, ">>> Intent confirmed, creating session for $packageName")
+                Logger.d(TAG, ">>> Intent confirmed, creating session for $packageName")
                 IntentInputDialogOverlay.dismiss()
 
                 FloatingIndicatorOverlay.showWithConstraints(
@@ -365,14 +373,14 @@ class SeenotAccessibilityService : AccessibilityService() {
                             displayName = appName,
                             constraints = constraints
                         )
-                        Log.d(TAG, "<<< Session created successfully for $packageName")
+                        Logger.d(TAG, "<<< Session created successfully for $packageName")
                     } catch (e: Exception) {
-                        Log.e(TAG, "!!! Failed to create session: ${e.message}", e)
+                        Logger.e(TAG, "!!! Failed to create session: ${e.message}", e)
                     }
                 }
             },
             onDismissed = {
-                Log.d(TAG, "Dialog dismissed without confirming, showing compact indicator")
+                Logger.d(TAG, "Dialog dismissed without confirming, showing compact indicator")
                 showCompactIndicator(packageName, appName, sessionManager)
             }
         )
@@ -398,22 +406,35 @@ class SeenotAccessibilityService : AccessibilityService() {
     }
 
     override fun onInterrupt() {
-        Log.d(TAG, "AccessibilityService interrupted")
+        try {
+            Logger.d(TAG, "AccessibilityService interrupted")
+        } catch (e: Exception) {
+            Logger.e(TAG, "Error in onInterrupt", e)
+        }
     }
 
     override fun onDestroy() {
-        super.onDestroy()
-        stopForeground(STOP_FOREGROUND_REMOVE)
-        dismissAllOverlays()
-        instance = null
-        _isServiceReady.value = false
-        Log.d(TAG, "AccessibilityService destroyed")
+        try {
+            super.onDestroy()
+            stopForeground(STOP_FOREGROUND_REMOVE)
+            dismissAllOverlays()
+            instance = null
+            _isServiceReady.value = false
+            Logger.d(TAG, "AccessibilityService destroyed")
+        } catch (e: Exception) {
+            Logger.e(TAG, "Error in onDestroy", e)
+        }
     }
 
     override fun onUnbind(intent: Intent?): Boolean {
-        instance = null
-        _isServiceReady.value = false
-        return super.onUnbind(intent)
+        try {
+            instance = null
+            _isServiceReady.value = false
+            return super.onUnbind(intent)
+        } catch (e: Exception) {
+            Logger.e(TAG, "Error in onUnbind", e)
+            return super.onUnbind(intent)
+        }
     }
 
     // ==================== App Detection ====================
@@ -440,13 +461,13 @@ class SeenotAccessibilityService : AccessibilityService() {
      * Uses performGlobalAction which is more reliable than swipe gestures
      */
     fun performBackGesture(callback: (Boolean) -> Unit) {
-        Log.d(TAG, "[performBackGesture] Performing global back action...")
+        Logger.d(TAG, "[performBackGesture] Performing global back action...")
         try {
             val success = performGlobalAction(AccessibilityService.GLOBAL_ACTION_BACK)
-            Log.d(TAG, "[performBackGesture] Global back action result: $success")
+            Logger.d(TAG, "[performBackGesture] Global back action result: $success")
             callback(success)
         } catch (e: Exception) {
-            Log.e(TAG, "[performBackGesture] Failed: ${e.message}")
+            Logger.e(TAG, "[performBackGesture] Failed: ${e.message}")
             callback(false)
         }
     }
@@ -455,13 +476,13 @@ class SeenotAccessibilityService : AccessibilityService() {
      * Perform a home gesture (go to home screen)
      */
     fun performHomeGesture(callback: (Boolean) -> Unit) {
-        Log.d(TAG, "[performHomeGesture] Performing global home action...")
+        Logger.d(TAG, "[performHomeGesture] Performing global home action...")
         try {
             val success = performGlobalAction(AccessibilityService.GLOBAL_ACTION_HOME)
-            Log.d(TAG, "[performHomeGesture] Global home action result: $success")
+            Logger.d(TAG, "[performHomeGesture] Global home action result: $success")
             callback(success)
         } catch (e: Exception) {
-            Log.e(TAG, "[performHomeGesture] Failed: ${e.message}")
+            Logger.e(TAG, "[performHomeGesture] Failed: ${e.message}")
             callback(false)
         }
     }
@@ -523,17 +544,17 @@ class SeenotAccessibilityService : AccessibilityService() {
         try {
             dispatchGesture(gesture, object : GestureResultCallback() {
                 override fun onCompleted(gestureDescription: GestureDescription?) {
-                    Log.d(TAG, "$gestureName completed")
+                    Logger.d(TAG, "$gestureName completed")
                     callback(true)
                 }
 
                 override fun onCancelled(gestureDescription: GestureDescription?) {
-                    Log.w(TAG, "$gestureName cancelled")
+                    Logger.w(TAG, "$gestureName cancelled")
                     callback(false)
                 }
             }, null)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to perform $gestureName", e)
+            Logger.e(TAG, "Failed to perform $gestureName", e)
             callback(false)
         }
     }

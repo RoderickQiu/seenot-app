@@ -2,7 +2,6 @@ package com.seenot.app.domain
 
 import android.content.Context
 import android.content.SharedPreferences
-import android.util.Log
 import com.google.gson.Gson
 import com.seenot.app.ai.screen.ScreenAnalyzer
 import com.seenot.app.config.ApiConfig
@@ -14,6 +13,7 @@ import com.seenot.app.data.model.TimeScope
 import com.seenot.app.data.repository.SessionRepository
 import com.seenot.app.domain.action.ActionExecutor
 import com.seenot.app.service.SeenotAccessibilityService
+import com.seenot.app.utils.Logger
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
 
@@ -96,7 +96,8 @@ class SessionManager(private val context: Context) {
 
     init {
         // Start listening for app changes
-        Log.d(TAG, "SessionManager initializing, observing app changes")
+        Logger.d(TAG, "SessionManager initializing, observing app changes")
+        Logger.i(TAG, "SessionManager initializing, observing app changes")
         observeAppChanges()
     }
 
@@ -120,16 +121,16 @@ class SessionManager(private val context: Context) {
         val controlled = _controlledApps.value
         val currentSession = _activeSession.value
 
-        Log.d(TAG, "App changed to: $packageName, controlled apps: $controlled")
+        Logger.d(TAG, "App changed to: $packageName, controlled apps: $controlled")
 
         if (packageName in controlled) {
             // User entered a controlled app
-            Log.d(TAG, "Entered controlled app: $packageName")
+            Logger.d(TAG, "Entered controlled app: $packageName")
             onControlledAppEntered(packageName)
         } else {
             // User switched to a non-controlled app
             if (currentSession != null) {
-                Log.d(TAG, "Left controlled app: ${currentSession.appPackageName}")
+                Logger.d(TAG, "Left controlled app: ${currentSession.appPackageName}")
                 onControlledAppExited(currentSession.appPackageName)
             }
         }
@@ -141,33 +142,33 @@ class SessionManager(private val context: Context) {
     private suspend fun onControlledAppEntered(packageName: String) {
         val currentSession = _activeSession.value
 
-        Log.d(TAG, ">>> onControlledAppEntered: pkg=$packageName, session=${currentSession?.appPackageName}, isPaused=${currentSession?.isPaused}, pausedAt=$sessionPausedAt")
+        Logger.d(TAG, ">>> onControlledAppEntered: pkg=$packageName, session=${currentSession?.appPackageName}, isPaused=${currentSession?.isPaused}, pausedAt=$sessionPausedAt")
 
         if (currentSession != null && currentSession.appPackageName == packageName) {
             // Session exists for this app - check if it was paused
             if (currentSession.isPaused) {
                 val pausedAt = sessionPausedAt
                 val timeDiff = if (pausedAt != null) System.currentTimeMillis() - pausedAt else -1
-                Log.d(TAG, ">>> Session was paused, time diff: ${timeDiff}ms, threshold: ${SHORT_PAUSE_THRESHOLD}ms")
+                Logger.d(TAG, ">>> Session was paused, time diff: ${timeDiff}ms, threshold: ${SHORT_PAUSE_THRESHOLD}ms")
 
                 if (pausedAt != null && timeDiff <= SHORT_PAUSE_THRESHOLD) {
                     // Within 30s - resume session
-                    Log.d(TAG, ">>> Resuming session within 30s for: $packageName")
+                    Logger.d(TAG, ">>> Resuming session within 30s for: $packageName")
                     resumeSession()
                     sessionPausedAt = null
                 } else {
                     // Beyond 30s or no pause time - end old session and create new one
-                    Log.d(TAG, ">>> Session expired (>30s or no pausedAt), creating new session for: $packageName")
+                    Logger.d(TAG, ">>> Session expired (>30s or no pausedAt), creating new session for: $packageName")
                     endSession(SessionEndReason.USER_LEFT)
                     requestNewSession(packageName)
                 }
             } else {
                 // Session is already active, ignore duplicate event
-                Log.d(TAG, ">>> Session already active for: $packageName, ignoring")
+                Logger.d(TAG, ">>> Session already active for: $packageName, ignoring")
             }
         } else if (currentSession == null) {
             // No active session - create new one
-            Log.d(TAG, ">>> No active session, creating new session for: $packageName")
+            Logger.d(TAG, ">>> No active session, creating new session for: $packageName")
             requestNewSession(packageName)
         }
     }
@@ -177,14 +178,14 @@ class SessionManager(private val context: Context) {
      */
     private suspend fun onControlledAppExited(@Suppress("UNUSED_PARAMETER") packageName: String) {
         if (_activeSession.value == null) {
-            Log.d(TAG, "onControlledAppExited: no active session, ignoring")
+            Logger.d(TAG, "onControlledAppExited: no active session, ignoring")
             return
         }
 
         // Pause session and record time for potential recovery
         pauseSession()
         sessionPausedAt = System.currentTimeMillis()
-        Log.d(TAG, ">>> Session paused at ${sessionPausedAt}, will auto-end if not resumed within 30s")
+        Logger.d(TAG, ">>> Session paused at ${sessionPausedAt}, will auto-end if not resumed within 30s")
     }
 
     /**
@@ -234,15 +235,18 @@ class SessionManager(private val context: Context) {
         startTimer()
 
         // Start screen analysis if API is configured
-        Log.d(TAG, "=== Creating session, checking API config ===")
-        Log.d(TAG, "ApiConfig.isConfigured() = ${ApiConfig.isConfigured()}")
-        Log.d(TAG, "ApiConfig.getApiKey() = ${ApiConfig.getApiKey().take(8)}...")
+        Logger.d(TAG, "=== Creating session, checking API config ===")
+        Logger.i(TAG, "Creating session for $packageName, checking API config")
+        Logger.d(TAG, "ApiConfig.isConfigured() = ${ApiConfig.isConfigured()}")
+        Logger.d(TAG, "ApiConfig.getApiKey() = ${ApiConfig.getApiKey().take(8)}...")
         if (ApiConfig.isConfigured()) {
-            Log.d(TAG, ">>> Calling startScreenAnalysis()")
+            Logger.d(TAG, ">>> Calling startScreenAnalysis()")
+            Logger.i(TAG, "Starting screen analysis for $packageName")
             startScreenAnalysis(packageName, constraints)
-            Log.d(TAG, "<<< startScreenAnalysis() returned")
+            Logger.d(TAG, "<<< startScreenAnalysis() returned")
         } else {
-            Log.w(TAG, "!!! API not configured, skipping screen analysis !!!")
+            Logger.w(TAG, "!!! API not configured, skipping screen analysis !!!")
+            Logger.w(TAG, "API not configured, skipping screen analysis")
         }
 
         // Emit session started event
@@ -272,14 +276,15 @@ class SessionManager(private val context: Context) {
             }
         )
 
-        Log.d(TAG, "Started screen analysis for session")
+        Logger.d(TAG, "Started screen analysis for session")
     }
 
     /**
      * Handle violation detected by screen analyzer
      */
     private fun handleViolation(constraint: SessionConstraint, confidence: Double) {
-        Log.d(TAG, "Violation detected: ${constraint.description}, confidence: $confidence")
+        Logger.d(TAG, "Violation detected: ${constraint.description}, confidence: $confidence")
+        Logger.w(TAG, "Violation detected: ${constraint.description}, confidence: $confidence")
 
         // Update session state with violation
         val currentSession = _activeSession.value ?: return
@@ -288,7 +293,13 @@ class SessionManager(private val context: Context) {
         )
 
         // Execute intervention based on confidence
-        actionExecutor?.executeIntervention(constraint, confidence, "violation")
+        actionExecutor?.executeIntervention(
+            constraint,
+            confidence,
+            "violation",
+            currentSession.appDisplayName,
+            currentSession.appPackageName
+        )
 
         // Emit violation event
         scope.launch {
@@ -302,7 +313,7 @@ class SessionManager(private val context: Context) {
      */
     fun updateContentMatchState(constraintId: String, isMatching: Boolean) {
         constraintMatchStates[constraintId] = isMatching
-        Log.d(TAG, "Content match state updated: $constraintId = $isMatching")
+        Logger.d(TAG, "Content match state updated: $constraintId = $isMatching")
     }
 
     /**
@@ -313,7 +324,7 @@ class SessionManager(private val context: Context) {
         actionExecutor?.clearCooldown()
         actionExecutor = null
         screenAnalyzer = null
-        Log.d(TAG, "Stopped screen analysis")
+        Logger.d(TAG, "Stopped screen analysis")
     }
 
     /**
@@ -359,8 +370,8 @@ class SessionManager(private val context: Context) {
     private suspend fun endSession(reason: SessionEndReason) {
         val session = _activeSession.value ?: return
 
-        Log.d(TAG, "!!! endSession called, reason=$reason, session=${session.appPackageName}")
-        Log.d(TAG, "!!! Stack trace:", Exception("endSession trace"))
+        Logger.d(TAG, "!!! endSession called, reason=$reason, session=${session.appPackageName}")
+        Logger.d(TAG, "!!! Stack trace: ${Exception("endSession trace").stackTraceToString()}")
 
         timerJob?.cancel()
 
@@ -372,7 +383,7 @@ class SessionManager(private val context: Context) {
 
         // Clear active session
         _activeSession.value = null
-        Log.d(TAG, "!!! Session cleared (set to null)")
+        Logger.d(TAG, "!!! Session cleared (set to null)")
 
         // Emit session ended event
         _sessionEvents.emit(SessionEvent.SessionEnded(session, reason))
@@ -471,9 +482,15 @@ class SessionManager(private val context: Context) {
                         updatedTimeRemaining[constraint.id] = newRemaining
 
                         if (newRemaining <= 0) {
-                            Log.d(TAG, "Constraint timeout: ${constraint.description}")
+                            Logger.d(TAG, "Constraint timeout: ${constraint.description}")
                             // All constraint types with time limits trigger intervention
-                            actionExecutor?.executeIntervention(constraint, 1.0, "timeout")
+                            actionExecutor?.executeIntervention(
+                                constraint,
+                                1.0,
+                                "timeout",
+                                session.appDisplayName,
+                                session.appPackageName
+                            )
                             scope.launch {
                                 _sessionEvents.emit(SessionEvent.ViolationDetected(constraint, 1.0))
                             }
@@ -496,7 +513,7 @@ class SessionManager(private val context: Context) {
         } else {
             appsString.split(",").toSet()
         }
-        Log.d(TAG, "Loaded controlled apps: $apps")
+        Logger.d(TAG, "Loaded controlled apps: $apps")
         return apps
     }
 
@@ -505,7 +522,7 @@ class SessionManager(private val context: Context) {
      */
     private fun saveControlledApps(apps: Set<String>) {
         prefs.edit().putString(KEY_CONTROLLED_APPS, apps.joinToString(",")).apply()
-        Log.d(TAG, "Saved controlled apps: $apps")
+        Logger.d(TAG, "Saved controlled apps: $apps")
     }
 
     /**
@@ -515,7 +532,7 @@ class SessionManager(private val context: Context) {
     fun saveLastIntent(packageName: String, constraints: List<SessionConstraint>) {
         val json = serializeConstraints(constraints)
         prefs.edit().putString("${KEY_LAST_INTENT_PREFIX}$packageName", json).apply()
-        Log.d(TAG, "Saved last intent for $packageName: $json")
+        Logger.d(TAG, "Saved last intent for $packageName: $json")
 
         appendToIntentHistory(packageName, constraints)
     }
@@ -547,7 +564,7 @@ class SessionManager(private val context: Context) {
             val outerList = gson.fromJson(json, ArrayList::class.java) as ArrayList<ArrayList<Map<String, Any>>>
             outerList.mapNotNull { entry -> deserializeConstraintList(entry) }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to load intent history for $packageName", e)
+            Logger.e(TAG, "Failed to load intent history for $packageName", e)
             emptyList()
         }
     }
@@ -569,7 +586,7 @@ class SessionManager(private val context: Context) {
                     }
                 }
             } catch (e: Exception) {
-                Log.e(TAG, "Failed to parse existing history", e)
+                Logger.e(TAG, "Failed to parse existing history", e)
             }
         }
 
@@ -590,7 +607,7 @@ class SessionManager(private val context: Context) {
         // Cap at MAX_HISTORY_PER_APP
         val trimmed = history.take(MAX_HISTORY_PER_APP)
         prefs.edit().putString("${KEY_INTENT_HISTORY_PREFIX}$packageName", gson.toJson(trimmed)).apply()
-        Log.d(TAG, "Updated intent history for $packageName, now ${trimmed.size} entries")
+        Logger.d(TAG, "Updated intent history for $packageName, now ${trimmed.size} entries")
     }
 
     /**
@@ -609,7 +626,7 @@ class SessionManager(private val context: Context) {
             )
         })
         prefs.edit().putString("${KEY_PRESET_RULES_PREFIX}$packageName", json).apply()
-        Log.d(TAG, "Saved ${rules.size} preset rules for $packageName")
+        Logger.d(TAG, "Saved ${rules.size} preset rules for $packageName")
     }
 
     /**
@@ -632,12 +649,12 @@ class SessionManager(private val context: Context) {
                         isActive = item["isActive"] as? Boolean ?: true
                     )
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed to parse preset rule", e)
+                    Logger.e(TAG, "Failed to parse preset rule", e)
                     null
                 }
             }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to load preset rules for $packageName", e)
+            Logger.e(TAG, "Failed to load preset rules for $packageName", e)
             emptyList()
         }
     }
@@ -661,7 +678,7 @@ class SessionManager(private val context: Context) {
             }
         })
         prefs.edit().putString("${KEY_INTENT_HISTORY_PREFIX}$packageName", json).apply()
-        Log.d(TAG, "Saved intent history for $packageName, ${trimmed.size} entries")
+        Logger.d(TAG, "Saved intent history for $packageName, ${trimmed.size} entries")
     }
 
     /**
@@ -700,7 +717,7 @@ class SessionManager(private val context: Context) {
             val list = gson.fromJson(json, ArrayList::class.java) as ArrayList<Map<String, Any>>
             deserializeConstraintList(list)
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to deserialize constraints", e)
+            Logger.e(TAG, "Failed to deserialize constraints", e)
             null
         }
     }
@@ -719,12 +736,12 @@ class SessionManager(private val context: Context) {
                         isActive = item["isActive"] as? Boolean ?: true
                     )
                 } catch (e: Exception) {
-                    Log.e(TAG, "Failed to parse constraint", e)
+                    Logger.e(TAG, "Failed to parse constraint", e)
                     null
                 }
             }.ifEmpty { null }
         } catch (e: Exception) {
-            Log.e(TAG, "Failed to deserialize constraint list", e)
+            Logger.e(TAG, "Failed to deserialize constraint list", e)
             null
         }
     }
@@ -745,7 +762,7 @@ class SessionManager(private val context: Context) {
         val newApps = _controlledApps.value + packageName
         _controlledApps.value = newApps
         saveControlledApps(newApps)
-        Log.d(TAG, "Added controlled app: $packageName")
+        Logger.d(TAG, "Added controlled app: $packageName")
     }
 
     /**
@@ -755,7 +772,7 @@ class SessionManager(private val context: Context) {
         val newApps = _controlledApps.value - packageName
         _controlledApps.value = newApps
         saveControlledApps(newApps)
-        Log.d(TAG, "Removed controlled app: $packageName")
+        Logger.d(TAG, "Removed controlled app: $packageName")
     }
 
     /**
@@ -770,7 +787,7 @@ class SessionManager(private val context: Context) {
      */
     fun setAutoStartEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_AUTO_START, enabled).apply()
-        Log.d(TAG, "Auto-start set to: $enabled")
+        Logger.d(TAG, "Auto-start set to: $enabled")
     }
 
     /**
