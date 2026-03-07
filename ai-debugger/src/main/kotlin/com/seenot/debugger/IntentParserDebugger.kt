@@ -1,3 +1,7 @@
+/*
+Should sync with the app/src/main/java/com/seenot/app/ai/parser/IntentParser.kt
+*/
+
 package com.seenot.debugger
 
 import com.alibaba.dashscope.aigc.generation.Generation
@@ -42,15 +46,16 @@ class IntentParserDebugger {
         private const val MODEL = "qwen-plus"
     }
 
-    suspend fun singleTest(utterance: String) {
+    suspend fun singleTest(utterance: String, packageName: String = "com.example.app", appName: String = "测试应用") {
         println("\n" + "=".repeat(60))
         println("📝 输入: $utterance")
+        println("📦 应用: $appName ($packageName)")
         println("=".repeat(60))
 
         val startTime = System.currentTimeMillis()
 
         try {
-            val response = parseIntent(utterance)
+            val response = parseIntent(utterance, packageName, appName)
             val elapsed = System.currentTimeMillis() - startTime
 
             println("\n✅ 解析成功 (${elapsed}ms)")
@@ -61,7 +66,6 @@ class IntentParserDebugger {
             try {
                 val json = JsonParser.parseString(response).asJsonObject
                 println("\n🔍 结构化数据:")
-                println("  目标应用: ${json.get("targetApp")?.asString ?: "未指定"}")
 
                 val constraints = json.getAsJsonArray("constraints")
                 if (constraints != null && constraints.size() > 0) {
@@ -71,7 +75,9 @@ class IntentParserDebugger {
                         val type = obj.get("type")?.asString
                         val desc = obj.get("description")?.asString
                         val time = obj.get("timeLimitMinutes")?.asInt
-                        println("    - [$type] $desc ${if (time != null) "($time 分钟)" else ""}")
+                        val timeScope = obj.get("timeScope")?.asString
+                        val intervention = obj.get("intervention")?.asString
+                        println("    - [$type] $desc ${if (time != null) "($time 分钟, $timeScope)" else ""} [干预: $intervention]")
                     }
                 }
             } catch (e: Exception) {
@@ -86,18 +92,18 @@ class IntentParserDebugger {
         }
     }
 
-    suspend fun batchTest(file: File) {
+    suspend fun batchTest(file: File, packageName: String = "com.example.app", appName: String = "测试应用") {
         val lines = file.readLines().filter { it.isNotBlank() && !it.startsWith("#") }
         println("\n📋 批量测试: ${lines.size} 条语句\n")
 
         val results = mutableListOf<TestResult>()
 
         lines.forEachIndexed { index, line ->
-            println("[${index + 1}/${lines.size}] $line")
+            println("\n[${index + 1}/${lines.size}] $line")
 
             try {
                 val startTime = System.currentTimeMillis()
-                val response = parseIntent(line)
+                val response = parseIntent(line, packageName, appName)
                 val elapsed = System.currentTimeMillis() - startTime
 
                 results.add(TestResult(
@@ -106,7 +112,28 @@ class IntentParserDebugger {
                     response = response,
                     elapsedMs = elapsed
                 ))
-                println("  ✅ ${elapsed}ms\n")
+
+                // 打印解析结果
+                try {
+                    val json = JsonParser.parseString(response).asJsonObject
+                    val constraints = json.getAsJsonArray("constraints")
+                    if (constraints != null && constraints.size() > 0) {
+                        constraints.forEach { c ->
+                            val obj = c.asJsonObject
+                            val type = obj.get("type")?.asString
+                            val desc = obj.get("description")?.asString
+                            val time = obj.get("timeLimitMinutes")?.asInt
+                            val timeScope = obj.get("timeScope")?.asString
+                            val intervention = obj.get("intervention")?.asString
+                            println("  → [$type] $desc ${if (time != null) "(${time}分钟, $timeScope)" else ""} [$intervention]")
+                        }
+                    } else {
+                        println("  → 无约束")
+                    }
+                } catch (e: Exception) {
+                    println("  → $response")
+                }
+                println("  ✅ ${elapsed}ms")
 
             } catch (e: Exception) {
                 results.add(TestResult(
@@ -115,7 +142,7 @@ class IntentParserDebugger {
                     error = e.message,
                     elapsedMs = 0
                 ))
-                println("  ❌ ${e.message}\n")
+                println("  ❌ ${e.message}")
             }
         }
 
@@ -135,7 +162,7 @@ class IntentParserDebugger {
         println("\n💾 详细结果已保存: ${reportFile.absolutePath}")
     }
 
-    suspend fun interactiveMode() {
+    suspend fun interactiveMode(packageName: String = "com.example.app", appName: String = "测试应用") {
         while (true) {
             print("\n> ")
             val input = readLine()?.trim() ?: break
@@ -143,36 +170,84 @@ class IntentParserDebugger {
             if (input.isEmpty()) continue
             if (input == "exit" || input == "quit") break
 
-            singleTest(input)
+            singleTest(input, packageName, appName)
         }
         println("\n👋 再见！")
     }
 
-    private suspend fun parseIntent(utterance: String): String = withContext(Dispatchers.IO) {
-        val systemPrompt = """你是一个意图解析助手。用户会告诉你他们打开某个应用的意图，你需要解析出结构化的约束条件。
+    private suspend fun parseIntent(utterance: String, packageName: String, appName: String): String = withContext(Dispatchers.IO) {
+        val prompt = """
+请将用户的意图解析为结构化的规则。
 
-输出JSON格式：
+应用: $appName ($packageName)
+用户说: "$utterance"
+
+⚠️ 重要原则：
+1. 只生成一个约束，将用户的所有限制合并到这一个约束中
+2. 区分三种场景：
+   - "只能看X" → ALLOW（白名单）
+   - "不能看X" → DENY（黑名单）
+   - "最多X分钟"（无内容限制）→ TIME_CAP
+3. 时间限制直接加在约束的 timeLimitMinutes 字段上
+4. 如果既有内容限制又有时间限制，优先使用 ALLOW/DENY，时间加在同一个约束上
+
+规则类型:
+- ALLOW: 白名单，只允许使用某功能/内容
+- DENY: 黑名单，禁止使用某功能/内容
+- TIME_CAP: 纯时间限制（无内容限制）
+
+时间范围类型 (timeScope):
+- SESSION: 整个会话计时，无论看什么内容都在倒计时
+- PER_CONTENT: 只有在目标内容时才计时，切换到其他内容时暂停
+
+⚠️ 如何判断 timeScope：
+- "X只能看Y分钟" → PER_CONTENT（只有看X时才计时）
+- "不能看X，最多Y分钟" → SESSION（整个会话限时，看到X违规）
+- "最多Y分钟" → SESSION（纯时间限制）
+
+干预级别:
+- GENTLE: 温和提醒
+- MODERATE: 中等提醒
+- STRICT: 严格阻止
+
+请用以下JSON格式回复（只返回一个约束）:
 {
-  "targetApp": "应用名称",
   "constraints": [
     {
       "type": "ALLOW|DENY|TIME_CAP",
-      "description": "约束描述",
-      "timeLimitMinutes": 10  // 仅TIME_CAP需要
+      "description": "规则描述",
+      "timeLimitMinutes": null或数字,
+      "timeScope": "SESSION|PER_CONTENT",
+      "intervention": "GENTLE|MODERATE|STRICT"
     }
   ]
 }
 
 示例：
-输入："我想刷小红书，但只能看10分钟"
-输出：{"targetApp":"小红书","constraints":[{"type":"TIME_CAP","description":"限制使用时长","timeLimitMinutes":10}]}
+输入："刷微信但不能看朋友圈"
+输出：{"constraints":[{"type":"DENY","description":"禁止查看朋友圈","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
 
-输入："打开淘宝但不要让我看直播"
-输出：{"targetApp":"淘宝","constraints":[{"type":"DENY","description":"禁止观看直播"}]}"""
+输入："打开小红书，只能看穿搭"
+输出：{"constraints":[{"type":"ALLOW","description":"只允许浏览穿搭内容","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
+
+输入："打开小红书，只能看穿搭5分钟"
+输出：{"constraints":[{"type":"ALLOW","description":"只允许浏览穿搭内容","timeLimitMinutes":5,"timeScope":"PER_CONTENT","intervention":"MODERATE"}]}
+
+输入："朋友圈只能看3分钟"
+输出：{"constraints":[{"type":"ALLOW","description":"只允许查看朋友圈","timeLimitMinutes":3,"timeScope":"PER_CONTENT","intervention":"MODERATE"}]}
+
+输入："打开抖音，最多刷15分钟"
+输出：{"constraints":[{"type":"TIME_CAP","description":"使用时长限制","timeLimitMinutes":15,"timeScope":"SESSION","intervention":"STRICT"}]}
+
+输入："打开小红书看穿搭，但不能看美食，最多10分钟"
+输出：{"constraints":[{"type":"DENY","description":"禁止浏览美食内容","timeLimitMinutes":10,"timeScope":"SESSION","intervention":"MODERATE"}]}
+
+如果用户没有明确表达规则，则返回空constraints。
+                """.trimIndent()
 
         val messages = listOf(
-            Message.builder().role(Role.SYSTEM.value).content(systemPrompt).build(),
-            Message.builder().role(Role.USER.value).content(utterance).build()
+            Message.builder().role(Role.SYSTEM.value).content("你是一个智能的意图解析助手。").build(),
+            Message.builder().role(Role.USER.value).content(prompt).build()
         )
 
         val param = GenerationParam.builder()

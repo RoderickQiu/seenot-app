@@ -33,9 +33,41 @@ cd ai-debugger
 # 屏幕分析 - 单图测试
 ../gradlew :ai-debugger:run --args="screen -i test-data/screenshots/shopping.png -c '购物车'" --console=plain
 
+# 屏幕分析 - 指定约束类型
+../gradlew :ai-debugger:run --args="screen -i test-data/screenshots/xiaohongshu.png -c '小红书首页' -t TIME_CAP" --console=plain
+
 # 屏幕分析 - 批量测试
 ../gradlew :ai-debugger:run --args="screen -d test-data/screenshots -c '直播间'" --console=plain
 ```
+
+## 约束类型说明
+
+屏幕分析支持三种约束类型（通过 `-t` 参数指定）：
+
+### DENY（禁止）- 默认
+```bash
+../gradlew :ai-debugger:run --args="screen -i screenshot.png -c '刷短视频' -t DENY" --console=plain
+```
+- AI 判断：用户是否在被禁止的功能
+- 返回值：`violates`（违规）/ `safe`（安全）/ `unknown`（无法判断）
+- 示例：`[禁止] 刷短视频` → 在短视频页面返回 `violates`
+
+### ALLOW（只允许）
+```bash
+../gradlew :ai-debugger:run --args="screen -i screenshot.png -c '查看文章' -t ALLOW" --console=plain
+```
+- AI 判断：用户是否在允许的功能范围内
+- 返回值：`violates`（不在范围内）/ `safe`（在范围内）/ `unknown`（无法判断）
+- 示例：`[只允许] 查看文章` → 不在文章页面返回 `violates`
+
+### TIME_CAP（时间限制）
+```bash
+../gradlew :ai-debugger:run --args="screen -i screenshot.png -c '小红书首页' -t TIME_CAP" --console=plain
+```
+- AI 判断：用户是否在目标功能范围内（用于计时，不判断违规）
+- 返回值：`in_scope`（在范围内）/ `out_of_scope`（不在范围内）/ `unknown`（无法判断）
+- 示例：`[时间限制] 小红书首页` → 在小红书首页返回 `in_scope`，在其他页面返回 `out_of_scope`
+- 注意：TIME_CAP 永远不返回 `violates`，只用于判断是否开始计时
 
 ## 典型工作流程
 
@@ -66,23 +98,24 @@ cd ai-debugger
    # ../app/src/main/java/com/seenot/app/ai/parser/IntentParser.kt
    ```
 
-### 场景2：测试新的约束类型
+### 场景2：测试不同约束类型
 
-1. **添加测试用例**
+1. **测试 DENY 类型（禁止）**
    ```bash
-   echo "打开B站只看技术区" >> test-data/utterances.txt
-   echo "刷知乎但不要看热榜" >> test-data/utterances.txt
+   ../gradlew :ai-debugger:run --args="screen -i test-data/screenshots/douyin.png -c '刷短视频' -t DENY" --console=plain
+   # 预期：在短视频页面返回 violates
    ```
 
-2. **运行测试**
+2. **测试 ALLOW 类型（只允许）**
    ```bash
-   ../gradlew :ai-debugger:run --args="intent -f test-data/utterances.txt" --console=plain
+   ../gradlew :ai-debugger:run --args="screen -i test-data/screenshots/article.png -c '查看文章' -t ALLOW" --console=plain
+   # 预期：在文章页面返回 safe，在其他页面返回 violates
    ```
 
-3. **查看结果**
+3. **测试 TIME_CAP 类型（时间限制）**
    ```bash
-   # 自动生成的JSON报告
-   cat results/test-results-*.json | jq
+   ../gradlew :ai-debugger:run --args="screen -i test-data/screenshots/xiaohongshu.png -c '小红书首页' -t TIME_CAP" --console=plain
+   # 预期：在小红书首页返回 in_scope，在其他页面返回 out_of_scope
    ```
 
 ### 场景3：对比不同版本

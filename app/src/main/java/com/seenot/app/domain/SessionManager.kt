@@ -88,6 +88,12 @@ class SessionManager(private val context: Context) {
     // Action executor for interventions
     private var actionExecutor: ActionExecutor? = null
 
+    // Session pause tracking for 30s recovery
+    private var sessionPausedAt: Long? = null
+
+    // Content match state for conditional timing
+    private val constraintMatchStates = mutableMapOf<String, Boolean>()
+
     init {
         // Start listening for app changes
         Log.d(TAG, "SessionManager initializing, observing app changes")
@@ -112,6 +118,7 @@ class SessionManager(private val context: Context) {
      */
     private suspend fun handleAppChange(packageName: String) {
         val controlled = _controlledApps.value
+        val currentSession = _activeSession.value
 
         Log.d(TAG, "App changed to: $packageName, controlled apps: $controlled")
 
@@ -120,11 +127,10 @@ class SessionManager(private val context: Context) {
             Log.d(TAG, "Entered controlled app: $packageName")
             onControlledAppEntered(packageName)
         } else {
-            // User left a controlled app
-            val currentSession = _activeSession.value
-            if (currentSession != null && currentSession.appPackageName == packageName) {
-                Log.d(TAG, "Left controlled app: $packageName")
-                onControlledAppExited(packageName)
+            // User switched to a non-controlled app
+            if (currentSession != null) {
+                Log.d(TAG, "Left controlled app: ${currentSession.appPackageName}")
+                onControlledAppExited(currentSession.appPackageName)
             }
         }
     }
@@ -135,13 +141,33 @@ class SessionManager(private val context: Context) {
     private suspend fun onControlledAppEntered(packageName: String) {
         val currentSession = _activeSession.value
 
+        Log.d(TAG, ">>> onControlledAppEntered: pkg=$packageName, session=${currentSession?.appPackageName}, isPaused=${currentSession?.isPaused}, pausedAt=$sessionPausedAt")
+
         if (currentSession != null && currentSession.appPackageName == packageName) {
-            // User returned to the same app - resume session
-            Log.d(TAG, "Resuming session for: $packageName")
-            resumeSession()
+            // Session exists for this app - check if it was paused
+            if (currentSession.isPaused) {
+                val pausedAt = sessionPausedAt
+                val timeDiff = if (pausedAt != null) System.currentTimeMillis() - pausedAt else -1
+                Log.d(TAG, ">>> Session was paused, time diff: ${timeDiff}ms, threshold: ${SHORT_PAUSE_THRESHOLD}ms")
+
+                if (pausedAt != null && timeDiff <= SHORT_PAUSE_THRESHOLD) {
+                    // Within 30s - resume session
+                    Log.d(TAG, ">>> Resuming session within 30s for: $packageName")
+                    resumeSession()
+                    sessionPausedAt = null
+                } else {
+                    // Beyond 30s or no pause time - end old session and create new one
+                    Log.d(TAG, ">>> Session expired (>30s or no pausedAt), creating new session for: $packageName")
+                    endSession(SessionEndReason.USER_LEFT)
+                    requestNewSession(packageName)
+                }
+            } else {
+                // Session is already active, ignore duplicate event
+                Log.d(TAG, ">>> Session already active for: $packageName, ignoring")
+            }
         } else if (currentSession == null) {
             // No active session - create new one
-            Log.d(TAG, "Creating new session for: $packageName")
+            Log.d(TAG, ">>> No active session, creating new session for: $packageName")
             requestNewSession(packageName)
         }
     }
@@ -150,10 +176,15 @@ class SessionManager(private val context: Context) {
      * Called when user leaves a controlled app
      */
     private suspend fun onControlledAppExited(@Suppress("UNUSED_PARAMETER") packageName: String) {
-        if (_activeSession.value == null) return
+        if (_activeSession.value == null) {
+            Log.d(TAG, "onControlledAppExited: no active session, ignoring")
+            return
+        }
 
-        // End the current session
-        endSession(SessionEndReason.USER_LEFT)
+        // Pause session and record time for potential recovery
+        pauseSession()
+        sessionPausedAt = System.currentTimeMillis()
+        Log.d(TAG, ">>> Session paused at ${sessionPausedAt}, will auto-end if not resumed within 30s")
     }
 
     /**
@@ -172,20 +203,14 @@ class SessionManager(private val context: Context) {
         displayName: String,
         constraints: List<SessionConstraint>
     ): Long {
-        // Calculate total time limit from constraints
-        val totalTimeLimit = constraints
-            .filter { it.type == ConstraintType.TIME_CAP }
-            .firstOrNull()
-            ?.timeLimitMs
-
-        // Create session in database
+        // Create session in database (no global time limit)
         val sessionId = repository.createSession(
             appPackageName = packageName,
             appDisplayName = displayName,
-            totalTimeLimitMs = totalTimeLimit
+            totalTimeLimitMs = null
         )
 
-        // Create active session
+        // Create active session with per-constraint time tracking
         val activeSession = ActiveSession(
             sessionId = sessionId,
             appPackageName = packageName,
@@ -193,12 +218,16 @@ class SessionManager(private val context: Context) {
             constraints = constraints,
             startTime = System.currentTimeMillis(),
             isPaused = false,
-            timeRemainingMs = totalTimeLimit
+            constraintTimeRemaining = constraints.associate { it.id to it.timeLimitMs }
         )
 
         _activeSession.value = activeSession
 
-        // Save last intent for this app (for "continue last intent" feature)
+        // Initialize match states
+        constraintMatchStates.clear()
+        constraints.forEach { constraintMatchStates[it.id] = false }
+
+        // Save last intent for this app
         saveLastIntent(packageName, constraints)
 
         // Start timer
@@ -259,12 +288,21 @@ class SessionManager(private val context: Context) {
         )
 
         // Execute intervention based on confidence
-        actionExecutor?.executeIntervention(constraint, confidence)
+        actionExecutor?.executeIntervention(constraint, confidence, "violation")
 
         // Emit violation event
         scope.launch {
             _sessionEvents.emit(SessionEvent.ViolationDetected(constraint, confidence))
         }
+    }
+
+    /**
+     * Update content match state from screen analyzer
+     * Used for conditional timing (PER_CONTENT constraints)
+     */
+    fun updateContentMatchState(constraintId: String, isMatching: Boolean) {
+        constraintMatchStates[constraintId] = isMatching
+        Log.d(TAG, "Content match state updated: $constraintId = $isMatching")
     }
 
     /**
@@ -287,6 +325,11 @@ class SessionManager(private val context: Context) {
         _activeSession.value = session.copy(isPaused = false)
         startTimer()
 
+        // Restart screen analysis
+        if (ApiConfig.isConfigured()) {
+            startScreenAnalysis(session.appPackageName, session.constraints)
+        }
+
         scope.launch {
             _sessionEvents.emit(SessionEvent.SessionResumed(session))
         }
@@ -299,6 +342,10 @@ class SessionManager(private val context: Context) {
         val session = _activeSession.value ?: return
 
         timerJob?.cancel()
+
+        // Stop screen analysis while paused
+        stopScreenAnalysis()
+
         _activeSession.value = session.copy(isPaused = true)
 
         scope.launch {
@@ -312,6 +359,9 @@ class SessionManager(private val context: Context) {
     private suspend fun endSession(reason: SessionEndReason) {
         val session = _activeSession.value ?: return
 
+        Log.d(TAG, "!!! endSession called, reason=$reason, session=${session.appPackageName}")
+        Log.d(TAG, "!!! Stack trace:", Exception("endSession trace"))
+
         timerJob?.cancel()
 
         // Stop screen analysis
@@ -322,6 +372,7 @@ class SessionManager(private val context: Context) {
 
         // Clear active session
         _activeSession.value = null
+        Log.d(TAG, "!!! Session cleared (set to null)")
 
         // Emit session ended event
         _sessionEvents.emit(SessionEvent.SessionEnded(session, reason))
@@ -336,18 +387,18 @@ class SessionManager(private val context: Context) {
         // Merge with existing constraints
         val merged = mergeConstraints(session.constraints, newConstraints)
 
+        // Update constraint time tracking
+        val updatedTimeRemaining = session.constraintTimeRemaining.toMutableMap()
+        for (constraint in merged) {
+            if (constraint.timeLimitMs != null && !updatedTimeRemaining.containsKey(constraint.id)) {
+                updatedTimeRemaining[constraint.id] = constraint.timeLimitMs
+            }
+        }
+
         // Update active session
-        _activeSession.value = session.copy(constraints = merged)
-
-        // Recalculate time limit
-        val totalTimeLimit = merged
-            .filter { it.type == ConstraintType.TIME_CAP }
-            .firstOrNull()
-            ?.timeLimitMs
-
         _activeSession.value = session.copy(
             constraints = merged,
-            timeRemainingMs = totalTimeLimit
+            constraintTimeRemaining = updatedTimeRemaining
         )
 
         // Emit event
@@ -398,16 +449,39 @@ class SessionManager(private val context: Context) {
                 val session = _activeSession.value ?: break
                 if (session.isPaused) continue
 
-                val remaining = session.timeRemainingMs?.let { it - 1000 }
+                // Update time for each constraint based on its timeScope
+                val updatedTimeRemaining = session.constraintTimeRemaining.toMutableMap()
 
-                if (remaining != null && remaining <= 0) {
-                    // Time's up!
-                    _activeSession.value = session.copy(timeRemainingMs = 0)
-                    endSession(SessionEndReason.TIMEOUT)
-                    break
+                for (constraint in session.constraints) {
+                    val timeLimit = constraint.timeLimitMs ?: continue
+                    val remaining = updatedTimeRemaining[constraint.id] ?: continue
+
+                    // Determine if we should decrement time for this constraint
+                    val shouldDecrement = when (constraint.timeScope) {
+                        TimeScope.SESSION -> true // Always decrement for SESSION scope
+                        TimeScope.PER_CONTENT, TimeScope.CONTINUOUS -> {
+                            // Only decrement if currently matching this constraint
+                            constraintMatchStates[constraint.id] == true
+                        }
+                        null -> true // Default to SESSION behavior
+                    }
+
+                    if (shouldDecrement) {
+                        val newRemaining = remaining - 1000
+                        updatedTimeRemaining[constraint.id] = newRemaining
+
+                        if (newRemaining <= 0) {
+                            Log.d(TAG, "Constraint timeout: ${constraint.description}")
+                            // All constraint types with time limits trigger intervention
+                            actionExecutor?.executeIntervention(constraint, 1.0, "timeout")
+                            scope.launch {
+                                _sessionEvents.emit(SessionEvent.ViolationDetected(constraint, 1.0))
+                            }
+                        }
+                    }
                 }
 
-                _activeSession.value = session.copy(timeRemainingMs = remaining)
+                _activeSession.value = session.copy(constraintTimeRemaining = updatedTimeRemaining)
             }
         }
     }
@@ -736,7 +810,7 @@ data class ActiveSession(
     val constraints: List<SessionConstraint>,
     val startTime: Long,
     val isPaused: Boolean = false,
-    val timeRemainingMs: Long? = null,
+    val constraintTimeRemaining: Map<String, Long?> = emptyMap(),
     val violationCount: Int = 0
 )
 

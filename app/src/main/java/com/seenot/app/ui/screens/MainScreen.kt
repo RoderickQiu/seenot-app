@@ -1662,6 +1662,12 @@ private fun getInstalledApps(context: android.content.Context): List<AppInfo> {
         .mapNotNull { packageName ->
             try {
                 val appInfo = pm.getApplicationInfo(packageName, 0)
+                // Filter out system apps (except launcher)
+                val isSystemApp = (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
+                if (isSystemApp) {
+                    android.util.Log.d("AppsTab", "Filtering out system app: $packageName")
+                    return@mapNotNull null
+                }
                 AppInfo(
                     name = pm.getApplicationLabel(appInfo).toString(),
                     packageName = packageName

@@ -7,8 +7,13 @@ import android.os.VibratorManager
 import android.util.Log
 import android.widget.Toast
 import com.seenot.app.data.model.InterventionLevel
+import com.seenot.app.data.repository.RuleRecordRepository
 import com.seenot.app.domain.SessionConstraint
 import com.seenot.app.service.SeenotAccessibilityService
+import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.launch
 
 /**
  * Action Executor - Handles intervention actions
@@ -22,6 +27,7 @@ import com.seenot.app.service.SeenotAccessibilityService
  * - Action deduplication (prevent loops)
  * - Cooldown period after forced actions
  * - "Allow once" override for false positives
+ * - Action recording to database
  */
 class ActionExecutor(private val context: Context) {
 
@@ -34,6 +40,9 @@ class ActionExecutor(private val context: Context) {
         // Minimum time between same action types
         private const val ACTION_THROTTLE_MS = 5_000L // 5 seconds
     }
+
+    private val ruleRecordRepository = RuleRecordRepository(context)
+    private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private var lastActionTime = 0L
     private var lastActionType: ActionType? = null
@@ -48,12 +57,14 @@ class ActionExecutor(private val context: Context) {
      */
     fun executeIntervention(
         constraint: SessionConstraint,
-        confidence: Double
+        confidence: Double,
+        reason: String = "violation" // "violation" or "timeout"
     ) {
         Log.d(TAG, "=== executeIntervention called ===")
         Log.d(TAG, "Constraint: ${constraint.description}")
         Log.d(TAG, "Type: ${constraint.type}, Intervention: ${constraint.interventionLevel}")
         Log.d(TAG, "Confidence: $confidence")
+        Log.d(TAG, "Reason: $reason")
 
         // Check cooldown
         if (System.currentTimeMillis() < cooldownEndTime) {
@@ -77,7 +88,7 @@ class ActionExecutor(private val context: Context) {
         val action = determineAction(interventionLevel, confidence)
         Log.d(TAG, "→ Determined action: $action")
 
-        executeAction(action, constraint.description)
+        executeAction(action, constraint, reason)
     }
 
     /**
@@ -126,24 +137,29 @@ class ActionExecutor(private val context: Context) {
     /**
      * Execute the action
      */
-    private fun executeAction(action: ActionType, reason: String) {
+    private fun executeAction(action: ActionType, constraint: SessionConstraint, reason: String) {
         val now = System.currentTimeMillis()
         lastActionTime = now
         lastActionType = action
 
         Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
         Log.d(TAG, "🎯 EXECUTING ACTION: $action")
+        Log.d(TAG, "📋 Constraint: ${constraint.description}")
+        Log.d(TAG, "📋 Type: ${constraint.type}")
         Log.d(TAG, "📋 Reason: $reason")
         Log.d(TAG, "⏰ Timestamp: $now")
         Log.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
         when (action) {
-            ActionType.TOAST -> executeToast(reason)
-            ActionType.AUTO_BACK -> executeAutoBack()
-            ActionType.GO_HOME -> executeGoHome()
-            ActionType.HUD_HIGHLIGHT -> executeHudHighlight(reason)
+            ActionType.TOAST -> executeToast(constraint)
+            ActionType.AUTO_BACK -> executeAutoBack(constraint)
+            ActionType.GO_HOME -> executeGoHome(constraint)
+            ActionType.HUD_HIGHLIGHT -> executeHudHighlight(constraint.description)
             ActionType.VIBRATE -> executeVibrate()
         }
+
+        // Record action to database
+        recordAction(constraint, action, reason, now)
 
         // Set cooldown for forced actions
         if (action == ActionType.AUTO_BACK || action == ActionType.GO_HOME) {
@@ -158,23 +174,77 @@ class ActionExecutor(private val context: Context) {
     }
 
     /**
+     * Record action to database
+     */
+    private fun recordAction(constraint: SessionConstraint, action: ActionType, reason: String, timestamp: Long) {
+        scope.launch {
+            try {
+                val record = com.seenot.app.data.model.RuleRecord(
+                    sessionId = 0, // TODO: get actual session ID
+                    appName = "unknown", // Will be updated if we have package name
+                    packageName = null,
+                    constraintId = constraint.id.toLongOrNull(),
+                    constraintType = constraint.type,
+                    constraintContent = constraint.description,
+                    isConditionMatched = false, // Action means something triggered
+                    actionType = action.name,
+                    actionReason = reason,
+                    actionTimestamp = timestamp
+                )
+                ruleRecordRepository.saveRecord(record)
+                Log.d(TAG, "💾 Recorded action: ${action.name} for ${constraint.description}")
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to record action", e)
+            }
+        }
+    }
+
+    /**
      * Show toast notification
      */
-    private fun executeToast(message: String) {
+    private fun executeToast(constraint: SessionConstraint) {
+        val message = when (constraint.type) {
+            com.seenot.app.data.model.ConstraintType.TIME_CAP -> {
+                // TIME_CAP: show time limit reached message
+                val timeLimit = constraint.timeLimitMs?.let { ms ->
+                    val minutes = ms / 60000
+                    val seconds = (ms % 60000) / 1000
+                    when {
+                        minutes > 0 && seconds > 0 -> "${minutes}分${seconds}秒"
+                        minutes > 0 -> "${minutes}分钟"
+                        else -> "${seconds}秒"
+                    }
+                } ?: "时间"
+                "⏰ ${constraint.description} 已达 $timeLimit"
+            }
+            com.seenot.app.data.model.ConstraintType.DENY -> {
+                // DENY: show violation warning
+                "⚠️ 注意: ${constraint.description}"
+            }
+            com.seenot.app.data.model.ConstraintType.ALLOW -> {
+                // ALLOW: show out of scope warning
+                "⚠️ 注意: 不在允许范围内"
+            }
+        }
+
         Log.d(TAG, "[executeToast] Showing toast: $message")
-        Toast.makeText(
-            context,
-            "⚠️ 注意: $message",
-            Toast.LENGTH_SHORT
-        ).show()
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
         Log.d(TAG, "[executeToast] Toast shown ✓")
     }
 
     /**
      * Perform auto-back gesture
      */
-    private fun executeAutoBack() {
+    private fun executeAutoBack(constraint: SessionConstraint) {
         Log.d(TAG, "[executeAutoBack] Attempting auto-back gesture...")
+
+        // Show toast before action
+        val message = when (constraint.type) {
+            com.seenot.app.data.model.ConstraintType.TIME_CAP -> "⏰ 时间到，自动返回"
+            else -> "⚠️ 违规，自动返回"
+        }
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+
         val service = SeenotAccessibilityService.instance
         if (service != null) {
             service.performBackGesture { success ->
@@ -188,8 +258,16 @@ class ActionExecutor(private val context: Context) {
     /**
      * Go to home screen
      */
-    private fun executeGoHome() {
+    private fun executeGoHome(constraint: SessionConstraint) {
         Log.d(TAG, "[executeGoHome] Attempting to go home...")
+
+        // Show toast before action
+        val message = when (constraint.type) {
+            com.seenot.app.data.model.ConstraintType.TIME_CAP -> "⏰ 时间到，返回主屏幕"
+            else -> "⚠️ 严重违规，返回主屏幕"
+        }
+        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+
         val service = SeenotAccessibilityService.instance
         if (service != null) {
             service.performHomeGesture { success ->

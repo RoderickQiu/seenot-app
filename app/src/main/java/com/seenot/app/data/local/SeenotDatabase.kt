@@ -26,7 +26,7 @@ import com.seenot.app.data.local.entity.SessionIntentEntity
         ScreenAnalysisResultEntity::class,
         RuleRecordEntity::class
     ],
-    version = 2,
+    version = 3,
     exportSchema = false
 )
 abstract class SeenotDatabase : RoomDatabase() {

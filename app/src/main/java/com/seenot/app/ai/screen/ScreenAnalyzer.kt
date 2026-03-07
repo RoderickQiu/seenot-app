@@ -27,6 +27,7 @@ import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.RuleRecord
 import com.seenot.app.data.repository.RuleRecordRepository
 import com.seenot.app.domain.SessionConstraint
+import com.seenot.app.domain.SessionManager
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -261,14 +262,7 @@ class ScreenAnalyzer(
                 val age = System.currentTimeMillis() - cachedResult.timestamp
                 if (age <= HASH_RESULT_CACHE_TTL_MS) {
                     Log.d(TAG, "♻️ Reusing cached AI result (age: ${age}ms)")
-                    val violations = cachedResult.constraintMatches.filter { it.isViolation }
-                    if (violations.isEmpty()) {
-                        val reason = cachedResult.constraintMatches.firstOrNull()?.reason?.take(20) ?: "无"
-                        showToast("♻️ 符合规则: $reason")
-                    } else {
-                        val reason = violations.firstOrNull()?.reason?.take(20) ?: "未知"
-                        showToast("♻️ 违规: $reason")
-                    }
+                    showAnalysisToast(cachedResult.constraintMatches, constraints)
                     processedBitmap.recycle()
                     return ScreenAnalysisResult(
                         timestamp = System.currentTimeMillis(),
@@ -293,20 +287,32 @@ class ScreenAnalyzer(
             val totalDuration = System.currentTimeMillis() - totalStart
             Log.d(TAG, "📊 Total analysis time: ${totalDuration}ms")
 
+            // Update content match states in SessionManager
+            val sessionManager = com.seenot.app.domain.SessionManager.getInstance(context)
+            matches.forEach { match ->
+                // For ALLOW constraints: matching = in target content
+                // For DENY constraints: matching = in forbidden content (but we still track it)
+                val isInTargetContent = when (match.constraint.type) {
+                    ConstraintType.ALLOW -> !match.isViolation // Not violating ALLOW = in target
+                    ConstraintType.DENY -> match.isViolation // Violating DENY = in forbidden content
+                    ConstraintType.TIME_CAP -> false // Legacy, not used
+                }
+                sessionManager.updateContentMatchState(match.constraint.id, isInTargetContent)
+            }
+
             // Log violation results
             val violations = matches.filter { it.isViolation }
             if (violations.isEmpty()) {
                 Log.d(TAG, "✅ No violations detected")
-                val reason = matches.firstOrNull()?.reason?.take(20) ?: "无"
-                showToast("✅ 符合规则: $reason")
             } else {
                 Log.w(TAG, "⚠️ VIOLATIONS DETECTED (${violations.size}):")
                 violations.forEach { v ->
                     Log.w(TAG, "   - ${v.constraint.description} (confidence: ${v.confidence})")
                 }
-                val reason = violations.firstOrNull()?.reason?.take(20) ?: "未知"
-                showToast("⚠️ 违规: $reason")
             }
+
+            // Show toast based on constraint types
+            showAnalysisToast(matches, constraints)
 
             // Save rule records with screenshot
             val packageName = currentPackageName
@@ -314,6 +320,21 @@ class ScreenAnalyzer(
             if (packageName != null && matches.isNotEmpty()) {
                 try {
                     for (match in matches) {
+                        // For DENY/ALLOW: isConditionMatched = !isViolation (true = safe, false = violates)
+                        // For TIME_CAP: isConditionMatched = isInScope (true = in_scope, false = out_of_scope)
+                        val isConditionMatched = when (match.constraint.type) {
+                            ConstraintType.TIME_CAP -> {
+                                // Check if in scope from SessionManager state
+                                val sessionManager = SessionManager.getInstance(context)
+                                sessionManager.activeSession.value?.let { session ->
+                                    session.constraintTimeRemaining[match.constraint.id]?.let { remaining ->
+                                        remaining > 0
+                                    }
+                                } ?: false
+                            }
+                            else -> !match.isViolation
+                        }
+
                         val record = RuleRecord(
                             sessionId = 0, // TODO: get actual session ID
                             appName = packageName,
@@ -322,7 +343,7 @@ class ScreenAnalyzer(
                             constraintId = match.constraint.id.toLongOrNull(),
                             constraintType = match.constraint.type,
                             constraintContent = match.constraint.description,
-                            isConditionMatched = !match.isViolation,
+                            isConditionMatched = isConditionMatched,
                             aiResult = match.reason,
                             confidence = match.confidence,
                             elapsedTimeMs = aiDuration
@@ -391,6 +412,50 @@ class ScreenAnalyzer(
             }
         } catch (e: Exception) {
             Log.w(TAG, "Failed to show toast: ${e.message}")
+        }
+    }
+
+    /**
+     * Show analysis result toast based on constraint types
+     */
+    private fun showAnalysisToast(matches: List<ConstraintMatch>, allConstraints: List<SessionConstraint>) {
+        // Separate by constraint type
+        val violations = matches.filter { it.isViolation }
+        val timeCapMatches = matches.filter { it.constraint.type == ConstraintType.TIME_CAP }
+        val denyAllowMatches = matches.filter { it.constraint.type != ConstraintType.TIME_CAP }
+
+        // Build toast message
+        val message = buildString {
+            // Show violations first (DENY/ALLOW only)
+            if (violations.isNotEmpty()) {
+                val reason = violations.firstOrNull()?.reason?.take(20) ?: "未知"
+                append("⚠️ 违规: $reason")
+            } else if (denyAllowMatches.isNotEmpty()) {
+                val reason = denyAllowMatches.firstOrNull()?.reason?.take(20) ?: "无"
+                append("✅ 符合规则: $reason")
+            }
+
+            // Show TIME_CAP status
+            if (timeCapMatches.isNotEmpty()) {
+                val inScopeCount = timeCapMatches.count { match ->
+                    // Check if this TIME_CAP is in scope by looking at SessionManager state
+                    val sessionManager = SessionManager.getInstance(context)
+                    sessionManager.activeSession.value?.let { session ->
+                        session.constraintTimeRemaining[match.constraint.id]?.let { remaining ->
+                            remaining > 0
+                        }
+                    } ?: false
+                }
+
+                if (inScopeCount > 0) {
+                    if (isNotEmpty()) append(" | ")
+                    append("⏱️ 计时中 ($inScopeCount)")
+                }
+            }
+        }
+
+        if (message.isNotEmpty()) {
+            showToast(message)
         }
     }
 
@@ -709,7 +774,7 @@ class ScreenAnalyzer(
                         ?: obj.get("id")?.asString
                         ?: return@mapNotNull null
 
-                    // AI 先输出 reason（界面描述），再输出 decision（是否符合）
+                    // AI 先输出 reason（界面描述），再输出 decision（是否违规）
                     val reason = obj.get("reason")?.asString ?: ""
                     val decision = obj.get("decision")?.asString?.lowercase() ?: "unknown"
 
@@ -717,14 +782,24 @@ class ScreenAnalyzer(
                         ?: constraints.getOrNull(constraintId.toIntOrNull()?.minus(1) ?: -1)
                         ?: return@mapNotNull null
 
-                    // Determine violation based on constraint type:
-                    // - DENY: matches = violation
-                    // - ALLOW: no_matches = violation
+                    // Determine violation based on decision and constraint type:
+                    // For DENY/ALLOW:
+                    //   - violates = violation
+                    //   - safe = no violation
+                    // For TIME_CAP:
+                    //   - in_scope = user is in target scope (start timing, no violation)
+                    //   - out_of_scope = user is not in target scope (stop timing, no violation)
                     // - unknown = no violation (conservative)
                     val isViolation = when (constraint.type) {
-                        ConstraintType.DENY -> decision == "matches"
-                        ConstraintType.ALLOW -> decision == "no_matches"
-                        ConstraintType.TIME_CAP -> false // handled elsewhere
+                        ConstraintType.TIME_CAP -> false // TIME_CAP never triggers violation
+                        else -> decision == "violates"
+                    }
+
+                    // For TIME_CAP, update content match state for timing
+                    if (constraint.type == ConstraintType.TIME_CAP) {
+                        val isInScope = decision == "in_scope"
+                        val sessionManager = SessionManager.getInstance(context)
+                        sessionManager.updateContentMatchState(constraint.id, isInScope)
                     }
 
                     ConstraintMatch(
@@ -825,6 +900,11 @@ class ScreenAnalyzer(
      * Build analysis prompt with constraints
      */
     private fun buildAnalysisPrompt(constraints: List<SessionConstraint>): String {
+        // Group constraints by type
+        val denyAllowConstraints = constraints.filter { it.type != ConstraintType.TIME_CAP }
+        val timeCapConstraints = constraints.filter { it.type == ConstraintType.TIME_CAP }
+
+        // Build constraint list text
         val constraintsText = constraints.mapIndexed { index, constraint ->
             val typeLabel = when (constraint.type) {
                 ConstraintType.ALLOW -> "只允许"
@@ -834,45 +914,78 @@ class ScreenAnalyzer(
             "${index + 1}. [$typeLabel] ${constraint.description}"
         }.joinToString("\n")
 
+        // Build type-specific rules
+        val typeSpecificRules = buildString {
+            if (denyAllowConstraints.isNotEmpty()) {
+                appendLine("3. **违规判断规则（针对 [禁止]/[只允许] 约束）：**")
+                appendLine("   - [禁止] 约束：用户在被禁止的功能 → violates")
+                appendLine("     例：[禁止] QQ空间 → 只有在QQ空间才违规，QQ群聊不违规")
+                appendLine("   - [只允许] 约束：用户不在允许的功能 → violates")
+                appendLine("     例：[只允许] 查看文章 → 不在文章阅读界面就违规")
+                appendLine("   - 必须精确匹配功能名称，不要泛化")
+                if (timeCapConstraints.isNotEmpty()) appendLine()
+            }
+
+            if (timeCapConstraints.isNotEmpty()) {
+                appendLine("3. **范围判断规则（针对 [时间限制] 约束）：**")
+                appendLine("   - 判断用户是否在目标功能范围内（用于计时，不是违规判断）")
+                appendLine("   - 在目标范围内 → in_scope")
+                appendLine("   - 不在目标范围内 → out_of_scope")
+                appendLine("   - 例：[时间限制] 小红书首页 → 在小红书首页返回 in_scope，在其他页面返回 out_of_scope")
+                appendLine("   - 注意：时间限制类型永远不返回 violates/safe，只返回 in_scope/out_of_scope")
+                appendLine("   - 必须精确匹配功能名称，不要泛化")
+            }
+        }.trimEnd()
+
+        // Build decision values based on constraint types
+        val decisionValues = buildString {
+            if (denyAllowConstraints.isNotEmpty()) {
+                appendLine("- violates: 违反约束（用于 [禁止]/[只允许]）")
+                appendLine("- safe: 未违反约束（用于 [禁止]/[只允许]）")
+            }
+            if (timeCapConstraints.isNotEmpty()) {
+                appendLine("- in_scope: 在目标范围内（用于 [时间限制]）")
+                appendLine("- out_of_scope: 不在目标范围内（用于 [时间限制]）")
+            }
+            appendLine("- unknown: 无法判断")
+        }.trimEnd()
+
         return """
-你是屏幕场景识别AI，帮助用户保持专注。
+你是屏幕场景识别AI，判断用户当前行为与约束的关系。
 
-你的任务是：判断用户当前所在的界面类型，是否违反其设定的约束。
+**核心任务：**
+1. 识别用户当前所在的具体功能模块
+2. 根据约束类型进行相应判断
 
-⚠️ 核心原则：简单直接，不要过度分析！
+**判断规则：**
 
-**【关键】判断用户是否"正在使用"某功能，而不仅仅是"看到"某入口：**
+1. **精确识别功能模块**：
+   - QQ群聊 ≠ QQ空间（完全不同的功能）
+   - 微信群聊 ≠ 微信朋友圈 ≠ 微信公众号
+   - 小红书图文 ≠ 小红书短视频
+   - 必须准确识别当前界面属于哪个具体功能
 
-1. **区分"入口/列表" vs "详情/使用"**：
-   - 微信首页有"公众号"入口 → 不算违规（只是看到入口）
-   - 必须在公众号详情页/文章阅读界面 → 才算违规
-   - 小红书首页有"短视频"封面 → 不算违规（只是浏览列表）
-   - 必须是全屏播放短视频界面 → 才算违规
-   - 抖音/快手首页本身 → 算违规（本身就是短视频平台）
+2. **区分"入口" vs "使用中"**：
+   - 看到入口/图标 → 不算使用
+   - 进入详情页/播放页 → 才算使用
+   - 例外：抖音/快手首页本身就是短视频流，算使用
 
-2. **判断用户当前"所在"的位置**：
-   - 用户在群聊界面 → 违反"禁止群"
-   - 用户在文章阅读界面 → 违反"只看文章"
-   - 用户在短视频界面 → 违反"不刷短视频"
-   - 不要去分析内容是否"违规"，只判断界面类型
+$typeSpecificRules
 
-3. **忽略以下内容**：
-   - 右侧/角落的规则提示浮层
-   - 底部/顶部的导航栏
-   - 列表中的入口（如首页的推荐流中的公众号卡片）
-
-4. **只描述用户当前所在的界面**：
-   - "用户在微信-公众号详情页阅读文章" → 违规
-   - "用户在微信-首页浏览，有公众号入口" → 不违规
-   - "用户在抖音-首页推荐流" → 违规（因为抖音本身就是短视频）
-
-根据以下约束：
+**当前约束：**
 $constraintsText
 
-输出JSON数组：
+**输出格式（JSON数组）：**
 [
-  { "constraint_id": "1", "reason": "用户当前所在的界面描述", "decision": "matches/no_matches/unknown" }
+  {
+    "constraint_id": "1",
+    "reason": "用户在[应用名]-[具体功能模块]",
+    "decision": "见下方说明"
+  }
 ]
+
+decision取值：
+$decisionValues
         """.trimIndent()
     }
 

@@ -1,3 +1,7 @@
+/*
+Should sync with the app/src/main/java/com/seenot/app/ai/screen/ScreenAnalyzer.kt
+*/
+
 package com.seenot.debugger
 
 import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversation
@@ -42,20 +46,21 @@ class ScreenAnalyzerDebugger {
         private const val MODEL = "qwen-vl-plus"
     }
 
-    suspend fun singleTest(imageFile: File, constraintDesc: String) {
+    suspend fun singleTest(imageFile: File, constraintDesc: String, constraintType: String = "DENY") {
         println("\n" + "=".repeat(60))
         println("🖼️  图片: ${imageFile.name}")
-        println("🎯 约束: $constraintDesc")
+        println("🎯 约束类型: $constraintType")
+        println("🎯 约束描述: $constraintDesc")
         println("=".repeat(60))
 
         val startTime = System.currentTimeMillis()
 
         try {
-            val result = analyzeScreen(imageFile, constraintDesc)
+            val result = analyzeScreen(imageFile, constraintDesc, constraintType)
             val elapsed = System.currentTimeMillis() - startTime
 
             println("\n✅ 分析完成 (${elapsed}ms)")
-            println("\n📊 结果:")
+            println("\n📊 AI原始返回:")
             println(result)
 
         } catch (e: Exception) {
@@ -66,12 +71,14 @@ class ScreenAnalyzerDebugger {
         }
     }
 
-    suspend fun batchTest(dir: File, constraintDesc: String) {
+    suspend fun batchTest(dir: File, constraintDesc: String, constraintType: String = "DENY") {
         val images = dir.listFiles { file ->
             file.extension.lowercase() in listOf("jpg", "jpeg", "png", "webp")
         }?.toList() ?: emptyList()
 
-        println("\n📋 批量测试: ${images.size} 张图片\n")
+        println("\n📋 批量测试: ${images.size} 张图片")
+        println("🎯 约束类型: $constraintType")
+        println("🎯 约束描述: $constraintDesc\n")
 
         val results = mutableListOf<TestResult>()
 
@@ -80,7 +87,7 @@ class ScreenAnalyzerDebugger {
 
             try {
                 val startTime = System.currentTimeMillis()
-                val response = analyzeScreen(imageFile, constraintDesc)
+                val response = analyzeScreen(imageFile, constraintDesc, constraintType)
                 val elapsed = System.currentTimeMillis() - startTime
 
                 results.add(TestResult(
@@ -89,7 +96,9 @@ class ScreenAnalyzerDebugger {
                     response = response,
                     elapsedMs = elapsed
                 ))
-                println("  ✅ ${elapsed}ms\n")
+                println("  ✅ ${elapsed}ms")
+                println("  📊 AI原始返回:")
+                println("  $response\n")
 
             } catch (e: Exception) {
                 results.add(TestResult(
@@ -118,24 +127,99 @@ class ScreenAnalyzerDebugger {
         println("\n💾 详细结果已保存: ${reportFile.absolutePath}")
     }
 
-    private suspend fun analyzeScreen(imageFile: File, constraintDesc: String): String = withContext(Dispatchers.IO) {
+    private suspend fun analyzeScreen(imageFile: File, constraintDesc: String, constraintType: String): String = withContext(Dispatchers.IO) {
         // 转换图片为base64
         val imageBytes = imageFile.readBytes()
         val base64Image = Base64.getEncoder().encodeToString(imageBytes)
 
-        val prompt = """分析这个屏幕截图，判断是否违反了以下约束：
+        // Build type-specific rules
+        val typeLabel = when (constraintType.uppercase()) {
+            "ALLOW" -> "只允许"
+            "DENY" -> "禁止"
+            "TIME_CAP" -> "时间限制"
+            else -> "禁止"
+        }
 
-约束: $constraintDesc
+        val typeSpecificRules = when (constraintType.uppercase()) {
+            "ALLOW", "DENY" -> """
+3. **违规判断规则（针对 [禁止]/[只允许] 约束）：**
+   - [禁止] 约束：用户在被禁止的功能 → violates
+     例：[禁止] QQ空间 → 只有在QQ空间才违规，QQ群聊不违规
+   - [只允许] 约束：用户不在允许的功能 → violates
+     例：[只允许] 查看文章 → 不在文章阅读界面就违规
+   - 必须精确匹配功能名称，不要泛化
+            """.trimIndent()
 
-请回答：
-1. 是否违反约束？(是/否)
-2. 置信度 (0.0-1.0)
-3. 理由
+            "TIME_CAP" -> """
+3. **范围判断规则（针对 [时间限制] 约束）：**
+   - 判断用户是否在目标功能范围内（用于计时，不是违规判断）
+   - 在目标范围内 → in_scope
+   - 不在目标范围内 → out_of_scope
+   - 例：[时间限制] 小红书首页 → 在小红书首页返回 in_scope，在其他页面返回 out_of_scope
+   - 注意：时间限制类型永远不返回 violates/safe，只返回 in_scope/out_of_scope
+   - 必须精确匹配功能名称，不要泛化
+            """.trimIndent()
 
-格式：
-违反: 是/否
-置信度: 0.95
-理由: [具体说明]"""
+            else -> ""
+        }
+
+        val decisionValues = when (constraintType.uppercase()) {
+            "ALLOW", "DENY" -> """
+- violates: 违反约束（用于 [禁止]/[只允许]）
+- safe: 未违反约束（用于 [禁止]/[只允许]）
+- unknown: 无法判断
+            """.trimIndent()
+
+            "TIME_CAP" -> """
+- in_scope: 在目标范围内（用于 [时间限制]）
+- out_of_scope: 不在目标范围内（用于 [时间限制]）
+- unknown: 无法判断
+            """.trimIndent()
+
+            else -> """
+- violates: 违反约束
+- safe: 未违反约束
+- unknown: 无法判断
+            """.trimIndent()
+        }
+
+        val prompt = """
+你是屏幕场景识别AI，判断用户当前行为与约束的关系。
+
+**核心任务：**
+1. 识别用户当前所在的具体功能模块
+2. 根据约束类型进行相应判断
+
+**判断规则：**
+
+1. **精确识别功能模块**：
+   - QQ群聊 ≠ QQ空间（完全不同的功能）
+   - 微信群聊 ≠ 微信朋友圈 ≠ 微信公众号
+   - 小红书图文 ≠ 小红书短视频
+   - 必须准确识别当前界面属于哪个具体功能
+
+2. **区分"入口" vs "使用中"**：
+   - 看到入口/图标 → 不算使用
+   - 进入详情页/播放页 → 才算使用
+   - 例外：抖音/快手首页本身就是短视频流，算使用
+
+$typeSpecificRules
+
+**当前约束：**
+[$typeLabel] $constraintDesc
+
+**输出格式（JSON数组）：**
+[
+  {
+    "constraint_id": "1",
+    "reason": "用户在[应用名]-[具体功能模块]",
+    "decision": "见下方说明"
+  }
+]
+
+decision取值：
+$decisionValues
+        """.trimIndent()
 
         val userMessage = MultiModalMessage.builder()
             .role(Role.USER.value)

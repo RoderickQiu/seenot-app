@@ -275,7 +275,10 @@ class RuleRecordRepository(private val context: Context) {
             confidence = confidence,
             imagePath = imagePath,
             elapsedTimeMs = elapsedTimeMs,
-            isMarked = isMarked
+            isMarked = isMarked,
+            actionType = actionType,
+            actionReason = actionReason,
+            actionTimestamp = actionTimestamp
         )
     }
 
@@ -298,7 +301,10 @@ class RuleRecordRepository(private val context: Context) {
             confidence = confidence,
             imagePath = imagePath,
             elapsedTimeMs = elapsedTimeMs,
-            isMarked = isMarked
+            isMarked = isMarked,
+            actionType = actionType,
+            actionReason = actionReason,
+            actionTimestamp = actionTimestamp
         )
     }
 }

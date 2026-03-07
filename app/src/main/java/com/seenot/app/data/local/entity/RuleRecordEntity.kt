@@ -14,7 +14,8 @@ import androidx.room.PrimaryKey
         Index("timestamp"),
         Index("appName"),
         Index("isMarked"),
-        Index("isConditionMatched")
+        Index("isConditionMatched"),
+        Index("actionType")
     ]
 )
 data class RuleRecordEntity(
@@ -28,10 +29,19 @@ data class RuleRecordEntity(
     val constraintId: Long? = null,
     val constraintType: String? = null,
     val constraintContent: String? = null,
+
+    // For DENY/ALLOW: true = safe, false = violates
+    // For TIME_CAP: true = in_scope, false = out_of_scope
     val isConditionMatched: Boolean,
+
     val aiResult: String? = null,
     val confidence: Double? = null,
     val imagePath: String? = null,
     val elapsedTimeMs: Long? = null,
-    val isMarked: Boolean = false
+    val isMarked: Boolean = false,
+
+    // Action record
+    val actionType: String? = null,  // TOAST, AUTO_BACK, GO_HOME, etc.
+    val actionReason: String? = null, // "violation" or "timeout"
+    val actionTimestamp: Long? = null
 )

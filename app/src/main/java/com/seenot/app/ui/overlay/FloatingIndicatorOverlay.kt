@@ -139,13 +139,13 @@ class FloatingIndicatorOverlay(
         try {
             val currentSession = state.session
             if (currentSession == null || session == null) return
-            
+
             // Only update if time remaining actually changed
-            if (currentSession.timeRemainingMs == session.timeRemainingMs) return
-            
+            if (currentSession.constraintTimeRemaining == session.constraintTimeRemaining) return
+
             // Update state but don't re-render
             state = state.copy(session = session)
-            
+
             // Update dot color based on new time
             dotView?.let { dot ->
                 val dotColor = getTimeColor(session, state.hasActiveSession)
@@ -374,17 +374,22 @@ class FloatingIndicatorOverlay(
 
         session ?: return timeGreenColor
 
-        val remaining = session.timeRemainingMs
-        val limit = session.constraints
-            .filter { it.timeLimitMs != null }
-            .sumOf { it.timeLimitMs ?: 0L }
+        // Find the lowest time percentage across all constraints
+        var lowestPercentage = 100f
+        for (constraint in session.constraints) {
+            val limit = constraint.timeLimitMs ?: continue
+            val remaining = session.constraintTimeRemaining[constraint.id] ?: continue
+            val percentage = (remaining.toFloat() / limit.toFloat()) * 100
+            if (percentage < lowestPercentage) {
+                lowestPercentage = percentage
+            }
+        }
 
-        if (remaining == null || limit <= 0) return timeGreenColor
+        if (lowestPercentage >= 100f) return timeGreenColor
 
-        val percentage = (remaining.toFloat() / limit.toFloat()) * 100
         return when {
-            percentage > 50 -> timeGreenColor
-            percentage > 20 -> timeYellowColor
+            lowestPercentage > 50 -> timeGreenColor
+            lowestPercentage > 20 -> timeYellowColor
             else -> timeRedColor
         }
     }

@@ -53,3 +53,6 @@ Thumbs.db
 
 # Proguard
 *proguard*
+
+# Test files
+*/test-data/

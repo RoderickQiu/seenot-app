@@ -48,6 +48,9 @@ class SeenotAccessibilityService : AccessibilityService() {
         private const val CHANNEL_ID = "seenot_accessibility"
         private const val NOTIFICATION_ID = 1001
 
+        // Debounce threshold: ignore app switches within this time (ms)
+        private const val APP_SWITCH_DEBOUNCE_MS = 500L
+
         var instance: SeenotAccessibilityService? = null
 
         private val _currentPackage = MutableStateFlow<String?>(null)
@@ -61,6 +64,8 @@ class SeenotAccessibilityService : AccessibilityService() {
     }
 
     private val gestureExecutor: Executor = Executors.newSingleThreadExecutor()
+    private var lastAppSwitchTime = 0L
+    private lateinit var sessionManager: SessionManager
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -148,11 +153,25 @@ class SeenotAccessibilityService : AccessibilityService() {
                 val className = event.className?.toString()
                 Log.d(TAG, "TYPE_WINDOW_STATE_CHANGED: $packageName, class: $className, current: ${_currentPackage.value}")
 
-                if (packageName != null && packageName != _currentPackage.value) {
-                    Log.d(TAG, "App switched to: $packageName")
-                    _currentPackage.value = packageName
+                if (packageName == null) return
 
-                    // Check if this is a controlled app and show overlay
+                // Debounce: ignore rapid switches
+                val now = System.currentTimeMillis()
+                if (now - lastAppSwitchTime < APP_SWITCH_DEBOUNCE_MS) {
+                    Log.d(TAG, "Debouncing app switch: $packageName (${now - lastAppSwitchTime}ms)")
+                    return
+                }
+
+                // Ignore system apps (except launcher)
+                if (isSystemApp(packageName) && !isLauncher(packageName)) {
+                    Log.d(TAG, "Ignoring system app: $packageName")
+                    return
+                }
+
+                if (packageName != _currentPackage.value) {
+                    Log.d(TAG, "App switched to: $packageName")
+                    lastAppSwitchTime = now
+                    _currentPackage.value = packageName
                     checkAndShowOverlay(packageName, className)
                 } else {
                     Log.d(TAG, "Same package, skipping: $packageName")
@@ -245,15 +264,7 @@ class SeenotAccessibilityService : AccessibilityService() {
                 // Switch from monitored app to non-monitored app
                 isSwitchingToDifferentApp && !isControlledApp -> {
                     Log.d(TAG, "Case: Leaving monitored app: $previousPackage -> $packageName (non-controlled)")
-
-                    val currentSession = sessionManager.activeSession.value
-                    if (currentSession != null) {
-                        Log.d(TAG, "Ending session for $previousPackage")
-                        CoroutineScope(Dispatchers.Main + SupervisorJob()).launch {
-                            sessionManager.endSessionManually()
-                        }
-                    }
-
+                    // SessionManager will handle pause/resume logic automatically
                     dismissAllOverlays()
                     currentMonitoredPackage = null
                 }
@@ -274,6 +285,23 @@ class SeenotAccessibilityService : AccessibilityService() {
         } catch (e: Exception) {
             Log.e(TAG, "Error in checkAndShowOverlay", e)
         }
+    }
+
+    private fun isSystemApp(packageName: String): Boolean {
+        return try {
+            val appInfo = packageManager.getApplicationInfo(packageName, 0)
+            (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
+        } catch (e: PackageManager.NameNotFoundException) {
+            false
+        }
+    }
+
+    private fun isLauncher(packageName: String): Boolean {
+        val intent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_HOME)
+        }
+        val resolveInfo = packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
+        return resolveInfo?.activityInfo?.packageName == packageName
     }
 
     /**

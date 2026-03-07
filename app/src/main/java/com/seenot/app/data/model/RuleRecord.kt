@@ -16,12 +16,21 @@ data class RuleRecord(
     val constraintId: Long? = null,
     val constraintType: ConstraintType? = null,
     val constraintContent: String? = null,
+
+    // For DENY/ALLOW: true = safe, false = violates
+    // For TIME_CAP: true = in_scope, false = out_of_scope
     val isConditionMatched: Boolean,
+
     val aiResult: String? = null,
     val confidence: Double? = null,
     val imagePath: String? = null,
     val elapsedTimeMs: Long? = null,
-    val isMarked: Boolean = false
+    val isMarked: Boolean = false,
+
+    // Action record
+    val actionType: String? = null,  // TOAST, AUTO_BACK, GO_HOME, etc.
+    val actionReason: String? = null, // "violation" or "timeout"
+    val actionTimestamp: Long? = null
 ) {
     val date: Date
         get() = Date(timestamp)

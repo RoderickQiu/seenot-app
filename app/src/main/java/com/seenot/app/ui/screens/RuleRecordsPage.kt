@@ -228,7 +228,9 @@ fun RuleRecordsPage(
             // Records list
             if (filteredRecords.isEmpty()) {
                 Box(
-                    modifier = Modifier.weight(1f),
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxSize(),
                     contentAlignment = Alignment.Center
                 ) {
                     Column(
