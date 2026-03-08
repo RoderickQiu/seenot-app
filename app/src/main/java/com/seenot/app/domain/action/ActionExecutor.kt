@@ -14,6 +14,7 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.withContext
 
 /**
  * Action Executor - Handles intervention actions
@@ -245,7 +246,12 @@ class ActionExecutor(private val context: Context) {
             com.seenot.app.data.model.ConstraintType.TIME_CAP -> "⏰ 时间到，自动返回"
             else -> "⚠️ 违规，自动返回"
         }
-        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        
+        scope.launch {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+            }
+        }
 
         val service = SeenotAccessibilityService.instance
         if (service != null) {
