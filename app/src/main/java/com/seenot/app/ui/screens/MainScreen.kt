@@ -13,10 +13,12 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -726,7 +728,14 @@ fun AppRulesDialog(
                     val constraint = presetRules[index]
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        onClick = { editingPresetIndex = index }
+                        onClick = { editingPresetIndex = index },
+                        colors = CardDefaults.cardColors(
+                            containerColor = if (constraint.isDefault) {
+                                MaterialTheme.colorScheme.primaryContainer
+                            } else {
+                                MaterialTheme.colorScheme.surface
+                            }
+                        )
                     ) {
                         Row(
                             modifier = Modifier
@@ -741,20 +750,43 @@ fun AppRulesDialog(
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
-                            IconButton(
-                                onClick = {
-                                    val newPresets = presetRules.toMutableList().apply { removeAt(index) }
-                                    presetRules = newPresets
-                                    sessionManager.savePresetRules(app.packageName, newPresets)
-                                },
-                                modifier = Modifier.size(24.dp)
-                            ) {
-                                Icon(
-                                    Icons.Default.Delete,
-                                    contentDescription = "删除",
-                                    tint = MaterialTheme.colorScheme.error,
-                                    modifier = Modifier.size(18.dp)
-                                )
+                            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                                IconButton(
+                                    onClick = {
+                                        val newPresets = presetRules.map { rule ->
+                                            if (rule.id == constraint.id) {
+                                                rule.copy(isDefault = !rule.isDefault)
+                                            } else {
+                                                rule.copy(isDefault = false)
+                                            }
+                                        }
+                                        presetRules = newPresets
+                                        sessionManager.savePresetRules(app.packageName, newPresets)
+                                    },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        imageVector = if (constraint.isDefault) Icons.Filled.Star else Icons.Outlined.StarBorder,
+                                        contentDescription = if (constraint.isDefault) "取消默认" else "设为默认",
+                                        tint = if (constraint.isDefault) Color(0xFFFFB300) else MaterialTheme.colorScheme.onSurfaceVariant,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                IconButton(
+                                    onClick = {
+                                        val newPresets = presetRules.toMutableList().apply { removeAt(index) }
+                                        presetRules = newPresets
+                                        sessionManager.savePresetRules(app.packageName, newPresets)
+                                    },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = "删除",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
                             }
                         }
                     }
@@ -1557,7 +1589,8 @@ fun EditConstraintDialog(
                                 description = description,
                                 timeLimitMs = timeLimitMs,
                                 timeScope = if (timeLimitMs != null) timeScope else null,
-                                interventionLevel = interventionLevel
+                                interventionLevel = interventionLevel,
+                                isDefault = constraint.isDefault
                             )
                         )
                     }

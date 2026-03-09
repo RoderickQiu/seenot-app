@@ -35,6 +35,7 @@ class SessionManager(private val context: Context) {
         private const val KEY_LAST_INTENT_PREFIX = "last_intent_"
         private const val KEY_INTENT_HISTORY_PREFIX = "intent_history_"
         private const val KEY_PRESET_RULES_PREFIX = "preset_rules_"
+        private const val KEY_DEFAULT_RULE_PREFIX = "default_rule_"
         private const val KEY_AUTO_START = "auto_start"
         private const val MAX_HISTORY_PER_APP = 10
 
@@ -650,7 +651,8 @@ class SessionManager(private val context: Context) {
                 "timeLimitMs" to constraint.timeLimitMs,
                 "timeScope" to (constraint.timeScope?.name ?: "SESSION"),
                 "interventionLevel" to constraint.interventionLevel.name,
-                "isActive" to constraint.isActive
+                "isActive" to constraint.isActive,
+                "isDefault" to constraint.isDefault
             )
         })
         prefs.edit().putString("${KEY_PRESET_RULES_PREFIX}$packageName", json).apply()
@@ -674,7 +676,8 @@ class SessionManager(private val context: Context) {
                         timeLimitMs = (item["timeLimitMs"] as? Number)?.toLong(),
                         timeScope = try { TimeScope.valueOf(item["timeScope"] as? String ?: "SESSION") } catch (e: Exception) { TimeScope.SESSION },
                         interventionLevel = try { InterventionLevel.valueOf(item["interventionLevel"] as? String ?: "MODERATE") } catch (e: Exception) { InterventionLevel.MODERATE },
-                        isActive = item["isActive"] as? Boolean ?: true
+                        isActive = item["isActive"] as? Boolean ?: true,
+                        isDefault = item["isDefault"] as? Boolean ?: false
                     )
                 } catch (e: Exception) {
                     Logger.e(TAG, "Failed to parse preset rule", e)
@@ -685,6 +688,38 @@ class SessionManager(private val context: Context) {
             Logger.e(TAG, "Failed to load preset rules for $packageName", e)
             emptyList()
         }
+    }
+
+    /**
+     * Set a preset rule as default for a specific app.
+     * Only one rule can be default at a time.
+     */
+    fun setDefaultRule(packageName: String, ruleId: String) {
+        val rules = loadPresetRules(packageName)
+        val updatedRules = rules.map { rule ->
+            rule.copy(isDefault = rule.id == ruleId)
+        }
+        savePresetRules(packageName, updatedRules)
+        Logger.d(TAG, "Set default rule $ruleId for $packageName")
+    }
+
+    /**
+     * Clear default rule for a specific app.
+     */
+    fun clearDefaultRule(packageName: String) {
+        val rules = loadPresetRules(packageName)
+        val updatedRules = rules.map { rule ->
+            rule.copy(isDefault = false)
+        }
+        savePresetRules(packageName, updatedRules)
+        Logger.d(TAG, "Cleared default rule for $packageName")
+    }
+
+    /**
+     * Get the default rule for a specific app.
+     */
+    fun getDefaultRule(packageName: String): SessionConstraint? {
+        return loadPresetRules(packageName).firstOrNull { it.isDefault }
     }
 
     /**
@@ -761,7 +796,8 @@ class SessionManager(private val context: Context) {
                         timeLimitMs = (item["timeLimitMs"] as? Number)?.toLong(),
                         timeScope = try { TimeScope.valueOf(item["timeScope"] as? String ?: "SESSION") } catch (e: Exception) { TimeScope.SESSION },
                         interventionLevel = try { InterventionLevel.valueOf(item["interventionLevel"] as? String ?: "MODERATE") } catch (e: Exception) { InterventionLevel.MODERATE },
-                        isActive = item["isActive"] as? Boolean ?: true
+                        isActive = item["isActive"] as? Boolean ?: true,
+                        isDefault = item["isDefault"] as? Boolean ?: false
                     )
                 } catch (e: Exception) {
                     Logger.e(TAG, "Failed to parse constraint", e)
@@ -869,7 +905,8 @@ data class SessionConstraint(
     val timeLimitMs: Long? = null,
     val timeScope: TimeScope? = null,
     val interventionLevel: InterventionLevel = InterventionLevel.MODERATE,
-    val isActive: Boolean = true
+    val isActive: Boolean = true,
+    val isDefault: Boolean = false
 )
 
 /**

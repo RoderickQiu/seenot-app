@@ -131,6 +131,15 @@ class IntentInputDialogOverlay(
             return
         }
 
+        // Check for default rule first
+        val defaultRule = sessionManager.getDefaultRule(packageName)
+        if (defaultRule != null) {
+            // Auto-select default rule and start session immediately
+            pendingConstraints = listOf(defaultRule)
+            confirmAndTransition()
+            return
+        }
+
         voiceInputManager = VoiceInputManager(context)
         observeVoiceInput()
         renderDialog()
@@ -466,6 +475,7 @@ class IntentInputDialogOverlay(
         presetContainer?.removeAllViews()
 
         presetRules = sessionManager.loadPresetRules(packageName)
+            .sortedByDescending { it.isDefault }
 
         if (presetRules.isEmpty()) {
             val emptyText = TextView(context).apply {
@@ -488,19 +498,36 @@ class IntentInputDialogOverlay(
     @SuppressLint("SetTextI18n")
     private fun buildPresetRow(constraints: SessionConstraint): View {
         val row = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
+            orientation = LinearLayout.HORIZONTAL
             setPadding(14.dp(), 10.dp(), 14.dp(), 10.dp())
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { bottomMargin = 6.dp() }
             background = GradientDrawable().apply {
-                setColor(historyBgColor)
+                setColor(if (constraints.isDefault) primaryColor and 0x20FFFFFF else historyBgColor)
                 cornerRadius = 10.dp().toFloat()
             }
             setOnClickListener {
                 selectPresetIntent(constraints)
             }
+        }
+
+        if (constraints.isDefault) {
+            val starIcon = TextView(context).apply {
+                text = "⭐"
+                textSize = 16f
+                setPadding(0, 0, 8.dp(), 0)
+            }
+            row.addView(starIcon)
+        }
+
+        val textContainer = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
         }
 
         val constraintText = when (constraints.type) {
@@ -555,7 +582,9 @@ class IntentInputDialogOverlay(
             setTextColor(textColor)
             maxLines = 2
         }
-        row.addView(descText)
+        textContainer.addView(descText)
+        
+        row.addView(textContainer)
 
         return row
     }
