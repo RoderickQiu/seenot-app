@@ -426,10 +426,20 @@ private fun ConstraintItem(
                 color = if (constraint.isActive) Color.Black else Color.Gray
             )
 
-            // Time remaining if applicable
             if (constraint.timeRemainingMs != null && constraint.timeLimitMs != null) {
+                val scopeText = when (constraint.timeScope) {
+                    com.seenot.app.data.model.TimeScope.SESSION -> "会话"
+                    com.seenot.app.data.model.TimeScope.PER_CONTENT -> "内容"
+                    com.seenot.app.data.model.TimeScope.CONTINUOUS -> "连续"
+                    com.seenot.app.data.model.TimeScope.DAILY_TOTAL -> "每日"
+                    null -> ""
+                }
                 Text(
-                    text = formatTimeRemaining(constraint.timeRemainingMs),
+                    text = if (scopeText.isNotEmpty()) {
+                        "$scopeText ${formatTimeRemaining(constraint.timeRemainingMs)}"
+                    } else {
+                        formatTimeRemaining(constraint.timeRemainingMs)
+                    },
                     fontSize = 12.sp,
                     color = calculateTimeColor(constraint.timeRemainingMs, constraint.timeLimitMs)
                 )

@@ -888,14 +888,15 @@ fun AddPresetRuleDialog(
     var ruleType by remember { mutableStateOf(ConstraintType.DENY) }
     var description by remember { mutableStateOf("") }
     var timeLimitMinutes by remember { mutableStateOf("") }
+    var timeScope by remember { mutableStateOf(TimeScope.SESSION) }
     var interventionLevel by remember { mutableStateOf(InterventionLevel.MODERATE) }
+    var showConflictWarning by remember { mutableStateOf(false) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text("添加预设规则") },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
-                // Rule Type
                 Text(text = "规则类型", style = MaterialTheme.typography.labelMedium)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -904,7 +905,10 @@ fun AddPresetRuleDialog(
                     ConstraintType.entries.forEach { type ->
                         FilterChip(
                             selected = ruleType == type,
-                            onClick = { ruleType = type },
+                            onClick = { 
+                                ruleType = type
+                                showConflictWarning = false
+                            },
                             label = {
                                 Text(
                                     when (type) {
@@ -918,6 +922,23 @@ fun AddPresetRuleDialog(
                     }
                 }
 
+                if (showConflictWarning) {
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Card(
+                        modifier = Modifier.fillMaxWidth(),
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer
+                        )
+                    ) {
+                        Text(
+                            text = "⚠️ 注意：ALLOW（允许）和 DENY（禁止）不能同时存在。如果已有其他类型约束，新约束将替换它。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onErrorContainer,
+                            modifier = Modifier.padding(12.dp)
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // Description
@@ -925,24 +946,59 @@ fun AddPresetRuleDialog(
                     value = description,
                     onValueChange = { description = it },
                     label = { Text("描述") },
-                    placeholder = { Text("例如：短视频、游戏") },
+                    placeholder = { Text("例如：短视频、朋友圈和视频号") },
                     modifier = Modifier.fillMaxWidth(),
+                    supportingText = {
+                        Text(
+                            "💡 可以输入多个条件，如：朋友圈和视频号",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    },
                     singleLine = true
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Time Limit (optional for TIME_CAP)
-                if (ruleType == ConstraintType.TIME_CAP) {
+                // Time Limit
+                if (ruleType == ConstraintType.TIME_CAP || ruleType == ConstraintType.ALLOW || ruleType == ConstraintType.DENY) {
                     OutlinedTextField(
                         value = timeLimitMinutes,
                         onValueChange = { timeLimitMinutes = it.filter { c -> c.isDigit() || c == '.' } },
-                        label = { Text("时间限制（分钟）") },
+                        label = { Text("时间限制（分钟，可选）") },
                         placeholder = { Text("例如：30 或 0.5") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
                     Spacer(modifier = Modifier.height(12.dp))
+
+                    // Time Scope (only if time limit is set)
+                    if (timeLimitMinutes.isNotBlank()) {
+                        Text(text = "时间范围", style = MaterialTheme.typography.labelMedium)
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            TimeScope.entries.forEach { scope ->
+                                FilterChip(
+                                    selected = timeScope == scope,
+                                    onClick = { timeScope = scope },
+                                    label = {
+                                        Text(
+                                            when (scope) {
+                                                TimeScope.SESSION -> "会话级（整个会话计时）"
+                                                TimeScope.PER_CONTENT -> "内容级（只在目标内容时计时）"
+                                                TimeScope.CONTINUOUS -> "连续（不间断计时）"
+                                                TimeScope.DAILY_TOTAL -> "每日累计（跨会话持久化）"
+                                            }
+                                        )
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
                 }
 
                 // Intervention Level
@@ -994,7 +1050,7 @@ fun AddPresetRuleDialog(
             TextButton(
                 onClick = {
                     if (description.isNotBlank()) {
-                        val timeLimitMs = if (ruleType == ConstraintType.TIME_CAP && timeLimitMinutes.isNotBlank()) {
+                        val timeLimitMs = if (timeLimitMinutes.isNotBlank()) {
                             timeLimitMinutes.toDoubleOrNull()?.times(60 * 1000)?.toLong()
                         } else null
 
@@ -1004,6 +1060,7 @@ fun AddPresetRuleDialog(
                                 type = ruleType,
                                 description = description,
                                 timeLimitMs = timeLimitMs,
+                                timeScope = if (timeLimitMs != null) timeScope else null,
                                 interventionLevel = interventionLevel
                             )
                         )
@@ -1034,6 +1091,7 @@ fun EditPresetRuleDialog(
     var ruleType by remember { mutableStateOf(constraint.type) }
     var description by remember { mutableStateOf(constraint.description) }
     var timeLimitMinutes by remember { mutableStateOf(constraint.timeLimitMs?.let { (it / 60000.0).toString() } ?: "") }
+    var timeScope by remember { mutableStateOf(constraint.timeScope ?: TimeScope.SESSION) }
     var interventionLevel by remember { mutableStateOf(constraint.interventionLevel) }
 
     AlertDialog(
@@ -1041,7 +1099,6 @@ fun EditPresetRuleDialog(
         title = { Text("编辑预设规则") },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
-                // Rule Type
                 Text(text = "规则类型", style = MaterialTheme.typography.labelMedium)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1066,29 +1123,61 @@ fun EditPresetRuleDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Description
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
                     label = { Text("描述") },
-                    placeholder = { Text("例如：短视频、游戏") },
+                    placeholder = { Text("例如：短视频、朋友圈和视频号") },
                     modifier = Modifier.fillMaxWidth(),
+                    supportingText = {
+                        Text(
+                            "💡 可以输入多个条件，如：朋友圈和视频号",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    },
                     singleLine = true
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Time Limit (optional for TIME_CAP)
-                if (ruleType == ConstraintType.TIME_CAP) {
+                if (ruleType == ConstraintType.TIME_CAP || ruleType == ConstraintType.ALLOW || ruleType == ConstraintType.DENY) {
                     OutlinedTextField(
                         value = timeLimitMinutes,
                         onValueChange = { timeLimitMinutes = it.filter { c -> c.isDigit() || c == '.' } },
-                        label = { Text("时间限制（分钟）") },
+                        label = { Text("时间限制（分钟，可选）") },
                         placeholder = { Text("例如：30 或 0.5") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
                     Spacer(modifier = Modifier.height(12.dp))
+
+                    if (timeLimitMinutes.isNotBlank()) {
+                        Text(text = "时间范围", style = MaterialTheme.typography.labelMedium)
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            TimeScope.entries.forEach { scope ->
+                                FilterChip(
+                                    selected = timeScope == scope,
+                                    onClick = { timeScope = scope },
+                                    label = {
+                                        Text(
+                                            when (scope) {
+                                                TimeScope.SESSION -> "会话级（整个会话计时）"
+                                                TimeScope.PER_CONTENT -> "内容级（只在目标内容时计时）"
+                                                TimeScope.CONTINUOUS -> "连续（不间断计时）"
+                                                TimeScope.DAILY_TOTAL -> "每日累计（跨会话持久化）"
+                                            }
+                                        )
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
                 }
 
                 // Intervention Level
@@ -1140,7 +1229,7 @@ fun EditPresetRuleDialog(
             TextButton(
                 onClick = {
                     if (description.isNotBlank()) {
-                        val timeLimitMs = if (ruleType == ConstraintType.TIME_CAP && timeLimitMinutes.isNotBlank()) {
+                        val timeLimitMs = if (timeLimitMinutes.isNotBlank()) {
                             timeLimitMinutes.toDoubleOrNull()?.times(60 * 1000)?.toLong()
                         } else null
 
@@ -1150,7 +1239,7 @@ fun EditPresetRuleDialog(
                                 type = ruleType,
                                 description = description,
                                 timeLimitMs = timeLimitMs,
-                                timeScope = constraint.timeScope,
+                                timeScope = if (timeLimitMs != null) timeScope else null,
                                 interventionLevel = interventionLevel,
                                 isActive = constraint.isActive
                             )
@@ -1320,6 +1409,7 @@ fun EditConstraintDialog(
     var timeLimitMinutes by remember {
         mutableStateOf(constraint.timeLimitMs?.let { (it / 60000).toString() } ?: "")
     }
+    var timeScope by remember { mutableStateOf(constraint.timeScope ?: TimeScope.SESSION) }
     var interventionLevel by remember { mutableStateOf(constraint.interventionLevel) }
 
     AlertDialog(
@@ -1327,7 +1417,6 @@ fun EditConstraintDialog(
         title = { Text("编辑规则项") },
         text = {
             Column(modifier = Modifier.fillMaxWidth()) {
-                // Rule Type
                 Text(text = "规则类型", style = MaterialTheme.typography.labelMedium)
                 Row(
                     modifier = Modifier.fillMaxWidth(),
@@ -1352,29 +1441,61 @@ fun EditConstraintDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Description
                 OutlinedTextField(
                     value = description,
                     onValueChange = { description = it },
                     label = { Text("描述") },
-                    placeholder = { Text("例如：短视频、游戏") },
+                    placeholder = { Text("例如：短视频、朋友圈和视频号") },
                     modifier = Modifier.fillMaxWidth(),
+                    supportingText = {
+                        Text(
+                            "💡 可以输入多个条件，如：朋友圈和视频号",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    },
                     singleLine = true
                 )
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                // Time Limit (optional for TIME_CAP)
-                if (ruleType == ConstraintType.TIME_CAP) {
+                if (ruleType == ConstraintType.TIME_CAP || ruleType == ConstraintType.ALLOW || ruleType == ConstraintType.DENY) {
                     OutlinedTextField(
                         value = timeLimitMinutes,
                         onValueChange = { timeLimitMinutes = it.filter { c -> c.isDigit() || c == '.' } },
-                        label = { Text("时间限制（分钟）") },
+                        label = { Text("时间限制（分钟，可选）") },
                         placeholder = { Text("例如：30 或 0.5") },
                         modifier = Modifier.fillMaxWidth(),
                         singleLine = true
                     )
                     Spacer(modifier = Modifier.height(12.dp))
+
+                    if (timeLimitMinutes.isNotBlank()) {
+                        Text(text = "时间范围", style = MaterialTheme.typography.labelMedium)
+                        Column(
+                            modifier = Modifier.fillMaxWidth(),
+                            verticalArrangement = Arrangement.spacedBy(4.dp)
+                        ) {
+                            TimeScope.entries.forEach { scope ->
+                                FilterChip(
+                                    selected = timeScope == scope,
+                                    onClick = { timeScope = scope },
+                                    label = {
+                                        Text(
+                                            when (scope) {
+                                                TimeScope.SESSION -> "会话级（整个会话计时）"
+                                                TimeScope.PER_CONTENT -> "内容级（只在目标内容时计时）"
+                                                TimeScope.CONTINUOUS -> "连续（不间断计时）"
+                                                TimeScope.DAILY_TOTAL -> "每日累计（跨会话持久化）"
+                                            }
+                                        )
+                                    },
+                                    modifier = Modifier.fillMaxWidth()
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
                 }
 
                 // Intervention Level
@@ -1426,7 +1547,7 @@ fun EditConstraintDialog(
             TextButton(
                 onClick = {
                     if (description.isNotBlank()) {
-                        val timeLimitMs = if (ruleType == ConstraintType.TIME_CAP && timeLimitMinutes.isNotBlank()) {
+                        val timeLimitMs = if (timeLimitMinutes.isNotBlank()) {
                             timeLimitMinutes.toDoubleOrNull()?.times(60 * 1000)?.toLong()
                         } else null
 
@@ -1435,6 +1556,7 @@ fun EditConstraintDialog(
                                 type = ruleType,
                                 description = description,
                                 timeLimitMs = timeLimitMs,
+                                timeScope = if (timeLimitMs != null) timeScope else null,
                                 interventionLevel = interventionLevel
                             )
                         )

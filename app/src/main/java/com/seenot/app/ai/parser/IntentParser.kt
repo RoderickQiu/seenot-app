@@ -36,6 +36,8 @@ class IntentParser {
    - "最多X分钟"（无内容限制）→ TIME_CAP
 3. 时间限制直接加在约束的 timeLimitMinutes 字段上
 4. 如果既有内容限制又有时间限制，优先使用 ALLOW/DENY，时间加在同一个约束上
+5. **多条件合并**：如果用户提到多个内容（如"不能看朋友圈和视频号"），将它们合并到一个约束的 description 中
+6. **ALLOW/DENY 互斥**：每个约束只能是 ALLOW 或 DENY 之一，不能同时存在
 
 规则类型:
 - ALLOW: 白名单，只允许使用某功能/内容
@@ -45,11 +47,13 @@ class IntentParser {
 时间范围类型 (timeScope):
 - SESSION: 整个会话计时，无论看什么内容都在倒计时
 - PER_CONTENT: 只有在目标内容时才计时，切换到其他内容时暂停
+- DAILY_TOTAL: 每日累计时间，跨会话持久化（今天总共最多X分钟）
 
 ⚠️ 如何判断 timeScope：
 - "X只能看Y分钟" → PER_CONTENT（只有看X时才计时）
 - "不能看X，最多Y分钟" → SESSION（整个会话限时，看到X违规）
 - "最多Y分钟" → SESSION（纯时间限制）
+- "每天最多Y分钟" / "今天只能看Y分钟" → DAILY_TOTAL（每日累计）
 
 干预级别:
 - GENTLE: 温和提醒
@@ -63,7 +67,7 @@ class IntentParser {
       "type": "ALLOW|DENY|TIME_CAP",
       "description": "规则描述",
       "timeLimitMinutes": null或数字,
-      "timeScope": "SESSION|PER_CONTENT",
+      "timeScope": "SESSION|PER_CONTENT|DAILY_TOTAL",
       "intervention": "GENTLE|MODERATE|STRICT"
     }
   ]
@@ -71,10 +75,19 @@ class IntentParser {
 
 示例：
 输入："刷微信但不能看朋友圈"
-输出：{"constraints":[{"type":"DENY","description":"禁止查看朋友圈","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
+输出：{"constraints":[{"type":"DENY","description":"朋友圈","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
+
+输入："不能看朋友圈和视频号"
+输出：{"constraints":[{"type":"DENY","description":"朋友圈和视频号","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
 
 输入："打开小红书，只能看穿搭"
-输出：{"constraints":[{"type":"ALLOW","description":"只允许浏览穿搭内容","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
+输出：{"constraints":[{"type":"ALLOW","description":"穿搭内容","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
+
+输入："每天最多10分钟"
+输出：{"constraints":[{"type":"TIME_CAP","description":"每日时间限制","timeLimitMinutes":10,"timeScope":"DAILY_TOTAL","intervention":"STRICT"}]}
+
+输入："朋友圈每天只能看5分钟"
+输出：{"constraints":[{"type":"ALLOW","description":"朋友圈","timeLimitMinutes":5,"timeScope":"DAILY_TOTAL","intervention":"STRICT"}]}
 
 输入："打开小红书，只能看穿搭5分钟"
 输出：{"constraints":[{"type":"ALLOW","description":"只允许浏览穿搭内容","timeLimitMinutes":5,"timeScope":"PER_CONTENT","intervention":"MODERATE"}]}
@@ -147,6 +160,7 @@ class IntentParser {
                     val timeScope = when (timeScopeStr) {
                         "PER_CONTENT" -> TimeScope.PER_CONTENT
                         "CONTINUOUS" -> TimeScope.CONTINUOUS
+                        "DAILY_TOTAL" -> TimeScope.DAILY_TOTAL
                         else -> TimeScope.SESSION
                     }
                     constraints.add(

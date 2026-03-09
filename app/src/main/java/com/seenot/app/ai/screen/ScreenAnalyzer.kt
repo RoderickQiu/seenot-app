@@ -439,13 +439,7 @@ class ScreenAnalyzer(
             // Show TIME_CAP status
             if (timeCapMatches.isNotEmpty()) {
                 val inScopeCount = timeCapMatches.count { match ->
-                    // Check if this TIME_CAP is in scope by looking at SessionManager state
-                    val sessionManager = SessionManager.getInstance(context)
-                    sessionManager.activeSession.value?.let { session ->
-                        session.constraintTimeRemaining[match.constraint.id]?.let { remaining ->
-                            remaining > 0
-                        }
-                    } ?: false
+                    match.reason?.contains("in_scope", ignoreCase = true) == true
                 }
 
                 if (inScopeCount > 0) {
@@ -923,6 +917,8 @@ class ScreenAnalyzer(
                 appendLine("     例：[禁止] QQ空间 → 只有在QQ空间才违规，QQ群聊不违规")
                 appendLine("   - [只允许] 约束：用户不在允许的功能 → violates")
                 appendLine("     例：[只允许] 查看文章 → 不在文章阅读界面就违规")
+                appendLine("   - **多条件约束（OR逻辑）**：如果约束描述包含多个条件（如\"朋友圈和视频号\"），判断屏幕是否包含**任一**条件")
+                appendLine("     例：[禁止] 朋友圈和视频号 → 在朋友圈违规，在视频号也违规，在聊天界面不违规")
                 appendLine("   - 必须精确匹配功能名称，不要泛化")
                 if (timeCapConstraints.isNotEmpty()) appendLine()
             }

@@ -25,7 +25,10 @@ enum class TimeScope {
     PER_CONTENT,
 
     /** Continuous uninterrupted time */
-    CONTINUOUS
+    CONTINUOUS,
+
+    /** Daily total time across all sessions (persisted across app restarts) */
+    DAILY_TOTAL
 }
 
 /**

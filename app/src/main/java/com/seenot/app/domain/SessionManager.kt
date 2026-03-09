@@ -61,11 +61,11 @@ class SessionManager(private val context: Context) {
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
-    // SharedPreferences for persisting controlled apps
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
 
-    // Gson for JSON serialization
     private val gson = Gson()
+
+    private val dailyTimeTracker = DailyTimeTracker(context)
 
     // Current active session
     private val _activeSession = MutableStateFlow<ActiveSession?>(null)
@@ -224,7 +224,16 @@ class SessionManager(private val context: Context) {
             constraints = constraints,
             startTime = System.currentTimeMillis(),
             isPaused = false,
-            constraintTimeRemaining = constraints.associate { it.id to it.timeLimitMs }
+            constraintTimeRemaining = constraints.associate { constraint ->
+                val remaining = if (constraint.timeScope == TimeScope.DAILY_TOTAL) {
+                    val accumulated = dailyTimeTracker.getAccumulatedTime(constraint.id)
+                    val limit = constraint.timeLimitMs ?: 0L
+                    (limit - accumulated).coerceAtLeast(0L)
+                } else {
+                    constraint.timeLimitMs
+                }
+                constraint.id to remaining
+            }
         )
 
         _activeSession.value = activeSession
@@ -441,15 +450,24 @@ class SessionManager(private val context: Context) {
             val existingIndex = result.indexOfFirst { it.type == newConstraint.type }
 
             if (existingIndex >= 0) {
-                // Replace existing constraint of same type
                 result[existingIndex] = newConstraint
             } else {
-                // Add new constraint
                 result.add(newConstraint)
             }
         }
 
+        validateConstraintMutualExclusion(result)
+
         return result
+    }
+
+    private fun validateConstraintMutualExclusion(constraints: List<SessionConstraint>) {
+        val hasAllow = constraints.any { it.type == ConstraintType.ALLOW }
+        val hasDeny = constraints.any { it.type == ConstraintType.DENY }
+
+        if (hasAllow && hasDeny) {
+            Logger.w(TAG, "Constraint validation warning: Both ALLOW and DENY constraints present. Latest intent takes precedence.")
+        }
     }
 
     /**
@@ -472,23 +490,28 @@ class SessionManager(private val context: Context) {
                     val timeLimit = constraint.timeLimitMs ?: continue
                     val remaining = updatedTimeRemaining[constraint.id] ?: continue
 
-                    // Determine if we should decrement time for this constraint
                     val shouldDecrement = when (constraint.timeScope) {
-                        TimeScope.SESSION -> true // Always decrement for SESSION scope
+                        TimeScope.SESSION -> true
                         TimeScope.PER_CONTENT, TimeScope.CONTINUOUS -> {
-                            // Only decrement if currently matching this constraint
                             constraintMatchStates[constraint.id] == true
                         }
-                        null -> true // Default to SESSION behavior
+                        TimeScope.DAILY_TOTAL -> {
+                            dailyTimeTracker.resetIfNewDay(constraint.id)
+                            true
+                        }
+                        null -> true
                     }
 
                     if (shouldDecrement) {
                         val newRemaining = remaining - 1000
                         updatedTimeRemaining[constraint.id] = newRemaining
 
+                        if (constraint.timeScope == TimeScope.DAILY_TOTAL) {
+                            dailyTimeTracker.addTime(constraint.id, 1000)
+                        }
+
                         if (newRemaining <= 0) {
                             Logger.d(TAG, "Constraint timeout: ${constraint.description}")
-                            // All constraint types with time limits trigger intervention
                             actionExecutor?.executeIntervention(
                                 constraint,
                                 1.0,

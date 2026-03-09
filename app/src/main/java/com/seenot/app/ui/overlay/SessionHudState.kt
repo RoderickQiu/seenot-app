@@ -3,6 +3,7 @@ package com.seenot.app.ui.overlay
 import androidx.compose.ui.graphics.Color
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.InterventionLevel
+import com.seenot.app.data.model.TimeScope
 
 /**
  * UI state for SessionStatusHUD
@@ -32,6 +33,7 @@ data class ConstraintUiModel(
     val isViolating: Boolean = false,
     val timeRemainingMs: Long? = null,
     val timeLimitMs: Long? = null,
+    val timeScope: TimeScope? = null,
     val interventionLevel: InterventionLevel = InterventionLevel.MODERATE
 )
 

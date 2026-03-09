@@ -323,48 +323,66 @@ class FloatingIndicatorOverlay(
     private fun formatConstraints(constraints: List<SessionConstraint>?): String {
         if (constraints.isNullOrEmpty()) return "点击设置规则"
 
-        val constraint = constraints.first()
+        return constraints.take(2).joinToString(" | ") { constraint ->
+            when (constraint.type) {
+                ConstraintType.ALLOW -> {
+                    buildString {
+                        append("✓")
+                        if (constraint.description.isNotEmpty()) {
+                            append(constraint.description.take(6))
+                        }
+                        constraint.timeLimitMs?.let { ms ->
+                            val min = ms / 60000
+                            val scopeStr = when (constraint.timeScope) {
+                                com.seenot.app.data.model.TimeScope.CONTINUOUS -> "连"
+                                com.seenot.app.data.model.TimeScope.PER_CONTENT -> "每"
+                                com.seenot.app.data.model.TimeScope.DAILY_TOTAL -> "日"
+                                else -> ""
+                            }
+                            append(" ${scopeStr}${min}分")
+                        }
+                    }
+                }
+                ConstraintType.DENY -> {
+                    buildString {
+                        append("✗")
+                        if (constraint.description.isNotEmpty()) {
+                            append(constraint.description.take(6))
+                        }
+                        constraint.timeLimitMs?.let { ms ->
+                            val min = ms / 60000
+                            val scopeStr = when (constraint.timeScope) {
+                                com.seenot.app.data.model.TimeScope.CONTINUOUS -> "连"
+                                com.seenot.app.data.model.TimeScope.PER_CONTENT -> "每"
+                                com.seenot.app.data.model.TimeScope.DAILY_TOTAL -> "日"
+                                else -> ""
+                            }
+                            append(" ${scopeStr}${min}分")
+                        }
+                    }
+                }
+                ConstraintType.TIME_CAP -> {
+                    val timeStr = constraint.timeLimitMs?.let { ms ->
+                        val min = ms / 60000
+                        val scopeStr = when (constraint.timeScope) {
+                            com.seenot.app.data.model.TimeScope.CONTINUOUS -> "连"
+                            com.seenot.app.data.model.TimeScope.PER_CONTENT -> "每"
+                            com.seenot.app.data.model.TimeScope.DAILY_TOTAL -> "日"
+                            else -> ""
+                        }
+                        "${scopeStr}${min}分"
+                    } ?: "不限时"
 
-        return when (constraint.type) {
-            ConstraintType.ALLOW -> {
-                buildString {
-                    append("允许")
-                    if (constraint.description.isNotEmpty()) {
-                        append(" ")
-                        append(constraint.description.take(10))
+                    buildString {
+                        append("⏱")
+                        if (constraint.description.isNotEmpty()) {
+                            append(constraint.description.take(4))
+                        }
+                        append(timeStr)
                     }
                 }
             }
-            ConstraintType.DENY -> {
-                buildString {
-                    append("禁止")
-                    if (constraint.description.isNotEmpty()) {
-                        append(" ")
-                        append(constraint.description.take(10))
-                    }
-                }
-            }
-            ConstraintType.TIME_CAP -> {
-                val timeStr = constraint.timeLimitMs?.let { ms ->
-                    val min = ms / 60000
-                    val scopeStr = when (constraint.timeScope) {
-                        com.seenot.app.data.model.TimeScope.CONTINUOUS -> "连"
-                        com.seenot.app.data.model.TimeScope.PER_CONTENT -> "每"
-                        else -> ""
-                    }
-                    "${scopeStr}${min}分"
-                } ?: "不限时"
-
-                buildString {
-                    append("限时 ")
-                    if (constraint.description.isNotEmpty()) {
-                        append(constraint.description.take(10))
-                        append(" ")
-                    }
-                    append(timeStr)
-                }
-            }
-        }
+        } + if (constraints.size > 2) " +${constraints.size - 2}" else ""
     }
 
     private fun getTimeColor(session: ActiveSession?, hasActiveSession: Boolean): Int {
