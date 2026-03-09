@@ -166,6 +166,11 @@ class SessionManager(private val context: Context) {
                 // Session is already active, ignore duplicate event
                 Logger.d(TAG, ">>> Session already active for: $packageName, ignoring")
             }
+        } else if (currentSession != null && currentSession.appPackageName != packageName) {
+            // Switching from one controlled app to another - end old session and create new one
+            Logger.d(TAG, ">>> Switching from ${currentSession.appPackageName} to $packageName, ending old session")
+            endSession(SessionEndReason.USER_LEFT)
+            requestNewSession(packageName)
         } else if (currentSession == null) {
             // No active session - create new one
             Logger.d(TAG, ">>> No active session, creating new session for: $packageName")

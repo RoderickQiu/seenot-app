@@ -84,6 +84,7 @@ class IntentInputDialogOverlay(
     private var rootView: View? = null
     private var mode = Mode.IDLE
     private var pendingConstraints: List<SessionConstraint>? = null
+    private var autoConfirmHandler: Handler? = null
 
     private val scope = CoroutineScope(Dispatchers.Main + Job())
     private val density = context.resources.displayMetrics.density
@@ -156,7 +157,8 @@ class IntentInputDialogOverlay(
                             mode = Mode.SHOWING_RULES
                             updateUI()
                             // Auto-confirm after a short delay
-                            Handler(Looper.getMainLooper()).postDelayed({
+                            autoConfirmHandler = Handler(Looper.getMainLooper())
+                            autoConfirmHandler?.postDelayed({
                                 confirmAndTransition()
                             }, 800)
                         } else {
@@ -701,6 +703,8 @@ class IntentInputDialogOverlay(
     }
 
     private fun dismissInternal() {
+        autoConfirmHandler?.removeCallbacksAndMessages(null)
+        autoConfirmHandler = null
         voiceInputManager?.cancelRecording()
         voiceInputManager?.release()
         voiceInputManager = null
