@@ -167,7 +167,7 @@ class IntentParser {
                         TempConstraint(
                             type = type,
                             description = c.get("description")?.asString ?: "",
-                            timeLimitMinutes = c.get("timeLimitMinutes")?.asInt,
+                            timeLimitMinutes = c.get("timeLimitMinutes")?.takeIf { !it.isJsonNull }?.asInt,
                             timeScope = timeScope,
                             intervention = intervention
                         )
