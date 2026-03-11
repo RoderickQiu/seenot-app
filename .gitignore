@@ -56,3 +56,6 @@ Thumbs.db
 
 # Test files
 */test-data/
+
+# ai-debugger build output
+ai-debugger/bin/
