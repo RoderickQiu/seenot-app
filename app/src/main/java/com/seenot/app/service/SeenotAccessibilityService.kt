@@ -344,7 +344,7 @@ class SeenotAccessibilityService : AccessibilityService() {
         showIntentInputDialog(packageName, appName, sessionManager)
     }
 
-    private fun showIntentInputDialog(packageName: String, appName: String, sessionManager: SessionManager) {
+    private fun showIntentInputDialog(packageName: String, appName: String, sessionManager: SessionManager, allowDefaultRuleAutoApply: Boolean = true) {
         IntentInputDialogOverlay.show(
             context = this,
             appName = appName,
@@ -353,6 +353,7 @@ class SeenotAccessibilityService : AccessibilityService() {
             onIntentConfirmed = { constraints ->
                 Logger.d(TAG, ">>> Intent confirmed, creating session for $packageName")
                 IntentInputDialogOverlay.dismiss()
+                FloatingIndicatorOverlay.dismiss()
 
                 FloatingIndicatorOverlay.showWithConstraints(
                     context = this,
@@ -361,8 +362,7 @@ class SeenotAccessibilityService : AccessibilityService() {
                     sessionManager = sessionManager,
                     constraints = constraints,
                     onTapToReopen = {
-                        FloatingIndicatorOverlay.dismiss()
-                        showIntentInputDialog(packageName, appName, sessionManager)
+                        showIntentInputDialog(packageName, appName, sessionManager, allowDefaultRuleAutoApply = false)
                     }
                 )
 
@@ -380,9 +380,12 @@ class SeenotAccessibilityService : AccessibilityService() {
                 }
             },
             onDismissed = {
-                Logger.d(TAG, "Dialog dismissed without confirming, showing compact indicator")
-                showCompactIndicator(packageName, appName, sessionManager)
-            }
+                Logger.d(TAG, "Dialog dismissed without confirming")
+                if (!FloatingIndicatorOverlay.isShowing()) {
+                    showCompactIndicator(packageName, appName, sessionManager)
+                }
+            },
+            allowDefaultRuleAutoApply = allowDefaultRuleAutoApply
         )
     }
 
@@ -393,8 +396,7 @@ class SeenotAccessibilityService : AccessibilityService() {
             packageName = packageName,
             sessionManager = sessionManager,
             onTapToReopen = {
-                FloatingIndicatorOverlay.dismiss()
-                showIntentInputDialog(packageName, appName, sessionManager)
+                showIntentInputDialog(packageName, appName, sessionManager, allowDefaultRuleAutoApply = false)
             }
         )
     }

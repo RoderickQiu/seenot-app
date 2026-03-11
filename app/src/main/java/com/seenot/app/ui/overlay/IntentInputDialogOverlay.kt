@@ -59,13 +59,14 @@ class IntentInputDialogOverlay(
             packageName: String,
             sessionManager: SessionManager,
             onIntentConfirmed: (List<SessionConstraint>) -> Unit,
-            onDismissed: () -> Unit
+            onDismissed: () -> Unit,
+            allowDefaultRuleAutoApply: Boolean = true
         ) {
             dismiss()
             val dialog = IntentInputDialogOverlay(
                 context, appName, packageName, sessionManager, onIntentConfirmed, onDismissed
             )
-            dialog.show()
+            dialog.show(allowDefaultRuleAutoApply)
             currentDialog = dialog
         }
 
@@ -118,7 +119,7 @@ class IntentInputDialogOverlay(
     private var presetRules: List<SessionConstraint> = emptyList()
 
     @SuppressLint("ClickableViewAccessibility")
-    fun show() {
+    fun show(allowDefaultRuleAutoApply: Boolean = true) {
         windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
         val hasAudioPermission = ContextCompat.checkSelfPermission(
@@ -131,13 +132,13 @@ class IntentInputDialogOverlay(
             return
         }
 
-        // Check for default rule first
-        val defaultRule = sessionManager.getDefaultRule(packageName)
-        if (defaultRule != null) {
-            // Auto-select default rule and start session immediately
-            pendingConstraints = listOf(defaultRule)
-            confirmAndTransition()
-            return
+        if (allowDefaultRuleAutoApply) {
+            val defaultRule = sessionManager.getDefaultRule(packageName)
+            if (defaultRule != null) {
+                pendingConstraints = listOf(defaultRule)
+                confirmAndTransition()
+                return
+            }
         }
 
         voiceInputManager = VoiceInputManager(context)
@@ -201,7 +202,10 @@ class IntentInputDialogOverlay(
         // Dim background (full screen overlay)
         val dimBg = FrameLayout(context).apply {
             setBackgroundColor(dimColor)
-            setOnClickListener { /* block clicks on background */ }
+            setOnClickListener {
+                dismiss()
+                onDismissed()
+            }
         }
 
         // Card
@@ -221,6 +225,7 @@ class IntentInputDialogOverlay(
                 setStroke(1, cardBorderColor)
             }
             elevation = 8.dp().toFloat()
+            setOnClickListener { }
         }
 
         // Title - app name

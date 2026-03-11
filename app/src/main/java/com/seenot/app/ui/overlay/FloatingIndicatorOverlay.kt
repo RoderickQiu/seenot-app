@@ -501,6 +501,8 @@ class FloatingIndicatorOverlay(
             currentOverlay = null
         }
 
+        fun isShowing(): Boolean = currentOverlay != null
+
         /**
          * Get current overlay bounds for masking in screenshots
          */
