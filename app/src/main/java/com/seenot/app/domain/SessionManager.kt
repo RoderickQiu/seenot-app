@@ -89,8 +89,12 @@ class SessionManager(private val context: Context) {
     // Action executor for interventions
     private var actionExecutor: ActionExecutor? = null
 
-    // Session pause tracking for 30s recovery
+    // Session pause tracking for 30s recovery (used when leaving to non-controlled apps / home)
     private var sessionPausedAt: Long? = null
+
+    // Suspended sessions from controlled-app-to-controlled-app switches
+    // packageName -> (session snapshot, pausedAt timestamp)
+    private val suspendedSessions = mutableMapOf<String, Pair<ActiveSession, Long>>()
 
     // Content match state for conditional timing
     private val constraintMatchStates = mutableMapOf<String, Boolean>()
@@ -137,58 +141,77 @@ class SessionManager(private val context: Context) {
         }
     }
 
-    /**
-     * Called when user enters a controlled app
-     */
     private suspend fun onControlledAppEntered(packageName: String) {
         val currentSession = _activeSession.value
 
         Logger.d(TAG, ">>> onControlledAppEntered: pkg=$packageName, session=${currentSession?.appPackageName}, isPaused=${currentSession?.isPaused}, pausedAt=$sessionPausedAt")
 
         if (currentSession != null && currentSession.appPackageName == packageName) {
-            // Session exists for this app - check if it was paused
             if (currentSession.isPaused) {
                 val pausedAt = sessionPausedAt
                 val timeDiff = if (pausedAt != null) System.currentTimeMillis() - pausedAt else -1
                 Logger.d(TAG, ">>> Session was paused, time diff: ${timeDiff}ms, threshold: ${SHORT_PAUSE_THRESHOLD}ms")
 
                 if (pausedAt != null && timeDiff <= SHORT_PAUSE_THRESHOLD) {
-                    // Within 30s - resume session
                     Logger.d(TAG, ">>> Resuming session within 30s for: $packageName")
                     resumeSession()
                     sessionPausedAt = null
                 } else {
-                    // Beyond 30s or no pause time - end old session and create new one
                     Logger.d(TAG, ">>> Session expired (>30s or no pausedAt), creating new session for: $packageName")
                     endSession(SessionEndReason.USER_LEFT)
                     requestNewSession(packageName)
                 }
             } else {
-                // Session is already active, ignore duplicate event
                 Logger.d(TAG, ">>> Session already active for: $packageName, ignoring")
             }
         } else if (currentSession != null && currentSession.appPackageName != packageName) {
-            // Switching from one controlled app to another - end old session and create new one
-            Logger.d(TAG, ">>> Switching from ${currentSession.appPackageName} to $packageName, ending old session")
-            endSession(SessionEndReason.USER_LEFT)
-            requestNewSession(packageName)
+            Logger.d(TAG, ">>> Switching from ${currentSession.appPackageName} to $packageName, suspending old session")
+            suspendCurrentSession(currentSession)
+
+            tryResumeSuspendedSession(packageName) || run {
+                requestNewSession(packageName)
+                false
+            }
         } else if (currentSession == null) {
-            // No active session - create new one
-            Logger.d(TAG, ">>> No active session, creating new session for: $packageName")
-            requestNewSession(packageName)
+            if (!tryResumeSuspendedSession(packageName)) {
+                Logger.d(TAG, ">>> No active or suspended session, creating new session for: $packageName")
+                requestNewSession(packageName)
+            }
         }
     }
 
-    /**
-     * Called when user leaves a controlled app
-     */
+    private fun suspendCurrentSession(session: ActiveSession) {
+        timerJob?.cancel()
+        stopScreenAnalysis()
+        _activeSession.value = session.copy(isPaused = true)
+        suspendedSessions[session.appPackageName] = Pair(session.copy(isPaused = true), System.currentTimeMillis())
+        _activeSession.value = null
+        Logger.d(TAG, ">>> Suspended session for ${session.appPackageName}")
+    }
+
+    private suspend fun tryResumeSuspendedSession(packageName: String): Boolean {
+        val (suspendedSession, pausedAt) = suspendedSessions[packageName] ?: return false
+        val timeDiff = System.currentTimeMillis() - pausedAt
+
+        return if (timeDiff <= SHORT_PAUSE_THRESHOLD) {
+            Logger.d(TAG, ">>> Resuming suspended session for $packageName (paused ${timeDiff}ms ago)")
+            suspendedSessions.remove(packageName)
+            _activeSession.value = suspendedSession
+            resumeSession()
+            true
+        } else {
+            Logger.d(TAG, ">>> Suspended session for $packageName expired (${timeDiff}ms > threshold), discarding")
+            suspendedSessions.remove(packageName)
+            false
+        }
+    }
+
     private suspend fun onControlledAppExited(@Suppress("UNUSED_PARAMETER") packageName: String) {
         if (_activeSession.value == null) {
             Logger.d(TAG, "onControlledAppExited: no active session, ignoring")
             return
         }
 
-        // Pause session and record time for potential recovery
         pauseSession()
         sessionPausedAt = System.currentTimeMillis()
         Logger.d(TAG, ">>> Session paused at ${sessionPausedAt}, will auto-end if not resumed within 30s")
