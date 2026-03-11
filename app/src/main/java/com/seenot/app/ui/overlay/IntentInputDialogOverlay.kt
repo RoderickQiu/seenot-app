@@ -26,6 +26,7 @@ import androidx.core.content.ContextCompat
 import com.seenot.app.ai.voice.VoiceInputManager
 import com.seenot.app.ai.voice.VoiceRecordingState
 import com.seenot.app.data.model.ConstraintType
+import com.seenot.app.data.model.displayLabel
 import com.seenot.app.domain.SessionConstraint
 import com.seenot.app.domain.SessionManager
 import kotlinx.coroutines.CoroutineScope
@@ -542,12 +543,7 @@ class IntentInputDialogOverlay(
                     constraints.timeLimitMs?.let { ms ->
                         val min = ms / 60000.0
                         val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
-                        val scopeStr = when (constraints.timeScope) {
-                            com.seenot.app.data.model.TimeScope.CONTINUOUS -> "连"
-                            com.seenot.app.data.model.TimeScope.PER_CONTENT -> "每"
-                            com.seenot.app.data.model.TimeScope.DAILY_TOTAL -> "日"
-                            else -> ""
-                        }
+                        val scopeStr = constraints.timeScope?.displayLabel ?: ""
                         append(" ${scopeStr}${minText}分")
                     }
                 }
@@ -558,12 +554,7 @@ class IntentInputDialogOverlay(
                     constraints.timeLimitMs?.let { ms ->
                         val min = ms / 60000.0
                         val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
-                        val scopeStr = when (constraints.timeScope) {
-                            com.seenot.app.data.model.TimeScope.CONTINUOUS -> "连"
-                            com.seenot.app.data.model.TimeScope.PER_CONTENT -> "每"
-                            com.seenot.app.data.model.TimeScope.DAILY_TOTAL -> "日"
-                            else -> ""
-                        }
+                        val scopeStr = constraints.timeScope?.displayLabel ?: ""
                         append(" ${scopeStr}${minText}分")
                     }
                 }
@@ -571,12 +562,7 @@ class IntentInputDialogOverlay(
             ConstraintType.TIME_CAP -> {
                 val min = constraints.timeLimitMs?.let { it / 60000.0 } ?: 0.0
                 val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
-                val scopeStr = when (constraints.timeScope) {
-                    com.seenot.app.data.model.TimeScope.CONTINUOUS -> "连"
-                    com.seenot.app.data.model.TimeScope.PER_CONTENT -> "每"
-                    com.seenot.app.data.model.TimeScope.DAILY_TOTAL -> "日"
-                    else -> ""
-                }
+                val scopeStr = constraints.timeScope?.displayLabel ?: ""
                 val desc = constraints.description.take(10)
                 if (desc.isNotEmpty()) "限时 $desc ${scopeStr}${minText}分" else "限时 ${scopeStr}${minText}分"
             }
@@ -669,12 +655,7 @@ class IntentInputDialogOverlay(
                         c.timeLimitMs?.let { ms ->
                             val min = ms / 60000.0
                             val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
-                            val scopeStr = when (c.timeScope) {
-                                com.seenot.app.data.model.TimeScope.CONTINUOUS -> "连"
-                                com.seenot.app.data.model.TimeScope.PER_CONTENT -> "每"
-                                com.seenot.app.data.model.TimeScope.DAILY_TOTAL -> "日"
-                                else -> ""
-                            }
+                            val scopeStr = c.timeScope?.displayLabel ?: ""
                             append(" ${scopeStr}${minText}分")
                         }
                     }
@@ -685,12 +666,7 @@ class IntentInputDialogOverlay(
                         c.timeLimitMs?.let { ms ->
                             val min = ms / 60000.0
                             val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
-                            val scopeStr = when (c.timeScope) {
-                                com.seenot.app.data.model.TimeScope.CONTINUOUS -> "连"
-                                com.seenot.app.data.model.TimeScope.PER_CONTENT -> "每"
-                                com.seenot.app.data.model.TimeScope.DAILY_TOTAL -> "日"
-                                else -> ""
-                            }
+                            val scopeStr = c.timeScope?.displayLabel ?: ""
                             append(" ${scopeStr}${minText}分")
                         }
                     }
@@ -698,12 +674,7 @@ class IntentInputDialogOverlay(
                 ConstraintType.TIME_CAP -> {
                     val min = c.timeLimitMs?.let { it / 60000.0 } ?: 0.0
                     val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
-                    val scopeStr = when (c.timeScope) {
-                        com.seenot.app.data.model.TimeScope.CONTINUOUS -> "连"
-                        com.seenot.app.data.model.TimeScope.PER_CONTENT -> "每"
-                        com.seenot.app.data.model.TimeScope.DAILY_TOTAL -> "日"
-                        else -> ""
-                    }
+                    val scopeStr = c.timeScope?.displayLabel ?: ""
                     val desc = c.description.take(10)
                     if (desc.isNotEmpty()) "限时 $desc ${scopeStr}${minText}分" else "限时 ${scopeStr}${minText}分"
                 }

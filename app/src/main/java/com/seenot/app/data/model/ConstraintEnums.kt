@@ -14,21 +14,18 @@ enum class ConstraintType {
     TIME_CAP
 }
 
-/**
- * Time scope for time limits as defined in PRD section 3.2.1
- */
 enum class TimeScope {
-    /** Total time for this session */
     SESSION,
-
-    /** Time limit per specific content */
     PER_CONTENT,
-
-    /** Continuous uninterrupted time */
     CONTINUOUS,
-
-    /** Daily total time across all sessions (persisted across app restarts) */
     DAILY_TOTAL
+}
+
+val TimeScope.displayLabel: String get() = when (this) {
+    TimeScope.SESSION    -> "本次"
+    TimeScope.CONTINUOUS -> "连续"
+    TimeScope.PER_CONTENT -> "计入时"
+    TimeScope.DAILY_TOTAL -> "今日"
 }
 
 /**

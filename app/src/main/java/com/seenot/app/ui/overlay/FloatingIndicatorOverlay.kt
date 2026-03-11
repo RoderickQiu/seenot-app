@@ -17,6 +17,7 @@ import android.view.WindowManager
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.seenot.app.data.model.ConstraintType
+import com.seenot.app.data.model.displayLabel
 import com.seenot.app.domain.ActiveSession
 import com.seenot.app.domain.SessionConstraint
 import com.seenot.app.domain.SessionManager
@@ -333,12 +334,7 @@ class FloatingIndicatorOverlay(
                         }
                         constraint.timeLimitMs?.let { ms ->
                             val min = ms / 60000
-                            val scopeStr = when (constraint.timeScope) {
-                                com.seenot.app.data.model.TimeScope.CONTINUOUS -> "连"
-                                com.seenot.app.data.model.TimeScope.PER_CONTENT -> "每"
-                                com.seenot.app.data.model.TimeScope.DAILY_TOTAL -> "日"
-                                else -> ""
-                            }
+                            val scopeStr = constraint.timeScope?.displayLabel ?: ""
                             append(" ${scopeStr}${min}分")
                         }
                     }
@@ -351,12 +347,7 @@ class FloatingIndicatorOverlay(
                         }
                         constraint.timeLimitMs?.let { ms ->
                             val min = ms / 60000
-                            val scopeStr = when (constraint.timeScope) {
-                                com.seenot.app.data.model.TimeScope.CONTINUOUS -> "连"
-                                com.seenot.app.data.model.TimeScope.PER_CONTENT -> "每"
-                                com.seenot.app.data.model.TimeScope.DAILY_TOTAL -> "日"
-                                else -> ""
-                            }
+                            val scopeStr = constraint.timeScope?.displayLabel ?: ""
                             append(" ${scopeStr}${min}分")
                         }
                     }
@@ -364,12 +355,7 @@ class FloatingIndicatorOverlay(
                 ConstraintType.TIME_CAP -> {
                     val timeStr = constraint.timeLimitMs?.let { ms ->
                         val min = ms / 60000
-                        val scopeStr = when (constraint.timeScope) {
-                            com.seenot.app.data.model.TimeScope.CONTINUOUS -> "连"
-                            com.seenot.app.data.model.TimeScope.PER_CONTENT -> "每"
-                            com.seenot.app.data.model.TimeScope.DAILY_TOTAL -> "日"
-                            else -> ""
-                        }
+                        val scopeStr = constraint.timeScope?.displayLabel ?: ""
                         "${scopeStr}${min}分"
                     } ?: "不限时"
 
