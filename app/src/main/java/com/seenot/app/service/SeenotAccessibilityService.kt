@@ -439,9 +439,7 @@ class SeenotAccessibilityService : AccessibilityService() {
             onDismissed = {
                 Logger.d(TAG, "Dialog dismissed without confirming")
                 isSessionBeingCreated = false
-                if (!FloatingIndicatorOverlay.isShowing()) {
-                    showCompactIndicator(packageName, appName, sessionManager)
-                }
+                showCompactIndicator(packageName, appName, sessionManager)
             },
             allowDefaultRuleAutoApply = allowDefaultRuleAutoApply
         )

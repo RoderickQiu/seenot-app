@@ -21,6 +21,7 @@ import com.seenot.app.data.model.displayLabel
 import com.seenot.app.domain.ActiveSession
 import com.seenot.app.domain.SessionConstraint
 import com.seenot.app.domain.SessionManager
+import com.seenot.app.utils.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -81,7 +82,7 @@ class FloatingIndicatorOverlay(
     private val timeRedColor get() = if (isDarkMode) Color.parseColor("#EF9A9A") else Color.parseColor("#F44336")
 
     private val density = context.resources.displayMetrics.density
-    private val scope = CoroutineScope(Dispatchers.Main + Job())
+    private var scope = CoroutineScope(Dispatchers.Main + Job())
 
     /**
      * Show with pre-confirmed constraints (no voice input needed)
@@ -99,21 +100,58 @@ class FloatingIndicatorOverlay(
 
     @SuppressLint("ClickableViewAccessibility", "InflateParams")
     fun show() {
+        Logger.d("FloatingIndicator", "show() called, indicatorView=${indicatorView != null}")
         windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+        if (indicatorView == null) {
+            Logger.d("FloatingIndicator", "Recreating scope")
+            recreateScope()
+        }
         observeSession()
         observeViolation()
         render()
     }
 
+    private fun recreateScope() {
+        try { scope.cancel() } catch (e: Exception) { /* ignore */ }
+        scope = CoroutineScope(Dispatchers.Main + Job())
+    }
+
     private fun observeSession() {
         scope.launch {
             var lastSessionId: String? = null
+            var lastPausedState: Boolean? = null
             sessionManager.activeSession.collectLatest { session ->
                 val sessionId = session?.constraints?.joinToString { it.id } ?: ""
+                val isPaused = session?.isPaused ?: true
+                val hasValidConstraints = session != null && session.constraints.isNotEmpty()
                 
-                // Only re-render if session started/ended or constraints changed
-                if (sessionId != lastSessionId) {
+                val shouldShow = session != null && !isPaused && hasValidConstraints
+                
+                if (shouldShow) {
+                    if (indicatorView == null && session != null) {
+                        Logger.d("FloatingIndicator", "Session active with valid constraints, showing overlay")
+                        windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
+                        state = state.copy(
+                            session = session,
+                            hasActiveSession = true,
+                            displayedConstraints = session.constraints
+                        )
+                        recreateScope()
+                        observeSession()
+                        observeViolation()
+                        render()
+                    }
+                } else {
+                    if (indicatorView != null) {
+                        Logger.d("FloatingIndicator", "Session not active or no valid constraints, hiding overlay")
+                        dismiss()
+                    }
+                }
+                
+                if (sessionId != lastSessionId || isPaused != lastPausedState) {
+                    Logger.d("FloatingIndicator", "State changed: sessionId=$sessionId, isPaused=$isPaused")
                     lastSessionId = sessionId
+                    lastPausedState = isPaused
                     updateState {
                         copy(
                             session = session,
@@ -127,7 +165,6 @@ class FloatingIndicatorOverlay(
                     }
                 }
                 
-                // Update UI elements directly without full re-render
                 updateTimeDisplay(session)
             }
         }
@@ -158,11 +195,26 @@ class FloatingIndicatorOverlay(
     }
 
     private fun observeViolation() {
+        Logger.d("FloatingIndicator", "observeViolation started")
         scope.launch {
+            Logger.d("FloatingIndicator", "observeViolation collecting sessionEvents")
             sessionManager.sessionEvents.collect { event ->
+                Logger.d("FloatingIndicator", "sessionEvents received: $event")
                 when (event) {
                     is com.seenot.app.domain.SessionEvent.ViolationDetected -> {
                         triggerViolationFeedback()
+                    }
+                    is com.seenot.app.domain.SessionEvent.SessionPaused -> {
+                        Logger.d("FloatingIndicator", "SessionPaused event received, indicatorView=true, dismissing")
+                        dismiss()
+                    }
+                    is com.seenot.app.domain.SessionEvent.SessionEnded -> {
+                        Logger.d("FloatingIndicator", "SessionEnded event received, dismissing")
+                        dismiss()
+                    }
+                    is com.seenot.app.domain.SessionEvent.SessionCleared -> {
+                        Logger.d("FloatingIndicator", "SessionCleared event received, dismissing")
+                        dismiss()
                     }
                     else -> {}
                 }
@@ -400,11 +452,11 @@ class FloatingIndicatorOverlay(
 
     fun dismiss() {
         violationResetHandler?.removeCallbacksAndMessages(null)
-        scope.cancel()
         indicatorView?.let { view ->
             try { windowManager?.removeView(view) } catch (e: Exception) { /* ignore */ }
         }
         indicatorView = null
+        Logger.d("FloatingIndicator", "dismiss() called, scope still active")
     }
 
     /**

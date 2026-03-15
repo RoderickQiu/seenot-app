@@ -80,7 +80,7 @@ class SessionManager(private val context: Context) {
     val controlledApps: StateFlow<Set<String>> = _controlledApps.asStateFlow()
 
     // Session events
-    private val _sessionEvents = MutableSharedFlow<SessionEvent>()
+    private val _sessionEvents = MutableSharedFlow<SessionEvent>(replay = 1)
     val sessionEvents: SharedFlow<SessionEvent> = _sessionEvents.asSharedFlow()
 
     // Timer job
@@ -142,10 +142,9 @@ class SessionManager(private val context: Context) {
             Logger.d(TAG, "Entered controlled app: $packageName")
             onControlledAppEntered(packageName)
         } else {
-            // User switched to a non-controlled app
-            if (currentSession != null) {
-                Logger.d(TAG, "Left controlled app: ${currentSession.appPackageName}")
-                onControlledAppExited(currentSession.appPackageName)
+            Logger.d(TAG, "Left to non-controlled app: $packageName")
+            scope.launch {
+                _sessionEvents.emit(SessionEvent.SessionCleared)
             }
         }
     }
@@ -196,6 +195,10 @@ class SessionManager(private val context: Context) {
         suspendedSessions[session.appPackageName] = Pair(session.copy(isPaused = true), System.currentTimeMillis())
         _activeSession.value = null
         Logger.d(TAG, ">>> Suspended session for ${session.appPackageName}")
+        
+        scope.launch {
+            _sessionEvents.emit(SessionEvent.SessionPaused(session))
+        }
     }
 
     private suspend fun tryResumeSuspendedSession(packageName: String): Boolean {
@@ -217,7 +220,10 @@ class SessionManager(private val context: Context) {
 
     private suspend fun onControlledAppExited(@Suppress("UNUSED_PARAMETER") packageName: String) {
         if (_activeSession.value == null) {
-            Logger.d(TAG, "onControlledAppExited: no active session, ignoring")
+            Logger.d(TAG, "onControlledAppExited: no active session, emitting sessionCleared")
+            scope.launch {
+                _sessionEvents.emit(SessionEvent.SessionCleared)
+            }
             return
         }
 
@@ -406,6 +412,7 @@ class SessionManager(private val context: Context) {
 
         _activeSession.value = session.copy(isPaused = true)
 
+        Logger.d(TAG, ">>> pauseSession emitting SessionPaused event")
         scope.launch {
             _sessionEvents.emit(SessionEvent.SessionPaused(session))
         }
@@ -946,6 +953,7 @@ sealed class SessionEvent {
     data class SessionResumed(val session: ActiveSession) : SessionEvent()
     data class SessionPaused(val session: ActiveSession) : SessionEvent()
     data class SessionEnded(val session: ActiveSession, val reason: SessionEndReason) : SessionEvent()
+    data object SessionCleared : SessionEvent()
     data class ConstraintsModified(val constraints: List<SessionConstraint>) : SessionEvent()
     data class ViolationDetected(val constraint: SessionConstraint, val confidence: Double) : SessionEvent()
 }
