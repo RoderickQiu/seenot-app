@@ -288,8 +288,10 @@ class ScreenAnalyzer(
             val totalDuration = System.currentTimeMillis() - totalStart
             Logger.d(TAG, "📊 Total analysis time: ${totalDuration}ms")
 
-            // Update content match states in SessionManager
+            // Get SessionManager instance once
             val sessionManager = com.seenot.app.domain.SessionManager.getInstance(context)
+
+            // Update content match states in SessionManager
             matches.forEach { match ->
                 // For ALLOW constraints: matching = in target content
                 // For DENY constraints: matching = in forbidden content (but we still track it)
@@ -318,6 +320,10 @@ class ScreenAnalyzer(
             // Save rule records with screenshot
             val packageName = currentPackageName
             val bitmapToSave = processedBitmap // Keep reference for screenshot saving
+
+            // Get session ID from sessionManager
+            val sessionId = sessionManager.activeSession.value?.sessionId ?: 0L
+            
             if (packageName != null && matches.isNotEmpty()) {
                 try {
                     for (match in matches) {
@@ -326,7 +332,6 @@ class ScreenAnalyzer(
                         val isConditionMatched = when (match.constraint.type) {
                             ConstraintType.TIME_CAP -> {
                                 // Check if in scope from SessionManager state
-                                val sessionManager = SessionManager.getInstance(context)
                                 sessionManager.activeSession.value?.let { session ->
                                     session.constraintTimeRemaining[match.constraint.id]?.let { remaining ->
                                         remaining > 0
@@ -337,7 +342,7 @@ class ScreenAnalyzer(
                         }
 
                         val record = RuleRecord(
-                            sessionId = 0, // TODO: get actual session ID
+                            sessionId = sessionId,
                             appName = packageName,
                             packageName = packageName,
                             screenshotHash = hash,
@@ -773,6 +778,13 @@ class ScreenAnalyzer(
                     val reason = obj.get("reason")?.asString ?: ""
                     val decision = obj.get("decision")?.asString?.lowercase() ?: "unknown"
 
+                    // Extract confidence from AI response (0-100 scale from seenot-reborn)
+                    // Convert to 0.0-1.0 scale for internal use
+                    val rawConfidence = obj.get("confidence")?.asDouble 
+                        ?: obj.get("confidence")?.asInt?.toDouble()
+                        ?: 50.0 // Default to 50 if not provided
+                    val confidence = rawConfidence / 100.0
+
                     val constraint = constraints.find { it.id == constraintId }
                         ?: constraints.getOrNull(constraintId.toIntOrNull()?.minus(1) ?: -1)
                         ?: return@mapNotNull null
@@ -797,10 +809,12 @@ class ScreenAnalyzer(
                         sessionManager.updateContentMatchState(constraint.id, isInScope)
                     }
 
+                    Logger.d(TAG, "[AI] Parsed constraint_id=$constraintId, decision=$decision, confidence=$rawConfidence (scaled: ${"%.2f".format(confidence)})")
+
                     ConstraintMatch(
                         constraint = constraint,
                         isViolation = isViolation,
-                        confidence = 0.9,
+                        confidence = confidence,
                         reason = reason.ifBlank { "未知界面" }
                     )
                 } catch (e: Exception) {
@@ -947,12 +961,14 @@ class ScreenAnalyzer(
             appendLine("- unknown: 无法判断")
         }.trimEnd()
 
+        // Similar to seenot-reborn's AI_PROMPT - require confidence output
         return """
 你是屏幕场景识别AI，判断用户当前行为与约束的关系。
 
 **核心任务：**
 1. 识别用户当前所在的具体功能模块
 2. 根据约束类型进行相应判断
+3. 输出置信度分数
 
 **判断规则：**
 
@@ -972,17 +988,27 @@ $typeSpecificRules
 **当前约束：**
 $constraintsText
 
-**输出格式（JSON数组）：**
+**输出格式（严格JSON）：**
 [
   {
     "constraint_id": "1",
     "reason": "用户在[应用名]-[具体功能模块]",
-    "decision": "见下方说明"
+    "decision": "见下方说明",
+    "confidence": 0-100的置信度分数
   }
 ]
 
 decision取值：
 $decisionValues
+
+**重要：必须输出真实的置信度分数**
+- confidence: 0-100，其中：
+  - 0 = 绝对不匹配
+  - 100 = 绝对匹配
+  - 50 = 完全不确定
+- 考虑部分匹配：部分元素匹配但不是全部，给出中间分数
+- 校准原则：80分意味着你给出这个分数时有80%的正确率
+- reason必须简洁，10-20个字解释置信度
         """.trimIndent()
     }
 

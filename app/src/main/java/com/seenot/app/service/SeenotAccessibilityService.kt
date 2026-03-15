@@ -59,8 +59,17 @@ class SeenotAccessibilityService : AccessibilityService() {
         private val _isServiceReady = MutableStateFlow(false)
         val isServiceReady: StateFlow<Boolean> = _isServiceReady.asStateFlow()
 
-        // Track current monitored app to prevent indicator flickering
-        private var currentMonitoredPackage: String? = null
+    // Track current monitored app to prevent indicator flickering
+    private var currentMonitoredPackage: String? = null
+    
+    // Track if session is being created to prevent race condition
+    @Volatile
+    private var isSessionBeingCreated = false
+    
+    // Track last exited package and time to handle false positives (e.g., swipe back triggering短暂切换)
+    private var lastExitedPackage: String? = null
+    private var lastExitedTime: Long = 0L
+    private const val QUICK_RETURN_THRESHOLD_MS = 5000L  // 5 seconds
     }
 
     private val gestureExecutor: Executor = Executors.newSingleThreadExecutor()
@@ -272,20 +281,48 @@ class SeenotAccessibilityService : AccessibilityService() {
                 // Switch from monitored app to non-monitored app
                 isSwitchingToDifferentApp && !isControlledApp -> {
                     Logger.d(TAG, "Case: Leaving monitored app: $previousPackage -> $packageName (non-controlled)")
-                    // SessionManager will handle pause/resume logic automatically
-                    dismissAllOverlays()
-                    currentMonitoredPackage = null
+                    lastExitedPackage = previousPackage
+                    lastExitedTime = System.currentTimeMillis()
                 }
                 // Enter monitored app from non-monitored
                 !wasInMonitoredApp && isControlledApp -> {
                     Logger.d(TAG, "Case: Entering monitored app: $packageName")
-                    showIndicatorAndOverlay(packageName)
+                    
+                    val timeSinceExit = System.currentTimeMillis() - lastExitedTime
+                    val quickReturn = lastExitedPackage == packageName && 
+                        timeSinceExit < QUICK_RETURN_THRESHOLD_MS
+                    
+                    Logger.d(TAG, "wasInMonitoredApp=$wasInMonitoredApp, lastExitedPackage=$lastExitedPackage, timeSinceExit=${timeSinceExit}ms, quickReturn=$quickReturn")
+                    
+                    currentMonitoredPackage = packageName
+                    
+                    if (quickReturn) {
+                        Logger.d(TAG, "Quick return to $packageName - swipe back, no overlay changes")
+                        lastExitedPackage = null
+                        lastExitedTime = 0L
+                        return
+                    }
+                    
+                    dismissAllOverlays()
+                    lastExitedPackage = null
+                    lastExitedTime = 0L
+                    
+                    showIndicatorAndOverlay(packageName, isQuickReturn = false)
                 }
-                // Already in same monitored app - do nothing (prevent flickering)
+                // Already in same monitored app - do nothing
                 wasInMonitoredApp && previousPackage == packageName -> {
                     Logger.d(TAG, "Case: Same package $packageName, skipping")
                 }
-                // Not in monitored app and not entering one - do nothing
+                // Switching between non-monitored apps - clean up stale state
+                !wasInMonitoredApp && !isControlledApp -> {
+                    Logger.d(TAG, "Case: Non-monitored to non-monitored: $packageName")
+                    if (lastExitedPackage != null && (System.currentTimeMillis() - lastExitedTime) >= QUICK_RETURN_THRESHOLD_MS) {
+                        Logger.d(TAG, "Stale exit cleared")
+                        lastExitedPackage = null
+                        lastExitedTime = 0L
+                        dismissAllOverlays()
+                    }
+                }
                 else -> {
                     Logger.d(TAG, "Case: No state change relevant for $packageName")
                 }
@@ -319,10 +356,10 @@ class SeenotAccessibilityService : AccessibilityService() {
      * Otherwise, show the intent input dialog first, then transition to the indicator
      * after the user confirms rules.
      */
-    private fun showIndicatorAndOverlay(packageName: String) {
+    private fun showIndicatorAndOverlay(packageName: String, isQuickReturn: Boolean = false) {
         currentMonitoredPackage = packageName
 
-        Logger.d(TAG, "showIndicatorAndOverlay called for: $packageName")
+        Logger.d(TAG, "showIndicatorAndOverlay called for: $packageName, isQuickReturn=$isQuickReturn")
 
         val sessionManager = SessionManager.getInstance(this)
 
@@ -333,10 +370,23 @@ class SeenotAccessibilityService : AccessibilityService() {
             packageName
         }
 
+        // For quick returns (e.g., swipe back triggering brief app switch), still check session
+        // but don't create new session - let SessionManager handle resume logic
         val existingSession = sessionManager.activeSession.value
         if (existingSession != null && existingSession.appPackageName == packageName) {
             Logger.d(TAG, "Active session exists, showing compact indicator for: $packageName")
             showCompactIndicator(packageName, appName, sessionManager)
+            return
+        }
+
+        if (isQuickReturn) {
+            Logger.d(TAG, "Quick return to $packageName - showing compact indicator, session resume handled by SessionManager")
+            showCompactIndicator(packageName, appName, sessionManager)
+            return
+        }
+
+        if (isSessionBeingCreated) {
+            Logger.d(TAG, "Session being created, skipping intent input dialog for: $packageName")
             return
         }
 
@@ -352,6 +402,7 @@ class SeenotAccessibilityService : AccessibilityService() {
             sessionManager = sessionManager,
             onIntentConfirmed = { constraints ->
                 Logger.d(TAG, ">>> Intent confirmed, creating session for $packageName")
+                isSessionBeingCreated = true
                 IntentInputDialogOverlay.dismiss()
                 FloatingIndicatorOverlay.dismiss()
 
@@ -376,11 +427,14 @@ class SeenotAccessibilityService : AccessibilityService() {
                         Logger.d(TAG, "<<< Session created successfully for $packageName")
                     } catch (e: Exception) {
                         Logger.e(TAG, "!!! Failed to create session: ${e.message}", e)
+                    } finally {
+                        isSessionBeingCreated = false
                     }
                 }
             },
             onDismissed = {
                 Logger.d(TAG, "Dialog dismissed without confirming")
+                isSessionBeingCreated = false
                 if (!FloatingIndicatorOverlay.isShowing()) {
                     showCompactIndicator(packageName, appName, sessionManager)
                 }
@@ -390,6 +444,10 @@ class SeenotAccessibilityService : AccessibilityService() {
     }
 
     private fun showCompactIndicator(packageName: String, appName: String, sessionManager: SessionManager) {
+        if (FloatingIndicatorOverlay.isShowing()) {
+            Logger.d(TAG, "FloatingIndicator already showing, skipping showCompactIndicator for: $packageName")
+            return
+        }
         FloatingIndicatorOverlay.show(
             context = this,
             appName = appName,

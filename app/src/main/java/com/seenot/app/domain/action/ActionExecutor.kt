@@ -182,8 +182,11 @@ class ActionExecutor(private val context: Context) {
     private fun recordAction(constraint: SessionConstraint, action: ActionType, reason: String, timestamp: Long, appName: String, packageName: String?) {
         scope.launch {
             try {
+                val sessionId = com.seenot.app.domain.SessionManager.getInstance(context)
+                    .activeSession.value?.sessionId ?: 0L
+                
                 val record = com.seenot.app.data.model.RuleRecord(
-                    sessionId = 0, // TODO: get actual session ID
+                    sessionId = sessionId,
                     appName = appName,
                     packageName = packageName,
                     constraintId = constraint.id.toLongOrNull(),
