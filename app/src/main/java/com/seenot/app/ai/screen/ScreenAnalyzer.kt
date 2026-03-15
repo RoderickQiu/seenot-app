@@ -14,6 +14,7 @@ import android.os.Looper
 import com.seenot.app.utils.Logger
 import android.widget.Toast
 import com.seenot.app.ui.overlay.FloatingIndicatorOverlay
+import com.seenot.app.ui.overlay.ToastOverlay
 import com.seenot.app.ui.overlay.VoiceInputOverlay
 import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversation
 import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationParam
@@ -422,7 +423,7 @@ class ScreenAnalyzer(
     private fun showToast(message: String) {
         try {
             Handler(Looper.getMainLooper()).post {
-                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                ToastOverlay.show(context, message)
             }
         } catch (e: Exception) {
             Logger.w(TAG, "Failed to show toast: ${e.message}")

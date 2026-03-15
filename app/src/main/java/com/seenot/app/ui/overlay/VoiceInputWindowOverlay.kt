@@ -30,6 +30,7 @@ import com.seenot.app.ai.voice.VoiceInputManager
 import com.seenot.app.ai.voice.VoiceRecordingState
 import com.seenot.app.domain.SessionConstraint
 import com.seenot.app.domain.SessionManager
+import com.seenot.app.ui.overlay.ToastOverlay
 import java.lang.ref.WeakReference
 import kotlin.math.min
 import kotlin.math.roundToInt
@@ -116,7 +117,7 @@ class VoiceInputOverlay(
         }
 
         if (!canDrawOverlays(ctx)) {
-            Toast.makeText(ctx, "需要悬浮窗权限", Toast.LENGTH_SHORT).show()
+            ToastOverlay.show(ctx, "需要悬浮窗权限")
             try { onDismissCallback() } catch (e: Exception) {}
             return
         }
@@ -781,7 +782,7 @@ class VoiceInputOverlay(
         autoDismissHandler = Handler(Looper.getMainLooper())
         autoDismissRunnable = Runnable {
             contextRef.get()?.let { ctx ->
-                Toast.makeText(ctx, "语音输入超时", Toast.LENGTH_SHORT).show()
+                ToastOverlay.show(ctx, "语音输入超时")
             }
             dismiss()
         }

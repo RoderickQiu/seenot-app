@@ -42,6 +42,9 @@ class SessionManager(private val context: Context) {
         // Short vs long session pause threshold (ms)
         private const val SHORT_PAUSE_THRESHOLD = 30_000L // 30 seconds
 
+        // SeeNot's own package - should be ignored in app detection
+        const val SEENOT_PACKAGE_NAME = "com.seenot.app"
+
         @Volatile
         private var INSTANCE: SessionManager? = null
 
@@ -125,6 +128,12 @@ class SessionManager(private val context: Context) {
     private suspend fun handleAppChange(packageName: String) {
         val controlled = _controlledApps.value
         val currentSession = _activeSession.value
+
+        // Ignore SeeNot's own overlays (ToastOverlay, FloatingIndicator, etc.)
+        if (packageName == SEENOT_PACKAGE_NAME) {
+            Logger.d(TAG, "Ignoring SeeNot's own package: $packageName")
+            return
+        }
 
         Logger.d(TAG, "App changed to: $packageName, controlled apps: $controlled")
 

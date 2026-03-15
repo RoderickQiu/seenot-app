@@ -22,6 +22,7 @@ import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
 import android.widget.Toast
+import com.seenot.app.ui.overlay.ToastOverlay
 import androidx.core.content.ContextCompat
 import com.seenot.app.ai.voice.VoiceInputManager
 import com.seenot.app.ai.voice.VoiceRecordingState
@@ -129,7 +130,7 @@ class IntentInputDialogOverlay(
         ) == PackageManager.PERMISSION_GRANTED
 
         if (!hasAudioPermission) {
-            Toast.makeText(context, "需要麦克风权限才能使用语音输入", Toast.LENGTH_SHORT).show()
+            ToastOverlay.show(context, "需要麦克风权限才能使用语音输入")
             onDismissed()
             return
         }
@@ -174,13 +175,13 @@ class IntentInputDialogOverlay(
                                 confirmAndTransition()
                             }, 800)
                         } else {
-                            Toast.makeText(context, "未能识别意图", Toast.LENGTH_SHORT).show()
+                            ToastOverlay.show(context, "未能识别意图")
                             mode = Mode.IDLE
                             updateUI()
                         }
                     }
                     VoiceRecordingState.ERROR -> {
-                        Toast.makeText(context, manager.error.value ?: "出错", Toast.LENGTH_SHORT).show()
+                        ToastOverlay.show(context, manager.error.value ?: "出错")
                         mode = Mode.IDLE
                         updateUI()
                     }

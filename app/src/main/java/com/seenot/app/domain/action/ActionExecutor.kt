@@ -9,6 +9,7 @@ import com.seenot.app.data.model.InterventionLevel
 import com.seenot.app.data.repository.RuleRecordRepository
 import com.seenot.app.domain.SessionConstraint
 import com.seenot.app.service.SeenotAccessibilityService
+import com.seenot.app.ui.overlay.ToastOverlay
 import com.seenot.app.utils.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -234,7 +235,7 @@ class ActionExecutor(private val context: Context) {
         }
 
         Logger.d(TAG, "[executeToast] Showing toast: $message")
-        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        ToastOverlay.show(context, message)
         Logger.d(TAG, "[executeToast] Toast shown ✓")
     }
 
@@ -252,7 +253,7 @@ class ActionExecutor(private val context: Context) {
         
         scope.launch {
             withContext(Dispatchers.Main) {
-                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                ToastOverlay.show(context, message)
             }
         }
 
@@ -277,7 +278,7 @@ class ActionExecutor(private val context: Context) {
             com.seenot.app.data.model.ConstraintType.TIME_CAP -> "⏰ 时间到，返回主屏幕"
             else -> "⚠️ 严重违规，返回主屏幕"
         }
-        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+        ToastOverlay.show(context, message)
 
         val service = SeenotAccessibilityService.instance
         if (service != null) {
