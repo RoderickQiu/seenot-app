@@ -70,8 +70,8 @@ class ScreenAnalyzer(
         const val CONFIDENCE_MEDIUM = 0.70
         const val CONFIDENCE_LOW = 0.50
 
-        // Hash result cache TTL
-        const val HASH_RESULT_CACHE_TTL_MS = 25_000L // 25 seconds
+        // Hash result cache TTL - 5 minutes for effective caching
+        const val HASH_RESULT_CACHE_TTL_MS = 300_000L // 5 minutes
 
         // Consecutive violation threshold for forced actions
         const val VIOLATION_THRESHOLD = 2
@@ -209,6 +209,9 @@ class ScreenAnalyzer(
      */
     suspend fun analyzeScreen(constraints: List<SessionConstraint>): ScreenAnalysisResult {
         _isAnalyzing.value = true
+        
+        // Track bitmap for proper cleanup
+        var bitmapToRecycle: Bitmap? = null
 
         Logger.d(TAG, "═══════════════════════════════════════")
         Logger.d(TAG, "🔍 Starting screen analysis")
@@ -247,6 +250,7 @@ class ScreenAnalyzer(
             Logger.d(TAG, "⚙️ Processing screenshot (scale to max $MAX_LONG_EDGE_PX px)...")
             val processStart = System.currentTimeMillis()
             val processedBitmap = processScreenshot(screenshot)
+            bitmapToRecycle = processedBitmap
             if (screenshot != processedBitmap) {
                 screenshot.recycle()
             }
@@ -264,7 +268,8 @@ class ScreenAnalyzer(
                 if (age <= HASH_RESULT_CACHE_TTL_MS) {
                     Logger.d(TAG, "♻️ Reusing cached AI result (age: ${age}ms)")
                     showAnalysisToast(cachedResult.constraintMatches, constraints)
-                    processedBitmap.recycle()
+                    bitmapToRecycle?.recycle()
+                    bitmapToRecycle = null
                     return ScreenAnalysisResult(
                         timestamp = System.currentTimeMillis(),
                         success = true,
@@ -374,7 +379,8 @@ class ScreenAnalyzer(
             }
 
             // Recycle bitmap AFTER saving is complete
-            processedBitmap.recycle()
+            bitmapToRecycle?.recycle()
+            bitmapToRecycle = null
 
             return ScreenAnalysisResult(
                 timestamp = System.currentTimeMillis(),
@@ -405,6 +411,8 @@ class ScreenAnalyzer(
             )
         } finally {
             _isAnalyzing.value = false
+            bitmapToRecycle?.recycle()
+            bitmapToRecycle = null
         }
     }
 

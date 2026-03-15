@@ -52,6 +52,7 @@ class IntentInputDialogOverlay(
 ) {
     companion object {
         private const val TAG = "IntentInputDialog"
+        @Volatile
         private var currentDialog: IntentInputDialogOverlay? = null
 
         fun show(

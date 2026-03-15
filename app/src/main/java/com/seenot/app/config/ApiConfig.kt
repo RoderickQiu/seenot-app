@@ -2,13 +2,15 @@ package com.seenot.app.config
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.security.crypto.EncryptedSharedPreferences
+import androidx.security.crypto.MasterKey
 
 /**
  * API Configuration for SeeNot
  * Stores API keys and endpoints in encrypted SharedPreferences
  */
 object ApiConfig {
-    private const val PREFS_NAME = "api_config"
+    private const val PREFS_NAME = "api_config_secure"
     private const val KEY_OPENAI_API_KEY = "openai_api_key"
     private const val KEY_OPENAI_BASE_URL = "openai_base_url"
 
@@ -18,7 +20,17 @@ object ApiConfig {
     private var prefs: SharedPreferences? = null
 
     fun init(context: Context) {
-        prefs = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+        val masterKey = MasterKey.Builder(context)
+            .setKeyScheme(MasterKey.KeyScheme.AES256_GCM)
+            .build()
+
+        prefs = EncryptedSharedPreferences.create(
+            context,
+            PREFS_NAME,
+            masterKey,
+            EncryptedSharedPreferences.PrefKeyEncryptionScheme.AES256_SIV,
+            EncryptedSharedPreferences.PrefValueEncryptionScheme.AES256_GCM
+        )
     }
 
     fun getApiKey(): String {

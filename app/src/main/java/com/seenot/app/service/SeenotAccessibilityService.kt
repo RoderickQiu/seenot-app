@@ -30,6 +30,7 @@ import com.seenot.app.ui.overlay.VoiceInputOverlay
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
@@ -75,6 +76,9 @@ class SeenotAccessibilityService : AccessibilityService() {
     private val gestureExecutor: Executor = Executors.newSingleThreadExecutor()
     private var lastAppSwitchTime = 0L
     private lateinit var sessionManager: SessionManager
+    
+    // Service-level coroutine scope to prevent leaks
+    private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     override fun onServiceConnected() {
         super.onServiceConnected()
@@ -417,7 +421,7 @@ class SeenotAccessibilityService : AccessibilityService() {
                     }
                 )
 
-                CoroutineScope(Dispatchers.Main + SupervisorJob()).launch {
+                serviceScope.launch {
                     try {
                         sessionManager.createSession(
                             packageName = packageName,
@@ -476,6 +480,7 @@ class SeenotAccessibilityService : AccessibilityService() {
     override fun onDestroy() {
         try {
             super.onDestroy()
+            serviceScope.cancel()
             stopForeground(STOP_FOREGROUND_REMOVE)
             dismissAllOverlays()
             instance = null

@@ -453,6 +453,7 @@ class FloatingIndicatorOverlay(
     private fun Int.dp() = (this * density).roundToInt()
 
     companion object {
+        @Volatile
         private var currentOverlay: FloatingIndicatorOverlay? = null
 
         fun show(

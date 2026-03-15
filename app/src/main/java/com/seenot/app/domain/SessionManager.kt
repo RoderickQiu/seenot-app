@@ -622,7 +622,7 @@ class SessionManager(private val context: Context) {
     }
 
     private fun appendToIntentHistory(packageName: String, constraints: List<SessionConstraint>) {
-        val fingerprint = constraintFingerprint(constraints)
+        val fingerprint = getConstraintFingerprint(constraints)
 
         val existingJson = prefs.getString("${KEY_INTENT_HISTORY_PREFIX}$packageName", null)
         val history = mutableListOf<List<Map<String, Any?>>>()
@@ -633,7 +633,7 @@ class SessionManager(private val context: Context) {
                 val parsed = gson.fromJson(existingJson, ArrayList::class.java) as ArrayList<ArrayList<Map<String, Any>>>
                 for (entry in parsed) {
                     val entryConstraints = deserializeConstraintList(entry)
-                    if (entryConstraints != null && constraintFingerprint(entryConstraints) != fingerprint) {
+                    if (entryConstraints != null && getConstraintFingerprint(entryConstraints) != fingerprint) {
                         history.add(entry.map { it.toMap() })
                     }
                 }
@@ -775,10 +775,6 @@ class SessionManager(private val context: Context) {
         return constraints
             .sortedBy { "${it.type}|${it.description}|${it.timeLimitMs}" }
             .joinToString(";") { "${it.type}|${it.description}|${it.timeLimitMs}" }
-    }
-
-    private fun constraintFingerprint(constraints: List<SessionConstraint>): String {
-        return getConstraintFingerprint(constraints)
     }
 
     // --- Serialization helpers ---
