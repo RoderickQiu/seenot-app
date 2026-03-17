@@ -123,9 +123,11 @@ class ScreenAnalyzer(
         currentPackageName = packageName
 
         if (constraints.isEmpty()) {
-            Logger.d(TAG, "No constraints to analyze")
+            Logger.d(TAG, "No active constraints to analyze")
             return
         }
+
+        val activeConstraints = constraints
 
         analysisJob?.cancel()
         cacheCleanupJob?.cancel()
@@ -143,7 +145,7 @@ class ScreenAnalyzer(
             while (isActive) {
                 delay(analysisIntervalMs)
 
-                val result = analyzeScreen(constraints)
+                val result = analyzeScreen(activeConstraints)
                 _lastAnalysisResult.value = result
 
                 // Check for violations
@@ -192,6 +194,7 @@ class ScreenAnalyzer(
         analysisJob = null
         cacheCleanupJob?.cancel()
         cacheCleanupJob = null
+        scope.cancel()
         _isAnalyzing.value = false
     }
 

@@ -80,7 +80,7 @@ class SessionManager(private val context: Context) {
     val controlledApps: StateFlow<Set<String>> = _controlledApps.asStateFlow()
 
     // Session events
-    private val _sessionEvents = MutableSharedFlow<SessionEvent>(replay = 1)
+    private val _sessionEvents = MutableSharedFlow<SessionEvent>()
     val sessionEvents: SharedFlow<SessionEvent> = _sessionEvents.asSharedFlow()
 
     // Timer job
@@ -143,9 +143,7 @@ class SessionManager(private val context: Context) {
             onControlledAppEntered(packageName)
         } else {
             Logger.d(TAG, "Left to non-controlled app: $packageName")
-            scope.launch {
-                _sessionEvents.emit(SessionEvent.SessionCleared)
-            }
+            onControlledAppExited(packageName)
         }
     }
 
@@ -194,7 +192,7 @@ class SessionManager(private val context: Context) {
         _activeSession.value = session.copy(isPaused = true)
         suspendedSessions[session.appPackageName] = Pair(session.copy(isPaused = true), System.currentTimeMillis())
         _activeSession.value = null
-        Logger.d(TAG, ">>> Suspended session for ${session.appPackageName}")
+        sessionPausedAt = null
         
         scope.launch {
             _sessionEvents.emit(SessionEvent.SessionPaused(session))
@@ -219,6 +217,8 @@ class SessionManager(private val context: Context) {
     }
 
     private suspend fun onControlledAppExited(@Suppress("UNUSED_PARAMETER") packageName: String) {
+        stopScreenAnalysis()
+        
         if (_activeSession.value == null) {
             Logger.d(TAG, "onControlledAppExited: no active session, emitting sessionCleared")
             scope.launch {
@@ -232,30 +232,21 @@ class SessionManager(private val context: Context) {
         Logger.d(TAG, ">>> Session paused at ${sessionPausedAt}, will auto-end if not resumed within 30s")
     }
 
-    /**
-     * Request a new session - triggers voice input overlay
-     */
     private suspend fun requestNewSession(packageName: String) {
-        // Emit event to show voice input overlay
         _sessionEvents.emit(SessionEvent.ShowVoiceInput(packageName))
     }
 
-    /**
-     * Create a new session after user declares intent
-     */
     suspend fun createSession(
         packageName: String,
         displayName: String,
         constraints: List<SessionConstraint>
     ): Long {
-        // Create session in database (no global time limit)
         val sessionId = repository.createSession(
             appPackageName = packageName,
             appDisplayName = displayName,
             totalTimeLimitMs = null
         )
 
-        // Create active session with per-constraint time tracking
         val activeSession = ActiveSession(
             sessionId = sessionId,
             appPackageName = packageName,
@@ -277,32 +268,16 @@ class SessionManager(private val context: Context) {
 
         _activeSession.value = activeSession
 
-        // Initialize match states
         constraintMatchStates.clear()
         constraints.forEach { constraintMatchStates[it.id] = false }
 
-        // Save last intent for this app
         saveLastIntent(packageName, constraints)
-
-        // Start timer
         startTimer()
 
-        // Start screen analysis if API is configured
-        Logger.d(TAG, "=== Creating session, checking API config ===")
-        Logger.i(TAG, "Creating session for $packageName, checking API config")
-        Logger.d(TAG, "ApiConfig.isConfigured() = ${ApiConfig.isConfigured()}")
-        Logger.d(TAG, "ApiConfig.getApiKey() = ${ApiConfig.getApiKey().take(8)}...")
         if (ApiConfig.isConfigured()) {
-            Logger.d(TAG, ">>> Calling startScreenAnalysis()")
-            Logger.i(TAG, "Starting screen analysis for $packageName")
             startScreenAnalysis(packageName, constraints)
-            Logger.d(TAG, "<<< startScreenAnalysis() returned")
-        } else {
-            Logger.w(TAG, "!!! API not configured, skipping screen analysis !!!")
-            Logger.w(TAG, "API not configured, skipping screen analysis")
         }
 
-        // Emit session started event
         _sessionEvents.emit(SessionEvent.SessionStarted(activeSession))
 
         return sessionId

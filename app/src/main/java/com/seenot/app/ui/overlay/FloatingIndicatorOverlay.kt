@@ -27,6 +27,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -83,6 +84,7 @@ class FloatingIndicatorOverlay(
 
     private val density = context.resources.displayMetrics.density
     private var scope = CoroutineScope(Dispatchers.Main + Job())
+    private var observersStarted = false
 
     /**
      * Show with pre-confirmed constraints (no voice input needed)
@@ -93,8 +95,7 @@ class FloatingIndicatorOverlay(
             hasActiveSession = true,
             displayedConstraints = constraints
         )
-        observeSession()
-        observeViolation()
+        startObserversIfNeeded()
         render()
     }
 
@@ -106,14 +107,23 @@ class FloatingIndicatorOverlay(
             Logger.d("FloatingIndicator", "Recreating scope")
             recreateScope()
         }
-        observeSession()
-        observeViolation()
+        state = state.copy(hasActiveSession = true)
+        startObserversIfNeeded()
         render()
+    }
+
+    private fun startObserversIfNeeded() {
+        if (!observersStarted) {
+            observersStarted = true
+            observeSession()
+            observeViolation()
+        }
     }
 
     private fun recreateScope() {
         try { scope.cancel() } catch (e: Exception) { /* ignore */ }
         scope = CoroutineScope(Dispatchers.Main + Job())
+        observersStarted = false
     }
 
     private fun observeSession() {
@@ -124,47 +134,43 @@ class FloatingIndicatorOverlay(
                 val sessionId = session?.constraints?.joinToString { it.id } ?: ""
                 val isPaused = session?.isPaused ?: true
                 val hasValidConstraints = session != null && session.constraints.isNotEmpty()
-                
-                val shouldShow = session != null && !isPaused && hasValidConstraints
-                
+
+                // If there's a session, follow session state; otherwise follow manual show flag
+                val shouldShow = if (session != null) {
+                    !isPaused && hasValidConstraints
+                } else {
+                    state.hasActiveSession
+                }
+
                 if (shouldShow) {
-                    if (indicatorView == null && session != null) {
-                        Logger.d("FloatingIndicator", "Session active with valid constraints, showing overlay")
+                    if (indicatorView == null) {
+                        Logger.d("FloatingIndicator", "Showing overlay: session=${session != null}, manual=${state.hasActiveSession}")
                         windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
                         state = state.copy(
                             session = session,
-                            hasActiveSession = true,
-                            displayedConstraints = session.constraints
+                            displayedConstraints = session?.constraints ?: state.displayedConstraints
                         )
-                        recreateScope()
-                        observeSession()
-                        observeViolation()
                         render()
+                    } else {
+                        state = state.copy(
+                            session = session,
+                            displayedConstraints = session?.constraints ?: state.displayedConstraints
+                        )
                     }
                 } else {
                     if (indicatorView != null) {
-                        Logger.d("FloatingIndicator", "Session not active or no valid constraints, hiding overlay")
-                        dismiss()
+                        Logger.d("FloatingIndicator", "Hiding overlay: session paused or ended")
+                        try { windowManager?.removeView(indicatorView) } catch (e: Exception) { /* ignore */ }
+                        indicatorView = null
                     }
                 }
-                
+
                 if (sessionId != lastSessionId || isPaused != lastPausedState) {
                     Logger.d("FloatingIndicator", "State changed: sessionId=$sessionId, isPaused=$isPaused")
                     lastSessionId = sessionId
                     lastPausedState = isPaused
-                    updateState {
-                        copy(
-                            session = session,
-                            hasActiveSession = session != null && session.constraints.isNotEmpty(),
-                            displayedConstraints = if (session != null && session.constraints.isNotEmpty()) {
-                                session.constraints
-                            } else {
-                                displayedConstraints
-                            }
-                        )
-                    }
                 }
-                
+
                 updateTimeDisplay(session)
             }
         }
@@ -194,19 +200,26 @@ class FloatingIndicatorOverlay(
         }
     }
 
+    private var lastProcessedEventId: String? = null
+    
     private fun observeViolation() {
         Logger.d("FloatingIndicator", "observeViolation started")
         scope.launch {
             Logger.d("FloatingIndicator", "observeViolation collecting sessionEvents")
-            sessionManager.sessionEvents.collect { event ->
+            sessionManager.sessionEvents.distinctUntilChanged { old, new ->
+                oldEventId(old) == oldEventId(new)
+            }.collect { event ->
+                val eventId = oldEventId(event)
+                if (eventId == lastProcessedEventId) {
+                    Logger.d("FloatingIndicator", "Duplicate event ignored: $eventId")
+                    return@collect
+                }
+                lastProcessedEventId = eventId
+
                 Logger.d("FloatingIndicator", "sessionEvents received: $event")
                 when (event) {
                     is com.seenot.app.domain.SessionEvent.ViolationDetected -> {
                         triggerViolationFeedback()
-                    }
-                    is com.seenot.app.domain.SessionEvent.SessionPaused -> {
-                        Logger.d("FloatingIndicator", "SessionPaused event received, indicatorView=true, dismissing")
-                        dismiss()
                     }
                     is com.seenot.app.domain.SessionEvent.SessionEnded -> {
                         Logger.d("FloatingIndicator", "SessionEnded event received, dismissing")
@@ -219,6 +232,19 @@ class FloatingIndicatorOverlay(
                     else -> {}
                 }
             }
+        }
+    }
+    
+    private fun oldEventId(event: com.seenot.app.domain.SessionEvent): String {
+        return when (event) {
+            is com.seenot.app.domain.SessionEvent.ShowVoiceInput -> "ShowVoiceInput_${event.packageName}"
+            is com.seenot.app.domain.SessionEvent.SessionStarted -> "SessionStarted_${event.session.sessionId}"
+            is com.seenot.app.domain.SessionEvent.SessionResumed -> "SessionResumed_${event.session.sessionId}"
+            is com.seenot.app.domain.SessionEvent.SessionPaused -> "SessionPaused_${event.session.sessionId}"
+            is com.seenot.app.domain.SessionEvent.SessionEnded -> "SessionEnded_${event.session.sessionId}"
+            is com.seenot.app.domain.SessionEvent.SessionCleared -> "SessionCleared"
+            is com.seenot.app.domain.SessionEvent.ConstraintsModified -> "ConstraintsModified"
+            is com.seenot.app.domain.SessionEvent.ViolationDetected -> "Violation_${event.constraint.id}_${System.currentTimeMillis() / 1000}"
         }
     }
 
@@ -456,7 +482,8 @@ class FloatingIndicatorOverlay(
             try { windowManager?.removeView(view) } catch (e: Exception) { /* ignore */ }
         }
         indicatorView = null
-        Logger.d("FloatingIndicator", "dismiss() called, scope still active")
+        scope.cancel()
+        Logger.d("FloatingIndicator", "dismiss() called, scope cancelled")
     }
 
     /**
@@ -540,7 +567,7 @@ class FloatingIndicatorOverlay(
             currentOverlay = null
         }
 
-        fun isShowing(): Boolean = currentOverlay != null
+        fun isShowing(): Boolean = currentOverlay?.indicatorView != null
 
         /**
          * Get current overlay bounds for masking in screenshots

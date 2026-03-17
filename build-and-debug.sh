@@ -34,4 +34,4 @@ adb shell settings put secure accessibility_enabled 1
 echo ""
 echo "🔍 Monitoring logs (Press Ctrl+C to stop)..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-adb logcat -v time | grep -E 'SeeNot|SessionManager|IntentParser|ScreenAnalyzer|FloatingIndicator|AndroidRuntime'
+adb logcat -v time | grep -E 'SeeNot|SessionManager|IntentParser|ScreenAnalyzer|FloatingIndicator|AndroidRuntime|SessionManager|pauseSession|resumeSession|SeenotAccessibility'

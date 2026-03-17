@@ -70,7 +70,7 @@ class SeenotAccessibilityService : AccessibilityService() {
     // Track last exited package and time to handle false positives (e.g., swipe back triggering短暂切换)
     private var lastExitedPackage: String? = null
     private var lastExitedTime: Long = 0L
-    private const val QUICK_RETURN_THRESHOLD_MS = 5000L  // 5 seconds
+    private const val QUICK_RETURN_THRESHOLD_MS = 1000L  // Reduced from 5s to 1s
     }
 
     private val gestureExecutor: Executor = Executors.newSingleThreadExecutor()
@@ -124,17 +124,6 @@ class SeenotAccessibilityService : AccessibilityService() {
             .build()
 
         try {
-            // Use reflection to call setForegroundServiceType on Android 14+
-            if (android.os.Build.VERSION.SDK_INT >= 34) {
-                try {
-                    val method = Service::class.java.getDeclaredMethod("setForegroundServiceType", Int::class.javaPrimitiveType)
-                    method.isAccessible = true
-                    // ForegroundService.SPECIAL_USE = 4
-                    method.invoke(this, 4)
-                } catch (e: Exception) {
-                    Logger.w(TAG, "Failed to set foreground service type", e)
-                }
-            }
             startForeground(NOTIFICATION_ID, notification)
             Logger.d(TAG, "Foreground notification started")
         } catch (e: Exception) {
@@ -163,7 +152,9 @@ class SeenotAccessibilityService : AccessibilityService() {
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         try {
-            event ?: return
+            if (event == null) {
+                return
+            }
 
             when (event.eventType) {
                 AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
@@ -190,7 +181,15 @@ class SeenotAccessibilityService : AccessibilityService() {
                         Logger.d(TAG, "App switched to: $packageName")
                         lastAppSwitchTime = now
                         _currentPackage.value = packageName
-                        checkAndShowOverlay(packageName, className)
+
+                        // Check if className is capable before calling checkAndShowOverlay
+                        // Exception: always process launcher to ensure proper state tracking
+                        val isCapable = isCapableClass(className)
+                        if (isCapable || isLauncher(packageName)) {
+                            checkAndShowOverlay(packageName, className)
+                        } else {
+                            Logger.d(TAG, "Not a capable class: $className, package updated but skipping overlay logic")
+                        }
                     } else {
                         Logger.d(TAG, "Same package, skipping: $packageName")
                     }
@@ -243,14 +242,6 @@ class SeenotAccessibilityService : AccessibilityService() {
             return
         }
 
-        // Check if class is "capable" - ignore system UI classes
-        // This prevents false triggers during navigation within the same app
-        val isCapable = isCapableClass(className)
-        if (!isCapable) {
-            Logger.d(TAG, "Not a capable class: $className, skipping")
-            return
-        }
-
         // Ignore SeeNot's own package to prevent overlay dismissal
         if (packageName == this.packageName) {
             Logger.d(TAG, "Own package $packageName, skipping")
@@ -287,6 +278,7 @@ class SeenotAccessibilityService : AccessibilityService() {
                     Logger.d(TAG, "Case: Leaving monitored app: $previousPackage -> $packageName (non-controlled)")
                     lastExitedPackage = previousPackage
                     lastExitedTime = System.currentTimeMillis()
+                    currentMonitoredPackage = null
                 }
                 // Enter monitored app from non-monitored
                 !wasInMonitoredApp && isControlledApp -> {
@@ -301,10 +293,19 @@ class SeenotAccessibilityService : AccessibilityService() {
                     currentMonitoredPackage = packageName
                     
                     if (quickReturn) {
-                        Logger.d(TAG, "Quick return to $packageName - swipe back, no overlay changes")
-                        lastExitedPackage = null
-                        lastExitedTime = 0L
-                        return
+                        // Check if there's an active session for this app
+                        val existingSession = sessionManager.activeSession.value
+                        val hasSession = existingSession != null && existingSession.appPackageName == packageName
+
+                        if (hasSession) {
+                            Logger.d(TAG, "Quick return to $packageName with active session - swipe back, no overlay changes")
+                            lastExitedPackage = null
+                            lastExitedTime = 0L
+                            return
+                        } else {
+                            Logger.d(TAG, "Quick return to $packageName but no session - showing overlay")
+                            // Fall through to show overlay
+                        }
                     }
                     
                     dismissAllOverlays()
@@ -399,6 +400,8 @@ class SeenotAccessibilityService : AccessibilityService() {
     }
 
     private fun showIntentInputDialog(packageName: String, appName: String, sessionManager: SessionManager, allowDefaultRuleAutoApply: Boolean = true) {
+        showCompactIndicator(packageName, appName, sessionManager)
+
         IntentInputDialogOverlay.show(
             context = this,
             appName = appName,
