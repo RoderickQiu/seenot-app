@@ -45,6 +45,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.activity.compose.BackHandler
 import com.seenot.app.data.model.RuleRecord
+import com.seenot.app.data.repository.AppHintRepository
 import com.seenot.app.data.repository.RuleRecordRepository
 import kotlinx.coroutines.launch
 import java.io.File
@@ -82,6 +83,12 @@ fun RuleRecordsPage(
     // Multi-select state
     var isMultiSelectMode by remember { mutableStateOf(false) }
     var selectedRecords by remember { mutableStateOf(setOf<String>()) }  // Set of record IDs
+
+    // Hint dialog state
+    var showHintDialog by remember { mutableStateOf(false) }
+    var hintDialogRecord by remember { mutableStateOf<RuleRecord?>(null) }
+    var hintDialogText by remember { mutableStateOf("") }
+    val appHintRepo = remember { AppHintRepository(context) }
 
     // Handle back press
     BackHandler(enabled = true) {
@@ -278,17 +285,23 @@ fun RuleRecordsPage(
                                 selectedRecords = setOf(record.id)
                             },
                             onToggleMark = {
-                                scope.launch {
-                                    repository.markRecord(record.id, !record.isMarked)
-                                    val year = currentDate.get(Calendar.YEAR)
-                                    val month = currentDate.get(Calendar.MONTH)
-                                    val day = currentDate.get(Calendar.DAY_OF_MONTH)
-                                    records = repository.getRecordsForDate(year, month, day)
-                                    filteredRecords = when (selectedFilter) {
-                                        RecordFilter.ALL -> records
-                                        RecordFilter.MARKED -> records.filter { it.isMarked }
-                                        RecordFilter.MATCHED -> records.filter { !it.isConditionMatched }
-                                        RecordFilter.NOT_MATCHED -> records.filter { it.isConditionMatched }
+                                if (!record.isMarked) {
+                                    hintDialogRecord = record
+                                    hintDialogText = ""
+                                    showHintDialog = true
+                                } else {
+                                    scope.launch {
+                                        repository.markRecord(record.id, false)
+                                        val year = currentDate.get(Calendar.YEAR)
+                                        val month = currentDate.get(Calendar.MONTH)
+                                        val day = currentDate.get(Calendar.DAY_OF_MONTH)
+                                        records = repository.getRecordsForDate(year, month, day)
+                                        filteredRecords = when (selectedFilter) {
+                                            RecordFilter.ALL -> records
+                                            RecordFilter.MARKED -> records.filter { it.isMarked }
+                                            RecordFilter.MATCHED -> records.filter { !it.isConditionMatched }
+                                            RecordFilter.NOT_MATCHED -> records.filter { it.isConditionMatched }
+                                        }
                                     }
                                 }
                             }
@@ -325,6 +338,11 @@ fun RuleRecordsPage(
                         RecordFilter.NOT_MATCHED -> records.filter { it.isConditionMatched }
                     }
                 }
+            },
+            onShowHintDialog = { rec ->
+                hintDialogRecord = rec
+                hintDialogText = ""
+                showHintDialog = true
             }
         )
     }
@@ -355,19 +373,11 @@ fun RuleRecordsPage(
                     showExportDialog = false
                 }
             },
-            onExport = { exportMarkedOnly ->
+            onExport = { list ->
                 scope.launch {
                     isExporting = true
                     exportProgress = "正在准备导出..."
                     try {
-                        val list = if (recordsToExport != null) {
-                            recordsToExport!!
-                        } else if (exportMarkedOnly) {
-                            filteredRecords.filter { it.isMarked }
-                        } else {
-                            filteredRecords
-                        }
-
                         val exportUri = recordExporter.exportRecordsToZip(list) { progress ->
                             exportProgress = progress
                         }
@@ -386,6 +396,96 @@ fun RuleRecordsPage(
                     exportProgress = ""
                     recordsToExport = null
                     showExportDialog = false
+                }
+            }
+        )
+    }
+
+    // Hint input dialog for misclassification feedback
+    if (showHintDialog && hintDialogRecord != null) {
+        val dialogRecord = hintDialogRecord!!
+        AlertDialog(
+            onDismissRequest = {
+                showHintDialog = false
+                hintDialogRecord = null
+                hintDialogText = ""
+            },
+            title = { Text("添加AI补充说明") },
+            text = {
+                Column {
+                    Text(
+                        text = "您标记了 \"${dialogRecord.constraintContent?.take(30)}\" 为误判。",
+                        style = MaterialTheme.typography.bodyMedium
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = "请告诉AI为什么这次判断是错的，这会帮助AI在未来做出更准确的判断：",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = hintDialogText,
+                        onValueChange = { hintDialogText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("例如：我只用QQ聊天，不看QQ空间") },
+                        minLines = 2,
+                        maxLines = 4
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val pkgName = dialogRecord.packageName ?: dialogRecord.appName
+                        if (hintDialogText.isNotBlank()) {
+                            scope.launch {
+                                appHintRepo.addHintFromFeedback(pkgName, hintDialogText)
+                                repository.markRecord(dialogRecord.id, true)
+                                Toast.makeText(context, "已添加补充说明", Toast.LENGTH_SHORT).show()
+                                val year = currentDate.get(Calendar.YEAR)
+                                val month = currentDate.get(Calendar.MONTH)
+                                val day = currentDate.get(Calendar.DAY_OF_MONTH)
+                                records = repository.getRecordsForDate(year, month, day)
+                                filteredRecords = when (selectedFilter) {
+                                    RecordFilter.ALL -> records
+                                    RecordFilter.MARKED -> records.filter { it.isMarked }
+                                    RecordFilter.MATCHED -> records.filter { !it.isConditionMatched }
+                                    RecordFilter.NOT_MATCHED -> records.filter { it.isConditionMatched }
+                                }
+                            }
+                        } else {
+                            scope.launch {
+                                repository.markRecord(dialogRecord.id, true)
+                                val year = currentDate.get(Calendar.YEAR)
+                                val month = currentDate.get(Calendar.MONTH)
+                                val day = currentDate.get(Calendar.DAY_OF_MONTH)
+                                records = repository.getRecordsForDate(year, month, day)
+                                filteredRecords = when (selectedFilter) {
+                                    RecordFilter.ALL -> records
+                                    RecordFilter.MARKED -> records.filter { it.isMarked }
+                                    RecordFilter.MATCHED -> records.filter { !it.isConditionMatched }
+                                    RecordFilter.NOT_MATCHED -> records.filter { it.isConditionMatched }
+                                }
+                            }
+                        }
+                        showHintDialog = false
+                        hintDialogRecord = null
+                        hintDialogText = ""
+                    }
+                ) {
+                    Text("保存")
+                }
+            },
+            dismissButton = {
+                TextButton(
+                    onClick = {
+                        showHintDialog = false
+                        hintDialogRecord = null
+                        hintDialogText = ""
+                    }
+                ) {
+                    Text("取消")
                 }
             }
         )
@@ -627,7 +727,8 @@ private fun RecordDetailDialog(
     records: List<RuleRecord>,
     currentIndex: Int,
     onNavigateToRecord: (Int) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    onShowHintDialog: (RuleRecord) -> Unit
 ) {
     val scope = rememberCoroutineScope()
 
@@ -805,20 +906,46 @@ private fun RecordDetailDialog(
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     Row(
-                                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Text(
-                                            text = "AI 分析结果",
-                                            style = MaterialTheme.typography.titleSmall,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                        record.confidence?.let { conf ->
+                                        Row(
+                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                                            verticalAlignment = Alignment.CenterVertically,
+                                            modifier = Modifier.weight(1f)
+                                        ) {
                                             Text(
-                                                text = "(置信度: ${(conf * 100).toInt()}%)",
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                text = "AI 分析结果",
+                                                style = MaterialTheme.typography.titleSmall,
+                                                fontWeight = FontWeight.Bold
                                             )
+                                            record.confidence?.let { conf ->
+                                                Text(
+                                                    text = "(置信度: ${(conf * 100).toInt()}%)",
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        }
+                                        if (!record.isMarked) {
+                                            TextButton(
+                                                onClick = {
+                                                    onShowHintDialog(record)
+                                                }
+                                            ) {
+                                                Icon(
+                                                    Icons.Filled.Warning,
+                                                    contentDescription = null,
+                                                    modifier = Modifier.size(16.dp),
+                                                    tint = MaterialTheme.colorScheme.error
+                                                )
+                                                Spacer(modifier = Modifier.width(4.dp))
+                                                Text(
+                                                    "标记误判",
+                                                    style = MaterialTheme.typography.labelSmall
+                                                )
+                                            }
                                         }
                                     }
                                     Text(
@@ -1027,6 +1154,7 @@ private fun RuleRecordsDatePickerDialog(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun ExportRecordsDialog(
     records: List<com.seenot.app.data.model.RuleRecord>,
@@ -1034,9 +1162,23 @@ private fun ExportRecordsDialog(
     isExporting: Boolean,
     exportProgress: String,
     onDismiss: () -> Unit,
-    onExport: (Boolean) -> Unit
+    onExport: (List<com.seenot.app.data.model.RuleRecord>) -> Unit
 ) {
     var exportMarkedOnly by remember { mutableStateOf(false) }
+    var selectedApp by remember { mutableStateOf<String?>(null) }
+    var appDropdownExpanded by remember { mutableStateOf(false) }
+
+    val uniqueApps = remember(records) {
+        records.map { it.appName }.distinct().sorted()
+    }
+
+    val filteredRecords = remember(records, selectedApp, exportMarkedOnly) {
+        records.filter { record ->
+            val appMatch = selectedApp == null || record.appName == selectedApp
+            val markedMatch = !exportMarkedOnly || record.isMarked
+            appMatch && markedMatch
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1047,7 +1189,6 @@ private fun ExportRecordsDialog(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 if (isExporting) {
-                    // Show progress
                     CircularProgressIndicator(
                         modifier = Modifier.align(Alignment.CenterHorizontally)
                     )
@@ -1058,17 +1199,56 @@ private fun ExportRecordsDialog(
                         modifier = Modifier.fillMaxWidth()
                     )
                 } else {
-                    // Show options
                     Text(
                         text = if (exportFromSelection) {
                             "将选中的 ${records.size} 条记录导出为 ZIP 文件，可包含截图。"
                         } else {
-                            "将 ${records.size} 条记录导出为 ZIP 文件，可包含截图。"
+                            "将符合条件的 ${filteredRecords.size} 条记录导出为 ZIP 文件，可包含截图。"
                         },
                         style = MaterialTheme.typography.bodyMedium
                     )
 
                     if (!exportFromSelection) {
+                        ExposedDropdownMenuBox(
+                            expanded = appDropdownExpanded,
+                            onExpandedChange = { appDropdownExpanded = it }
+                        ) {
+                            OutlinedTextField(
+                                value = selectedApp ?: "全部应用",
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("选择应用") },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = appDropdownExpanded)
+                                },
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .menuAnchor()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = appDropdownExpanded,
+                                onDismissRequest = { appDropdownExpanded = false }
+                            ) {
+                                DropdownMenuItem(
+                                    text = { Text("全部应用") },
+                                    onClick = {
+                                        selectedApp = null
+                                        appDropdownExpanded = false
+                                    }
+                                )
+                                uniqueApps.forEach { appName ->
+                                    val appCount = records.count { it.appName == appName }
+                                    DropdownMenuItem(
+                                        text = { Text("$appName ($appCount)") },
+                                        onClick = {
+                                            selectedApp = appName
+                                            appDropdownExpanded = false
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
                         Row(
                             modifier = Modifier.fillMaxWidth(),
                             verticalAlignment = Alignment.CenterVertically
@@ -1076,10 +1256,10 @@ private fun ExportRecordsDialog(
                             Checkbox(
                                 checked = exportMarkedOnly,
                                 onCheckedChange = { exportMarkedOnly = it },
-                                enabled = records.any { it.isMarked }
+                                enabled = filteredRecords.any { it.isMarked }
                             )
                             Text(
-                                text = "仅导出已标记的记录 (${records.count { it.isMarked }} 条)",
+                                text = "仅导出已标记的记录 (${filteredRecords.count { it.isMarked }} 条)",
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
@@ -1090,8 +1270,8 @@ private fun ExportRecordsDialog(
         confirmButton = {
             if (!isExporting) {
                 Button(
-                    onClick = { onExport(if (exportFromSelection) false else exportMarkedOnly) },
-                    enabled = records.isNotEmpty()
+                    onClick = { onExport(filteredRecords) },
+                    enabled = filteredRecords.isNotEmpty()
                 ) {
                     Text("导出")
                 }

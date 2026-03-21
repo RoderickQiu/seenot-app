@@ -30,6 +30,7 @@ import com.seenot.app.ai.voice.VoiceInputManager
 import com.seenot.app.ai.voice.VoiceRecordingState
 import com.seenot.app.ai.parser.AppInfo
 import com.seenot.app.ui.overlay.VoiceInputOverlay
+import com.seenot.app.data.repository.AppHintRepository
 import com.seenot.app.data.repository.RuleRecordRepository
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.InterventionLevel
@@ -670,6 +671,15 @@ fun AppRulesDialog(
     var editingRuleIndex by remember { mutableStateOf<Int?>(null) }
     var editingPresetIndex by remember { mutableStateOf<Int?>(null) }
 
+    // Hints state
+    var hints by remember { mutableStateOf<List<com.seenot.app.data.model.AppHint>>(emptyList()) }
+    var showAddHintDialog by remember { mutableStateOf(false) }
+    var newHintText by remember { mutableStateOf("") }
+    var editingHint by remember { mutableStateOf<com.seenot.app.data.model.AppHint?>(null) }
+    var editingHintText by remember { mutableStateOf("") }
+    val context = LocalContext.current
+    val appHintRepo = remember { com.seenot.app.data.repository.AppHintRepository(context) }
+
     // Load rules
     LaunchedEffect(app.packageName) {
         val loadedPresetRules = sessionManager.loadPresetRules(app.packageName)
@@ -682,6 +692,116 @@ fun AppRulesDialog(
             val fingerprint = sessionManager.getConstraintFingerprint(history)
             fingerprint !in presetFingerprints
         }
+
+        // Load hints for this app
+        hints = appHintRepo.getHintsForPackage(app.packageName)
+    }
+
+    // Add Hint Dialog
+    if (showAddHintDialog) {
+        AlertDialog(
+            onDismissRequest = {
+                showAddHintDialog = false
+                newHintText = ""
+            },
+            title = { Text("添加AI补充说明") },
+            text = {
+                Column {
+                    Text(
+                        text = "告诉AI这个应用的特殊使用场景，帮助AI更准确判断：",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = newHintText,
+                        onValueChange = { newHintText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("例如：我只用这个APP看新闻，不刷短视频") },
+                        minLines = 2,
+                        maxLines = 4
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newHintText.isNotBlank()) {
+                            kotlinx.coroutines.GlobalScope.launch {
+                                appHintRepo.addHintFromFeedback(app.packageName, newHintText)
+                                hints = appHintRepo.getHintsForPackage(app.packageName)
+                            }
+                        }
+                        showAddHintDialog = false
+                        newHintText = ""
+                    }
+                ) {
+                    Text("添加")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showAddHintDialog = false
+                    newHintText = ""
+                }) {
+                    Text("取消")
+                }
+            }
+        )
+    }
+
+    // Edit Hint Dialog
+    if (editingHint != null) {
+        val hint = editingHint!!
+        AlertDialog(
+            onDismissRequest = {
+                editingHint = null
+                editingHintText = ""
+            },
+            title = { Text("编辑AI补充说明") },
+            text = {
+                Column {
+                    Text(
+                        text = "修改AI补充说明，帮助AI更准确判断：",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = editingHintText,
+                        onValueChange = { editingHintText = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        placeholder = { Text("例如：我只用这个APP看新闻，不刷短视频") },
+                        minLines = 2,
+                        maxLines = 4
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (editingHintText.isNotBlank()) {
+                            kotlinx.coroutines.GlobalScope.launch {
+                                appHintRepo.updateHintText(hint.id, editingHintText)
+                                hints = appHintRepo.getHintsForPackage(app.packageName)
+                            }
+                        }
+                        editingHint = null
+                        editingHintText = ""
+                    }
+                ) {
+                    Text("保存")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    editingHint = null
+                    editingHintText = ""
+                }) {
+                    Text("取消")
+                }
+            }
+        )
     }
 
     AlertDialog(
@@ -850,6 +970,101 @@ fun AppRulesDialog(
                         }
                     }
                 }
+
+                // AI Hints Section
+                item {
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = "AI 补充说明",
+                            style = MaterialTheme.typography.titleSmall,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        TextButton(onClick = { showAddHintDialog = true }) {
+                            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                            Spacer(modifier = Modifier.width(4.dp))
+                            Text("添加")
+                        }
+                    }
+                }
+
+                item {
+                    if (hints.isEmpty()) {
+                        Text(
+                            text = "暂无补充说明，添加后可帮助AI更准确判断",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                items(hints.size) { index ->
+                    val hint = hints[index]
+                    Card(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                editingHint = hint
+                                editingHintText = hint.hintText
+                            },
+                        colors = CardDefaults.cardColors(
+                            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
+                        )
+                    ) {
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(8.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = hint.hintText,
+                                style = MaterialTheme.typography.bodySmall,
+                                modifier = Modifier.weight(1f)
+                            )
+                            Row(
+                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                IconButton(
+                                    onClick = {
+                                        editingHint = hint
+                                        editingHintText = hint.hintText
+                                    },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Edit,
+                                        contentDescription = "编辑",
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                                IconButton(
+                                    onClick = {
+                                        kotlinx.coroutines.GlobalScope.launch {
+                                            appHintRepo.deleteHint(hint.id)
+                                            hints = appHintRepo.getHintsForPackage(app.packageName)
+                                        }
+                                    },
+                                    modifier = Modifier.size(24.dp)
+                                ) {
+                                    Icon(
+                                        Icons.Default.Delete,
+                                        contentDescription = "删除",
+                                        tint = MaterialTheme.colorScheme.error,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -1005,7 +1220,7 @@ fun AddPresetRuleDialog(
                     Spacer(modifier = Modifier.height(12.dp))
 
                     // Time Scope (only if time limit is set)
-                    if (timeLimitMinutes.isNotBlank()) {
+                    if (ruleType == ConstraintType.TIME_CAP && timeLimitMinutes.isNotBlank()) {
                         Text(text = "时间范围", style = MaterialTheme.typography.labelMedium)
                         Column(
                             modifier = Modifier.fillMaxWidth(),
@@ -1184,7 +1399,7 @@ fun EditPresetRuleDialog(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    if (timeLimitMinutes.isNotBlank()) {
+                    if (ruleType == ConstraintType.TIME_CAP && timeLimitMinutes.isNotBlank()) {
                         Text(text = "时间范围", style = MaterialTheme.typography.labelMedium)
                         Column(
                             modifier = Modifier.fillMaxWidth(),
@@ -1502,7 +1717,7 @@ fun EditConstraintDialog(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
 
-                    if (timeLimitMinutes.isNotBlank()) {
+                    if (ruleType == ConstraintType.TIME_CAP && timeLimitMinutes.isNotBlank()) {
                         Text(text = "时间范围", style = MaterialTheme.typography.labelMedium)
                         Column(
                             modifier = Modifier.fillMaxWidth(),
