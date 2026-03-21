@@ -12,7 +12,6 @@ import android.os.Handler
 import android.os.Looper
 
 import com.seenot.app.utils.Logger
-import android.widget.Toast
 import com.seenot.app.ui.overlay.FloatingIndicatorOverlay
 import com.seenot.app.ui.overlay.ToastOverlay
 import com.seenot.app.ui.overlay.VoiceInputOverlay
@@ -28,6 +27,7 @@ import com.seenot.app.config.ApiConfig
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.RuleRecord
 import com.seenot.app.data.repository.RuleRecordRepository
+import com.seenot.app.config.RuleRecordingPrefs
 import com.seenot.app.domain.SessionConstraint
 import com.seenot.app.domain.SessionManager
 import kotlinx.coroutines.*
@@ -35,9 +35,6 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import java.io.ByteArrayOutputStream
-import java.security.MessageDigest
-import java.util.Arrays
-import java.util.Collections
 
 /**
  * Screen Analyzer - AI vision for monitoring screen content
@@ -45,7 +42,7 @@ import java.util.Collections
  * Features:
  * - Dismiss all toasts before screenshot (avoid capturing overlay toasts)
  * - Scale screenshot to max 960px on longer edge
- * - Hash-based deduplication and result caching
+ * - Keyframe detection (skip AI calls for unchanged frames)
  * - Batch constraint checking (multiple constraints per API call)
  * - Confidence thresholds with fallback strategies
  * - Continuous confirmation (2 consecutive violations for forced actions)
@@ -71,9 +68,6 @@ class ScreenAnalyzer(
         const val CONFIDENCE_MEDIUM = 0.70
         const val CONFIDENCE_LOW = 0.50
 
-        // Hash result cache TTL - 5 minutes for effective caching
-        const val HASH_RESULT_CACHE_TTL_MS = 300_000L // 5 minutes
-
         // Consecutive violation threshold for forced actions
         const val VIOLATION_THRESHOLD = 2
     }
@@ -95,16 +89,9 @@ class ScreenAnalyzer(
     // Consecutive violation count
     private var consecutiveViolations = 0
 
-    // Hash result cache (for result reuse within TTL)
-    private data class CachedAnalysisResult(
-        val hash: String,
-        val constraintMatches: List<ConstraintMatch>,
-        val timestamp: Long
-    )
-    private val hashResultCache = mutableMapOf<String, CachedAnalysisResult>()
-
-    // Cleanup job for cache
-    private var cacheCleanupJob: Job? = null
+    // Keyframe detection: track last screenshot hash to skip unchanged frames
+    private var lastQuickHash: String? = null
+    private var lastViolationState: Map<String, Boolean> = emptyMap() // constraintId -> wasViolation
 
     // Analysis job
     private var analysisJob: Job? = null
@@ -130,23 +117,57 @@ class ScreenAnalyzer(
         val activeConstraints = constraints
 
         analysisJob?.cancel()
-        cacheCleanupJob?.cancel()
         consecutiveViolations = 0
-
-        // Start cache cleanup timer
-        cacheCleanupJob = scope.launch {
-            while (isActive) {
-                delay(HASH_RESULT_CACHE_TTL_MS)
-                cleanupHashCache()
-            }
-        }
 
         analysisJob = scope.launch {
             while (isActive) {
                 delay(analysisIntervalMs)
 
-                val result = analyzeScreen(activeConstraints)
+                // Capture screenshot for hash comparison FIRST (before full processing)
+                val screenshot = captureScreenshotWithDelay() ?: continue
+                val quickHash = computeQuickHash(screenshot)
+
+                // Keyframe detection: if screen hasn't changed, skip AI call but preserve violation handling
+                val previousHash = lastQuickHash
+                val isSameFrame = previousHash != null && quickHash == previousHash
+
+                if (isSameFrame) {
+                    screenshot.recycle()
+                    Logger.d(TAG, "🖼️ Same frame (hash: ${quickHash.take(12)}...), skipping AI")
+
+                    // 画面没变但上次有 violation？这次还要干预
+                    val previousViolations = lastViolationState.filter { it.value }.keys
+                    if (previousViolations.isNotEmpty()) {
+                        Logger.d(TAG, "🔄 Previous violations still active: ${previousViolations.size}, re-triggering")
+                        for (constraintId in previousViolations) {
+                            val result = _lastAnalysisResult.value ?: continue
+                            val match = result.constraintMatches.find { it.constraint.id == constraintId }
+                            if (match != null) {
+                                consecutiveViolations++
+                                val shouldAct = when {
+                                    match.confidence >= CONFIDENCE_HIGH -> true
+                                    match.confidence >= CONFIDENCE_MEDIUM && consecutiveViolations >= 2 -> true
+                                    else -> false
+                                }
+                                if (shouldAct) {
+                                    onViolation(match.constraint, match.confidence)
+                                }
+                            }
+                        }
+                    }
+                    continue
+                }
+
+                lastQuickHash = quickHash
+                Logger.d(TAG, "🆕 New frame (hash: ${quickHash.take(12)}...), analyzing")
+
+                val result = analyzeScreen(activeConstraints, screenshot)
                 _lastAnalysisResult.value = result
+
+                // Save violation state for keyframe detection
+                lastViolationState = result.constraintMatches
+                    .filter { it.isViolation }
+                    .associate { it.constraint.id to true }
 
                 // Check for violations
                 val violations = result.constraintMatches.filter { it.isViolation }
@@ -192,28 +213,24 @@ class ScreenAnalyzer(
     fun stopAnalysis() {
         analysisJob?.cancel()
         analysisJob = null
-        cacheCleanupJob?.cancel()
-        cacheCleanupJob = null
         scope.cancel()
         _isAnalyzing.value = false
-    }
-
-    /**
-     * Clean up expired entries from hash result cache
-     */
-    private fun cleanupHashCache() {
-        val now = System.currentTimeMillis()
-        hashResultCache.entries.removeIf { (_, cached) ->
-            now - cached.timestamp > HASH_RESULT_CACHE_TTL_MS
-        }
+        // Reset keyframe detection state
+        lastQuickHash = null
+        lastViolationState = emptyMap()
+        consecutiveViolations = 0
     }
 
     /**
      * Analyze current screen against constraints
+     * @param preCapturedScreenshot Optional screenshot already captured (for keyframe detection loop reuse)
      */
-    suspend fun analyzeScreen(constraints: List<SessionConstraint>): ScreenAnalysisResult {
+    suspend fun analyzeScreen(
+        constraints: List<SessionConstraint>,
+        preCapturedScreenshot: Bitmap? = null
+    ): ScreenAnalysisResult {
         _isAnalyzing.value = true
-        
+
         // Track bitmap for proper cleanup
         var bitmapToRecycle: Bitmap? = null
 
@@ -232,23 +249,32 @@ class ScreenAnalyzer(
             Logger.d(TAG, "📴 Dismissing all toasts...")
             dismissAllToasts()
 
-            // Capture screenshot with delay to avoid toast
-            Logger.d(TAG, "📸 Capturing screenshot (delay ${TOAST_DISMISS_DELAY_MS}ms)...")
-            val screenshotStart = System.currentTimeMillis()
-            val screenshot = captureScreenshotWithDelay()
-            val screenshotDuration = System.currentTimeMillis() - screenshotStart
+            // Use pre-captured screenshot if provided (from keyframe detection loop)
+            // Otherwise capture a new one
+            val screenshot: Bitmap?
+            val screenshotDuration: Long
+            if (preCapturedScreenshot != null) {
+                screenshot = preCapturedScreenshot
+                screenshotDuration = 0
+                Logger.d(TAG, "📸 Using pre-captured screenshot: ${screenshot.width}x${screenshot.height}")
+            } else {
+                Logger.d(TAG, "📸 Capturing screenshot (delay ${TOAST_DISMISS_DELAY_MS}ms)...")
+                val screenshotStart = System.currentTimeMillis()
+                screenshot = captureScreenshotWithDelay()
+                screenshotDuration = System.currentTimeMillis() - screenshotStart
 
-            if (screenshot == null) {
-                Logger.e(TAG, "❌ Failed to capture screenshot!")
-                showToast("截图失败")
-                return ScreenAnalysisResult(
-                    timestamp = System.currentTimeMillis(),
-                    success = false,
-                    errorMessage = "Failed to capture screenshot",
-                    constraintMatches = emptyList()
-                )
+                if (screenshot == null) {
+                    Logger.e(TAG, "❌ Failed to capture screenshot!")
+                    showToast("截图失败")
+                    return ScreenAnalysisResult(
+                        timestamp = System.currentTimeMillis(),
+                        success = false,
+                        errorMessage = "Failed to capture screenshot",
+                        constraintMatches = emptyList()
+                    )
+                }
+                Logger.d(TAG, "✅ Screenshot captured: ${screenshot.width}x${screenshot.height} (${screenshotDuration}ms)")
             }
-            Logger.d(TAG, "✅ Screenshot captured: ${screenshot.width}x${screenshot.height} (${screenshotDuration}ms)")
 
             // Process screenshot: scale + mutable copy
             Logger.d(TAG, "⚙️ Processing screenshot (scale to max $MAX_LONG_EDGE_PX px)...")
@@ -260,31 +286,6 @@ class ScreenAnalyzer(
             }
             val processDuration = System.currentTimeMillis() - processStart
             Logger.d(TAG, "✅ Screenshot processed: ${processedBitmap.width}x${processedBitmap.height} (${processDuration}ms)")
-
-            // Compute hash after processing
-            val hash = computeHash(processedBitmap)
-            Logger.d(TAG, "📝 Screenshot hash: ${hash.take(12)}...")
-
-            // Check hash result cache first (reuse previous AI result)
-            val cachedResult = hashResultCache[hash]
-            if (cachedResult != null) {
-                val age = System.currentTimeMillis() - cachedResult.timestamp
-                if (age <= HASH_RESULT_CACHE_TTL_MS) {
-                    Logger.d(TAG, "♻️ Reusing cached AI result (age: ${age}ms)")
-                    showAnalysisToast(cachedResult.constraintMatches, constraints)
-                    bitmapToRecycle?.recycle()
-                    bitmapToRecycle = null
-                    return ScreenAnalysisResult(
-                        timestamp = System.currentTimeMillis(),
-                        success = true,
-                        screenshotHash = hash,
-                        isReusedFromCache = true,
-                        constraintMatches = cachedResult.constraintMatches
-                    )
-                } else {
-                    Logger.d(TAG, "🗑️ Cache expired (age: ${age}ms), re-analyzing")
-                }
-            }
 
             // Call AI to analyze
             Logger.d(TAG, "🤖 Calling AI analysis...")
@@ -354,7 +355,7 @@ class ScreenAnalyzer(
                             sessionId = sessionId,
                             appName = packageName,
                             packageName = packageName,
-                            screenshotHash = hash,
+                            screenshotHash = lastQuickHash ?: "unknown",
                             constraintId = match.constraint.id.toLongOrNull(),
                             constraintType = match.constraint.type,
                             constraintContent = match.constraint.description,
@@ -376,12 +377,6 @@ class ScreenAnalyzer(
                 }
             }
 
-            // Cache the result
-            if (matches.isNotEmpty()) {
-                hashResultCache[hash] = CachedAnalysisResult(hash, matches, System.currentTimeMillis())
-                Logger.d(TAG, "💾 Cached result (${hashResultCache.size} entries)")
-            }
-
             // Recycle bitmap AFTER saving is complete
             bitmapToRecycle?.recycle()
             bitmapToRecycle = null
@@ -389,7 +384,7 @@ class ScreenAnalyzer(
             return ScreenAnalysisResult(
                 timestamp = System.currentTimeMillis(),
                 success = true,
-                screenshotHash = hash,
+                screenshotHash = lastQuickHash,
                 constraintMatches = matches
             )
 
@@ -624,6 +619,7 @@ class ScreenAnalyzer(
 
     /**
      * Scale bitmap so longer edge is at most maxEdgePx
+     * Always returns a copy to avoid aliasing with the source bitmap
      */
     private fun scaleBitmap(bitmap: Bitmap, maxEdgePx: Int): Bitmap {
         val width = bitmap.width
@@ -631,7 +627,8 @@ class ScreenAnalyzer(
 
         val longerEdge = maxOf(width, height)
         if (longerEdge <= maxEdgePx) {
-            return bitmap
+            // Return a copy even when no scaling needed - caller may recycle the original
+            return bitmap.copy(Bitmap.Config.ARGB_8888, false)
         }
 
         val scale = maxEdgePx.toFloat() / longerEdge
@@ -1078,52 +1075,37 @@ $decisionValues
     }
 
     /**
-     * Compute hash of bitmap for deduplication
-     * OPTIMIZED: Use sampling instead of full compression
+     * Compute quick hash for keyframe detection (before full processing)
+     * Uses aggressive downsampling for speed - we only need to detect significant changes
      */
-    private fun computeHash(bitmap: Bitmap): String {
+    private fun computeQuickHash(screenshot: Bitmap): String {
         try {
-            // Sample large images to improve performance (same as seenot-reborn)
-            val sampleSize = maxOf(1, maxOf(bitmap.width, bitmap.height) / 100)
+            // Very aggressive downsampling: 50x50 pixels is enough for change detection
+            val sampleSize = maxOf(1, maxOf(screenshot.width, screenshot.height) / 50)
             val sampledBitmap = Bitmap.createScaledBitmap(
-                bitmap,
-                bitmap.width / sampleSize,
-                bitmap.height / sampleSize,
+                screenshot,
+                screenshot.width / sampleSize,
+                screenshot.height / sampleSize,
                 false
             )
 
-            // Calculate pixel data hash directly
             val pixels = IntArray(sampledBitmap.width * sampledBitmap.height)
             sampledBitmap.getPixels(pixels, 0, sampledBitmap.width, 0, 0, sampledBitmap.width, sampledBitmap.height)
 
-            // Simple and fast hash algorithm
+            // Simple xor-based hash (faster than MD5)
             var hash = 0L
             for (pixel in pixels) {
-                hash = hash * 31 + pixel.toLong()
+                hash = hash xor (pixel.toLong() * 31)
             }
 
             sampledBitmap.recycle()
 
-            // Combine dimension info and pixel hash
-            return "${bitmap.width}x${bitmap.height}_${hash.hashCode()}"
+            // Include dimensions and return hex string for readability
+            return "${screenshot.width}x${screenshot.height}_${hash.toULong().toString(16)}"
         } catch (e: Exception) {
-            Logger.w(TAG, "Error generating screenshot hash, using fallback", e)
-            // Fallback to original method if sampling fails
-            return computeHashFallback(bitmap)
+            Logger.w(TAG, "Quick hash failed, using fallback", e)
+            return "${screenshot.width}x${screenshot.height}_${System.currentTimeMillis()}"
         }
-    }
-
-    /**
-     * Fallback hash method (original implementation)
-     */
-    private fun computeHashFallback(bitmap: Bitmap): String {
-        val outputStream = ByteArrayOutputStream()
-        bitmap.compress(Bitmap.CompressFormat.JPEG, 50, outputStream)
-        val bytes = outputStream.toByteArray()
-
-        val digest = MessageDigest.getInstance("MD5")
-        val hashBytes = digest.digest(bytes)
-        return hashBytes.joinToString("") { "%02x".format(it) }
     }
 
     /**
@@ -1132,7 +1114,6 @@ $decisionValues
     fun release() {
         stopAnalysis()
         scope.cancel()
-        hashResultCache.clear()
     }
 }
 
