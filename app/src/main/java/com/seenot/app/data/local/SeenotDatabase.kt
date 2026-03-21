@@ -4,11 +4,13 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import com.seenot.app.data.local.dao.AppHintDao
 import com.seenot.app.data.local.dao.IntentConstraintDao
 import com.seenot.app.data.local.dao.RuleRecordDao
 import com.seenot.app.data.local.dao.ScreenAnalysisResultDao
 import com.seenot.app.data.local.dao.SessionDao
 import com.seenot.app.data.local.dao.SessionIntentDao
+import com.seenot.app.data.local.entity.AppHintEntity
 import com.seenot.app.data.local.entity.IntentConstraintEntity
 import com.seenot.app.data.local.entity.RuleRecordEntity
 import com.seenot.app.data.local.entity.ScreenAnalysisResultEntity
@@ -24,9 +26,10 @@ import com.seenot.app.data.local.entity.SessionIntentEntity
         SessionIntentEntity::class,
         IntentConstraintEntity::class,
         ScreenAnalysisResultEntity::class,
-        RuleRecordEntity::class
+        RuleRecordEntity::class,
+        AppHintEntity::class
     ],
-    version = 3,
+    version = 4,
     exportSchema = false
 )
 abstract class SeenotDatabase : RoomDatabase() {
@@ -36,6 +39,7 @@ abstract class SeenotDatabase : RoomDatabase() {
     abstract fun intentConstraintDao(): IntentConstraintDao
     abstract fun screenAnalysisResultDao(): ScreenAnalysisResultDao
     abstract fun ruleRecordDao(): RuleRecordDao
+    abstract fun appHintDao(): AppHintDao
 
     companion object {
         private const val DATABASE_NAME = "seenot_database"
