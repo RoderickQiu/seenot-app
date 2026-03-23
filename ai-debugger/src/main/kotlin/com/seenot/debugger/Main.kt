@@ -42,7 +42,7 @@ class IntentDebugCommand : CliktCommand(name = "intent", help = "调试意图解
 class ScreenDebugCommand : CliktCommand(name = "screen", help = "调试屏幕分析器") {
     private val image by option("-i", "--image", help = "截图路径").file(mustExist = true)
     private val constraint by option("-c", "--constraint", help = "约束描述").default("购物车")
-    private val type by option("-t", "--type", help = "约束类型 (ALLOW/DENY/TIME_CAP)").default("DENY")
+    private val type by option("-t", "--type", help = "约束类型 (DENY/TIME_CAP)").default("DENY")
     private val dir by option("-d", "--dir", help = "批量测试目录").file()
 
     override fun run() = runBlocking {

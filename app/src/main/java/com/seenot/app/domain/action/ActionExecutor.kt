@@ -228,10 +228,6 @@ class ActionExecutor(private val context: Context) {
                 // DENY: show violation warning
                 "⚠️ 注意: ${constraint.description}"
             }
-            com.seenot.app.data.model.ConstraintType.ALLOW -> {
-                // ALLOW: show out of scope warning
-                "⚠️ 注意: 不在允许范围内"
-            }
         }
 
         Logger.d(TAG, "[executeToast] Showing toast: $message")

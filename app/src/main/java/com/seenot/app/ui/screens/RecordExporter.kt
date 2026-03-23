@@ -207,7 +207,7 @@ class RecordExporter(private val context: Context) {
             - packageName: 应用的包名（可选）
             - screenshotHash: 截图哈希值，用于去重（可选）
             - constraintId: 被评估的约束 ID
-            - constraintType: 约束类型 (ALLOW/DENY/TIME_CAP)
+            - constraintType: 约束类型 (DENY/TIME_CAP)
             - constraintContent: 约束内容描述
             - isConditionMatched: 条件是否匹配（是否违反规则）
             - confidence: AI 置信度分数 (0-100)

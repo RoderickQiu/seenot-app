@@ -4,9 +4,6 @@ package com.seenot.app.data.model
  * Constraint type as defined in PRD section 3.2.1
  */
 enum class ConstraintType {
-    /** Only allow this content - anything else triggers intervention */
-    ALLOW,
-
     /** Deny this content - this content triggers intervention */
     DENY,
 

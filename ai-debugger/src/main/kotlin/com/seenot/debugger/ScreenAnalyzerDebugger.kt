@@ -43,7 +43,7 @@ class ScreenAnalyzerDebugger {
     private val gson = Gson()
 
     companion object {
-        private const val MODEL = "qwen-vl-plus"
+        private const val MODEL = "qwen3.5-plus"
     }
 
     suspend fun singleTest(imageFile: File, constraintDesc: String, constraintType: String = "DENY") {
@@ -134,19 +134,16 @@ class ScreenAnalyzerDebugger {
 
         // Build type-specific rules
         val typeLabel = when (constraintType.uppercase()) {
-            "ALLOW" -> "只允许"
             "DENY" -> "禁止"
             "TIME_CAP" -> "时间限制"
             else -> "禁止"
         }
 
         val typeSpecificRules = when (constraintType.uppercase()) {
-            "ALLOW", "DENY" -> """
-3. **违规判断规则（针对 [禁止]/[只允许] 约束）：**
+            "DENY" -> """
+3. **违规判断规则（针对 [禁止] 约束）：**
    - [禁止] 约束：用户在被禁止的功能 → violates
      例：[禁止] QQ空间 → 只有在QQ空间才违规，QQ群聊不违规
-   - [只允许] 约束：用户不在允许的功能 → violates
-     例：[只允许] 查看文章 → 不在文章阅读界面就违规
    - 必须精确匹配功能名称，不要泛化
             """.trimIndent()
 
@@ -164,9 +161,9 @@ class ScreenAnalyzerDebugger {
         }
 
         val decisionValues = when (constraintType.uppercase()) {
-            "ALLOW", "DENY" -> """
-- violates: 违反约束（用于 [禁止]/[只允许]）
-- safe: 未违反约束（用于 [禁止]/[只允许]）
+            "DENY" -> """
+- violates: 违反约束（用于 [禁止]）
+- safe: 未违反约束（用于 [禁止]）
 - unknown: 无法判断
             """.trimIndent()
 

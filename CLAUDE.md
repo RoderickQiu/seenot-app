@@ -83,7 +83,7 @@ Platform Service Layer
 ### Key Data Models
 
 - **SessionIntent**: User's declared intent for a session (parsed from voice)
-- **IntentConstraint**: Single constraint (ALLOW/DENY/TIME_CAP)
+- **IntentConstraint**: Single constraint (DENY/TIME_CAP)
 - **ActiveSession**: Runtime session state
 - **ScreenAnalysisResult**: AI vision analysis result
 

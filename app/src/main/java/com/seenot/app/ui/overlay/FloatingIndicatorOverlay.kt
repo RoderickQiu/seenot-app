@@ -404,19 +404,6 @@ class FloatingIndicatorOverlay(
 
         return constraints.take(2).joinToString(" | ") { constraint ->
             when (constraint.type) {
-                ConstraintType.ALLOW -> {
-                    buildString {
-                        append("✓")
-                        if (constraint.description.isNotEmpty()) {
-                            append(constraint.description.take(6))
-                        }
-                        constraint.timeLimitMs?.let { ms ->
-                            val min = ms / 60000
-                            val scopeStr = constraint.timeScope?.displayLabel ?: ""
-                            append(" ${scopeStr}${min}分")
-                        }
-                    }
-                }
                 ConstraintType.DENY -> {
                     buildString {
                         append("✗")

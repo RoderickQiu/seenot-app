@@ -37,7 +37,7 @@ data class IntentConstraintEntity(
     /** Type of constraint */
     val type: ConstraintType,
 
-    /** For ALLOW/DENY: the content pattern to match */
+    /** For DENY: the content pattern to match */
     val contentPattern: String? = null,
 
     /** For TIME_CAP: time limit in milliseconds */

@@ -120,7 +120,7 @@ ${executionHistory.joinToString("\n\n")}
 ## 可用 Actions
 1. **create_rule** - 创建新规则
    - app_name: 应用名称
-   - rule_type: ALLOW/DENY/TIME_CAP
+   - rule_type: DENY/TIME_CAP
    - description: 规则描述（不要包含时间信息）
    - time_limit_minutes: 时间限制（支持整数和小数，如5, 7.5, 8.5）
    - intervention: GENTLE/MODERATE/STRICT
@@ -191,7 +191,7 @@ Action Input: {"param": "value"}
 如果还需要继续执行action，不要输出 Final Response。
 如果任务完成，输出: Final Response: 你想说的话（直接说，不要加前缀）
 
-注意：rule_type 用 ALLOW/DENY/TIME_CAP，intervention 用 GENTLE/MODERATE/STRICT
+注意：rule_type 用 DENY/TIME_CAP，intervention 用 GENTLE/MODERATE/STRICT
         """.trimIndent()
     }
 
@@ -284,7 +284,6 @@ Action Input: {"param": "value"}
 
                 val existingRules = sessionManager.loadPresetRules(app.packageName)
                 val ruleType = when (action.ruleType.uppercase()) {
-                    "ALLOW" -> ConstraintType.ALLOW
                     "TIME_CAP" -> ConstraintType.TIME_CAP
                     else -> ConstraintType.DENY
                 }
@@ -320,7 +319,6 @@ Action Input: {"param": "value"}
                 val updated = target.copy(
                     type = action.newRuleType?.let {
                         when (it.uppercase()) {
-                            "ALLOW" -> ConstraintType.ALLOW
                             "TIME_CAP" -> ConstraintType.TIME_CAP
                             else -> ConstraintType.DENY
                         }

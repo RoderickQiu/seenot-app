@@ -539,17 +539,6 @@ class IntentInputDialogOverlay(
         }
 
         val constraintText = when (constraints.type) {
-            ConstraintType.ALLOW -> {
-                buildString {
-                    append("允许 ${constraints.description.take(10)}")
-                    constraints.timeLimitMs?.let { ms ->
-                        val min = ms / 60000.0
-                        val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
-                        val scopeStr = constraints.timeScope?.displayLabel ?: ""
-                        append(" ${scopeStr}${minText}分")
-                    }
-                }
-            }
             ConstraintType.DENY -> {
                 buildString {
                     append("禁止 ${constraints.description.take(10)}")
@@ -651,17 +640,6 @@ class IntentInputDialogOverlay(
 
         val constraintText = constraints.joinToString(" / ") { c ->
             when (c.type) {
-                ConstraintType.ALLOW -> {
-                    buildString {
-                        append("允许 ${c.description.take(10)}")
-                        c.timeLimitMs?.let { ms ->
-                            val min = ms / 60000.0
-                            val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
-                            val scopeStr = c.timeScope?.displayLabel ?: ""
-                            append(" ${scopeStr}${minText}分")
-                        }
-                    }
-                }
                 ConstraintType.DENY -> {
                     buildString {
                         append("禁止 ${c.description.take(10)}")
@@ -757,7 +735,6 @@ class IntentInputDialogOverlay(
 
                 val rulesText = pendingConstraints?.joinToString("\n") { c ->
                     when (c.type) {
-                        ConstraintType.ALLOW -> "允许: ${c.description}"
                         ConstraintType.DENY -> "禁止: ${c.description}"
                         ConstraintType.TIME_CAP -> {
                             val min = c.timeLimitMs?.let { it / 60000.0 } ?: 0.0

@@ -275,7 +275,7 @@ class SessionManager(private val context: Context) {
         startTimer()
 
         if (ApiConfig.isConfigured()) {
-            startScreenAnalysis(packageName, constraints)
+            startScreenAnalysis(packageName, displayName, constraints)
         }
 
         _sessionEvents.emit(SessionEvent.SessionStarted(activeSession))
@@ -287,7 +287,7 @@ class SessionManager(private val context: Context) {
      * Start screen analysis for the current session
      */
     @Suppress("UNUSED_PARAMETER")
-    private fun startScreenAnalysis(packageName: String, constraints: List<SessionConstraint>) {
+    private fun startScreenAnalysis(packageName: String, displayName: String, constraints: List<SessionConstraint>) {
         if (screenAnalyzer == null) {
             screenAnalyzer = ScreenAnalyzer(context)
         }
@@ -298,6 +298,7 @@ class SessionManager(private val context: Context) {
         // Start periodic analysis
         screenAnalyzer?.startAnalysis(
             packageName = packageName,
+            displayName = displayName,
             constraints = constraints,
             onViolation = { constraint, confidence ->
                 handleViolation(constraint, confidence)
@@ -366,7 +367,7 @@ class SessionManager(private val context: Context) {
 
         // Restart screen analysis
         if (ApiConfig.isConfigured()) {
-            startScreenAnalysis(session.appPackageName, session.constraints)
+            startScreenAnalysis(session.appPackageName, session.appDisplayName, session.constraints)
         }
 
         scope.launch {
@@ -477,12 +478,7 @@ class SessionManager(private val context: Context) {
     }
 
     private fun validateConstraintMutualExclusion(constraints: List<SessionConstraint>) {
-        val hasAllow = constraints.any { it.type == ConstraintType.ALLOW }
-        val hasDeny = constraints.any { it.type == ConstraintType.DENY }
-
-        if (hasAllow && hasDeny) {
-            Logger.w(TAG, "Constraint validation warning: Both ALLOW and DENY constraints present. Latest intent takes precedence.")
-        }
+        // ALLOW has been removed, so no mutual exclusion check needed
     }
 
     /**

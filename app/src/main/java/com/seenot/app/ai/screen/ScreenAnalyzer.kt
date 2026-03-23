@@ -98,16 +98,19 @@ class ScreenAnalyzer(
 
     // Current app being monitored
     var currentPackageName: String? = null
+    var currentAppDisplayName: String? = null
 
     /**
      * Start periodic screen analysis
      */
     fun startAnalysis(
         packageName: String,
+        displayName: String,
         constraints: List<SessionConstraint>,
         onViolation: (SessionConstraint, Double) -> Unit
     ) {
         currentPackageName = packageName
+        currentAppDisplayName = displayName
 
         if (constraints.isEmpty()) {
             Logger.d(TAG, "No active constraints to analyze")
@@ -290,7 +293,7 @@ class ScreenAnalyzer(
             // Call AI to analyze
             Logger.d(TAG, "🤖 Calling AI analysis...")
             val aiStart = System.currentTimeMillis()
-            val matches = callAIAnalysis(processedBitmap, constraints)
+            val matches = callAIAnalysis(processedBitmap, constraints, currentAppDisplayName ?: "", currentPackageName ?: "")
             val aiDuration = System.currentTimeMillis() - aiStart
             Logger.d(TAG, "✅ AI analysis complete (${aiDuration}ms)")
 
@@ -303,10 +306,8 @@ class ScreenAnalyzer(
 
             // Update content match states in SessionManager
             matches.forEach { match ->
-                // For ALLOW constraints: matching = in target content
                 // For DENY constraints: matching = in forbidden content (but we still track it)
                 val isInTargetContent = when (match.constraint.type) {
-                    ConstraintType.ALLOW -> !match.isViolation // Not violating ALLOW = in target
                     ConstraintType.DENY -> match.isViolation // Violating DENY = in forbidden content
                     ConstraintType.TIME_CAP -> false // Legacy, not used
                 }
@@ -337,7 +338,7 @@ class ScreenAnalyzer(
             if (packageName != null && matches.isNotEmpty()) {
                 try {
                     for (match in matches) {
-                        // For DENY/ALLOW: isConditionMatched = !isViolation (true = safe, false = violates)
+                        // For DENY: isConditionMatched = !isViolation (true = safe, false = violates)
                         // For TIME_CAP: isConditionMatched = isInScope (true = in_scope, false = out_of_scope)
                         val isConditionMatched = when (match.constraint.type) {
                             ConstraintType.TIME_CAP -> {
@@ -437,9 +438,9 @@ class ScreenAnalyzer(
         val timeCapMatches = matches.filter { it.constraint.type == ConstraintType.TIME_CAP }
         val denyAllowMatches = matches.filter { it.constraint.type != ConstraintType.TIME_CAP }
 
-        // Build toast message
+        // Build toast message - always give feedback for any analysis result
         val message = buildString {
-            // Show violations first (DENY/ALLOW only)
+            // Show violations first (DENY only)
             if (violations.isNotEmpty()) {
                 val reason = violations.firstOrNull()?.reason?.take(20) ?: "未知"
                 append("⚠️ 违规: $reason")
@@ -448,15 +449,19 @@ class ScreenAnalyzer(
                 append("✅ 符合规则: $reason")
             }
 
-            // Show TIME_CAP status
+            // Show TIME_CAP status - always show, regardless of in/out of scope
             if (timeCapMatches.isNotEmpty()) {
                 val inScopeCount = timeCapMatches.count { match ->
                     match.reason?.contains("in_scope", ignoreCase = true) == true
                 }
 
+                if (isNotEmpty()) append(" | ")
                 if (inScopeCount > 0) {
-                    if (isNotEmpty()) append(" | ")
-                    append("⏱️ 计时中 ($inScopeCount)")
+                    val reason = timeCapMatches.firstOrNull()?.reason?.take(10) ?: ""
+                    append("⏱️ $reason 计时中")
+                } else {
+                    val reason = timeCapMatches.firstOrNull()?.reason?.take(10) ?: ""
+                    append("⏱️ $reason 范围外")
                 }
             }
         }
@@ -664,7 +669,9 @@ class ScreenAnalyzer(
      */
     private suspend fun callAIAnalysis(
         screenshot: Bitmap,
-        constraints: List<SessionConstraint>
+        constraints: List<SessionConstraint>,
+        appName: String = "",
+        packageName: String = ""
     ): List<ConstraintMatch> = withContext(Dispatchers.IO) {
 
         // Convert bitmap to base64
@@ -672,7 +679,7 @@ class ScreenAnalyzer(
         Logger.d(TAG, "[AI] Image base64 size: ${imageBase64.length} chars")
 
         // Build prompt with constraints
-        val prompt = buildAnalysisPrompt(constraints)
+        val prompt = buildAnalysisPrompt(constraints, appName, packageName)
         Logger.d(TAG, "[AI] Prompt length: ${prompt.length} chars")
 
         try {
@@ -682,7 +689,7 @@ class ScreenAnalyzer(
                 return@withContext emptyList()
             }
 
-            Logger.d(TAG, "[AI] Using DashScope SDK with model: qwen-vl-plus")
+            Logger.d(TAG, "[AI] Using DashScope SDK with model: qwen3.5-plus")
 
             // Build user message with image and text
             val userContent = listOf(
@@ -698,7 +705,7 @@ class ScreenAnalyzer(
             // Build conversation param
             val param = MultiModalConversationParam.builder()
                 .apiKey(apiKey)
-                .model("qwen-vl-plus")
+                .model("qwen3.5-plus")
                 .message(userMessage)
                 .temperature(0.3f)
                 .maxTokens(1000)
@@ -799,7 +806,7 @@ class ScreenAnalyzer(
                         ?: return@mapNotNull null
 
                     // Determine violation based on decision and constraint type:
-                    // For DENY/ALLOW:
+                    // For DENY:
                     //   - violates = violation
                     //   - safe = no violation
                     // For TIME_CAP:
@@ -917,7 +924,11 @@ class ScreenAnalyzer(
     /**
      * Build analysis prompt with constraints
      */
-    private fun buildAnalysisPrompt(constraints: List<SessionConstraint>): String {
+    private fun buildAnalysisPrompt(
+        constraints: List<SessionConstraint>,
+        appName: String = "",
+        packageName: String = ""
+    ): String {
         // Group constraints by type
         val denyAllowConstraints = constraints.filter { it.type != ConstraintType.TIME_CAP }
         val timeCapConstraints = constraints.filter { it.type == ConstraintType.TIME_CAP }
@@ -925,7 +936,6 @@ class ScreenAnalyzer(
         // Build constraint list text
         val constraintsText = constraints.mapIndexed { index, constraint ->
             val typeLabel = when (constraint.type) {
-                ConstraintType.ALLOW -> "只允许"
                 ConstraintType.DENY -> "禁止"
                 ConstraintType.TIME_CAP -> "时间限制"
             }
@@ -935,11 +945,9 @@ class ScreenAnalyzer(
         // Build type-specific rules
         val typeSpecificRules = buildString {
             if (denyAllowConstraints.isNotEmpty()) {
-                appendLine("3. **违规判断规则（针对 [禁止]/[只允许] 约束）：**")
+                appendLine("3. **违规判断规则（针对 [禁止] 约束）：**")
                 appendLine("   - [禁止] 约束：用户在被禁止的功能 → violates")
                 appendLine("     例：[禁止] QQ空间 → 只有在QQ空间才违规，QQ群聊不违规")
-                appendLine("   - [只允许] 约束：用户不在允许的功能 → violates")
-                appendLine("     例：[只允许] 查看文章 → 不在文章阅读界面就违规")
                 appendLine("   - **多条件约束（OR逻辑）**：如果约束描述包含多个条件（如\"朋友圈和视频号\"），判断屏幕是否包含**任一**条件")
                 appendLine("     例：[禁止] 朋友圈和视频号 → 在朋友圈违规，在视频号也违规，在聊天界面不违规")
                 appendLine("   - 必须精确匹配功能名称，不要泛化")
@@ -960,8 +968,8 @@ class ScreenAnalyzer(
         // Build decision values based on constraint types
         val decisionValues = buildString {
             if (denyAllowConstraints.isNotEmpty()) {
-                appendLine("- violates: 违反约束（用于 [禁止]/[只允许]）")
-                appendLine("- safe: 未违反约束（用于 [禁止]/[只允许]）")
+                appendLine("- violates: 违反约束（用于 [禁止]）")
+                appendLine("- safe: 未违反约束（用于 [禁止]）")
             }
             if (timeCapConstraints.isNotEmpty()) {
                 appendLine("- in_scope: 在目标范围内（用于 [时间限制]）")
@@ -971,7 +979,15 @@ class ScreenAnalyzer(
         }.trimEnd()
 
         // Similar to seenot-reborn's AI_PROMPT - require confidence output
+        val envInfo = buildString {
+            if (appName.isNotBlank()) appendLine("- 应用名称：$appName")
+            if (packageName.isNotBlank()) appendLine("- 应用包名：$packageName")
+        }.trimEnd()
+
         return """
+**当前环境：**
+$envInfo
+
 你是屏幕场景识别AI，判断用户当前行为与约束的关系。
 
 **核心任务：**

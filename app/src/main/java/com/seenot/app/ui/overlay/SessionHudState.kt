@@ -87,7 +87,6 @@ fun formatTimeRemaining(ms: Long): String {
  */
 fun getConstraintTypeIcon(type: ConstraintType): String {
     return when (type) {
-        ConstraintType.ALLOW -> "✓"
         ConstraintType.DENY -> "✗"
         ConstraintType.TIME_CAP -> "⏱"
     }
@@ -100,7 +99,6 @@ fun getConstraintTypeColor(type: ConstraintType, isViolating: Boolean): Color {
     if (isViolating) return Color(0xFFF44336) // Red
 
     return when (type) {
-        ConstraintType.ALLOW -> Color(0xFF4CAF50) // Green
         ConstraintType.DENY -> Color(0xFFFF9800) // Orange
         ConstraintType.TIME_CAP -> Color(0xFF2196F3) // Blue
     }

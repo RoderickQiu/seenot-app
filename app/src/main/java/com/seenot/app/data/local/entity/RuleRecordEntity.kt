@@ -30,7 +30,7 @@ data class RuleRecordEntity(
     val constraintType: String? = null,
     val constraintContent: String? = null,
 
-    // For DENY/ALLOW: true = safe, false = violates
+    // For DENY: true = safe, false = violates
     // For TIME_CAP: true = in_scope, false = out_of_scope
     val isConditionMatched: Boolean,
 

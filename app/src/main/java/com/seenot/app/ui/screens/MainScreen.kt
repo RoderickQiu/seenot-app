@@ -1159,7 +1159,6 @@ fun AddPresetRuleDialog(
                             label = {
                                 Text(
                                     when (type) {
-                                        ConstraintType.ALLOW -> "允许"
                                         ConstraintType.DENY -> "禁止"
                                         ConstraintType.TIME_CAP -> "时间限制"
                                     }
@@ -1178,7 +1177,7 @@ fun AddPresetRuleDialog(
                         )
                     ) {
                         Text(
-                            text = "⚠️ 注意：ALLOW（允许）和 DENY（禁止）不能同时存在。如果已有其他类型约束，新约束将替换它。",
+                            text = "⚠️ 注意：DENY（禁止）和 TIME_CAP（时间限制）可以同时存在。如果已有其他类型约束，新约束将替换它。",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onErrorContainer,
                             modifier = Modifier.padding(12.dp)
@@ -1208,7 +1207,7 @@ fun AddPresetRuleDialog(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 // Time Limit
-                if (ruleType == ConstraintType.TIME_CAP || ruleType == ConstraintType.ALLOW || ruleType == ConstraintType.DENY) {
+                if (ruleType == ConstraintType.TIME_CAP || ruleType == ConstraintType.DENY) {
                     OutlinedTextField(
                         value = timeLimitMinutes,
                         onValueChange = { timeLimitMinutes = it.filter { c -> c.isDigit() || c == '.' } },
@@ -1358,7 +1357,6 @@ fun EditPresetRuleDialog(
                             label = {
                                 Text(
                                     when (type) {
-                                        ConstraintType.ALLOW -> "允许"
                                         ConstraintType.DENY -> "禁止"
                                         ConstraintType.TIME_CAP -> "时间限制"
                                     }
@@ -1388,7 +1386,7 @@ fun EditPresetRuleDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                if (ruleType == ConstraintType.TIME_CAP || ruleType == ConstraintType.ALLOW || ruleType == ConstraintType.DENY) {
+                if (ruleType == ConstraintType.TIME_CAP || ruleType == ConstraintType.DENY) {
                     OutlinedTextField(
                         value = timeLimitMinutes,
                         onValueChange = { timeLimitMinutes = it.filter { c -> c.isDigit() || c == '.' } },
@@ -1540,7 +1538,6 @@ fun EditHistoryRuleDialog(
                             ) {
                                 Text(
                                     text = when (constraint.type) {
-                                        ConstraintType.ALLOW -> "允许"
                                         ConstraintType.DENY -> "禁止"
                                         ConstraintType.TIME_CAP -> "时间限制"
                                     },
@@ -1676,7 +1673,6 @@ fun EditConstraintDialog(
                             label = {
                                 Text(
                                     when (type) {
-                                        ConstraintType.ALLOW -> "允许"
                                         ConstraintType.DENY -> "禁止"
                                         ConstraintType.TIME_CAP -> "时间限制"
                                     }
@@ -1706,7 +1702,7 @@ fun EditConstraintDialog(
 
                 Spacer(modifier = Modifier.height(12.dp))
 
-                if (ruleType == ConstraintType.TIME_CAP || ruleType == ConstraintType.ALLOW || ruleType == ConstraintType.DENY) {
+                if (ruleType == ConstraintType.TIME_CAP || ruleType == ConstraintType.DENY) {
                     OutlinedTextField(
                         value = timeLimitMinutes,
                         onValueChange = { timeLimitMinutes = it.filter { c -> c.isDigit() || c == '.' } },

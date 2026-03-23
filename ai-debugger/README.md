@@ -52,14 +52,6 @@ cd ai-debugger
 - 返回值：`violates`（违规）/ `safe`（安全）/ `unknown`（无法判断）
 - 示例：`[禁止] 刷短视频` → 在短视频页面返回 `violates`
 
-### ALLOW（只允许）
-```bash
-../gradlew :ai-debugger:run --args="screen -i screenshot.png -c '查看文章' -t ALLOW" --console=plain
-```
-- AI 判断：用户是否在允许的功能范围内
-- 返回值：`violates`（不在范围内）/ `safe`（在范围内）/ `unknown`（无法判断）
-- 示例：`[只允许] 查看文章` → 不在文章页面返回 `violates`
-
 ### TIME_CAP（时间限制）
 ```bash
 ../gradlew :ai-debugger:run --args="screen -i screenshot.png -c '小红书首页' -t TIME_CAP" --console=plain
@@ -106,13 +98,7 @@ cd ai-debugger
    # 预期：在短视频页面返回 violates
    ```
 
-2. **测试 ALLOW 类型（只允许）**
-   ```bash
-   ../gradlew :ai-debugger:run --args="screen -i test-data/screenshots/article.png -c '查看文章' -t ALLOW" --console=plain
-   # 预期：在文章页面返回 safe，在其他页面返回 violates
-   ```
-
-3. **测试 TIME_CAP 类型（时间限制）**
+2. **测试 TIME_CAP 类型（时间限制）**
    ```bash
    ../gradlew :ai-debugger:run --args="screen -i test-data/screenshots/xiaohongshu.png -c '小红书首页' -t TIME_CAP" --console=plain
    # 预期：在小红书首页返回 in_scope，在其他页面返回 out_of_scope
