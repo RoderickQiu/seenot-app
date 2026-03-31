@@ -2,19 +2,24 @@ package com.seenot.app.service
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.GestureDescription
+import android.app.KeyguardManager
 import android.app.Notification
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.graphics.Bitmap
 import android.graphics.Path
+import android.hardware.display.DisplayManager
 import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.PowerManager
 import com.seenot.app.utils.Logger
 import android.view.Display
 import android.view.accessibility.AccessibilityEvent
@@ -60,6 +65,9 @@ class SeenotAccessibilityService : AccessibilityService() {
         private val _isServiceReady = MutableStateFlow(false)
         val isServiceReady: StateFlow<Boolean> = _isServiceReady.asStateFlow()
 
+        private val _deviceState = MutableStateFlow(AccessibilityDeviceState())
+        val deviceState: StateFlow<AccessibilityDeviceState> = _deviceState.asStateFlow()
+
     // Track current monitored app to prevent indicator flickering
     private var currentMonitoredPackage: String? = null
     
@@ -76,15 +84,24 @@ class SeenotAccessibilityService : AccessibilityService() {
     private val gestureExecutor: Executor = Executors.newSingleThreadExecutor()
     private var lastAppSwitchTime = 0L
     private lateinit var sessionManager: SessionManager
+    private var deviceStateReceiverRegistered = false
     
     // Service-level coroutine scope to prevent leaks
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
+    private val deviceStateReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            Logger.d(TAG, "Device state broadcast received: ${intent?.action}")
+            updateDeviceState()
+        }
+    }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
         try {
             instance = this
             _isServiceReady.value = true
+            updateDeviceState()
+            registerDeviceStateReceiver()
             Logger.d(TAG, "AccessibilityService connected")
 
             // Start foreground service to prevent being killed
@@ -96,6 +113,63 @@ class SeenotAccessibilityService : AccessibilityService() {
         } catch (e: Exception) {
             Logger.e(TAG, "Error in onServiceConnected", e)
         }
+    }
+
+    private fun registerDeviceStateReceiver() {
+        if (deviceStateReceiverRegistered) return
+
+        val filter = IntentFilter().apply {
+            addAction(Intent.ACTION_SCREEN_OFF)
+            addAction(Intent.ACTION_SCREEN_ON)
+            addAction(Intent.ACTION_USER_PRESENT)
+        }
+
+        registerReceiver(deviceStateReceiver, filter)
+        deviceStateReceiverRegistered = true
+        Logger.d(TAG, "Registered device state receiver")
+    }
+
+    private fun unregisterDeviceStateReceiver() {
+        if (!deviceStateReceiverRegistered) return
+
+        try {
+            unregisterReceiver(deviceStateReceiver)
+            Logger.d(TAG, "Unregistered device state receiver")
+        } catch (e: Exception) {
+            Logger.w(TAG, "Failed to unregister device state receiver: ${e.message}")
+        } finally {
+            deviceStateReceiverRegistered = false
+        }
+    }
+
+    private fun updateDeviceState() {
+        _deviceState.value = readDeviceState()
+    }
+
+    private fun readDeviceState(): AccessibilityDeviceState {
+        val powerManager = getSystemService(PowerManager::class.java)
+        val keyguardManager = getSystemService(KeyguardManager::class.java)
+        val displayManager = getSystemService(DisplayManager::class.java)
+        val displayState = displayManager?.getDisplay(Display.DEFAULT_DISPLAY)?.state
+
+        val isInteractive = powerManager?.isInteractive == true
+        val isDeviceLocked = keyguardManager?.isDeviceLocked ?: true
+        val isKeyguardLocked = keyguardManager?.isKeyguardLocked ?: true
+        val shouldAnalyze =
+            isInteractive &&
+                !isDeviceLocked &&
+                !isKeyguardLocked &&
+                displayState != null &&
+                displayState != Display.STATE_OFF
+
+        return AccessibilityDeviceState(
+            shouldAnalyze = shouldAnalyze,
+            isInteractive = isInteractive,
+            isDeviceLocked = isDeviceLocked,
+            isKeyguardLocked = isKeyguardLocked,
+            displayState = displayState,
+            changedAt = System.currentTimeMillis()
+        )
     }
 
     /**
@@ -482,6 +556,7 @@ class SeenotAccessibilityService : AccessibilityService() {
         try {
             super.onDestroy()
             serviceScope.cancel()
+            unregisterDeviceStateReceiver()
             stopForeground(STOP_FOREGROUND_REMOVE)
             dismissAllOverlays()
             instance = null
@@ -494,6 +569,7 @@ class SeenotAccessibilityService : AccessibilityService() {
 
     override fun onUnbind(intent: Intent?): Boolean {
         try {
+            unregisterDeviceStateReceiver()
             instance = null
             _isServiceReady.value = false
             return super.onUnbind(intent)
@@ -707,3 +783,12 @@ class SeenotAccessibilityService : AccessibilityService() {
         return node.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)
     }
 }
+
+data class AccessibilityDeviceState(
+    val shouldAnalyze: Boolean = false,
+    val isInteractive: Boolean = false,
+    val isDeviceLocked: Boolean = true,
+    val isKeyguardLocked: Boolean = true,
+    val displayState: Int? = null,
+    val changedAt: Long = System.currentTimeMillis()
+)

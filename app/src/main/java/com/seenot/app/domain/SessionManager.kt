@@ -116,6 +116,7 @@ class SessionManager(private val context: Context) {
         Logger.d(TAG, "SessionManager initializing, observing app changes")
         Logger.i(TAG, "SessionManager initializing, observing app changes")
         observeAppChanges()
+        observeDeviceStateChanges()
     }
 
     /**
@@ -128,6 +129,74 @@ class SessionManager(private val context: Context) {
                     handleAppChange(packageName)
                 }
             }
+        }
+    }
+
+    private fun observeDeviceStateChanges() {
+        scope.launch {
+            SeenotAccessibilityService.deviceState
+                .distinctUntilChangedBy { state ->
+                    listOf(
+                        state.shouldAnalyze,
+                        state.isInteractive,
+                        state.isDeviceLocked,
+                        state.isKeyguardLocked,
+                        state.displayState
+                    )
+                }
+                .collect { state ->
+                    handleDeviceStateChange(state)
+                }
+        }
+    }
+
+    private suspend fun handleDeviceStateChange(state: com.seenot.app.service.AccessibilityDeviceState) {
+        val currentSession = _activeSession.value ?: return
+
+        if (!state.shouldAnalyze) {
+            if (!currentSession.isPaused) {
+                Logger.d(
+                    TAG,
+                    "Device became unsuitable for analysis, pausing session " +
+                        "(interactive=${state.isInteractive}, " +
+                        "deviceLocked=${state.isDeviceLocked}, " +
+                        "keyguardLocked=${state.isKeyguardLocked}, " +
+                        "displayState=${state.displayState})"
+                )
+                pauseSession()
+                sessionPausedAt = System.currentTimeMillis()
+            }
+            return
+        }
+
+        if (!currentSession.isPaused) {
+            return
+        }
+
+        val currentPackage = SeenotAccessibilityService.currentPackage.value
+        if (currentPackage != currentSession.appPackageName) {
+            Logger.d(
+                TAG,
+                "Device became analyzable again, but foreground package is $currentPackage " +
+                    "instead of ${currentSession.appPackageName}; keeping session paused"
+            )
+            return
+        }
+
+        val pausedAt = sessionPausedAt
+        val timeDiff = if (pausedAt != null) System.currentTimeMillis() - pausedAt else -1
+        if (pausedAt != null && timeDiff <= SHORT_PAUSE_THRESHOLD) {
+            Logger.d(TAG, "Resuming session after device state recovery for ${currentSession.appPackageName}")
+            resumeSession()
+            sessionPausedAt = null
+        } else {
+            Logger.d(
+                TAG,
+                "Device recovered after pause timeout for ${currentSession.appPackageName}, ending session"
+            )
+            endSession(SessionEndReason.USER_LEFT)
+            sessionPausedAt = null
+            requestNewSession(currentSession.appPackageName)
         }
     }
 

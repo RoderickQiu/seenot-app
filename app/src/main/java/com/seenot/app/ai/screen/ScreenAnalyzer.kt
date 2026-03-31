@@ -1,5 +1,6 @@
 package com.seenot.app.ai.screen
 
+import android.app.KeyguardManager
 import android.app.NotificationManager
 import android.content.Context
 import android.content.res.Configuration
@@ -10,7 +11,9 @@ import android.graphics.Matrix
 import android.graphics.Paint
 import android.os.Handler
 import android.os.Looper
-
+import android.os.PowerManager
+import android.hardware.display.DisplayManager
+import android.view.Display
 import com.seenot.app.utils.Logger
 import com.seenot.app.ui.overlay.FloatingIndicatorOverlay
 import com.seenot.app.ui.overlay.InterventionFeedbackDialogOverlay
@@ -64,6 +67,10 @@ class ScreenAnalyzer(
         // Screenshot processing
         const val MAX_LONG_EDGE_PX = 960
         const val TOAST_DISMISS_DELAY_MS = 100L
+        private const val BLACK_FRAME_SAMPLE_SIZE = 48
+        private const val BLACK_FRAME_LUMA_THRESHOLD = 18.0
+        private const val BLACK_FRAME_AVG_LUMA_THRESHOLD = 12.0
+        private const val BLACK_FRAME_DARK_PIXEL_RATIO_THRESHOLD = 0.985
 
         // Confidence thresholds
         const val CONFIDENCE_HIGH = 0.90
@@ -128,6 +135,20 @@ class ScreenAnalyzer(
             while (isActive) {
                 delay(analysisIntervalMs)
 
+                val deviceState = getDeviceAnalysisState()
+                if (!deviceState.shouldAnalyze) {
+                    Logger.d(
+                        TAG,
+                        "⏸️ Device state unsuitable for analysis, skipping frame " +
+                            "(interactive=${deviceState.isInteractive}, " +
+                            "deviceLocked=${deviceState.isDeviceLocked}, " +
+                            "keyguardLocked=${deviceState.isKeyguardLocked}, " +
+                            "displayState=${deviceState.displayState})"
+                    )
+                    resetTransientAnalysisState()
+                    continue
+                }
+
                 val blockingOverlay = getBlockingOverlayName()
                 if (blockingOverlay != null) {
                     Logger.d(TAG, "⏸️ Blocking overlay visible ($blockingOverlay), skipping screenshot analysis")
@@ -136,6 +157,12 @@ class ScreenAnalyzer(
 
                 // Capture screenshot for hash comparison FIRST (before full processing)
                 val screenshot = captureScreenshotWithDelay() ?: continue
+                if (isLikelyBlackFrame(screenshot)) {
+                    Logger.d(TAG, "⏸️ Likely black/invalid frame detected, skipping screenshot analysis")
+                    screenshot.recycle()
+                    resetTransientAnalysisState()
+                    continue
+                }
                 val quickHash = computeQuickHash(screenshot)
 
                 // Keyframe detection: if screen hasn't changed, skip AI call but preserve violation handling
@@ -238,6 +265,33 @@ class ScreenAnalyzer(
             IntentInputDialogOverlay.isShowing() -> "IntentInputDialogOverlay"
             else -> null
         }
+    }
+
+    private fun resetTransientAnalysisState() {
+        lastQuickHash = null
+        lastViolationState = emptyMap()
+        consecutiveViolations = 0
+        _lastAnalysisResult.value = null
+    }
+
+    private fun getDeviceAnalysisState(): DeviceAnalysisState {
+        val powerManager = context.getSystemService(PowerManager::class.java)
+        val keyguardManager = context.getSystemService(KeyguardManager::class.java)
+        val displayManager = context.getSystemService(DisplayManager::class.java)
+        val displayState = displayManager?.getDisplay(Display.DEFAULT_DISPLAY)?.state
+
+        val isInteractive = powerManager?.isInteractive == true
+        val isDeviceLocked = keyguardManager?.isDeviceLocked ?: true
+        val isKeyguardLocked = keyguardManager?.isKeyguardLocked ?: true
+        val isDisplayUsable = displayState != null && displayState != Display.STATE_OFF
+
+        return DeviceAnalysisState(
+            shouldAnalyze = isInteractive && !isDeviceLocked && !isKeyguardLocked && isDisplayUsable,
+            isInteractive = isInteractive,
+            isDeviceLocked = isDeviceLocked,
+            isKeyguardLocked = isKeyguardLocked,
+            displayState = displayState
+        )
     }
 
     /**
@@ -685,6 +739,65 @@ class ScreenAnalyzer(
 
         // Fallback: create new bitmap with same config
         return bitmap.copy(Bitmap.Config.ARGB_8888, true)
+    }
+
+    private fun isLikelyBlackFrame(bitmap: Bitmap): Boolean {
+        var sampledBitmap: Bitmap? = null
+        return try {
+            sampledBitmap = Bitmap.createScaledBitmap(
+                bitmap,
+                BLACK_FRAME_SAMPLE_SIZE,
+                BLACK_FRAME_SAMPLE_SIZE,
+                false
+            )
+
+            val pixels = IntArray(BLACK_FRAME_SAMPLE_SIZE * BLACK_FRAME_SAMPLE_SIZE)
+            sampledBitmap.getPixels(
+                pixels,
+                0,
+                BLACK_FRAME_SAMPLE_SIZE,
+                0,
+                0,
+                BLACK_FRAME_SAMPLE_SIZE,
+                BLACK_FRAME_SAMPLE_SIZE
+            )
+
+            var darkPixels = 0
+            var totalLuma = 0.0
+
+            for (pixel in pixels) {
+                val luma = (
+                    Color.red(pixel) * 0.299 +
+                        Color.green(pixel) * 0.587 +
+                        Color.blue(pixel) * 0.114
+                    )
+                totalLuma += luma
+                if (luma <= BLACK_FRAME_LUMA_THRESHOLD) {
+                    darkPixels++
+                }
+            }
+
+            val avgLuma = totalLuma / pixels.size
+            val darkRatio = darkPixels.toDouble() / pixels.size
+            val isBlackFrame =
+                darkRatio >= BLACK_FRAME_DARK_PIXEL_RATIO_THRESHOLD &&
+                    avgLuma <= BLACK_FRAME_AVG_LUMA_THRESHOLD
+
+            if (isBlackFrame) {
+                Logger.d(
+                    TAG,
+                    "Black frame metrics: avgLuma=${"%.2f".format(avgLuma)}, " +
+                        "darkRatio=${"%.4f".format(darkRatio)}"
+                )
+            }
+
+            isBlackFrame
+        } catch (e: Exception) {
+            Logger.w(TAG, "Black frame detection failed, treating frame as valid", e)
+            false
+        } finally {
+            sampledBitmap?.recycle()
+        }
     }
 
     /**
@@ -1181,4 +1294,12 @@ data class ConstraintMatch(
     val isViolation: Boolean,
     val confidence: Double,
     val reason: String?
+)
+
+private data class DeviceAnalysisState(
+    val shouldAnalyze: Boolean,
+    val isInteractive: Boolean,
+    val isDeviceLocked: Boolean,
+    val isKeyguardLocked: Boolean,
+    val displayState: Int?
 )
