@@ -59,3 +59,9 @@ Thumbs.db
 
 # ai-debugger build output
 ai-debugger/bin/
+
+# markdowns
+*.md
+!README.md
+!CLAUDE.md
+!PRD.md
