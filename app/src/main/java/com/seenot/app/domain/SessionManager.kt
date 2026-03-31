@@ -10,9 +10,11 @@ import com.seenot.app.data.local.entity.SessionEntity
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.InterventionLevel
 import com.seenot.app.data.model.TimeScope
+import com.seenot.app.data.repository.RuleRecordRepository
 import com.seenot.app.data.repository.SessionRepository
 import com.seenot.app.domain.action.ActionExecutor
 import com.seenot.app.service.SeenotAccessibilityService
+import com.seenot.app.ui.overlay.InterventionFeedbackDialogOverlay
 import com.seenot.app.utils.Logger
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
@@ -41,6 +43,8 @@ class SessionManager(private val context: Context) {
 
         // Short vs long session pause threshold (ms)
         private const val SHORT_PAUSE_THRESHOLD = 30_000L // 30 seconds
+        private const val FALSE_POSITIVE_DIALOG_COOLDOWN_MS = 30_000L
+        private const val DIALOG_REENTRY_COOLDOWN_MS = 5_000L
 
         // SeeNot's own package - should be ignored in app detection
         const val SEENOT_PACKAGE_NAME = "com.seenot.app"
@@ -62,6 +66,7 @@ class SessionManager(private val context: Context) {
         database.intentConstraintDao(),
         database.screenAnalysisResultDao()
     )
+    private val ruleRecordRepository = RuleRecordRepository(context)
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -101,6 +106,10 @@ class SessionManager(private val context: Context) {
 
     // Content match state for conditional timing
     private val constraintMatchStates = mutableMapOf<String, Boolean>()
+
+    // Minimal in-session suppression after user marks a violation as false positive.
+    private var falsePositiveDialogCooldownUntil = 0L
+    private var dialogReentryCooldownUntil = 0L
 
     init {
         // Start listening for app changes
@@ -321,18 +330,123 @@ class SessionManager(private val context: Context) {
             violationCount = currentSession.violationCount + 1
         )
 
-        // Execute intervention based on confidence
-        actionExecutor?.executeIntervention(
-            constraint,
-            confidence,
-            "violation",
-            currentSession.appDisplayName,
-            currentSession.appPackageName
-        )
+        val executor = actionExecutor
+        if (executor == null) {
+            Logger.w(TAG, "ActionExecutor unavailable, skipping violation handling")
+            return
+        }
+
+        if (InterventionFeedbackDialogOverlay.isShowing()) {
+            Logger.d(TAG, "Feedback dialog already visible, ignoring new violation")
+            return
+        }
+
+        if (System.currentTimeMillis() < dialogReentryCooldownUntil &&
+            constraint.type != ConstraintType.TIME_CAP
+        ) {
+            Logger.d(TAG, "Dialog reentry cooldown active, ignoring violation")
+            return
+        }
+
+        if (System.currentTimeMillis() < falsePositiveDialogCooldownUntil &&
+            constraint.type != ConstraintType.TIME_CAP
+        ) {
+            Logger.d(TAG, "False-positive cooldown active, ignoring forced action candidate")
+            return
+        }
+
+        if (shouldInterceptViolationWithDialog(constraint)) {
+            Logger.d(TAG, "Intercepting violation with feedback dialog")
+            showInterventionFeedbackDialog(currentSession, constraint, confidence)
+        } else {
+            // Execute intervention based on confidence
+            executor.executeIntervention(
+                constraint,
+                confidence,
+                "violation",
+                currentSession.appDisplayName,
+                currentSession.appPackageName
+            )
+        }
 
         // Emit violation event
         scope.launch {
             _sessionEvents.emit(SessionEvent.ViolationDetected(constraint, confidence))
+        }
+    }
+
+    private fun shouldInterceptViolationWithDialog(
+        constraint: SessionConstraint
+    ): Boolean {
+        if (constraint.type == ConstraintType.TIME_CAP) {
+            return false
+        }
+
+        if (constraint.interventionLevel == InterventionLevel.GENTLE) {
+            return false
+        }
+
+        return true
+    }
+
+    private fun showInterventionFeedbackDialog(
+        session: ActiveSession,
+        constraint: SessionConstraint,
+        confidence: Double
+    ) {
+        scope.launch {
+            InterventionFeedbackDialogOverlay.show(
+                context = context,
+                appName = session.appDisplayName,
+                constraintDescription = constraint.description,
+                onFalsePositive = {
+                    dialogReentryCooldownUntil =
+                        System.currentTimeMillis() + DIALOG_REENTRY_COOLDOWN_MS
+                    falsePositiveDialogCooldownUntil =
+                        System.currentTimeMillis() + FALSE_POSITIVE_DIALOG_COOLDOWN_MS
+                    markLatestViolationRecord(session, constraint)
+                },
+                onExit = {
+                    dialogReentryCooldownUntil =
+                        System.currentTimeMillis() + DIALOG_REENTRY_COOLDOWN_MS
+                    actionExecutor?.executeIntervention(
+                        constraint,
+                        confidence,
+                        "violation",
+                        session.appDisplayName,
+                        session.appPackageName
+                    )
+                }
+            )
+        }
+    }
+
+    private fun markLatestViolationRecord(
+        session: ActiveSession,
+        constraint: SessionConstraint
+    ) {
+        scope.launch {
+            try {
+                val latestRecord = withContext(Dispatchers.IO) {
+                    ruleRecordRepository.getLatestViolationAnalysisRecord(
+                        sessionId = session.sessionId,
+                        packageName = session.appPackageName,
+                        constraintContent = constraint.description
+                    )
+                }
+
+                if (latestRecord == null) {
+                    Logger.w(TAG, "No violation history record found to mark: ${constraint.description}")
+                    return@launch
+                }
+
+                withContext(Dispatchers.IO) {
+                    ruleRecordRepository.markRecord(latestRecord.id, true)
+                }
+                Logger.d(TAG, "Marked violation history record as false positive: ${latestRecord.id}")
+            } catch (e: Exception) {
+                Logger.e(TAG, "Failed to mark violation history record", e)
+            }
         }
     }
 
@@ -351,8 +465,11 @@ class SessionManager(private val context: Context) {
     private fun stopScreenAnalysis() {
         screenAnalyzer?.stopAnalysis()
         actionExecutor?.clearCooldown()
+        InterventionFeedbackDialogOverlay.dismiss()
         actionExecutor = null
         screenAnalyzer = null
+        falsePositiveDialogCooldownUntil = 0L
+        dialogReentryCooldownUntil = 0L
         Logger.d(TAG, "Stopped screen analysis")
     }
 
@@ -939,4 +1056,3 @@ enum class SessionEndReason {
     VIOLATION,
     COMPLETED
 }
-

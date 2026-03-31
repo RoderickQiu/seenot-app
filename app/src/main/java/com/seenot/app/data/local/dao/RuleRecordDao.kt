@@ -49,6 +49,24 @@ interface RuleRecordDao {
     @Query("SELECT * FROM rule_records WHERE appName = :appName ORDER BY timestamp DESC")
     suspend fun getRecordsByApp(appName: String): List<RuleRecordEntity>
 
+    @Query(
+        """
+        SELECT * FROM rule_records
+        WHERE sessionId = :sessionId
+          AND packageName = :packageName
+          AND constraintContent = :constraintContent
+          AND isConditionMatched = 0
+          AND actionType IS NULL
+        ORDER BY timestamp DESC
+        LIMIT 1
+        """
+    )
+    suspend fun getLatestViolationAnalysisRecord(
+        sessionId: Long,
+        packageName: String,
+        constraintContent: String
+    ): RuleRecordEntity?
+
     @Query("SELECT COUNT(*) FROM rule_records")
     suspend fun getTotalCount(): Int
 

@@ -866,6 +866,10 @@ class VoiceInputOverlay(
             currentOverlay = null
         }
 
+        fun isShowing(): Boolean {
+            return currentOverlay?.overlayView != null
+        }
+
         /**
          * Get current voice input overlay bounds for masking in screenshots
          */

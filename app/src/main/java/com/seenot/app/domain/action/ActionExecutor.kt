@@ -96,6 +96,13 @@ class ActionExecutor(private val context: Context) {
     }
 
     /**
+     * Preview which action would be taken for a violation without executing it.
+     */
+    fun previewAction(constraint: SessionConstraint, confidence: Double): ActionType {
+        return determineAction(constraint.interventionLevel, confidence)
+    }
+
+    /**
      * Determine which action to take
      */
     private fun determineAction(

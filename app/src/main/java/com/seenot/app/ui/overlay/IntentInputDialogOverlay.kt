@@ -78,7 +78,7 @@ class IntentInputDialogOverlay(
             currentDialog = null
         }
 
-        fun isShowing(): Boolean = currentDialog != null
+        fun isShowing(): Boolean = currentDialog?.rootView != null
     }
 
     private enum class Mode { IDLE, RECORDING, PROCESSING, SHOWING_RULES }

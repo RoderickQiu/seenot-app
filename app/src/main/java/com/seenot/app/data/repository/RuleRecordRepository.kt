@@ -135,6 +135,22 @@ class RuleRecordRepository(private val context: Context) {
     }
 
     /**
+     * Get the most recent violation analysis record for a constraint in the active session.
+     * This excludes action records so false-positive marking lands on the history item.
+     */
+    suspend fun getLatestViolationAnalysisRecord(
+        sessionId: Long,
+        packageName: String,
+        constraintContent: String
+    ): RuleRecord? {
+        return dao.getLatestViolationAnalysisRecord(
+            sessionId = sessionId,
+            packageName = packageName,
+            constraintContent = constraintContent
+        )?.toModel()
+    }
+
+    /**
      * Mark or unmark a record
      */
     suspend fun markRecord(recordId: String, isMarked: Boolean): Boolean {

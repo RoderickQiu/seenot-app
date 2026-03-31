@@ -13,6 +13,8 @@ import android.os.Looper
 
 import com.seenot.app.utils.Logger
 import com.seenot.app.ui.overlay.FloatingIndicatorOverlay
+import com.seenot.app.ui.overlay.InterventionFeedbackDialogOverlay
+import com.seenot.app.ui.overlay.IntentInputDialogOverlay
 import com.seenot.app.ui.overlay.ToastOverlay
 import com.seenot.app.ui.overlay.VoiceInputOverlay
 import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversation
@@ -126,6 +128,12 @@ class ScreenAnalyzer(
             while (isActive) {
                 delay(analysisIntervalMs)
 
+                val blockingOverlay = getBlockingOverlayName()
+                if (blockingOverlay != null) {
+                    Logger.d(TAG, "⏸️ Blocking overlay visible ($blockingOverlay), skipping screenshot analysis")
+                    continue
+                }
+
                 // Capture screenshot for hash comparison FIRST (before full processing)
                 val screenshot = captureScreenshotWithDelay() ?: continue
                 val quickHash = computeQuickHash(screenshot)
@@ -222,6 +230,14 @@ class ScreenAnalyzer(
         lastQuickHash = null
         lastViolationState = emptyMap()
         consecutiveViolations = 0
+    }
+
+    private fun getBlockingOverlayName(): String? {
+        return when {
+            InterventionFeedbackDialogOverlay.isShowing() -> "InterventionFeedbackDialogOverlay"
+            IntentInputDialogOverlay.isShowing() -> "IntentInputDialogOverlay"
+            else -> null
+        }
     }
 
     /**
@@ -486,11 +502,18 @@ class ScreenAnalyzer(
 
     /**
      * Capture screenshot with delay to ensure toasts are dismissed
-     * OPTIMIZED: Just take screenshot with delay - overlay will appear in screenshot (which is fine)
+     * Skip the capture entirely if one of SeeNot's blocking overlays is visible.
      */
     private suspend fun captureScreenshotWithDelay(): Bitmap? = suspendCancellableCoroutine { continuation ->
-        // Small delay to ensure toasts are dismissed, but keep overlay visible
+        // Small delay to ensure toasts are dismissed.
         Handler(Looper.getMainLooper()).postDelayed({
+            val blockingOverlay = getBlockingOverlayName()
+            if (blockingOverlay != null) {
+                Logger.d(TAG, "⏸️ Blocking overlay appeared before capture ($blockingOverlay), cancelling screenshot")
+                continuation.resume(null, null)
+                return@postDelayed
+            }
+
             val svc = com.seenot.app.service.SeenotAccessibilityService.instance
             if (svc != null) {
                 svc.takeScreenshot { bitmap ->
