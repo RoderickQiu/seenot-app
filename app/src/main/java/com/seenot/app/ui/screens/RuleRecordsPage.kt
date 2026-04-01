@@ -44,6 +44,8 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.activity.compose.BackHandler
+import androidx.compose.ui.graphics.Color
+import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.RuleRecord
 import com.seenot.app.data.repository.AppHintRepository
 import com.seenot.app.data.repository.RuleRecordRepository
@@ -60,6 +62,61 @@ enum class RecordFilter {
     MARKED,
     MATCHED,
     NOT_MATCHED
+}
+
+private data class RecordStatusPresentation(
+    val label: String,
+    val text: String,
+    val accentColor: Color,
+    val containerColor: Color
+)
+
+@Composable
+private fun rememberRecordStatus(record: RuleRecord): RecordStatusPresentation {
+    return when (record.constraintType) {
+        ConstraintType.TIME_CAP -> {
+            if (record.isConditionMatched) {
+                RecordStatusPresentation(
+                    label = "计时状态",
+                    text = "正在计时",
+                    accentColor = MaterialTheme.colorScheme.tertiary,
+                    containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.35f)
+                )
+            } else {
+                RecordStatusPresentation(
+                    label = "计时状态",
+                    text = "当前不计时",
+                    accentColor = MaterialTheme.colorScheme.outline,
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                )
+            }
+        }
+
+        else -> {
+            if (record.isConditionMatched) {
+                RecordStatusPresentation(
+                    label = "匹配状态",
+                    text = "正常 (未违反规则)",
+                    accentColor = MaterialTheme.colorScheme.primary,
+                    containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                )
+            } else {
+                RecordStatusPresentation(
+                    label = "匹配状态",
+                    text = "违规 (已违反规则)",
+                    accentColor = MaterialTheme.colorScheme.error,
+                    containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                )
+            }
+        }
+    }
+}
+
+private fun RuleRecord.needsAttention(): Boolean {
+    return when (constraintType) {
+        ConstraintType.TIME_CAP -> isConditionMatched
+        else -> !isConditionMatched
+    }
 }
 
 /**
@@ -112,6 +169,15 @@ fun RuleRecordsPage(
     var exportProgress by remember { mutableStateOf("") }
     val recordExporter = remember { RecordExporter(context) }
 
+    fun applyFilter(allRecords: List<RuleRecord>, filter: RecordFilter): List<RuleRecord> {
+        return when (filter) {
+            RecordFilter.ALL -> allRecords
+            RecordFilter.MARKED -> allRecords.filter { it.isMarked }
+            RecordFilter.MATCHED -> allRecords.filter { it.needsAttention() }
+            RecordFilter.NOT_MATCHED -> allRecords.filter { !it.needsAttention() }
+        }
+    }
+
     // Load records
     LaunchedEffect(currentDate, selectedFilter) {
         try {
@@ -120,13 +186,7 @@ fun RuleRecordsPage(
                 val month = currentDate.get(Calendar.MONTH)
                 val day = currentDate.get(Calendar.DAY_OF_MONTH)
                 records = repository.getRecordsForDate(year, month, day)
-
-                filteredRecords = when (selectedFilter) {
-                    RecordFilter.ALL -> records
-                    RecordFilter.MARKED -> records.filter { it.isMarked }
-                    RecordFilter.MATCHED -> records.filter { !it.isConditionMatched }  // 违反规则
-                    RecordFilter.NOT_MATCHED -> records.filter { it.isConditionMatched }  // 正常
-                }
+                filteredRecords = applyFilter(records, selectedFilter)
             }
         } catch (e: Exception) {
             android.util.Log.e("RuleRecordsPage", "Error loading records", e)
@@ -174,12 +234,7 @@ fun RuleRecordsPage(
                             val month = currentDate.get(Calendar.MONTH)
                             val day = currentDate.get(Calendar.DAY_OF_MONTH)
                             records = repository.getRecordsForDate(year, month, day)
-                            filteredRecords = when (selectedFilter) {
-                                RecordFilter.ALL -> records
-                                RecordFilter.MARKED -> records.filter { it.isMarked }
-                                RecordFilter.MATCHED -> records.filter { !it.isConditionMatched }
-                                RecordFilter.NOT_MATCHED -> records.filter { it.isConditionMatched }
-                            }
+                            filteredRecords = applyFilter(records, selectedFilter)
                         }
                     },
                     onExport = {
@@ -219,8 +274,8 @@ fun RuleRecordsPage(
             // Filter chips
             val allCount = records.size
             val markedCount = records.count { it.isMarked }
-            val matchedCount = records.count { !it.isConditionMatched }
-            val notMatchedCount = records.count { it.isConditionMatched }
+            val matchedCount = records.count { it.needsAttention() }
+            val notMatchedCount = records.count { !it.needsAttention() }
             FilterChipsRow(
                 selectedFilter = selectedFilter,
                 onFilterSelected = { selectedFilter = it },
@@ -296,12 +351,7 @@ fun RuleRecordsPage(
                                         val month = currentDate.get(Calendar.MONTH)
                                         val day = currentDate.get(Calendar.DAY_OF_MONTH)
                                         records = repository.getRecordsForDate(year, month, day)
-                                        filteredRecords = when (selectedFilter) {
-                                            RecordFilter.ALL -> records
-                                            RecordFilter.MARKED -> records.filter { it.isMarked }
-                                            RecordFilter.MATCHED -> records.filter { !it.isConditionMatched }
-                                            RecordFilter.NOT_MATCHED -> records.filter { it.isConditionMatched }
-                                        }
+                                        filteredRecords = applyFilter(records, selectedFilter)
                                     }
                                 }
                             }
@@ -331,12 +381,7 @@ fun RuleRecordsPage(
                     val month = currentDate.get(Calendar.MONTH)
                     val day = currentDate.get(Calendar.DAY_OF_MONTH)
                     records = repository.getRecordsForDate(year, month, day)
-                    filteredRecords = when (selectedFilter) {
-                        RecordFilter.ALL -> records
-                        RecordFilter.MARKED -> records.filter { it.isMarked }
-                        RecordFilter.MATCHED -> records.filter { !it.isConditionMatched }
-                        RecordFilter.NOT_MATCHED -> records.filter { it.isConditionMatched }
-                    }
+                    filteredRecords = applyFilter(records, selectedFilter)
                 }
             },
             onShowHintDialog = { rec ->
@@ -447,12 +492,7 @@ fun RuleRecordsPage(
                                 val month = currentDate.get(Calendar.MONTH)
                                 val day = currentDate.get(Calendar.DAY_OF_MONTH)
                                 records = repository.getRecordsForDate(year, month, day)
-                                filteredRecords = when (selectedFilter) {
-                                    RecordFilter.ALL -> records
-                                    RecordFilter.MARKED -> records.filter { it.isMarked }
-                                    RecordFilter.MATCHED -> records.filter { !it.isConditionMatched }
-                                    RecordFilter.NOT_MATCHED -> records.filter { it.isConditionMatched }
-                                }
+                                filteredRecords = applyFilter(records, selectedFilter)
                             }
                         } else {
                             scope.launch {
@@ -461,12 +501,7 @@ fun RuleRecordsPage(
                                 val month = currentDate.get(Calendar.MONTH)
                                 val day = currentDate.get(Calendar.DAY_OF_MONTH)
                                 records = repository.getRecordsForDate(year, month, day)
-                                filteredRecords = when (selectedFilter) {
-                                    RecordFilter.ALL -> records
-                                    RecordFilter.MARKED -> records.filter { it.isMarked }
-                                    RecordFilter.MATCHED -> records.filter { !it.isConditionMatched }
-                                    RecordFilter.NOT_MATCHED -> records.filter { it.isConditionMatched }
-                                }
+                                filteredRecords = applyFilter(records, selectedFilter)
                             }
                         }
                         showHintDialog = false
@@ -555,8 +590,8 @@ private fun FilterChipsRow(
         val filters = listOf(
             RecordFilter.ALL to "全部",
             RecordFilter.MARKED to "已标记",
-            RecordFilter.MATCHED to "已匹配",
-            RecordFilter.NOT_MATCHED to "未匹配"
+            RecordFilter.MATCHED to "需关注",
+            RecordFilter.NOT_MATCHED to "普通"
         )
 
         items(filters) { (filter, label) ->
@@ -584,6 +619,7 @@ private fun RecordItem(
     onToggleMark: () -> Unit
 ) {
     val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
+    val status = rememberRecordStatus(record)
 
     Card(
         modifier = Modifier
@@ -603,8 +639,7 @@ private fun RecordItem(
         colors = CardDefaults.cardColors(
             containerColor = when {
                 isSelected -> MaterialTheme.colorScheme.primaryContainer
-                record.isConditionMatched -> MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                else -> MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                else -> status.containerColor
             }
         )
     ) {
@@ -643,12 +678,7 @@ private fun RecordItem(
                             modifier = Modifier
                                 .size(8.dp)
                                 .clip(RoundedCornerShape(4.dp))
-                                .background(
-                                    if (record.isConditionMatched)
-                                        MaterialTheme.colorScheme.primary
-                                    else
-                                        MaterialTheme.colorScheme.error
-                                )
+                                .background(status.accentColor)
                         )
                     }
                     Text(
@@ -675,7 +705,7 @@ private fun RecordItem(
                     // Constraint info
                     record.constraintType?.let { type ->
                         Text(
-                            text = "${type.name}: ${record.constraintContent ?: ""}",
+                            text = "${type.name}: ${record.constraintContent ?: ""} | ${status.text}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -738,6 +768,7 @@ private fun RecordDetailDialog(
 
     val hasPrevious = currentIndex > 0
     val hasNext = currentIndex < records.size - 1
+    val status = rememberRecordStatus(record)
 
     Dialog(
         onDismissRequest = onDismiss,
@@ -849,7 +880,7 @@ private fun RecordDetailDialog(
                                 containerColor = if (record.actionType != null) {
                                     MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
                                 } else {
-                                    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+                                    status.containerColor
                                 }
                             )
                         ) {
@@ -878,8 +909,8 @@ private fun RecordDetailDialog(
                                 } else {
                                     // Judgement record
                                     DetailRow(
-                                        "匹配状态",
-                                        if (record.isConditionMatched) "正常 (未违反规则)" else "违规 (已违反规则)"
+                                        status.label,
+                                        status.text
                                     )
                                 }
 

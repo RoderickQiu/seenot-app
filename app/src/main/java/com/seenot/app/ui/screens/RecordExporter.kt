@@ -6,6 +6,7 @@ import android.widget.Toast
 import androidx.core.content.FileProvider
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.RecordStats
 import com.seenot.app.data.model.RuleRecord
 import com.seenot.app.data.repository.RuleRecordRepository
@@ -164,7 +165,10 @@ class RecordExporter(private val context: Context) {
      */
     private fun createMetadata(records: List<RuleRecord>): Map<String, Any> {
         val totalRecords = records.size
-        val matchedRecords = records.count { it.isConditionMatched }
+        val conditionMatchedRecords = records.count { it.isConditionMatched }
+        val conditionUnmatchedRecords = totalRecords - conditionMatchedRecords
+        val denyRecords = records.filter { it.constraintType == ConstraintType.DENY }
+        val timeCapRecords = records.filter { it.constraintType == ConstraintType.TIME_CAP }
         val apps = records.map { it.appName }.distinct()
         val dateRange = records.minByOrNull { it.timestamp }?.let { min ->
             records.maxByOrNull { it.timestamp }?.let { max ->
@@ -175,12 +179,17 @@ class RecordExporter(private val context: Context) {
         return mapOf(
             "exportDate" to System.currentTimeMillis(),
             "totalRecords" to totalRecords,
-            "matchedRecords" to matchedRecords,
-            "matchRate" to if (totalRecords > 0) matchedRecords.toFloat() / totalRecords else 0f,
+            "conditionMatchedRecords" to conditionMatchedRecords,
+            "conditionUnmatchedRecords" to conditionUnmatchedRecords,
+            "conditionMatchRate" to if (totalRecords > 0) conditionMatchedRecords.toFloat() / totalRecords else 0f,
+            "denySafeRecords" to denyRecords.count { it.isConditionMatched },
+            "denyViolationRecords" to denyRecords.count { !it.isConditionMatched },
+            "timeCapInScopeRecords" to timeCapRecords.count { it.isConditionMatched },
+            "timeCapOutOfScopeRecords" to timeCapRecords.count { !it.isConditionMatched },
             "uniqueApps" to apps.size,
             "appList" to apps,
             "dateRange" to dateRange,
-            "exportVersion" to "1.0"
+            "exportVersion" to "1.1"
         )
     }
 
@@ -209,7 +218,9 @@ class RecordExporter(private val context: Context) {
             - constraintId: 被评估的约束 ID
             - constraintType: 约束类型 (DENY/TIME_CAP)
             - constraintContent: 约束内容描述
-            - isConditionMatched: 条件是否匹配（是否违反规则）
+            - isConditionMatched: 条件判断结果，含义依赖约束类型
+              - DENY: true = 正常 / false = 违规
+              - TIME_CAP: true = in_scope（正在计时） / false = out_of_scope（当前不计时）
             - confidence: AI 置信度分数 (0-100)
             - aiResult: AI 原始响应文本（可选）
             - imagePath: 截图路径（在归档中）
