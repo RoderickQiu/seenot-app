@@ -67,6 +67,25 @@ interface RuleRecordDao {
         constraintContent: String
     ): RuleRecordEntity?
 
+    @Query(
+        """
+        SELECT * FROM rule_records
+        WHERE sessionId = :sessionId
+          AND packageName = :packageName
+          AND constraintType = :constraintType
+          AND isConditionMatched = :isConditionMatched
+          AND actionType IS NULL
+        ORDER BY timestamp DESC
+        LIMIT 1
+        """
+    )
+    suspend fun getLatestAnalysisRecordForType(
+        sessionId: Long,
+        packageName: String,
+        constraintType: String,
+        isConditionMatched: Boolean
+    ): RuleRecordEntity?
+
     @Query("SELECT COUNT(*) FROM rule_records")
     suspend fun getTotalCount(): Int
 

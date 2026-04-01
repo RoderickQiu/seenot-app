@@ -31,6 +31,7 @@ import com.seenot.app.R
 import com.seenot.app.domain.SessionManager
 import com.seenot.app.ui.overlay.FloatingIndicatorOverlay
 import com.seenot.app.ui.overlay.IntentInputDialogOverlay
+import com.seenot.app.ui.overlay.JudgmentFeedbackConfirmOverlay
 import com.seenot.app.ui.overlay.VoiceInputOverlay
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -541,6 +542,7 @@ class SeenotAccessibilityService : AccessibilityService() {
     private fun dismissAllOverlays() {
         IntentInputDialogOverlay.dismiss()
         FloatingIndicatorOverlay.dismiss()
+        JudgmentFeedbackConfirmOverlay.dismiss()
         VoiceInputOverlay.dismiss()
     }
 

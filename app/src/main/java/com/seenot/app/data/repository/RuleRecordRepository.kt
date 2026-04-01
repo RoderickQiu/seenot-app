@@ -4,6 +4,7 @@ import android.content.Context
 import android.graphics.Bitmap
 import com.seenot.app.data.local.SeenotDatabase
 import com.seenot.app.data.local.entity.RuleRecordEntity
+import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.RecordStats
 import com.seenot.app.data.model.RuleRecord
 import com.seenot.app.utils.Logger
@@ -147,6 +148,20 @@ class RuleRecordRepository(private val context: Context) {
             sessionId = sessionId,
             packageName = packageName,
             constraintContent = constraintContent
+        )?.toModel()
+    }
+
+    suspend fun getLatestAnalysisRecordForType(
+        sessionId: Long,
+        packageName: String,
+        constraintType: ConstraintType,
+        isConditionMatched: Boolean
+    ): RuleRecord? {
+        return dao.getLatestAnalysisRecordForType(
+            sessionId = sessionId,
+            packageName = packageName,
+            constraintType = constraintType.name,
+            isConditionMatched = isConditionMatched
         )?.toModel()
     }
 

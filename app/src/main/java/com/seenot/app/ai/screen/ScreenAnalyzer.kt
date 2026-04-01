@@ -18,6 +18,7 @@ import com.seenot.app.utils.Logger
 import com.seenot.app.ui.overlay.FloatingIndicatorOverlay
 import com.seenot.app.ui.overlay.InterventionFeedbackDialogOverlay
 import com.seenot.app.ui.overlay.IntentInputDialogOverlay
+import com.seenot.app.ui.overlay.JudgmentFeedbackConfirmOverlay
 import com.seenot.app.ui.overlay.ToastOverlay
 import com.seenot.app.ui.overlay.VoiceInputOverlay
 import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversation
@@ -263,6 +264,8 @@ class ScreenAnalyzer(
         return when {
             InterventionFeedbackDialogOverlay.isShowing() -> "InterventionFeedbackDialogOverlay"
             IntentInputDialogOverlay.isShowing() -> "IntentInputDialogOverlay"
+            JudgmentFeedbackConfirmOverlay.isShowing() -> "JudgmentFeedbackConfirmOverlay"
+            FloatingIndicatorOverlay.isExpanded() -> "FloatingIndicatorOverlay"
             else -> null
         }
     }
@@ -376,10 +379,9 @@ class ScreenAnalyzer(
 
             // Update content match states in SessionManager
             matches.forEach { match ->
-                // For DENY constraints: matching = in forbidden content (but we still track it)
                 val isInTargetContent = when (match.constraint.type) {
-                    ConstraintType.DENY -> match.isViolation // Violating DENY = in forbidden content
-                    ConstraintType.TIME_CAP -> false // Legacy, not used
+                    ConstraintType.DENY -> match.isViolation
+                    ConstraintType.TIME_CAP -> match.isInScope == true
                 }
                 sessionManager.updateContentMatchState(match.constraint.id, isInTargetContent)
             }
@@ -411,14 +413,7 @@ class ScreenAnalyzer(
                         // For DENY: isConditionMatched = !isViolation (true = safe, false = violates)
                         // For TIME_CAP: isConditionMatched = isInScope (true = in_scope, false = out_of_scope)
                         val isConditionMatched = when (match.constraint.type) {
-                            ConstraintType.TIME_CAP -> {
-                                // Check if in scope from SessionManager state
-                                sessionManager.activeSession.value?.let { session ->
-                                    session.constraintTimeRemaining[match.constraint.id]?.let { remaining ->
-                                        remaining > 0
-                                    }
-                                } ?: false
-                            }
+                            ConstraintType.TIME_CAP -> match.isInScope == true
                             else -> !match.isViolation
                         }
 
@@ -521,9 +516,7 @@ class ScreenAnalyzer(
 
             // Show TIME_CAP status - always show, regardless of in/out of scope
             if (timeCapMatches.isNotEmpty()) {
-                val inScopeCount = timeCapMatches.count { match ->
-                    match.reason?.contains("in_scope", ignoreCase = true) == true
-                }
+                val inScopeCount = timeCapMatches.count { match -> match.isInScope == true }
 
                 if (isNotEmpty()) append(" | ")
                 if (inScopeCount > 0) {
@@ -531,7 +524,7 @@ class ScreenAnalyzer(
                     append("⏱️ $reason 计时中")
                 } else {
                     val reason = timeCapMatches.firstOrNull()?.reason?.take(10) ?: ""
-                    append("⏱️ $reason 范围外")
+                    append("⏱️ $reason 未计时")
                 }
             }
         }
@@ -954,11 +947,10 @@ class ScreenAnalyzer(
                         else -> decision == "violates"
                     }
 
-                    // For TIME_CAP, update content match state for timing
-                    if (constraint.type == ConstraintType.TIME_CAP) {
-                        val isInScope = decision == "in_scope"
-                        val sessionManager = SessionManager.getInstance(context)
-                        sessionManager.updateContentMatchState(constraint.id, isInScope)
+                    val isInScope = if (constraint.type == ConstraintType.TIME_CAP) {
+                        decision == "in_scope"
+                    } else {
+                        null
                     }
 
                     Logger.d(TAG, "[AI] Parsed constraint_id=$constraintId, decision=$decision, confidence=$rawConfidence (scaled: ${"%.2f".format(confidence)})")
@@ -967,7 +959,8 @@ class ScreenAnalyzer(
                         constraint = constraint,
                         isViolation = isViolation,
                         confidence = confidence,
-                        reason = reason.ifBlank { "未知界面" }
+                        reason = reason.ifBlank { "未知界面" },
+                        isInScope = isInScope
                     )
                 } catch (e: Exception) {
                     Logger.w(TAG, "[AI] Failed to parse result element: ${e.message}")
@@ -1293,7 +1286,8 @@ data class ConstraintMatch(
     val constraint: SessionConstraint,
     val isViolation: Boolean,
     val confidence: Double,
-    val reason: String?
+    val reason: String?,
+    val isInScope: Boolean? = null
 )
 
 private data class DeviceAnalysisState(

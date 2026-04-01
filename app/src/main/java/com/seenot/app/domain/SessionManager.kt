@@ -106,6 +106,8 @@ class SessionManager(private val context: Context) {
 
     // Content match state for conditional timing
     private val constraintMatchStates = mutableMapOf<String, Boolean>()
+    private val _constraintMatchStateFlow = MutableStateFlow<Map<String, Boolean>>(emptyMap())
+    val constraintMatchStateFlow: StateFlow<Map<String, Boolean>> = _constraintMatchStateFlow.asStateFlow()
 
     // Minimal in-session suppression after user marks a violation as false positive.
     private var falsePositiveDialogCooldownUntil = 0L
@@ -346,8 +348,7 @@ class SessionManager(private val context: Context) {
 
         _activeSession.value = activeSession
 
-        constraintMatchStates.clear()
-        constraints.forEach { constraintMatchStates[it.id] = false }
+        resetConstraintMatchStates(constraints)
 
         saveLastIntent(packageName, constraints)
         startTimer()
@@ -525,7 +526,42 @@ class SessionManager(private val context: Context) {
      */
     fun updateContentMatchState(constraintId: String, isMatching: Boolean) {
         constraintMatchStates[constraintId] = isMatching
+        _constraintMatchStateFlow.value = constraintMatchStates.toMap()
         Logger.d(TAG, "Content match state updated: $constraintId = $isMatching")
+    }
+
+    fun markCurrentJudgmentAsWrong(
+        constraintType: ConstraintType,
+        isConditionMatched: Boolean
+    ) {
+        val session = _activeSession.value ?: return
+        scope.launch {
+            try {
+                val latestRecord = withContext(Dispatchers.IO) {
+                    ruleRecordRepository.getLatestAnalysisRecordForType(
+                        sessionId = session.sessionId,
+                        packageName = session.appPackageName,
+                        constraintType = constraintType,
+                        isConditionMatched = isConditionMatched
+                    )
+                }
+
+                if (latestRecord == null) {
+                    Logger.w(
+                        TAG,
+                        "No analysis record found to mark: type=$constraintType matched=$isConditionMatched"
+                    )
+                    return@launch
+                }
+
+                withContext(Dispatchers.IO) {
+                    ruleRecordRepository.markRecord(latestRecord.id, true)
+                }
+                Logger.d(TAG, "Marked judgment record: ${latestRecord.id}")
+            } catch (e: Exception) {
+                Logger.e(TAG, "Failed to mark judgment record", e)
+            }
+        }
     }
 
     /**
@@ -539,6 +575,7 @@ class SessionManager(private val context: Context) {
         screenAnalyzer = null
         falsePositiveDialogCooldownUntil = 0L
         dialogReentryCooldownUntil = 0L
+        resetConstraintMatchStates(emptyList())
         Logger.d(TAG, "Stopped screen analysis")
     }
 
@@ -627,6 +664,8 @@ class SessionManager(private val context: Context) {
             constraints = merged,
             constraintTimeRemaining = updatedTimeRemaining
         )
+
+        reconcileConstraintMatchStates(merged)
 
         // Emit event
         _sessionEvents.emit(SessionEvent.ConstraintsModified(merged))
@@ -726,6 +765,23 @@ class SessionManager(private val context: Context) {
                 _activeSession.value = session.copy(constraintTimeRemaining = updatedTimeRemaining)
             }
         }
+    }
+
+    private fun resetConstraintMatchStates(constraints: List<SessionConstraint>) {
+        constraintMatchStates.clear()
+        constraints.forEach { constraint ->
+            constraintMatchStates[constraint.id] = false
+        }
+        _constraintMatchStateFlow.value = constraintMatchStates.toMap()
+    }
+
+    private fun reconcileConstraintMatchStates(constraints: List<SessionConstraint>) {
+        val previousStates = constraintMatchStates.toMap()
+        constraintMatchStates.clear()
+        constraints.forEach { constraint ->
+            constraintMatchStates[constraint.id] = previousStates[constraint.id] ?: false
+        }
+        _constraintMatchStateFlow.value = constraintMatchStates.toMap()
     }
 
     /**
