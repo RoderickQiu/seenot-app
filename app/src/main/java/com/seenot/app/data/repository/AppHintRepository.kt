@@ -21,6 +21,11 @@ class AppHintRepository(private val context: Context) {
         private const val TAG = "AppHintRepository"
     }
 
+    data class SaveHintResult(
+        val hint: AppHint,
+        val created: Boolean
+    )
+
     /**
      * Save a new hint
      */
@@ -42,6 +47,24 @@ class AppHintRepository(private val context: Context) {
             hintText = hintText.trim()
         )
         return saveHint(hint)
+    }
+
+    suspend fun saveHintIfNew(packageName: String, hintText: String): SaveHintResult {
+        val normalized = normalizeHintText(hintText)
+        val existing = getHintsForPackage(packageName).firstOrNull {
+            normalizeHintText(it.hintText) == normalized
+        }
+        if (existing != null) {
+            return SaveHintResult(existing, created = false)
+        }
+
+        val saved = saveHint(
+            AppHint(
+                packageName = packageName,
+                hintText = hintText.trim()
+            )
+        )
+        return SaveHintResult(saved, created = true)
     }
 
     /**
@@ -175,5 +198,12 @@ class AppHintRepository(private val context: Context) {
             createdAt = createdAt,
             updatedAt = updatedAt
         )
+    }
+
+    private fun normalizeHintText(text: String): String {
+        return text
+            .trim()
+            .replace(Regex("\\s+"), " ")
+            .lowercase()
     }
 }

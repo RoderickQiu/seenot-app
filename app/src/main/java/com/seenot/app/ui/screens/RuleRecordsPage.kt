@@ -47,8 +47,8 @@ import androidx.activity.compose.BackHandler
 import androidx.compose.ui.graphics.Color
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.RuleRecord
-import com.seenot.app.data.repository.AppHintRepository
 import com.seenot.app.data.repository.RuleRecordRepository
+import com.seenot.app.domain.SessionManager
 import kotlinx.coroutines.launch
 import java.io.File
 import java.text.SimpleDateFormat
@@ -145,7 +145,7 @@ fun RuleRecordsPage(
     var showHintDialog by remember { mutableStateOf(false) }
     var hintDialogRecord by remember { mutableStateOf<RuleRecord?>(null) }
     var hintDialogText by remember { mutableStateOf("") }
-    val appHintRepo = remember { AppHintRepository(context) }
+    val sessionManager = remember { SessionManager.getInstance(context) }
 
     // Handle back press
     BackHandler(enabled = true) {
@@ -455,7 +455,7 @@ fun RuleRecordsPage(
                 hintDialogRecord = null
                 hintDialogText = ""
             },
-            title = { Text("添加AI补充说明") },
+            title = { Text("生成附加规则") },
             text = {
                 Column {
                     Text(
@@ -464,7 +464,7 @@ fun RuleRecordsPage(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "请告诉AI为什么这次判断是错的，这会帮助AI在未来做出更准确的判断：",
+                        text = "系统会结合这条 record 的截图、原始 intent 和应用特点自动生成附加规则。你也可以补充一句，帮助它更准确。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -473,7 +473,7 @@ fun RuleRecordsPage(
                         value = hintDialogText,
                         onValueChange = { hintDialogText = it },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("例如：我只用QQ聊天，不看QQ空间") },
+                        placeholder = { Text("可选：例如 我只用QQ聊天，不看QQ空间") },
                         minLines = 2,
                         maxLines = 4
                     )
@@ -482,21 +482,13 @@ fun RuleRecordsPage(
             confirmButton = {
                 Button(
                     onClick = {
-                        val pkgName = dialogRecord.packageName ?: dialogRecord.appName
-                        if (hintDialogText.isNotBlank()) {
+                        sessionManager.markRecordAsWrong(
+                            record = dialogRecord,
+                            userNote = hintDialogText.takeIf { it.isNotBlank() },
+                            source = "record_detail"
+                        ) { result ->
+                            Toast.makeText(context, result.userMessage, Toast.LENGTH_SHORT).show()
                             scope.launch {
-                                appHintRepo.addHintFromFeedback(pkgName, hintDialogText)
-                                repository.markRecord(dialogRecord.id, true)
-                                Toast.makeText(context, "已添加补充说明", Toast.LENGTH_SHORT).show()
-                                val year = currentDate.get(Calendar.YEAR)
-                                val month = currentDate.get(Calendar.MONTH)
-                                val day = currentDate.get(Calendar.DAY_OF_MONTH)
-                                records = repository.getRecordsForDate(year, month, day)
-                                filteredRecords = applyFilter(records, selectedFilter)
-                            }
-                        } else {
-                            scope.launch {
-                                repository.markRecord(dialogRecord.id, true)
                                 val year = currentDate.get(Calendar.YEAR)
                                 val month = currentDate.get(Calendar.MONTH)
                                 val day = currentDate.get(Calendar.DAY_OF_MONTH)

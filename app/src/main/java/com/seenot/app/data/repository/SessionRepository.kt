@@ -145,8 +145,21 @@ class SessionRepository(
         return intentConstraintDao.getActiveConstraintsForSession(sessionId)
     }
 
+    suspend fun getConstraintsForSession(sessionId: Long): List<IntentConstraintEntity> {
+        return intentConstraintDao.getConstraintsForSession(sessionId)
+    }
+
     suspend fun setConstraintActive(constraintId: Long, isActive: Boolean) {
         intentConstraintDao.setActive(constraintId, isActive)
+    }
+
+    suspend fun replaceConstraintsForSession(
+        sessionId: Long,
+        constraints: List<IntentConstraintEntity>
+    ): List<Long> {
+        intentConstraintDao.deleteAllForSession(sessionId)
+        if (constraints.isEmpty()) return emptyList()
+        return intentConstraintDao.insertAll(constraints)
     }
 
     // ==================== Screen Analysis Operations ====================

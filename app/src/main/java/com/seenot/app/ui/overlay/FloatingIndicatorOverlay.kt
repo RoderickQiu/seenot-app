@@ -521,9 +521,11 @@ class FloatingIndicatorOverlay(
                         JudgmentFeedbackConfirmOverlay.show(context, status.type) {
                             sessionManager.markCurrentJudgmentAsWrong(
                                 constraintType = status.type,
-                                isConditionMatched = status.isConditionMatched
-                            )
-                            ToastOverlay.show(context, "已记录这次判断")
+                                isConditionMatched = status.isConditionMatched,
+                                source = "floating_overlay"
+                            ) { result ->
+                                ToastOverlay.show(context, result.userMessage)
+                            }
                         }
                     }
                 }

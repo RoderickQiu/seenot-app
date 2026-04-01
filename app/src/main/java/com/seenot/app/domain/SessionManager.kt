@@ -3,21 +3,28 @@ package com.seenot.app.domain
 import android.content.Context
 import android.content.SharedPreferences
 import com.google.gson.Gson
+import com.seenot.app.ai.feedback.FalsePositiveRuleGenerator
+import com.seenot.app.ai.feedback.GeneratedFalsePositiveRuleResult
 import com.seenot.app.ai.screen.ScreenAnalyzer
 import com.seenot.app.config.ApiConfig
 import com.seenot.app.data.local.SeenotDatabase
+import com.seenot.app.data.local.entity.IntentConstraintEntity
 import com.seenot.app.data.local.entity.SessionEntity
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.InterventionLevel
+import com.seenot.app.data.model.RuleRecord
 import com.seenot.app.data.model.TimeScope
 import com.seenot.app.data.repository.RuleRecordRepository
 import com.seenot.app.data.repository.SessionRepository
 import com.seenot.app.domain.action.ActionExecutor
 import com.seenot.app.service.SeenotAccessibilityService
 import com.seenot.app.ui.overlay.InterventionFeedbackDialogOverlay
+import com.seenot.app.ui.overlay.ToastOverlay
 import com.seenot.app.utils.Logger
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.*
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 
 /**
  * Session Manager - Core component that manages the session lifecycle
@@ -67,6 +74,7 @@ class SessionManager(private val context: Context) {
         database.screenAnalysisResultDao()
     )
     private val ruleRecordRepository = RuleRecordRepository(context)
+    private val falsePositiveRuleGenerator = FalsePositiveRuleGenerator(context)
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -112,6 +120,10 @@ class SessionManager(private val context: Context) {
     // Minimal in-session suppression after user marks a violation as false positive.
     private var falsePositiveDialogCooldownUntil = 0L
     private var dialogReentryCooldownUntil = 0L
+    private val falsePositiveLearningMutex = Mutex()
+
+    @Volatile
+    private var isFalsePositiveLearningInProgress = false
 
     init {
         // Start listening for app changes
@@ -349,6 +361,7 @@ class SessionManager(private val context: Context) {
         _activeSession.value = activeSession
 
         resetConstraintMatchStates(constraints)
+        persistSessionConstraints(sessionId, constraints)
 
         saveLastIntent(packageName, constraints)
         startTimer()
@@ -391,6 +404,11 @@ class SessionManager(private val context: Context) {
      * Handle violation detected by screen analyzer
      */
     private fun handleViolation(constraint: SessionConstraint, confidence: Double) {
+        if (isFalsePositiveLearningInProgress) {
+            Logger.d(TAG, "False-positive learning in progress, skipping violation handling")
+            return
+        }
+
         Logger.d(TAG, "Violation detected: ${constraint.description}, confidence: $confidence")
         Logger.w(TAG, "Violation detected: ${constraint.description}, confidence: $confidence")
 
@@ -474,7 +492,13 @@ class SessionManager(private val context: Context) {
                         System.currentTimeMillis() + DIALOG_REENTRY_COOLDOWN_MS
                     falsePositiveDialogCooldownUntil =
                         System.currentTimeMillis() + FALSE_POSITIVE_DIALOG_COOLDOWN_MS
-                    markLatestViolationRecord(session, constraint)
+                    submitFalsePositiveForLatestViolation(
+                        session = session,
+                        constraint = constraint,
+                        source = "intervention_dialog"
+                    ) { result ->
+                        ToastOverlay.show(context, result.userMessage)
+                    }
                 },
                 onExit = {
                     dialogReentryCooldownUntil =
@@ -491,9 +515,12 @@ class SessionManager(private val context: Context) {
         }
     }
 
-    private fun markLatestViolationRecord(
+    private fun submitFalsePositiveForLatestViolation(
         session: ActiveSession,
-        constraint: SessionConstraint
+        constraint: SessionConstraint,
+        source: String,
+        userNote: String? = null,
+        onComplete: ((FalsePositiveFeedbackResult) -> Unit)? = null
     ) {
         scope.launch {
             try {
@@ -507,15 +534,30 @@ class SessionManager(private val context: Context) {
 
                 if (latestRecord == null) {
                     Logger.w(TAG, "No violation history record found to mark: ${constraint.description}")
+                    onComplete?.invoke(
+                        FalsePositiveFeedbackResult(
+                            success = false,
+                            userMessage = "没找到对应的误报记录"
+                        )
+                    )
                     return@launch
                 }
 
-                withContext(Dispatchers.IO) {
-                    ruleRecordRepository.markRecord(latestRecord.id, true)
-                }
-                Logger.d(TAG, "Marked violation history record as false positive: ${latestRecord.id}")
+                val result = processFalsePositiveRecord(
+                    record = latestRecord,
+                    fallbackSession = session,
+                    userNote = userNote,
+                    source = source
+                )
+                onComplete?.invoke(result)
             } catch (e: Exception) {
                 Logger.e(TAG, "Failed to mark violation history record", e)
+                onComplete?.invoke(
+                    FalsePositiveFeedbackResult(
+                        success = false,
+                        userMessage = "记录误报失败"
+                    )
+                )
             }
         }
     }
@@ -532,7 +574,10 @@ class SessionManager(private val context: Context) {
 
     fun markCurrentJudgmentAsWrong(
         constraintType: ConstraintType,
-        isConditionMatched: Boolean
+        isConditionMatched: Boolean,
+        userNote: String? = null,
+        source: String = "judgment_overlay",
+        onComplete: ((FalsePositiveFeedbackResult) -> Unit)? = null
     ) {
         val session = _activeSession.value ?: return
         scope.launch {
@@ -551,15 +596,211 @@ class SessionManager(private val context: Context) {
                         TAG,
                         "No analysis record found to mark: type=$constraintType matched=$isConditionMatched"
                     )
+                    onComplete?.invoke(
+                        FalsePositiveFeedbackResult(
+                            success = false,
+                            userMessage = "没找到对应的判断记录"
+                        )
+                    )
                     return@launch
                 }
 
-                withContext(Dispatchers.IO) {
-                    ruleRecordRepository.markRecord(latestRecord.id, true)
-                }
-                Logger.d(TAG, "Marked judgment record: ${latestRecord.id}")
+                val result = processFalsePositiveRecord(
+                    record = latestRecord,
+                    fallbackSession = session,
+                    userNote = userNote,
+                    source = source
+                )
+                onComplete?.invoke(result)
             } catch (e: Exception) {
                 Logger.e(TAG, "Failed to mark judgment record", e)
+                onComplete?.invoke(
+                    FalsePositiveFeedbackResult(
+                        success = false,
+                        userMessage = "记录误报失败"
+                    )
+                )
+            }
+        }
+    }
+
+    fun markRecordAsWrong(
+        record: RuleRecord,
+        userNote: String? = null,
+        source: String = "record_detail",
+        onComplete: ((FalsePositiveFeedbackResult) -> Unit)? = null
+    ) {
+        scope.launch {
+            val result = processFalsePositiveRecord(
+                record = record,
+                fallbackSession = _activeSession.value,
+                userNote = userNote,
+                source = source
+            )
+            onComplete?.invoke(result)
+        }
+    }
+
+    private suspend fun processFalsePositiveRecord(
+        record: RuleRecord,
+        fallbackSession: ActiveSession?,
+        userNote: String?,
+        source: String
+    ): FalsePositiveFeedbackResult {
+        return falsePositiveLearningMutex.withLock {
+            val packageName = record.packageName
+                ?.takeIf { it.isNotBlank() }
+                ?: record.appName
+            val matchedActiveSession = _activeSession.value?.takeIf {
+                !it.isPaused && (it.sessionId == record.sessionId || it.appPackageName == packageName)
+            }
+            val shouldPauseJudgment = shouldPauseJudgmentDuringFalsePositiveLearning(source, matchedActiveSession)
+
+            if (shouldPauseJudgment) {
+                isFalsePositiveLearningInProgress = true
+                withContext(Dispatchers.Main) {
+                    ToastOverlay.show(context, "已暂停判断，正在生成补充规则…")
+                }
+                screenAnalyzer?.pauseAnalysis()
+            }
+
+            try {
+                withContext(Dispatchers.IO) {
+                    ruleRecordRepository.markRecord(record.id, true)
+                }
+
+                val contextInfo = resolveFalsePositiveContext(record, packageName, fallbackSession)
+                val generated = falsePositiveRuleGenerator.generateAndSaveRule(
+                    packageName = packageName,
+                    appName = contextInfo.appName,
+                    record = record,
+                    constraints = contextInfo.constraints,
+                    userNote = userNote
+                )
+
+                Logger.d(
+                    TAG,
+                    "Processed false positive from $source for record ${record.id}, " +
+                        "generatedRule=${generated.ruleText != null}, reused=${generated.reusedExistingHint}"
+                )
+
+                buildFalsePositiveFeedbackResult(record, generated, shouldPauseJudgment)
+            } catch (e: Exception) {
+                Logger.e(TAG, "Failed to process false positive record", e)
+                FalsePositiveFeedbackResult(
+                    success = false,
+                    recordId = record.id,
+                    userMessage = "记录误报失败"
+                )
+            } finally {
+                if (shouldPauseJudgment) {
+                    isFalsePositiveLearningInProgress = false
+                    val active = _activeSession.value
+                    if (active != null && !active.isPaused && ApiConfig.isConfigured()) {
+                        startScreenAnalysis(active.appPackageName, active.appDisplayName, active.constraints)
+                    }
+                }
+            }
+        }
+    }
+
+    private fun shouldPauseJudgmentDuringFalsePositiveLearning(
+        source: String,
+        activeSession: ActiveSession?
+    ): Boolean {
+        if (activeSession == null) return false
+        return source == "floating_overlay" || source == "intervention_dialog"
+    }
+
+    private suspend fun resolveFalsePositiveContext(
+        record: RuleRecord,
+        packageName: String,
+        fallbackSession: ActiveSession?
+    ): FalsePositiveContext {
+        val activeMatch = fallbackSession?.takeIf {
+            it.sessionId == record.sessionId || it.appPackageName == packageName
+        }
+        if (activeMatch != null) {
+            return FalsePositiveContext(
+                appName = activeMatch.appDisplayName,
+                constraints = activeMatch.constraints.ifEmpty {
+                    fallbackConstraintsForRecord(record)
+                }
+            )
+        }
+
+        val sessionEntity = withContext(Dispatchers.IO) {
+            repository.getSession(record.sessionId)
+        }
+        val storedConstraints = withContext(Dispatchers.IO) {
+            repository.getConstraintsForSession(record.sessionId)
+        }
+        val appName = sessionEntity?.appDisplayName ?: packageName
+
+        return FalsePositiveContext(
+            appName = appName,
+            constraints = storedConstraints
+                .map { it.toSessionConstraint() }
+                .ifEmpty { fallbackConstraintsForRecord(record) }
+        )
+    }
+
+    private fun fallbackConstraintsForRecord(record: RuleRecord): List<SessionConstraint> {
+        val packageName = record.packageName
+            ?.takeIf { it.isNotBlank() }
+            ?: record.appName
+
+        val fromLastIntent = loadLastIntent(packageName).orEmpty()
+        if (fromLastIntent.isNotEmpty()) {
+            return fromLastIntent
+        }
+
+        val type = record.constraintType ?: return emptyList()
+        val description = record.constraintContent?.takeIf { it.isNotBlank() } ?: return emptyList()
+
+        return listOf(
+            SessionConstraint(
+                id = record.constraintId?.toString() ?: "feedback-${record.id}",
+                type = type,
+                description = description
+            )
+        )
+    }
+
+    private fun buildFalsePositiveFeedbackResult(
+        record: RuleRecord,
+        generated: GeneratedFalsePositiveRuleResult,
+        resumedJudgment: Boolean
+    ): FalsePositiveFeedbackResult {
+        val message = when {
+            generated.ruleText != null && generated.reusedExistingHint ->
+                if (resumedJudgment) "已有相似补充规则，已恢复判断并立即生效" else "已记录误报，已有相似附加规则"
+            generated.ruleText != null && generated.usedUserNoteFallback ->
+                if (resumedJudgment) "已保存补充说明，已恢复判断并立即生效" else "已记录误报，并保存补充说明"
+            generated.ruleText != null ->
+                if (resumedJudgment) "补充规则已生成，已恢复判断并立即生效" else "已记录误报，并生成附加规则"
+            else ->
+                if (resumedJudgment) "已记录这次误报，已恢复判断" else "已记录这次误报"
+        }
+
+        return FalsePositiveFeedbackResult(
+            success = true,
+            recordId = record.id,
+            generatedRule = generated.ruleText,
+            reusedExistingRule = generated.reusedExistingHint,
+            userMessage = message
+        )
+    }
+
+    private fun persistSessionConstraints(sessionId: Long, constraints: List<SessionConstraint>) {
+        scope.launch(Dispatchers.IO) {
+            try {
+                repository.replaceConstraintsForSession(
+                    sessionId = sessionId,
+                    constraints = constraints.map { it.toEntity(sessionId) }
+                )
+            } catch (e: Exception) {
+                Logger.e(TAG, "Failed to persist session constraints for $sessionId", e)
             }
         }
     }
@@ -666,6 +907,7 @@ class SessionManager(private val context: Context) {
         )
 
         reconcileConstraintMatchStates(merged)
+        persistSessionConstraints(session.sessionId, merged)
 
         // Emit event
         _sessionEvents.emit(SessionEvent.ConstraintsModified(merged))
@@ -1155,6 +1397,44 @@ data class SessionConstraint(
     val interventionLevel: InterventionLevel = InterventionLevel.MODERATE,
     val isActive: Boolean = true,
     val isDefault: Boolean = false
+)
+
+private fun SessionConstraint.toEntity(sessionId: Long): IntentConstraintEntity {
+    return IntentConstraintEntity(
+        sessionId = sessionId,
+        intentId = 0L,
+        type = type,
+        contentPattern = description,
+        timeLimitMs = timeLimitMs,
+        timeScope = timeScope,
+        interventionLevel = interventionLevel,
+        isActive = isActive
+    )
+}
+
+private fun IntentConstraintEntity.toSessionConstraint(): SessionConstraint {
+    return SessionConstraint(
+        id = id.toString(),
+        type = type,
+        description = contentPattern ?: "",
+        timeLimitMs = timeLimitMs,
+        timeScope = timeScope,
+        interventionLevel = interventionLevel,
+        isActive = isActive
+    )
+}
+
+data class FalsePositiveFeedbackResult(
+    val success: Boolean,
+    val recordId: String? = null,
+    val generatedRule: String? = null,
+    val reusedExistingRule: Boolean = false,
+    val userMessage: String
+)
+
+private data class FalsePositiveContext(
+    val appName: String,
+    val constraints: List<SessionConstraint>
 )
 
 /**

@@ -32,6 +32,7 @@ import com.google.gson.Gson
 import com.seenot.app.config.ApiConfig
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.RuleRecord
+import com.seenot.app.data.repository.AppHintRepository
 import com.seenot.app.data.repository.RuleRecordRepository
 import com.seenot.app.config.RuleRecordingPrefs
 import com.seenot.app.domain.SessionConstraint
@@ -83,6 +84,7 @@ class ScreenAnalyzer(
     }
 
     private val gson = Gson()
+    private val appHintRepository = AppHintRepository(context)
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -250,9 +252,17 @@ class ScreenAnalyzer(
      * Stop periodic analysis
      */
     fun stopAnalysis() {
+        pauseAnalysis()
+        scope.cancel()
+    }
+
+    /**
+     * Pause periodic analysis without cancelling the analyzer scope.
+     * This is used for short in-session pauses (e.g. false-positive learning).
+     */
+    fun pauseAnalysis() {
         analysisJob?.cancel()
         analysisJob = null
-        scope.cancel()
         _isAnalyzing.value = false
         // Reset keyframe detection state
         lastQuickHash = null
@@ -807,8 +817,19 @@ class ScreenAnalyzer(
         val imageBase64 = bitmapToBase64(screenshot)
         Logger.d(TAG, "[AI] Image base64 size: ${imageBase64.length} chars")
 
+        val appHints = if (packageName.isNotBlank()) {
+            appHintRepository.getHintsForPackage(packageName)
+        } else {
+            emptyList()
+        }
+
         // Build prompt with constraints
-        val prompt = buildAnalysisPrompt(constraints, appName, packageName)
+        val prompt = buildAnalysisPrompt(
+            constraints = constraints,
+            appName = appName,
+            packageName = packageName,
+            appHints = appHints.map { it.hintText }
+        )
         Logger.d(TAG, "[AI] Prompt length: ${prompt.length} chars")
 
         try {
@@ -1056,7 +1077,8 @@ class ScreenAnalyzer(
     private fun buildAnalysisPrompt(
         constraints: List<SessionConstraint>,
         appName: String = "",
-        packageName: String = ""
+        packageName: String = "",
+        appHints: List<String> = emptyList()
     ): String {
         // Group constraints by type
         val denyAllowConstraints = constraints.filter { it.type != ConstraintType.TIME_CAP }
@@ -1113,6 +1135,24 @@ class ScreenAnalyzer(
             if (packageName.isNotBlank()) appendLine("- 应用包名：$packageName")
         }.trimEnd()
 
+        val appHintsText = appHints
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .take(8)
+            .joinToString("\n") { "- $it" }
+
+        val appHintSection = if (appHintsText.isNotBlank()) {
+            """
+
+4. **应用附加判断规则（来自历史误报反馈）：**
+   - 以下规则用于细化边界，优先用于避免误报
+   - 只有当截图明确符合这些界面特征时才使用，不要生搬硬套
+$appHintsText
+            """.trimIndent()
+        } else {
+            ""
+        }
+
         return """
 **当前环境：**
 $envInfo
@@ -1142,6 +1182,7 @@ $envInfo
    - 用户主动点击并浏览该内容：才算违规（用户有主动意图，是用户主动选择的内容）
 
 $typeSpecificRules
+$appHintSection
 
 **当前约束：**
 $constraintsText

@@ -34,6 +34,9 @@ interface IntentConstraintDao {
     @Query("SELECT * FROM intent_constraints WHERE sessionId = :sessionId AND isActive = 1")
     suspend fun getActiveConstraintsForSession(sessionId: Long): List<IntentConstraintEntity>
 
+    @Query("SELECT * FROM intent_constraints WHERE sessionId = :sessionId ORDER BY createdAt ASC")
+    suspend fun getConstraintsForSession(sessionId: Long): List<IntentConstraintEntity>
+
     @Query("UPDATE intent_constraints SET isActive = :isActive WHERE id = :constraintId")
     suspend fun setActive(constraintId: Long, isActive: Boolean)
 
