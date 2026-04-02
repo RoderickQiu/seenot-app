@@ -43,7 +43,7 @@ class ScreenAnalyzerDebugger {
     private val gson = Gson()
 
     companion object {
-        private const val MODEL = "qwen3.5-plus"
+        private const val MODEL = "qwen3.6-plus"
     }
 
     suspend fun singleTest(imageFile: File, constraintDesc: String, constraintType: String = "DENY") {

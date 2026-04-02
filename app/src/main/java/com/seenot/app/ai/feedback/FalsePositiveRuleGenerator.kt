@@ -32,7 +32,7 @@ class FalsePositiveRuleGenerator(private val context: Context) {
 
     companion object {
         private const val TAG = "FalsePositiveRuleGen"
-        private const val MODEL_NAME = "qwen3.5-plus"
+        private const val MODEL_NAME = "qwen3.6-plus"
     }
 
     private val appHintRepository = AppHintRepository(context)

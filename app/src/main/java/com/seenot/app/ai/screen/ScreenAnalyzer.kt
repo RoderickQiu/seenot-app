@@ -839,7 +839,7 @@ class ScreenAnalyzer(
                 return@withContext emptyList()
             }
 
-            Logger.d(TAG, "[AI] Using DashScope SDK with model: qwen3.5-plus")
+            Logger.d(TAG, "[AI] Using DashScope SDK with model: qwen3.6-plus")
 
             // Build user message with image and text
             val userContent = listOf(
@@ -855,7 +855,7 @@ class ScreenAnalyzer(
             // Build conversation param
             val param = MultiModalConversationParam.builder()
                 .apiKey(apiKey)
-                .model("qwen3.5-plus")
+                .model("qwen3.6-plus")
                 .message(userMessage)
                 .temperature(0.3f)
                 .maxTokens(1000)
