@@ -35,6 +35,9 @@ fun RuleRecordingSettingsDialog(
     var screenshotMode by remember {
         mutableStateOf(RuleRecordingPrefs.getScreenshotMode(context))
     }
+    var showHomeTimeline by remember {
+        mutableStateOf(RuleRecordingPrefs.isHomeTimelineEnabled(context))
+    }
 
     var screenshotDropdownExpanded by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -153,6 +156,27 @@ fun RuleRecordingSettingsDialog(
                     )
                 }
 
+                HorizontalDivider()
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.SpaceBetween
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text("显示首页时间轴")
+                        Text(
+                            text = "关闭后首页不再展示“今日时间轴”模块",
+                            style = androidx.compose.ui.text.TextStyle(fontSize = 12.sp),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Switch(
+                        checked = showHomeTimeline,
+                        onCheckedChange = { showHomeTimeline = it }
+                    )
+                }
+
                 // Delete all records button
                 HorizontalDivider()
 
@@ -178,6 +202,7 @@ fun RuleRecordingSettingsDialog(
                 onClick = {
                     RuleRecordingPrefs.setEnabled(context, enableRecording)
                     RuleRecordingPrefs.setScreenshotMode(context, screenshotMode)
+                    RuleRecordingPrefs.setHomeTimelineEnabled(context, showHomeTimeline)
                     onDismiss()
                 }
             ) {

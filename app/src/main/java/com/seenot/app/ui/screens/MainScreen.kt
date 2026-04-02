@@ -26,6 +26,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.seenot.app.config.RuleRecordingPrefs
 import com.seenot.app.domain.SessionManager
 import com.seenot.app.service.SeenotAccessibilityService
 import com.seenot.app.ai.voice.VoiceInputManager
@@ -60,6 +61,7 @@ fun MainScreen(
     voiceInputPackageName: String? = null
 ) {
     val context = LocalContext.current
+    var showHomeTimeline by remember { mutableStateOf(RuleRecordingPrefs.isHomeTimelineEnabled(context)) }
 
     // State
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -190,6 +192,7 @@ fun MainScreen(
                         onRequestMicrophone = {
                             microphonePermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
                         },
+                        showHomeTimeline = showHomeTimeline,
                         modifier = Modifier.padding(padding)
                     )
                     1 -> AppsTab(modifier = Modifier.padding(padding))
@@ -250,7 +253,10 @@ fun MainScreen(
         val repository = remember { RuleRecordRepository(context) }
         RuleRecordingSettingsDialog(
             repository = repository,
-            onDismiss = { showRuleRecordingSettings = false }
+            onDismiss = {
+                showRuleRecordingSettings = false
+                showHomeTimeline = RuleRecordingPrefs.isHomeTimelineEnabled(context)
+            }
         )
     }
 }
@@ -268,6 +274,7 @@ fun HomeTab(
     onEnableAccessibility: () -> Unit,
     onEnableOverlay: () -> Unit,
     onRequestMicrophone: () -> Unit,
+    showHomeTimeline: Boolean,
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
@@ -424,8 +431,10 @@ fun HomeTab(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Today's timeline (derived from RuleRecord)
-        HomeTimelineSection()
+        if (showHomeTimeline) {
+            // Today's timeline (derived from RuleRecord)
+            HomeTimelineSection()
+        }
     }
 }
 
@@ -1672,9 +1681,9 @@ fun SettingsTab(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Rule Records Section
+        // Rule Records + Timeline Section
         Text(
-            text = "规则记录",
+            text = "规则记录和时间轴",
             style = MaterialTheme.typography.titleMedium
         )
         Spacer(modifier = Modifier.height(8.dp))

@@ -11,6 +11,7 @@ object RuleRecordingPrefs {
     private const val PREFS_NAME = "seenot_rule_recording"
     private const val KEY_ENABLE_RULE_RECORDING = "enable_rule_recording"
     private const val KEY_SCREENSHOT_MODE = "rule_record_screenshot_mode"
+    private const val KEY_SHOW_HOME_TIMELINE = "show_home_timeline"
 
     /**
      * Screenshot save modes:
@@ -61,6 +62,20 @@ object RuleRecordingPrefs {
      */
     fun setScreenshotMode(context: Context, mode: ScreenshotMode) {
         getPrefs(context).edit().putString(KEY_SCREENSHOT_MODE, mode.value).apply()
+    }
+
+    /**
+     * Whether home timeline section is visible on Home tab
+     */
+    fun isHomeTimelineEnabled(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_SHOW_HOME_TIMELINE, true)
+    }
+
+    /**
+     * Set home timeline section visibility on Home tab
+     */
+    fun setHomeTimelineEnabled(context: Context, enabled: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_SHOW_HOME_TIMELINE, enabled).apply()
     }
 
     /**
