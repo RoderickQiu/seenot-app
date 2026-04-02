@@ -8,10 +8,10 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
@@ -875,7 +875,7 @@ fun AppRulesDialog(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "${constraint.type.name}: ${constraint.description}",
+                                    text = "${constraintTypeLabel(constraint.type)}: ${constraint.description}",
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
@@ -956,7 +956,7 @@ fun AppRulesDialog(
                             Column(modifier = Modifier.weight(1f)) {
                                 constraints.forEach { constraint ->
                                     Text(
-                                        text = "${constraint.type.name}: ${constraint.description}",
+                                        text = "${constraintTypeLabel(constraint.type)}: ${constraint.description}",
                                         style = MaterialTheme.typography.bodySmall
                                     )
                                 }
@@ -1102,10 +1102,29 @@ fun AppRulesDialog(
             EditHistoryRuleDialog(
                 constraints = historyRules[index],
                 onDismiss = { editingRuleIndex = null },
-                onSave = { updatedConstraints ->
-                    val newHistory = historyRules.toMutableList().apply {
-                        this[index] = updatedConstraints
+                onSaveAsPreset = { updatedConstraints ->
+                    val existingFingerprints = presetRules
+                        .map { sessionManager.getConstraintFingerprint(listOf(it)) }
+                        .toMutableSet()
+                    val constraintsToAdd = updatedConstraints.mapNotNull { constraint ->
+                        val fingerprint = sessionManager.getConstraintFingerprint(listOf(constraint))
+                        if (fingerprint in existingFingerprints) {
+                            null
+                        } else {
+                            existingFingerprints += fingerprint
+                            constraint.copy(
+                                id = java.util.UUID.randomUUID().toString(),
+                                isDefault = false,
+                                isActive = true
+                            )
+                        }
                     }
+                    if (constraintsToAdd.isNotEmpty()) {
+                        val newPresets = presetRules + constraintsToAdd
+                        presetRules = newPresets
+                        sessionManager.savePresetRules(app.packageName, newPresets)
+                    }
+                    val newHistory = historyRules.toMutableList().apply { removeAt(index) }
                     historyRules = newHistory
                     sessionManager.saveIntentHistory(app.packageName, newHistory)
                     editingRuleIndex = null
@@ -1141,196 +1160,17 @@ fun AddPresetRuleDialog(
     onDismiss: () -> Unit,
     onConfirm: (SessionConstraint) -> Unit
 ) {
-    var ruleType by remember { mutableStateOf(ConstraintType.DENY) }
-    var description by remember { mutableStateOf("") }
-    var timeLimitMinutes by remember { mutableStateOf("") }
-    var timeScope by remember { mutableStateOf(TimeScope.SESSION) }
-    var interventionLevel by remember { mutableStateOf(InterventionLevel.MODERATE) }
-    var showConflictWarning by remember { mutableStateOf(false) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("添加预设规则") },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(text = "规则类型", style = MaterialTheme.typography.labelMedium)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    ConstraintType.entries.forEach { type ->
-                        FilterChip(
-                            selected = ruleType == type,
-                            onClick = { 
-                                ruleType = type
-                                showConflictWarning = false
-                            },
-                            label = {
-                                Text(
-                                    when (type) {
-                                        ConstraintType.DENY -> "禁止"
-                                        ConstraintType.TIME_CAP -> "时间限制"
-                                    }
-                                )
-                            }
-                        )
-                    }
-                }
-
-                if (showConflictWarning) {
-                    Spacer(modifier = Modifier.height(8.dp))
-                    Card(
-                        modifier = Modifier.fillMaxWidth(),
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.errorContainer
-                        )
-                    ) {
-                        Text(
-                            text = "⚠️ 注意：DENY（禁止）和 TIME_CAP（时间限制）可以同时存在。如果已有其他类型约束，新约束将替换它。",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer,
-                            modifier = Modifier.padding(12.dp)
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Description
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("描述") },
-                    placeholder = { Text("例如：短视频、朋友圈和视频号") },
-                    modifier = Modifier.fillMaxWidth(),
-                    supportingText = {
-                        Text(
-                            "💡 可以输入多个条件，如：朋友圈和视频号",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    },
-                    singleLine = true
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                // Time Limit
-                if (ruleType == ConstraintType.TIME_CAP || ruleType == ConstraintType.DENY) {
-                    OutlinedTextField(
-                        value = timeLimitMinutes,
-                        onValueChange = { timeLimitMinutes = it.filter { c -> c.isDigit() || c == '.' } },
-                        label = { Text("时间限制（分钟，可选）") },
-                        placeholder = { Text("例如：30 或 0.5") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    // Time Scope (only if time limit is set)
-                    if (ruleType == ConstraintType.TIME_CAP && timeLimitMinutes.isNotBlank()) {
-                        Text(text = "时间范围", style = MaterialTheme.typography.labelMedium)
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            TimeScope.entries.forEach { scope ->
-                                FilterChip(
-                                    selected = timeScope == scope,
-                                    onClick = { timeScope = scope },
-                                    label = {
-                                        Text(
-                                            when (scope) {
-                                                TimeScope.SESSION -> "会话级（整个会话计时）"
-                                                TimeScope.PER_CONTENT -> "内容级（只在目标内容时计时）"
-                                                TimeScope.CONTINUOUS -> "连续（不间断计时）"
-                                                TimeScope.DAILY_TOTAL -> "每日累计（跨会话持久化）"
-                                            }
-                                        )
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                    }
-                }
-
-                // Intervention Level
-                Text(text = "干预级别", style = MaterialTheme.typography.labelMedium)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    InterventionLevel.entries.forEach { level ->
-                        FilterChip(
-                            selected = interventionLevel == level,
-                            onClick = { interventionLevel = level },
-                            label = {
-                                Text(
-                                    when (level) {
-                                        InterventionLevel.GENTLE -> "温柔"
-                                        InterventionLevel.MODERATE -> "中等"
-                                        InterventionLevel.STRICT -> "严格"
-                                    }
-                                )
-                            }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Intervention level description
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                ) {
-                    Text(
-                        text = when (interventionLevel) {
-                            InterventionLevel.GENTLE -> "仅提醒：弹出提示框提醒用户，但不阻止操作。用户可以继续当前行为。"
-                            InterventionLevel.MODERATE -> "提醒+返回：弹出提示框，并自动返回上一个界面。适合想要中断但不需要强制禁止的场景。"
-                            InterventionLevel.STRICT -> "强制返回：直接返回主屏幕，强制中断当前行为。适合需要强力遏制的场景。"
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(12.dp)
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (description.isNotBlank()) {
-                        val timeLimitMs = if (timeLimitMinutes.isNotBlank()) {
-                            timeLimitMinutes.toDoubleOrNull()?.times(60 * 1000)?.toLong()
-                        } else null
-
-                        onConfirm(
-                            SessionConstraint(
-                                id = java.util.UUID.randomUUID().toString(),
-                                type = ruleType,
-                                description = description,
-                                timeLimitMs = timeLimitMs,
-                                timeScope = if (timeLimitMs != null) timeScope else null,
-                                interventionLevel = interventionLevel
-                            )
-                        )
-                    }
-                },
-                enabled = description.isNotBlank()
-            ) {
-                Text("添加")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消")
-            }
-        }
+    RuleEditorDialog(
+        title = "添加预设规则",
+        initialConstraint = SessionConstraint(
+            id = java.util.UUID.randomUUID().toString(),
+            type = ConstraintType.DENY,
+            description = "",
+            interventionLevel = InterventionLevel.MODERATE
+        ),
+        confirmText = "添加",
+        onDismiss = onDismiss,
+        onConfirm = onConfirm
     )
 }
 
@@ -1343,173 +1183,12 @@ fun EditPresetRuleDialog(
     onDismiss: () -> Unit,
     onSave: (SessionConstraint) -> Unit
 ) {
-    var ruleType by remember { mutableStateOf(constraint.type) }
-    var description by remember { mutableStateOf(constraint.description) }
-    var timeLimitMinutes by remember { mutableStateOf(constraint.timeLimitMs?.let { (it / 60000.0).toString() } ?: "") }
-    var timeScope by remember { mutableStateOf(constraint.timeScope ?: TimeScope.SESSION) }
-    var interventionLevel by remember { mutableStateOf(constraint.interventionLevel) }
-
-    AlertDialog(
-        onDismissRequest = onDismiss,
-        title = { Text("编辑预设规则") },
-        text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(text = "规则类型", style = MaterialTheme.typography.labelMedium)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    ConstraintType.entries.forEach { type ->
-                        FilterChip(
-                            selected = ruleType == type,
-                            onClick = { ruleType = type },
-                            label = {
-                                Text(
-                                    when (type) {
-                                        ConstraintType.DENY -> "禁止"
-                                        ConstraintType.TIME_CAP -> "时间限制"
-                                    }
-                                )
-                            }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("描述") },
-                    placeholder = { Text("例如：短视频、朋友圈和视频号") },
-                    modifier = Modifier.fillMaxWidth(),
-                    supportingText = {
-                        Text(
-                            "💡 可以输入多个条件，如：朋友圈和视频号",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    },
-                    singleLine = true
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                if (ruleType == ConstraintType.TIME_CAP || ruleType == ConstraintType.DENY) {
-                    OutlinedTextField(
-                        value = timeLimitMinutes,
-                        onValueChange = { timeLimitMinutes = it.filter { c -> c.isDigit() || c == '.' } },
-                        label = { Text("时间限制（分钟，可选）") },
-                        placeholder = { Text("例如：30 或 0.5") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    if (ruleType == ConstraintType.TIME_CAP && timeLimitMinutes.isNotBlank()) {
-                        Text(text = "时间范围", style = MaterialTheme.typography.labelMedium)
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            TimeScope.entries.forEach { scope ->
-                                FilterChip(
-                                    selected = timeScope == scope,
-                                    onClick = { timeScope = scope },
-                                    label = {
-                                        Text(
-                                            when (scope) {
-                                                TimeScope.SESSION -> "会话级（整个会话计时）"
-                                                TimeScope.PER_CONTENT -> "内容级（只在目标内容时计时）"
-                                                TimeScope.CONTINUOUS -> "连续（不间断计时）"
-                                                TimeScope.DAILY_TOTAL -> "每日累计（跨会话持久化）"
-                                            }
-                                        )
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                    }
-                }
-
-                // Intervention Level
-                Text(text = "干预级别", style = MaterialTheme.typography.labelMedium)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    InterventionLevel.entries.forEach { level ->
-                        FilterChip(
-                            selected = interventionLevel == level,
-                            onClick = { interventionLevel = level },
-                            label = {
-                                Text(
-                                    when (level) {
-                                        InterventionLevel.GENTLE -> "温柔"
-                                        InterventionLevel.MODERATE -> "中等"
-                                        InterventionLevel.STRICT -> "严格"
-                                    }
-                                )
-                            }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Intervention level description
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                ) {
-                    Text(
-                        text = when (interventionLevel) {
-                            InterventionLevel.GENTLE -> "仅提醒：弹出提示框提醒用户，但不阻止操作。用户可以继续当前行为。"
-                            InterventionLevel.MODERATE -> "提醒+返回：弹出提示框，并自动返回上一个界面。适合想要中断但不需要强制禁止的场景。"
-                            InterventionLevel.STRICT -> "强制返回：直接返回主屏幕，强制中断当前行为。适合需要强力遏制的场景。"
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(12.dp)
-                    )
-                }
-            }
-        },
-        confirmButton = {
-            TextButton(
-                onClick = {
-                    if (description.isNotBlank()) {
-                        val timeLimitMs = if (timeLimitMinutes.isNotBlank()) {
-                            timeLimitMinutes.toDoubleOrNull()?.times(60 * 1000)?.toLong()
-                        } else null
-
-                        onSave(
-                            SessionConstraint(
-                                id = constraint.id,
-                                type = ruleType,
-                                description = description,
-                                timeLimitMs = timeLimitMs,
-                                timeScope = if (timeLimitMs != null) timeScope else null,
-                                interventionLevel = interventionLevel,
-                                isActive = constraint.isActive
-                            )
-                        )
-                    }
-                },
-                enabled = description.isNotBlank()
-            ) {
-                Text("保存")
-            }
-        },
-        dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text("取消")
-            }
-        }
+    RuleEditorDialog(
+        title = "编辑预设规则",
+        initialConstraint = constraint,
+        confirmText = "保存",
+        onDismiss = onDismiss,
+        onConfirm = onSave
     )
 }
 
@@ -1520,7 +1199,7 @@ fun EditPresetRuleDialog(
 fun EditHistoryRuleDialog(
     constraints: List<SessionConstraint>,
     onDismiss: () -> Unit,
-    onSave: (List<SessionConstraint>) -> Unit
+    onSaveAsPreset: (List<SessionConstraint>) -> Unit
 ) {
     var editedConstraints by remember { mutableStateOf(constraints.toMutableList()) }
     var editingIndex by remember { mutableStateOf<Int?>(null) }
@@ -1614,20 +1293,19 @@ fun EditHistoryRuleDialog(
                         }
                     }
                 }
-
-                item {
-                    TextButton(
-                        onClick = { onSave(editedConstraints) },
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Text("保存更改")
-                    }
-                }
             }
         },
         confirmButton = {
+            TextButton(
+                onClick = { onSaveAsPreset(editedConstraints) },
+                enabled = editedConstraints.isNotEmpty()
+            ) {
+                Text("保存为预设")
+            }
+        },
+        dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("关闭")
+                Text("取消")
             }
         }
     )
@@ -1657,167 +1335,67 @@ fun EditConstraintDialog(
     onDismiss: () -> Unit,
     onSave: (SessionConstraint) -> Unit
 ) {
-    var ruleType by remember { mutableStateOf(constraint.type) }
-    var description by remember { mutableStateOf(constraint.description) }
-    var timeLimitMinutes by remember {
-        mutableStateOf(constraint.timeLimitMs?.let { (it / 60000).toString() } ?: "")
+    RuleEditorDialog(
+        title = "编辑规则项",
+        initialConstraint = constraint,
+        confirmText = "保存",
+        onDismiss = onDismiss,
+        onConfirm = onSave
+    )
+}
+
+@Composable
+private fun RuleEditorDialog(
+    title: String,
+    initialConstraint: SessionConstraint,
+    confirmText: String,
+    onDismiss: () -> Unit,
+    onConfirm: (SessionConstraint) -> Unit
+) {
+    var ruleType by remember(initialConstraint) { mutableStateOf(initialConstraint.type) }
+    var description by remember(initialConstraint) { mutableStateOf(initialConstraint.description) }
+    var timeLimitMinutes by remember(initialConstraint) {
+        mutableStateOf(initialConstraint.timeLimitMs?.let { formatTimeLimitMinutes(it) } ?: "")
     }
-    var timeScope by remember { mutableStateOf(constraint.timeScope ?: TimeScope.SESSION) }
-    var interventionLevel by remember { mutableStateOf(constraint.interventionLevel) }
+    var timeScope by remember(initialConstraint) {
+        mutableStateOf(initialConstraint.timeScope ?: TimeScope.SESSION)
+    }
+    var interventionLevel by remember(initialConstraint) {
+        mutableStateOf(initialConstraint.interventionLevel)
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("编辑规则项") },
+        title = { Text(title) },
         text = {
-            Column(modifier = Modifier.fillMaxWidth()) {
-                Text(text = "规则类型", style = MaterialTheme.typography.labelMedium)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    ConstraintType.entries.forEach { type ->
-                        FilterChip(
-                            selected = ruleType == type,
-                            onClick = { ruleType = type },
-                            label = {
-                                Text(
-                                    when (type) {
-                                        ConstraintType.DENY -> "禁止"
-                                        ConstraintType.TIME_CAP -> "时间限制"
-                                    }
-                                )
-                            }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                OutlinedTextField(
-                    value = description,
-                    onValueChange = { description = it },
-                    label = { Text("描述") },
-                    placeholder = { Text("例如：短视频、朋友圈和视频号") },
-                    modifier = Modifier.fillMaxWidth(),
-                    supportingText = {
-                        Text(
-                            "💡 可以输入多个条件，如：朋友圈和视频号",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    },
-                    singleLine = true
-                )
-
-                Spacer(modifier = Modifier.height(12.dp))
-
-                if (ruleType == ConstraintType.TIME_CAP || ruleType == ConstraintType.DENY) {
-                    OutlinedTextField(
-                        value = timeLimitMinutes,
-                        onValueChange = { timeLimitMinutes = it.filter { c -> c.isDigit() || c == '.' } },
-                        label = { Text("时间限制（分钟，可选）") },
-                        placeholder = { Text("例如：30 或 0.5") },
-                        modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
-                    )
-                    Spacer(modifier = Modifier.height(12.dp))
-
-                    if (ruleType == ConstraintType.TIME_CAP && timeLimitMinutes.isNotBlank()) {
-                        Text(text = "时间范围", style = MaterialTheme.typography.labelMedium)
-                        Column(
-                            modifier = Modifier.fillMaxWidth(),
-                            verticalArrangement = Arrangement.spacedBy(4.dp)
-                        ) {
-                            TimeScope.entries.forEach { scope ->
-                                FilterChip(
-                                    selected = timeScope == scope,
-                                    onClick = { timeScope = scope },
-                                    label = {
-                                        Text(
-                                            when (scope) {
-                                                TimeScope.SESSION -> "会话级（整个会话计时）"
-                                                TimeScope.PER_CONTENT -> "内容级（只在目标内容时计时）"
-                                                TimeScope.CONTINUOUS -> "连续（不间断计时）"
-                                                TimeScope.DAILY_TOTAL -> "每日累计（跨会话持久化）"
-                                            }
-                                        )
-                                    },
-                                    modifier = Modifier.fillMaxWidth()
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.height(12.dp))
-                    }
-                }
-
-                // Intervention Level
-                Text(text = "干预级别", style = MaterialTheme.typography.labelMedium)
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    InterventionLevel.entries.forEach { level ->
-                        FilterChip(
-                            selected = interventionLevel == level,
-                            onClick = { interventionLevel = level },
-                            label = {
-                                Text(
-                                    when (level) {
-                                        InterventionLevel.GENTLE -> "温柔"
-                                        InterventionLevel.MODERATE -> "中等"
-                                        InterventionLevel.STRICT -> "严格"
-                                    }
-                                )
-                            }
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(8.dp))
-
-                // Intervention level description
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                ) {
-                    Text(
-                        text = when (interventionLevel) {
-                            InterventionLevel.GENTLE -> "仅提醒：弹出提示框提醒用户，但不阻止操作。"
-                            InterventionLevel.MODERATE -> "提醒+返回：弹出提示框，并自动返回上一个界面。"
-                            InterventionLevel.STRICT -> "强制返回：直接返回主屏幕，强制中断当前行为。"
-                        },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.padding(12.dp)
-                    )
-                }
-            }
+            RuleEditorForm(
+                ruleType = ruleType,
+                onRuleTypeChange = { ruleType = it },
+                description = description,
+                onDescriptionChange = { description = it },
+                timeLimitMinutes = timeLimitMinutes,
+                onTimeLimitMinutesChange = { timeLimitMinutes = it },
+                timeScope = timeScope,
+                onTimeScopeChange = { timeScope = it },
+                interventionLevel = interventionLevel,
+                onInterventionLevelChange = { interventionLevel = it }
+            )
         },
         confirmButton = {
             TextButton(
                 onClick = {
-                    if (description.isNotBlank()) {
-                        val timeLimitMs = if (timeLimitMinutes.isNotBlank()) {
-                            timeLimitMinutes.toDoubleOrNull()?.times(60 * 1000)?.toLong()
-                        } else null
-
-                        onSave(
-                            constraint.copy(
-                                type = ruleType,
-                                description = description,
-                                timeLimitMs = timeLimitMs,
-                                timeScope = if (timeLimitMs != null) timeScope else null,
-                                interventionLevel = interventionLevel,
-                                isDefault = constraint.isDefault
-                            )
-                        )
-                    }
+                    buildEditedConstraint(
+                        baseConstraint = initialConstraint,
+                        ruleType = ruleType,
+                        description = description,
+                        timeLimitMinutes = timeLimitMinutes,
+                        timeScope = timeScope,
+                        interventionLevel = interventionLevel
+                    )?.let(onConfirm)
                 },
                 enabled = description.isNotBlank()
             ) {
-                Text("保存")
+                Text(confirmText)
             }
         },
         dismissButton = {
@@ -1826,6 +1404,178 @@ fun EditConstraintDialog(
             }
         }
     )
+}
+
+@Composable
+private fun RuleEditorForm(
+    ruleType: ConstraintType,
+    onRuleTypeChange: (ConstraintType) -> Unit,
+    description: String,
+    onDescriptionChange: (String) -> Unit,
+    timeLimitMinutes: String,
+    onTimeLimitMinutesChange: (String) -> Unit,
+    timeScope: TimeScope,
+    onTimeScopeChange: (TimeScope) -> Unit,
+    interventionLevel: InterventionLevel,
+    onInterventionLevelChange: (InterventionLevel) -> Unit
+) {
+    Column(
+        modifier = Modifier
+            .fillMaxWidth()
+            .heightIn(max = 430.dp)
+            .verticalScroll(rememberScrollState())
+    ) {
+        Text(text = "规则类型", style = MaterialTheme.typography.labelMedium)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            ConstraintType.entries.forEach { type ->
+                FilterChip(
+                    selected = ruleType == type,
+                    onClick = { onRuleTypeChange(type) },
+                    label = { Text(constraintTypeLabel(type)) }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        OutlinedTextField(
+            value = description,
+            onValueChange = onDescriptionChange,
+            label = { Text("描述") },
+            placeholder = { Text("例如：短视频、朋友圈和视频号") },
+            modifier = Modifier.fillMaxWidth(),
+            supportingText = {
+                Text(
+                    "💡 可以输入多个条件，如：朋友圈和视频号",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            },
+            singleLine = true
+        )
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        if (ruleType == ConstraintType.TIME_CAP || ruleType == ConstraintType.DENY) {
+            OutlinedTextField(
+                value = timeLimitMinutes,
+                onValueChange = { value ->
+                    onTimeLimitMinutesChange(value.filter { c -> c.isDigit() || c == '.' })
+                },
+                label = { Text("时间限制（分钟，可选）") },
+                placeholder = { Text("例如：30 或 0.5") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true
+            )
+
+            if (ruleType == ConstraintType.TIME_CAP && timeLimitMinutes.isNotBlank()) {
+                Spacer(modifier = Modifier.height(12.dp))
+                Text(text = "时间范围", style = MaterialTheme.typography.labelMedium)
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    TimeScope.entries.forEach { scope ->
+                        FilterChip(
+                            selected = timeScope == scope,
+                            onClick = { onTimeScopeChange(scope) },
+                            label = { Text(timeScopeLabel(scope)) },
+                            modifier = Modifier.fillMaxWidth()
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        Text(text = "干预级别", style = MaterialTheme.typography.labelMedium)
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            InterventionLevel.entries.forEach { level ->
+                FilterChip(
+                    selected = interventionLevel == level,
+                    onClick = { onInterventionLevelChange(level) },
+                    label = { Text(interventionLevelLabel(level)) }
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Card(
+            modifier = Modifier.fillMaxWidth(),
+            colors = CardDefaults.cardColors(
+                containerColor = MaterialTheme.colorScheme.surfaceVariant
+            )
+        ) {
+            Text(
+                text = interventionLevelDescription(interventionLevel),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(12.dp)
+            )
+        }
+    }
+}
+
+private fun buildEditedConstraint(
+    baseConstraint: SessionConstraint,
+    ruleType: ConstraintType,
+    description: String,
+    timeLimitMinutes: String,
+    timeScope: TimeScope,
+    interventionLevel: InterventionLevel
+): SessionConstraint? {
+    if (description.isBlank()) return null
+
+    val timeLimitMs = if (timeLimitMinutes.isNotBlank()) {
+        timeLimitMinutes.toDoubleOrNull()?.times(60 * 1000)?.toLong()
+    } else {
+        null
+    }
+
+    return baseConstraint.copy(
+        type = ruleType,
+        description = description,
+        timeLimitMs = timeLimitMs,
+        timeScope = if (timeLimitMs != null) timeScope else null,
+        interventionLevel = interventionLevel
+    )
+}
+
+private fun formatTimeLimitMinutes(timeLimitMs: Long): String {
+    val minutes = timeLimitMs / 60000.0
+    return if (minutes % 1.0 == 0.0) minutes.toInt().toString() else minutes.toString()
+}
+
+private fun constraintTypeLabel(type: ConstraintType): String = when (type) {
+    ConstraintType.DENY -> "禁止"
+    ConstraintType.TIME_CAP -> "时间限制"
+}
+
+private fun timeScopeLabel(scope: TimeScope): String = when (scope) {
+    TimeScope.SESSION -> "会话级（整个会话计时）"
+    TimeScope.PER_CONTENT -> "内容级（只在目标内容时计时）"
+    TimeScope.CONTINUOUS -> "连续（不间断计时）"
+    TimeScope.DAILY_TOTAL -> "每日累计（跨会话持久化）"
+}
+
+private fun interventionLevelLabel(level: InterventionLevel): String = when (level) {
+    InterventionLevel.GENTLE -> "温柔"
+    InterventionLevel.MODERATE -> "中等"
+    InterventionLevel.STRICT -> "严格"
+}
+
+private fun interventionLevelDescription(level: InterventionLevel): String = when (level) {
+    InterventionLevel.GENTLE -> "仅提醒：弹出提示框提醒用户，但不阻止操作。用户可以继续当前行为。"
+    InterventionLevel.MODERATE -> "提醒+返回：弹出提示框，并自动返回上一个界面。适合想要中断但不需要强制禁止的场景。"
+    InterventionLevel.STRICT -> "强制返回：直接返回主屏幕，强制中断当前行为。适合需要强力遏制的场景。"
 }
 
 /**
@@ -2429,7 +2179,7 @@ fun VoiceInputDialog(
                                 )
                                 parsedIntent!!.constraints.forEach { constraint ->
                                     Text(
-                                        text = "• ${constraint.type.name}: ${constraint.description}",
+                                        text = "• ${constraintTypeLabel(constraint.type)}: ${constraint.description}",
                                         style = MaterialTheme.typography.bodyMedium
                                     )
                                 }
