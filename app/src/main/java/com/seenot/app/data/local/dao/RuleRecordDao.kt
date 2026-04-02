@@ -40,6 +40,9 @@ interface RuleRecordDao {
     @Query("SELECT * FROM rule_records WHERE timestamp >= :startTime AND timestamp <= :endTime ORDER BY timestamp DESC")
     suspend fun getRecordsInRange(startTime: Long, endTime: Long): List<RuleRecordEntity>
 
+    @Query("SELECT * FROM rule_records WHERE timestamp >= :startTime AND timestamp <= :endTime ORDER BY timestamp ASC")
+    fun getRecordsInRangeFlow(startTime: Long, endTime: Long): Flow<List<RuleRecordEntity>>
+
     @Query("SELECT * FROM rule_records WHERE isMarked = 1 ORDER BY timestamp DESC")
     suspend fun getMarkedRecords(): List<RuleRecordEntity>
 

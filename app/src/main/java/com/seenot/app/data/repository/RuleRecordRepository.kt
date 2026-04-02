@@ -107,6 +107,15 @@ class RuleRecordRepository(private val context: Context) {
     }
 
     /**
+     * Get records within a time range as Flow (auto-updates when DB changes)
+     */
+    fun getRecordsInRangeFlow(startTime: Long, endTime: Long): Flow<List<RuleRecord>> {
+        return dao.getRecordsInRangeFlow(startTime, endTime).map { entities ->
+            entities.map { it.toModel() }
+        }
+    }
+
+    /**
      * Get records for a specific date
      */
     suspend fun getRecordsForDate(year: Int, month: Int, dayOfMonth: Int): List<RuleRecord> {

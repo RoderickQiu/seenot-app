@@ -7,6 +7,8 @@ import android.provider.Settings
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -268,9 +270,11 @@ fun HomeTab(
     onRequestMicrophone: () -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val scrollState = rememberScrollState()
     Column(
         modifier = modifier
             .fillMaxWidth()
+            .verticalScroll(scrollState)
             .padding(16.dp)
     ) {
         Text(
@@ -417,6 +421,11 @@ fun HomeTab(
                 StepItem(number = 3, text = "AI 会实时守护你的意图，发现违规时提醒或干预")
             }
         }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Today's timeline (derived from RuleRecord)
+        HomeTimelineSection()
     }
 }
 
