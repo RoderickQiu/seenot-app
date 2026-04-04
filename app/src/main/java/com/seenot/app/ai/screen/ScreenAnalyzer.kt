@@ -21,13 +21,7 @@ import com.seenot.app.ui.overlay.IntentInputDialogOverlay
 import com.seenot.app.ui.overlay.JudgmentFeedbackConfirmOverlay
 import com.seenot.app.ui.overlay.ToastOverlay
 import com.seenot.app.ui.overlay.VoiceInputOverlay
-import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversation
-import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationParam
-import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationResult
-import com.alibaba.dashscope.common.MultiModalMessage
-import com.alibaba.dashscope.common.Role
-import com.alibaba.dashscope.exception.ApiException
-import com.alibaba.dashscope.exception.NoApiKeyException
+import com.seenot.app.ai.OpenAiCompatibleClient
 import com.google.gson.Gson
 import com.seenot.app.config.ApiConfig
 import com.seenot.app.data.model.ConstraintType
@@ -81,10 +75,12 @@ class ScreenAnalyzer(
 
         // Consecutive violation threshold for forced actions
         const val VIOLATION_THRESHOLD = 2
+        private const val AI_ERROR_TOAST_THROTTLE_MS = 15_000L
     }
 
     private val gson = Gson()
     private val appHintRepository = AppHintRepository(context)
+    private val llmClient = OpenAiCompatibleClient()
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
@@ -104,6 +100,8 @@ class ScreenAnalyzer(
     // Keyframe detection: track last screenshot hash to skip unchanged frames
     private var lastQuickHash: String? = null
     private var lastViolationState: Map<String, Boolean> = emptyMap() // constraintId -> wasViolation
+    private var lastAiErrorToastAt = 0L
+    private var lastAiErrorToastMessage: String? = null
 
     // Analysis job
     private var analysisJob: Job? = null
@@ -813,9 +811,8 @@ class ScreenAnalyzer(
         packageName: String = ""
     ): List<ConstraintMatch> = withContext(Dispatchers.IO) {
 
-        // Convert bitmap to base64
-        val imageBase64 = bitmapToBase64(screenshot)
-        Logger.d(TAG, "[AI] Image base64 size: ${imageBase64.length} chars")
+        val imageDataUrl = "data:image/jpeg;base64,${bitmapToBase64(screenshot)}"
+        Logger.d(TAG, "[AI] Image base64 size: ${imageDataUrl.length} chars")
 
         val appHints = if (packageName.isNotBlank()) {
             appHintRepository.getHintsForPackage(packageName)
@@ -833,71 +830,63 @@ class ScreenAnalyzer(
         Logger.d(TAG, "[AI] Prompt length: ${prompt.length} chars")
 
         try {
-            val apiKey = ApiConfig.getApiKey()
-            if (apiKey.isBlank()) {
+            if (!ApiConfig.isConfigured()) {
                 Logger.e(TAG, "[AI] API key is empty!")
                 return@withContext emptyList()
             }
 
-            Logger.d(TAG, "[AI] Using DashScope SDK with model: qwen3.6-plus")
+            Logger.d(TAG, "[AI] Calling configured multimodal model")
 
-            // Build user message with image and text
-            val userContent = listOf(
-                mapOf("image" to "data:image/jpeg;base64,$imageBase64" as Any),
-                mapOf("text" to prompt as Any)
-            )
-
-            val userMessage = MultiModalMessage.builder()
-                .role(Role.USER.getValue())
-                .content(userContent)
-                .build()
-
-            // Build conversation param
-            val param = MultiModalConversationParam.builder()
-                .apiKey(apiKey)
-                .model("qwen3.6-plus")
-                .message(userMessage)
-                .temperature(0.3f)
-                .maxTokens(1000)
-                .enableThinking(false)
-                .build()
-
-            Logger.d(TAG, "[AI] Calling DashScope SDK...")
-
-            // Call SDK with timing
             val callStart = System.currentTimeMillis()
-            val conversation = MultiModalConversation()
-            val result: MultiModalConversationResult = conversation.call(param)
+            val responseText = llmClient.completeVision(
+                userPrompt = prompt,
+                imageDataUrl = imageDataUrl,
+                temperature = 0.3,
+                maxTokens = 1000
+            )
             val callDuration = System.currentTimeMillis() - callStart
 
-            Logger.d(TAG, "[AI] SDK call completed, duration: ${callDuration}ms")
+            Logger.d(TAG, "[AI] Model call completed, duration: ${callDuration}ms")
+            Logger.d(TAG, "[AI] Response text length: ${responseText.length} chars")
+            Logger.d(TAG, "[AI] Response (full): $responseText")
 
-            // Parse response
-            val responseContent = result.output.choices[0].message.content
-            if (responseContent != null && responseContent.isNotEmpty()) {
-                val responseText = responseContent[0]["text"] as? String ?: ""
-                Logger.d(TAG, "[AI] Response text length: ${responseText.length} chars")
-                Logger.d(TAG, "[AI] Response (full): $responseText")
-
-                // Parse the JSON response from AI
-                val matches = parseAIResponseFromText(responseText, constraints)
-                Logger.d(TAG, "[AI] Parsed ${matches.size} constraint matches")
-                matches
-            } else {
-                Logger.e(TAG, "[AI] Empty response from SDK")
-                emptyList()
-            }
-
-        } catch (e: NoApiKeyException) {
-            Logger.e(TAG, "[AI] No API key: ${e.message}", e)
+            val matches = parseAIResponseFromText(responseText, constraints)
+            Logger.d(TAG, "[AI] Parsed ${matches.size} constraint matches")
+            matches
+        } catch (e: CancellationException) {
+            Logger.d(TAG, "[AI] Analysis cancelled: ${e.message}")
             emptyList()
-        } catch (e: ApiException) {
-            Logger.e(TAG, "[AI] API error: ${e.message}", e)
+        } catch (e: IllegalStateException) {
+            Logger.e(TAG, "[AI] Config/API error: ${e.message}", e)
+            showAiErrorToast(e.message)
             emptyList()
         } catch (e: Exception) {
             Logger.e(TAG, "[AI] Analysis failed: ${e.message}", e)
+            showAiErrorToast(e.message)
             emptyList()
         }
+    }
+
+    private fun showAiErrorToast(errorMessage: String?) {
+        if (errorMessage?.contains("cancelled", ignoreCase = true) == true) {
+            return
+        }
+
+        val message = when {
+            errorMessage.isNullOrBlank() -> "模型请求失败"
+            errorMessage.contains("503") -> "模型服务暂时不可用"
+            errorMessage.contains("401") || errorMessage.contains("403") -> "模型鉴权失败，请检查 API Key"
+            else -> "模型请求失败"
+        }
+
+        val now = System.currentTimeMillis()
+        if (lastAiErrorToastMessage == message && now - lastAiErrorToastAt < AI_ERROR_TOAST_THROTTLE_MS) {
+            return
+        }
+
+        lastAiErrorToastAt = now
+        lastAiErrorToastMessage = message
+        showToast(message)
     }
 
     /**

@@ -6,9 +6,11 @@ import android.media.AudioRecord
 import android.media.MediaRecorder
 import android.os.Build
 import com.seenot.app.utils.Logger
+import com.seenot.app.BuildConfig
 import com.alibaba.dashscope.audio.asr.recognition.RecognitionParam
 import com.alibaba.dashscope.utils.Constants
 import com.seenot.app.config.ApiConfig
+import com.seenot.app.config.AiProvider
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.nio.ByteBuffer
@@ -97,7 +99,10 @@ class SttEngine(private val context: Context) {
             }
 
             // Configure DashScope API key
-            val apiKey = ApiConfig.getApiKey()
+            val apiKey = when (ApiConfig.getProvider()) {
+                AiProvider.DASHSCOPE -> ApiConfig.getApiKey().ifBlank { BuildConfig.DASHSCOPE_API_KEY }
+                else -> BuildConfig.DASHSCOPE_API_KEY
+            }
             if (apiKey.isBlank()) {
                 Logger.e(TAG, "API key is empty")
                 return false
@@ -332,7 +337,10 @@ class SttEngine(private val context: Context) {
      */
     suspend fun transcribe(audioFile: java.io.File): SttResult = withContext(Dispatchers.IO) {
         try {
-            val apiKey = ApiConfig.getApiKey()
+            val apiKey = when (ApiConfig.getProvider()) {
+                AiProvider.DASHSCOPE -> ApiConfig.getApiKey().ifBlank { BuildConfig.DASHSCOPE_API_KEY }
+                else -> BuildConfig.DASHSCOPE_API_KEY
+            }
             if (apiKey.isBlank()) {
                 Logger.e(TAG, "API key is empty")
                 return@withContext SttResult.Error("API key not configured")

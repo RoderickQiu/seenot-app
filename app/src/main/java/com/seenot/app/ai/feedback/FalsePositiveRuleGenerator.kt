@@ -1,13 +1,7 @@
 package com.seenot.app.ai.feedback
 
 import android.content.Context
-import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversation
-import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationParam
-import com.alibaba.dashscope.aigc.multimodalconversation.MultiModalConversationResult
-import com.alibaba.dashscope.common.MultiModalMessage
-import com.alibaba.dashscope.common.Role
-import com.alibaba.dashscope.exception.ApiException
-import com.alibaba.dashscope.exception.NoApiKeyException
+import com.seenot.app.ai.OpenAiCompatibleClient
 import com.google.gson.JsonParser
 import com.seenot.app.config.ApiConfig
 import com.seenot.app.data.model.AppHint
@@ -32,10 +26,10 @@ class FalsePositiveRuleGenerator(private val context: Context) {
 
     companion object {
         private const val TAG = "FalsePositiveRuleGen"
-        private const val MODEL_NAME = "qwen3.6-plus"
     }
 
     private val appHintRepository = AppHintRepository(context)
+    private val llmClient = OpenAiCompatibleClient()
 
     suspend fun generateAndSaveRule(
         packageName: String,
@@ -207,37 +201,37 @@ ${userNote ?: "无"}
         }
     }
 
-    private fun callMultimodal(content: List<Map<String, Any>>): String? {
-        val apiKey = ApiConfig.getApiKey()
-        if (apiKey.isBlank()) {
+    private suspend fun callMultimodal(content: List<Map<String, Any>>): String? {
+        if (!ApiConfig.isConfigured()) {
             Logger.w(TAG, "API key is empty, skipping false-positive rule generation")
             return null
         }
 
         return try {
-            val userMessage = MultiModalMessage.builder()
-                .role(Role.USER.getValue())
-                .content(content)
-                .build()
+            val prompt = content.firstOrNull { it.containsKey("text") }
+                ?.get("text")
+                ?.toString()
+                .orEmpty()
+            val imageDataUrl = content.firstOrNull { it.containsKey("image") }
+                ?.get("image")
+                ?.toString()
 
-            val param = MultiModalConversationParam.builder()
-                .apiKey(apiKey)
-                .model(MODEL_NAME)
-                .message(userMessage)
-                .temperature(0.2f)
-                .maxTokens(600)
-                .enableThinking(false)
-                .build()
-
-            val conversation = MultiModalConversation()
-            val result: MultiModalConversationResult = conversation.call(param)
-            val responseContent = result.output.choices[0].message.content ?: return null
-            responseContent.firstOrNull()?.get("text") as? String
-        } catch (e: NoApiKeyException) {
-            Logger.w(TAG, "No API key for false-positive rule generation: ${e.message}")
-            null
-        } catch (e: ApiException) {
-            Logger.w(TAG, "API error while generating false-positive rule: ${e.message}")
+            if (imageDataUrl != null) {
+                llmClient.completeVision(
+                    userPrompt = prompt,
+                    imageDataUrl = imageDataUrl,
+                    temperature = 0.2,
+                    maxTokens = 600
+                )
+            } else {
+                llmClient.completeText(
+                    userPrompt = prompt,
+                    temperature = 0.2,
+                    maxTokens = 600
+                )
+            }
+        } catch (e: IllegalStateException) {
+            Logger.w(TAG, "Config error while generating false-positive rule: ${e.message}")
             null
         } catch (e: Exception) {
             Logger.w(TAG, "Unexpected error while generating false-positive rule", e)

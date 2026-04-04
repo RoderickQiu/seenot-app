@@ -1,23 +1,18 @@
 package com.seenot.app.ai.parser
 
+import com.seenot.app.ai.OpenAiCompatibleClient
 import com.seenot.app.utils.Logger
 import com.google.gson.JsonParser
-import com.seenot.app.config.ApiConfig
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.InterventionLevel
 import com.seenot.app.data.model.TimeScope
-import com.alibaba.dashscope.aigc.generation.Generation
-import com.alibaba.dashscope.aigc.generation.GenerationParam
-import com.alibaba.dashscope.common.Message
-import com.alibaba.dashscope.common.Role
-import com.alibaba.dashscope.protocol.Protocol
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
 class IntentParser {
     companion object { private const val TAG = "IntentParser" }
-    private val generation = Generation(Protocol.HTTP.getValue(), "https://dashscope.aliyuncs.com/api/v1")
+    private val llmClient = OpenAiCompatibleClient()
 
     suspend fun parseIntent(utterance: String, packageName: String, appName: String): ParsedIntentResult {
         return withContext(Dispatchers.IO) {
@@ -164,13 +159,18 @@ class IntentParser {
         return constraints
     }
 
-    private fun callLLM(prompt: String): String {
-        val apiKey = ApiConfig.getApiKey()
-        if (apiKey.isBlank()) throw IllegalStateException("API key not configured")
+    private suspend fun callLLM(prompt: String): String {
         for (attempt in 1..3) try {
-            val param = GenerationParam.builder().apiKey(apiKey).model("qwen-plus").messages(listOf(Message.builder().role(Role.SYSTEM.value).content("你是一个智能的意图解析助手。").build(), Message.builder().role(Role.USER.value).content(prompt).build())).resultFormat(GenerationParam.ResultFormat.MESSAGE).temperature(0.3f).build()
-            return generation.call(param).output.choices[0].message.content
-        } catch (e: Exception) { Logger.w(TAG, "LLM error: ${e.message}"); if(attempt<3) Thread.sleep(1000L*attempt) }
+            return llmClient.completeText(
+                systemPrompt = "你是一个智能的意图解析助手。",
+                userPrompt = prompt,
+                temperature = 0.3,
+                maxTokens = 800
+            )
+        } catch (e: Exception) {
+            Logger.w(TAG, "LLM error: ${e.message}")
+            if (attempt < 3) Thread.sleep(1000L * attempt)
+        }
         throw Exception("LLM call failed")
     }
 }

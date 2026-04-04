@@ -21,11 +21,17 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.seenot.app.config.ApiConfig
+import com.seenot.app.config.AiProvider
+import com.seenot.app.config.ApiSettings
+import com.seenot.app.config.recommendedModelPresets
+import com.seenot.app.config.QwenRegion
 import com.seenot.app.config.RuleRecordingPrefs
 import com.seenot.app.domain.SessionManager
 import com.seenot.app.service.SeenotAccessibilityService
@@ -1667,6 +1673,22 @@ fun SettingsTab(
 
     var selectedLanguage by remember { mutableStateOf("zh") }
     var autoStart by remember { mutableStateOf(sessionManager.isAutoStartEnabled()) }
+    var showAiSettingsDialog by remember { mutableStateOf(false) }
+    val aiSettings = remember(showAiSettingsDialog) { ApiConfig.getSettings() }
+    val aiPresetLabel = remember(aiSettings) {
+        recommendedModelPresets(aiSettings.provider, aiSettings.qwenRegion)
+            .firstOrNull { it.model == aiSettings.model }
+            ?.label
+            ?: aiSettings.model
+    }
+    val aiButtonLabel = remember(aiSettings) {
+        when {
+            aiSettings.model.isBlank() -> "设置模型"
+            aiSettings.provider == AiProvider.DASHSCOPE ->
+                "Qwen · $aiPresetLabel · ${aiSettings.qwenRegion.displayName}"
+            else -> "${aiSettings.provider.displayName} · $aiPresetLabel"
+        }
+    }
 
     Column(
         modifier = modifier
@@ -1678,6 +1700,22 @@ fun SettingsTab(
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold
         )
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Text(
+            text = "AI 模型",
+            style = MaterialTheme.typography.titleMedium
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+        OutlinedButton(
+            onClick = { showAiSettingsDialog = true },
+            modifier = Modifier.fillMaxWidth()
+        ) {
+            Icon(Icons.Default.Tune, contentDescription = null)
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(aiButtonLabel)
+        }
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -1803,6 +1841,256 @@ fun SettingsTab(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
+
+    if (showAiSettingsDialog) {
+        AiModelSettingsDialog(
+            onDismiss = { showAiSettingsDialog = false }
+        )
+    }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AiModelSettingsDialog(
+    onDismiss: () -> Unit
+) {
+    var settings by remember { mutableStateOf(ApiConfig.getSettings()) }
+    var provider by remember { mutableStateOf(settings.provider) }
+    var apiKey by remember { mutableStateOf(ApiConfig.getApiKey(settings.provider)) }
+    var baseUrl by remember { mutableStateOf(settings.baseUrl) }
+    var model by remember { mutableStateOf(settings.model) }
+    var qwenRegion by remember { mutableStateOf(settings.qwenRegion) }
+    var providerExpanded by remember { mutableStateOf(false) }
+    var modelExpanded by remember { mutableStateOf(false) }
+    var baseUrlExpanded by remember { mutableStateOf(false) }
+    val recommendedPresets = remember(provider, qwenRegion) {
+        recommendedModelPresets(provider, qwenRegion)
+    }
+    var modelInput by remember {
+        mutableStateOf(
+            recommendedPresets.firstOrNull { it.model == settings.model }?.label ?: settings.model
+        )
+    }
+    fun applyProviderDefaults(target: AiProvider) {
+        val defaults = ApiSettings.defaults(target)
+        provider = target
+        qwenRegion = defaults.qwenRegion
+        baseUrl = if (target == AiProvider.DASHSCOPE) qwenRegion.baseUrl else defaults.baseUrl
+        model = defaults.model
+        modelInput = recommendedModelPresets(target, qwenRegion)
+            .firstOrNull { it.model == defaults.model }
+            ?.label
+            ?: defaults.model
+        apiKey = ApiConfig.getApiKey(target)
+    }
+
+    val baseUrlSuggestions = remember(provider) {
+        when (provider) {
+            AiProvider.DASHSCOPE -> QwenRegion.entries.map { it.displayName to it.baseUrl }
+            AiProvider.OPENAI -> listOf("OpenAI" to AiProvider.OPENAI.defaultBaseUrl)
+            AiProvider.KIMI -> listOf("Kimi" to AiProvider.KIMI.defaultBaseUrl)
+            AiProvider.GEMINI -> listOf("Gemini" to AiProvider.GEMINI.defaultBaseUrl)
+            AiProvider.ANTHROPIC -> listOf("Anthropic" to AiProvider.ANTHROPIC.defaultBaseUrl)
+            AiProvider.GLM -> listOf("GLM" to AiProvider.GLM.defaultBaseUrl)
+            AiProvider.CUSTOM -> emptyList()
+        }
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("AI 模型设置") },
+        text = {
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 520.dp)
+                    .verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                ExposedDropdownMenuBox(
+                    expanded = providerExpanded,
+                    onExpandedChange = { providerExpanded = !providerExpanded }
+                ) {
+                    OutlinedTextField(
+                        value = provider.displayName,
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text("Provider") },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = providerExpanded) },
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth()
+                    )
+                    ExposedDropdownMenu(
+                        expanded = providerExpanded,
+                        onDismissRequest = { providerExpanded = false }
+                    ) {
+                        AiProvider.entries.forEach { candidate ->
+                            DropdownMenuItem(
+                                text = { Text(candidate.displayName) },
+                                onClick = {
+                                    providerExpanded = false
+                                    applyProviderDefaults(candidate)
+                                }
+                            )
+                        }
+                    }
+                }
+
+                OutlinedTextField(
+                    value = apiKey,
+                    onValueChange = { apiKey = it },
+                    label = { Text("API Key") },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    visualTransformation = PasswordVisualTransformation()
+                )
+
+                ExposedDropdownMenuBox(
+                    expanded = baseUrlExpanded,
+                    onExpandedChange = {
+                        if (baseUrlSuggestions.isNotEmpty()) baseUrlExpanded = !baseUrlExpanded
+                    }
+                ) {
+                    OutlinedTextField(
+                        value = baseUrl,
+                        onValueChange = { baseUrl = it },
+                        label = { Text("Base URL") },
+                        placeholder = { Text("https://.../v1") },
+                        trailingIcon = {
+                            if (baseUrlSuggestions.isNotEmpty()) {
+                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = baseUrlExpanded)
+                            }
+                        },
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth(),
+                        singleLine = true
+                    )
+                    if (baseUrlSuggestions.isNotEmpty()) {
+                        ExposedDropdownMenu(
+                            expanded = baseUrlExpanded,
+                            onDismissRequest = { baseUrlExpanded = false }
+                        ) {
+                            baseUrlSuggestions.forEach { (label, value) ->
+                                DropdownMenuItem(
+                                    text = { Text(label) },
+                                    onClick = {
+                                        baseUrlExpanded = false
+                                        baseUrl = value
+                                        if (provider == AiProvider.DASHSCOPE) {
+                                            qwenRegion = QwenRegion.entries.firstOrNull { it.baseUrl == value }
+                                                ?: qwenRegion
+                                        }
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                ExposedDropdownMenuBox(
+                    expanded = modelExpanded,
+                    onExpandedChange = {
+                        if (recommendedPresets.isNotEmpty()) modelExpanded = !modelExpanded
+                    }
+                ) {
+                    OutlinedTextField(
+                        value = modelInput,
+                        onValueChange = {
+                            modelInput = it
+                            model = it
+                        },
+                        label = { Text("视觉模型") },
+                        placeholder = { Text("例如：qwen3.6-plus / glm-4.6v-flashx / gpt-4o-mini") },
+                        trailingIcon = {
+                            if (recommendedPresets.isNotEmpty()) {
+                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded)
+                            }
+                        },
+                        modifier = Modifier
+                            .menuAnchor()
+                            .fillMaxWidth(),
+                        singleLine = true
+                    )
+                    if (recommendedPresets.isNotEmpty()) {
+                        ExposedDropdownMenu(
+                            expanded = modelExpanded,
+                            onDismissRequest = { modelExpanded = false }
+                        ) {
+                            recommendedPresets.forEach { preset ->
+                                DropdownMenuItem(
+                                    text = {
+                                        Text(
+                                            if (preset.note.isBlank()) preset.label
+                                            else "${preset.label}  ${preset.note}"
+                                        )
+                                    },
+                                    onClick = {
+                                        modelExpanded = false
+                                        model = preset.model
+                                        modelInput = preset.label
+                                    }
+                                )
+                            }
+                        }
+                    }
+                }
+
+                if (provider == AiProvider.DASHSCOPE) {
+                    Text(
+                        text = "Qwen 当前区域：${qwenRegion.displayName}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                Text(
+                    text = "语音识别仍走 DashScope ASR。",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val normalizedRegion = if (provider == AiProvider.DASHSCOPE) {
+                        QwenRegion.entries.firstOrNull { it.baseUrl == baseUrl.trim() } ?: qwenRegion
+                    } else {
+                        qwenRegion
+                    }
+                    val newSettings = ApiSettings(
+                        provider = provider,
+                        apiKey = apiKey.trim(),
+                        baseUrl = baseUrl.trim(),
+                        model = model.trim(),
+                        qwenRegion = normalizedRegion
+                    )
+                    ApiConfig.saveSettings(newSettings)
+                    settings = newSettings
+                    onDismiss()
+                },
+                enabled = apiKey.isNotBlank() && baseUrl.isNotBlank() && model.isNotBlank()
+            ) {
+                Text("保存")
+            }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(
+                    onClick = {
+                        applyProviderDefaults(provider)
+                    }
+                ) {
+                    Text("恢复默认")
+                }
+                TextButton(onClick = onDismiss) {
+                    Text("关闭")
+                }
+            }
+        }
+    )
 }
 
 /**

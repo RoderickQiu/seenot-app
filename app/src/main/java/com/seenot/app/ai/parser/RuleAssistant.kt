@@ -1,26 +1,21 @@
 package com.seenot.app.ai.parser
 
 import android.content.Context
+import com.seenot.app.ai.OpenAiCompatibleClient
 import com.seenot.app.utils.Logger
 import com.google.gson.JsonParser
-import com.seenot.app.config.ApiConfig
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.InterventionLevel
 import com.seenot.app.data.model.TimeScope
 import com.seenot.app.domain.SessionConstraint
 import com.seenot.app.domain.SessionManager
-import com.alibaba.dashscope.aigc.generation.Generation
-import com.alibaba.dashscope.aigc.generation.GenerationParam
-import com.alibaba.dashscope.common.Message
-import com.alibaba.dashscope.common.Role
-import com.alibaba.dashscope.protocol.Protocol
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
 class RuleAssistant(private val context: Context) {
     companion object { private const val TAG = "RuleAssistant" }
-    private val generation = Generation(Protocol.HTTP.getValue(), "https://dashscope.aliyuncs.com/api/v1")
+    private val llmClient = OpenAiCompatibleClient()
 
     suspend fun planAndExecute(
         userMessage: String,
@@ -397,13 +392,18 @@ Action Input: {"param": "value"}
 
     private fun extractFinalResponse(response: String): String? = Regex("""Final Response:\s*(.+)""", RegexOption.DOT_MATCHES_ALL).find(response)?.groupValues?.get(1)?.trim()
 
-    private fun callLLM(prompt: String): String {
-        val apiKey = ApiConfig.getApiKey()
-        if (apiKey.isBlank()) throw IllegalStateException("API key not configured")
+    private suspend fun callLLM(prompt: String): String {
         for (attempt in 1..3) try {
-            val param = GenerationParam.builder().apiKey(apiKey).model("qwen-plus").messages(listOf(Message.builder().role(Role.SYSTEM.value).content("你是一个智能的规则管理助手。").build(), Message.builder().role(Role.USER.value).content(prompt).build())).resultFormat(GenerationParam.ResultFormat.MESSAGE).temperature(0.3f).build()
-            return generation.call(param).output.choices[0].message.content
-        } catch (e: Exception) { Logger.w(TAG, "LLM error: ${e.message}"); if(attempt<3) Thread.sleep(1000L*attempt) }
+            return llmClient.completeText(
+                systemPrompt = "你是一个智能的规则管理助手。",
+                userPrompt = prompt,
+                temperature = 0.3,
+                maxTokens = 1000
+            )
+        } catch (e: Exception) {
+            Logger.w(TAG, "LLM error: ${e.message}")
+            if (attempt < 3) Thread.sleep(1000L * attempt)
+        }
         throw Exception("LLM call failed")
     }
 }
