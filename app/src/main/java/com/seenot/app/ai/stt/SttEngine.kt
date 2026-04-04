@@ -11,14 +11,11 @@ import com.alibaba.dashscope.audio.asr.recognition.RecognitionParam
 import com.alibaba.dashscope.utils.Constants
 import com.seenot.app.config.ApiConfig
 import com.seenot.app.config.AiProvider
-import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.withContext
 import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 
 /**
- * Speech-to-Text engine using DashScope fun-asr-realtime API.
- * Provides real-time streaming speech recognition.
+ * Real-time Speech-to-Text engine for DashScope fun-asr-realtime.
  */
 class SttEngine(private val context: Context) {
 
@@ -98,19 +95,18 @@ class SttEngine(private val context: Context) {
                 return false
             }
 
-            // Configure DashScope API key
-            val apiKey = when (ApiConfig.getProvider()) {
-                AiProvider.DASHSCOPE -> ApiConfig.getApiKey().ifBlank { BuildConfig.DASHSCOPE_API_KEY }
-                else -> BuildConfig.DASHSCOPE_API_KEY
-            }
+            val apiKey = ApiConfig.getApiKey(AiProvider.DASHSCOPE)
+                .ifBlank { BuildConfig.DASHSCOPE_API_KEY }
             if (apiKey.isBlank()) {
                 Logger.e(TAG, "API key is empty")
                 return false
             }
 
-            // Set WebSocket URL for DashScope (Beijing region)
-            // For Singapore region: wss://dashscope-intl.aliyuncs.com/api-ws/v1/inference
-            Constants.baseWebsocketApiUrl = "wss://dashscope.aliyuncs.com/api-ws/v1/inference"
+            Constants.baseWebsocketApiUrl = when (ApiConfig.getQwenRegion()) {
+                com.seenot.app.config.QwenRegion.BEIJING -> "wss://dashscope.aliyuncs.com/api-ws/v1/inference"
+                com.seenot.app.config.QwenRegion.SINGAPORE -> "wss://dashscope-intl.aliyuncs.com/api-ws/v1/inference"
+                com.seenot.app.config.QwenRegion.VIRGINIA -> "wss://dashscope-us.aliyuncs.com/api-ws/v1/inference"
+            }
 
             // Configure recognition parameters using builder
             val paramBuilder = RecognitionParam.builder()
@@ -330,91 +326,6 @@ class SttEngine(private val context: Context) {
     fun release() {
         cleanup()
     }
-
-    /**
-     * Transcribe audio file (fallback method for non-streaming transcription)
-     * This is kept for compatibility but real-time streaming is preferred.
-     */
-    suspend fun transcribe(audioFile: java.io.File): SttResult = withContext(Dispatchers.IO) {
-        try {
-            val apiKey = when (ApiConfig.getProvider()) {
-                AiProvider.DASHSCOPE -> ApiConfig.getApiKey().ifBlank { BuildConfig.DASHSCOPE_API_KEY }
-                else -> BuildConfig.DASHSCOPE_API_KEY
-            }
-            if (apiKey.isBlank()) {
-                Logger.e(TAG, "API key is empty")
-                return@withContext SttResult.Error("API key not configured")
-            }
-
-            // Configure recognition parameters using builder
-            val paramBuilder = RecognitionParam.builder()
-                .model("fun-asr-realtime")
-                .apiKey(apiKey)
-                .format("pcm")
-                .sampleRate(SAMPLE_RATE)
-                .disfluencyRemovalEnabled(true)  // Filter filler words
-            val param = paramBuilder.build()
-
-            // Create recognition helper instance
-            recognitionHelper = DashScopeRecognitionHelper()
-
-            // Use simple callback to capture result
-            var finalResult: SttResult = SttResult.Error("No result")
-
-            recognitionHelper?.setCallback(object : RecognitionCallback {
-                override fun onIntermediateResult(text: String) {
-                    // Ignore intermediate results for file transcription
-                }
-
-                override fun onFinalResult(text: String) {
-                    if (text.isNotBlank()) {
-                        finalResult = SttResult.Success(text = text, language = "auto")
-                    }
-                }
-
-                override fun onError(error: String) {
-                    Logger.e(TAG, "Recognition error: $error")
-                    finalResult = SttResult.Error(error)
-                }
-
-                override fun onComplete() {
-                    Logger.d(TAG, "Recognition complete")
-                }
-            })
-
-            recognitionHelper?.startRecognition(param)
-
-            try {
-                // Read audio file and send to recognition
-                val audioData = audioFile.readBytes()
-                val buffer = ByteBuffer.wrap(audioData)
-                recognitionHelper?.sendAudioFrame(buffer)
-                recognitionHelper?.stop()
-            } catch (e: Exception) {
-                Logger.e(TAG, "Error during transcription", e)
-            }
-
-            // Wait a bit for results
-            Thread.sleep(5000)
-
-            // Cleanup
-            try {
-                recognitionHelper?.stop()
-            } catch (e: Exception) {
-                // Ignore
-            }
-            recognitionHelper = null
-            audioFile.delete()
-
-            finalResult
-
-        } catch (e: Exception) {
-            Logger.e(TAG, "Transcription failed", e)
-            audioFile.delete()
-            SttResult.Error(e.message ?: "Unknown error")
-        }
-    }
-
     /**
      * Stop ongoing transcription
      */

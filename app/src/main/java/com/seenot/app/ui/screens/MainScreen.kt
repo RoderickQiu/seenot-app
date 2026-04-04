@@ -32,6 +32,10 @@ import com.seenot.app.config.AiProvider
 import com.seenot.app.config.ApiSettings
 import com.seenot.app.config.recommendedModelPresets
 import com.seenot.app.config.QwenRegion
+import com.seenot.app.config.SttSettings
+import com.seenot.app.config.recommendedSttModelPresets
+import com.seenot.app.config.selectableProviders
+import com.seenot.app.config.selectableSttProviders
 import com.seenot.app.config.RuleRecordingPrefs
 import com.seenot.app.domain.SessionManager
 import com.seenot.app.service.SeenotAccessibilityService
@@ -1678,7 +1682,7 @@ fun SettingsTab(
     val aiPresetLabel = remember(aiSettings) {
         recommendedModelPresets(aiSettings.provider, aiSettings.qwenRegion)
             .firstOrNull { it.model == aiSettings.model }
-            ?.label
+            ?.model
             ?: aiSettings.model
     }
     val aiButtonLabel = remember(aiSettings) {
@@ -1854,47 +1858,118 @@ fun SettingsTab(
 private fun AiModelSettingsDialog(
     onDismiss: () -> Unit
 ) {
-    var settings by remember { mutableStateOf(ApiConfig.getSettings()) }
-    var provider by remember { mutableStateOf(settings.provider) }
-    var apiKey by remember { mutableStateOf(ApiConfig.getApiKey(settings.provider)) }
-    var baseUrl by remember { mutableStateOf(settings.baseUrl) }
-    var model by remember { mutableStateOf(settings.model) }
-    var qwenRegion by remember { mutableStateOf(settings.qwenRegion) }
+    val initialSettings = remember { ApiConfig.getSettings() }
+    val initialSttSettings = remember { ApiConfig.getSttSettings() }
+
+    var provider by remember { mutableStateOf(initialSettings.provider) }
+    var apiKey by remember { mutableStateOf(initialSettings.apiKey) }
+    var baseUrl by remember { mutableStateOf(initialSettings.baseUrl) }
+    var model by remember { mutableStateOf(initialSettings.model) }
+    var qwenRegion by remember { mutableStateOf(initialSettings.qwenRegion) }
+
+    var sttProvider by remember { mutableStateOf(initialSttSettings.provider) }
+    var sttModel by remember { mutableStateOf(initialSttSettings.model) }
+    var sttApiKey by remember { mutableStateOf(initialSttSettings.apiKey) }
+    var sttBaseUrl by remember { mutableStateOf(initialSttSettings.baseUrl) }
+
+    var selectedConfigTab by remember { mutableIntStateOf(0) }
     var providerExpanded by remember { mutableStateOf(false) }
     var modelExpanded by remember { mutableStateOf(false) }
     var baseUrlExpanded by remember { mutableStateOf(false) }
+    var sttProviderExpanded by remember { mutableStateOf(false) }
+    var sttModelExpanded by remember { mutableStateOf(false) }
+    var sttBaseUrlExpanded by remember { mutableStateOf(false) }
+
     val recommendedPresets = remember(provider, qwenRegion) {
         recommendedModelPresets(provider, qwenRegion)
     }
+    val sttRecommendedPresets = remember(sttProvider) {
+        recommendedSttModelPresets(sttProvider)
+    }
+    val providerOptions = remember(provider) { selectableProviders(provider) }
+    val sttProviderOptions = remember(sttProvider) { selectableSttProviders(sttProvider) }
+    val sttModelIsFixed = sttProvider == AiProvider.DASHSCOPE || sttProvider == AiProvider.GEMINI
+    val sttUsesSharedProviderConfig = sttProvider != AiProvider.CUSTOM
+
     var modelInput by remember {
         mutableStateOf(
-            recommendedPresets.firstOrNull { it.model == settings.model }?.label ?: settings.model
+            recommendedPresets.firstOrNull { it.model == initialSettings.model }?.model ?: initialSettings.model
         )
     }
-    fun applyProviderDefaults(target: AiProvider) {
-        val defaults = ApiSettings.defaults(target)
-        provider = target
-        qwenRegion = defaults.qwenRegion
-        baseUrl = if (target == AiProvider.DASHSCOPE) qwenRegion.baseUrl else defaults.baseUrl
-        model = defaults.model
-        modelInput = recommendedModelPresets(target, qwenRegion)
-            .firstOrNull { it.model == defaults.model }
-            ?.label
-            ?: defaults.model
-        apiKey = ApiConfig.getApiKey(target)
+    var sttModelInput by remember {
+        mutableStateOf(
+            sttRecommendedPresets.firstOrNull { it.model == initialSttSettings.model }?.model
+                ?: initialSttSettings.model
+        )
     }
 
-    val baseUrlSuggestions = remember(provider) {
-        when (provider) {
+    fun baseUrlSuggestionsFor(target: AiProvider): List<Pair<String, String>> {
+        return when (target) {
             AiProvider.DASHSCOPE -> QwenRegion.entries.map { it.displayName to it.baseUrl }
             AiProvider.OPENAI -> listOf("OpenAI" to AiProvider.OPENAI.defaultBaseUrl)
-            AiProvider.KIMI -> listOf("Kimi" to AiProvider.KIMI.defaultBaseUrl)
             AiProvider.GEMINI -> listOf("Gemini" to AiProvider.GEMINI.defaultBaseUrl)
-            AiProvider.ANTHROPIC -> listOf("Anthropic" to AiProvider.ANTHROPIC.defaultBaseUrl)
             AiProvider.GLM -> listOf("GLM" to AiProvider.GLM.defaultBaseUrl)
+            AiProvider.ANTHROPIC -> listOf("Anthropic (Legacy)" to AiProvider.ANTHROPIC.defaultBaseUrl)
             AiProvider.CUSTOM -> emptyList()
         }
     }
+
+    fun defaultSttModel(target: AiProvider): String {
+        return when (target) {
+            AiProvider.DASHSCOPE -> "fun-asr-realtime"
+            AiProvider.OPENAI -> "gpt-4o-mini-transcribe"
+            AiProvider.GEMINI -> "gemini-2.5-flash-preview-tts"
+            AiProvider.GLM -> "glm-asr-2512"
+            AiProvider.CUSTOM -> "whisper-1"
+            AiProvider.ANTHROPIC -> "fun-asr-realtime"
+        }
+    }
+
+    fun applyProviderDefaults(target: AiProvider) {
+        val defaults = ApiSettings.defaults(target)
+        val savedBaseUrl = ApiConfig.getBaseUrl(target)
+        val nextRegion = if (target == AiProvider.DASHSCOPE) {
+            QwenRegion.entries.firstOrNull { it.baseUrl == savedBaseUrl } ?: ApiConfig.getQwenRegion()
+        } else {
+            defaults.qwenRegion
+        }
+        val nextBaseUrl = savedBaseUrl
+        val nextApiKey = ApiConfig.getApiKey(target)
+
+        provider = target
+        qwenRegion = nextRegion
+        baseUrl = nextBaseUrl
+        model = defaults.model
+        modelInput = recommendedModelPresets(target, nextRegion)
+            .firstOrNull { it.model == defaults.model }
+            ?.model
+            ?: defaults.model
+        apiKey = nextApiKey
+
+        if (target == sttProvider && target != AiProvider.CUSTOM) {
+            sttApiKey = nextApiKey
+            sttBaseUrl = nextBaseUrl
+        }
+    }
+
+    fun applySttDefaults(target: AiProvider) {
+        val presets = recommendedSttModelPresets(target)
+        val fallbackModel = presets.firstOrNull()?.model ?: defaultSttModel(target)
+
+        sttProvider = target
+        sttModel = fallbackModel
+        sttModelInput = presets.firstOrNull { it.model == fallbackModel }?.model ?: fallbackModel
+        if (target == provider && target != AiProvider.CUSTOM) {
+            sttApiKey = apiKey
+            sttBaseUrl = baseUrl
+        } else {
+            sttApiKey = ApiConfig.getSttApiKey(target)
+            sttBaseUrl = ApiConfig.getSttBaseUrl(target)
+        }
+    }
+
+    val baseUrlSuggestions = remember(provider) { baseUrlSuggestionsFor(provider) }
+    val sttBaseUrlSuggestions = remember(sttProvider) { baseUrlSuggestionsFor(sttProvider) }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -1904,152 +1979,339 @@ private fun AiModelSettingsDialog(
                 modifier = Modifier
                     .fillMaxWidth()
                     .heightIn(max = 520.dp)
-                    .verticalScroll(rememberScrollState()),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                    .verticalScroll(rememberScrollState())
             ) {
-                ExposedDropdownMenuBox(
-                    expanded = providerExpanded,
-                    onExpandedChange = { providerExpanded = !providerExpanded }
-                ) {
-                    OutlinedTextField(
-                        value = provider.displayName,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Provider") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = providerExpanded) },
-                        modifier = Modifier
-                            .menuAnchor()
-                            .fillMaxWidth()
+                TabRow(selectedTabIndex = selectedConfigTab) {
+                    Tab(
+                        selected = selectedConfigTab == 0,
+                        onClick = { selectedConfigTab = 0 },
+                        text = { Text("视觉") }
                     )
-                    ExposedDropdownMenu(
-                        expanded = providerExpanded,
-                        onDismissRequest = { providerExpanded = false }
-                    ) {
-                        AiProvider.entries.forEach { candidate ->
-                            DropdownMenuItem(
-                                text = { Text(candidate.displayName) },
-                                onClick = {
-                                    providerExpanded = false
-                                    applyProviderDefaults(candidate)
+                    Tab(
+                        selected = selectedConfigTab == 1,
+                        onClick = { selectedConfigTab = 1 },
+                        text = { Text("语音") }
+                    )
+                }
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (selectedConfigTab == 0) {
+                        ExposedDropdownMenuBox(
+                            expanded = providerExpanded,
+                            onExpandedChange = { providerExpanded = !providerExpanded }
+                        ) {
+                            OutlinedTextField(
+                                value = provider.displayName,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("视觉 Provider") },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = providerExpanded)
+                                },
+                                modifier = Modifier
+                                    .menuAnchor()
+                                    .fillMaxWidth()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = providerExpanded,
+                                onDismissRequest = { providerExpanded = false }
+                            ) {
+                                providerOptions.forEach { candidate ->
+                                    DropdownMenuItem(
+                                        text = { Text(candidate.displayName) },
+                                        onClick = {
+                                            providerExpanded = false
+                                            applyProviderDefaults(candidate)
+                                        }
+                                    )
                                 }
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = apiKey,
+                            onValueChange = {
+                                apiKey = it
+                                if (provider == sttProvider && provider != AiProvider.CUSTOM) {
+                                    sttApiKey = it
+                                }
+                            },
+                            label = { Text("API Key") },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation()
+                        )
+
+                        ExposedDropdownMenuBox(
+                            expanded = baseUrlExpanded,
+                            onExpandedChange = {
+                                if (baseUrlSuggestions.isNotEmpty()) baseUrlExpanded = !baseUrlExpanded
+                            }
+                        ) {
+                            OutlinedTextField(
+                                value = baseUrl,
+                                onValueChange = {
+                                    baseUrl = it
+                                    if (provider == sttProvider && provider != AiProvider.CUSTOM) {
+                                        sttBaseUrl = it
+                                    }
+                                },
+                                label = { Text("Base URL") },
+                                placeholder = { Text("https://.../v1") },
+                                trailingIcon = {
+                                    if (baseUrlSuggestions.isNotEmpty()) {
+                                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = baseUrlExpanded)
+                                    }
+                                },
+                                modifier = Modifier
+                                    .menuAnchor()
+                                    .fillMaxWidth(),
+                                singleLine = true
+                            )
+                            if (baseUrlSuggestions.isNotEmpty()) {
+                                ExposedDropdownMenu(
+                                    expanded = baseUrlExpanded,
+                                    onDismissRequest = { baseUrlExpanded = false }
+                                ) {
+                                    baseUrlSuggestions.forEach { (label, value) ->
+                                        DropdownMenuItem(
+                                            text = { Text(label) },
+                                            onClick = {
+                                                baseUrlExpanded = false
+                                                baseUrl = value
+                                                if (provider == sttProvider && provider != AiProvider.CUSTOM) {
+                                                    sttBaseUrl = value
+                                                }
+                                                if (provider == AiProvider.DASHSCOPE) {
+                                                    qwenRegion = QwenRegion.entries.firstOrNull { it.baseUrl == value }
+                                                        ?: qwenRegion
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        ExposedDropdownMenuBox(
+                            expanded = modelExpanded,
+                            onExpandedChange = {
+                                if (recommendedPresets.isNotEmpty()) modelExpanded = !modelExpanded
+                            }
+                        ) {
+                            OutlinedTextField(
+                                value = modelInput,
+                                onValueChange = {
+                                    modelInput = it
+                                    model = it
+                                },
+                                label = { Text("视觉模型") },
+                                placeholder = { Text("例如：qwen3.6-plus / glm-4.6v-flashx / gpt-4o-mini") },
+                                trailingIcon = {
+                                    if (recommendedPresets.isNotEmpty()) {
+                                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded)
+                                    }
+                                },
+                                modifier = Modifier
+                                    .menuAnchor()
+                                    .fillMaxWidth(),
+                                singleLine = true
+                            )
+                            if (recommendedPresets.isNotEmpty()) {
+                                ExposedDropdownMenu(
+                                    expanded = modelExpanded,
+                                    onDismissRequest = { modelExpanded = false }
+                                ) {
+                                    recommendedPresets.forEach { preset ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    if (preset.note.isBlank()) preset.model
+                                                    else "${preset.model}  ${preset.note}"
+                                                )
+                                            },
+                                            onClick = {
+                                                modelExpanded = false
+                                                model = preset.model
+                                                modelInput = preset.model
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        if (provider == AiProvider.DASHSCOPE) {
+                            Text(
+                                text = "Qwen 当前区域：${qwenRegion.displayName}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
-                    }
-                }
-
-                OutlinedTextField(
-                    value = apiKey,
-                    onValueChange = { apiKey = it },
-                    label = { Text("API Key") },
-                    modifier = Modifier.fillMaxWidth(),
-                    singleLine = true,
-                    visualTransformation = PasswordVisualTransformation()
-                )
-
-                ExposedDropdownMenuBox(
-                    expanded = baseUrlExpanded,
-                    onExpandedChange = {
-                        if (baseUrlSuggestions.isNotEmpty()) baseUrlExpanded = !baseUrlExpanded
-                    }
-                ) {
-                    OutlinedTextField(
-                        value = baseUrl,
-                        onValueChange = { baseUrl = it },
-                        label = { Text("Base URL") },
-                        placeholder = { Text("https://.../v1") },
-                        trailingIcon = {
-                            if (baseUrlSuggestions.isNotEmpty()) {
-                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = baseUrlExpanded)
-                            }
-                        },
-                        modifier = Modifier
-                            .menuAnchor()
-                            .fillMaxWidth(),
-                        singleLine = true
-                    )
-                    if (baseUrlSuggestions.isNotEmpty()) {
-                        ExposedDropdownMenu(
-                            expanded = baseUrlExpanded,
-                            onDismissRequest = { baseUrlExpanded = false }
+                    } else {
+                        ExposedDropdownMenuBox(
+                            expanded = sttProviderExpanded,
+                            onExpandedChange = { sttProviderExpanded = !sttProviderExpanded }
                         ) {
-                            baseUrlSuggestions.forEach { (label, value) ->
-                                DropdownMenuItem(
-                                    text = { Text(label) },
-                                    onClick = {
-                                        baseUrlExpanded = false
-                                        baseUrl = value
-                                        if (provider == AiProvider.DASHSCOPE) {
-                                            qwenRegion = QwenRegion.entries.firstOrNull { it.baseUrl == value }
-                                                ?: qwenRegion
+                            OutlinedTextField(
+                                value = sttProvider.displayName,
+                                onValueChange = {},
+                                readOnly = true,
+                                label = { Text("语音 Provider") },
+                                trailingIcon = {
+                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = sttProviderExpanded)
+                                },
+                                modifier = Modifier
+                                    .menuAnchor()
+                                    .fillMaxWidth()
+                            )
+                            ExposedDropdownMenu(
+                                expanded = sttProviderExpanded,
+                                onDismissRequest = { sttProviderExpanded = false }
+                            ) {
+                                sttProviderOptions.forEach { candidate ->
+                                    DropdownMenuItem(
+                                        text = { Text(candidate.displayName) },
+                                        onClick = {
+                                            sttProviderExpanded = false
+                                            applySttDefaults(candidate)
+                                        }
+                                    )
+                                }
+                            }
+                        }
+
+                        OutlinedTextField(
+                            value = sttApiKey,
+                            onValueChange = {
+                                sttApiKey = it
+                                if (sttProvider == provider && sttProvider != AiProvider.CUSTOM) {
+                                    apiKey = it
+                                }
+                            },
+                            label = {
+                                Text(if (sttUsesSharedProviderConfig) "API Key（共享）" else "API Key（独立）")
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            singleLine = true,
+                            visualTransformation = PasswordVisualTransformation()
+                        )
+
+                        ExposedDropdownMenuBox(
+                            expanded = sttBaseUrlExpanded,
+                            onExpandedChange = {
+                                if (sttBaseUrlSuggestions.isNotEmpty()) sttBaseUrlExpanded = !sttBaseUrlExpanded
+                            }
+                        ) {
+                            OutlinedTextField(
+                                value = sttBaseUrl,
+                                onValueChange = {
+                                    sttBaseUrl = it
+                                    if (sttProvider == provider && sttProvider != AiProvider.CUSTOM) {
+                                        baseUrl = it
+                                    }
+                                },
+                                label = {
+                                    Text(if (sttUsesSharedProviderConfig) "Base URL（共享）" else "Base URL（独立）")
+                                },
+                                placeholder = { Text("https://.../v1") },
+                                trailingIcon = {
+                                    if (sttBaseUrlSuggestions.isNotEmpty()) {
+                                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = sttBaseUrlExpanded)
+                                    }
+                                },
+                                modifier = Modifier
+                                    .menuAnchor()
+                                    .fillMaxWidth(),
+                                singleLine = true
+                            )
+                            if (sttBaseUrlSuggestions.isNotEmpty()) {
+                                ExposedDropdownMenu(
+                                    expanded = sttBaseUrlExpanded,
+                                    onDismissRequest = { sttBaseUrlExpanded = false }
+                                ) {
+                                    sttBaseUrlSuggestions.forEach { (label, value) ->
+                                        DropdownMenuItem(
+                                            text = { Text(label) },
+                                            onClick = {
+                                                sttBaseUrlExpanded = false
+                                                sttBaseUrl = value
+                                                if (sttProvider == provider && sttProvider != AiProvider.CUSTOM) {
+                                                    baseUrl = value
+                                                }
+                                                if (sttProvider == AiProvider.DASHSCOPE) {
+                                                    qwenRegion = QwenRegion.entries.firstOrNull { it.baseUrl == value }
+                                                        ?: qwenRegion
+                                                }
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        if (!sttModelIsFixed) {
+                            ExposedDropdownMenuBox(
+                                expanded = sttModelExpanded,
+                                onExpandedChange = {
+                                    if (sttRecommendedPresets.isNotEmpty()) sttModelExpanded = !sttModelExpanded
+                                }
+                            ) {
+                                OutlinedTextField(
+                                    value = sttModelInput,
+                                    onValueChange = {
+                                        sttModelInput = it
+                                        sttModel = it
+                                    },
+                                    label = { Text("语音模型") },
+                                    placeholder = { Text("例如：gpt-4o-mini-transcribe / glm-asr-2512") },
+                                    trailingIcon = {
+                                        if (sttRecommendedPresets.isNotEmpty()) {
+                                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = sttModelExpanded)
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .menuAnchor()
+                                        .fillMaxWidth(),
+                                    singleLine = true
+                                )
+                                if (sttRecommendedPresets.isNotEmpty()) {
+                                    ExposedDropdownMenu(
+                                        expanded = sttModelExpanded,
+                                        onDismissRequest = { sttModelExpanded = false }
+                                    ) {
+                                        sttRecommendedPresets.forEach { preset ->
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        if (preset.note.isBlank()) preset.model
+                                                        else "${preset.model}  ${preset.note}"
+                                                    )
+                                                },
+                                                onClick = {
+                                                    sttModelExpanded = false
+                                                    sttModel = preset.model
+                                                    sttModelInput = preset.model
+                                                }
+                                            )
                                         }
                                     }
-                                )
+                                }
                             }
                         }
-                    }
-                }
 
-                ExposedDropdownMenuBox(
-                    expanded = modelExpanded,
-                    onExpandedChange = {
-                        if (recommendedPresets.isNotEmpty()) modelExpanded = !modelExpanded
-                    }
-                ) {
-                    OutlinedTextField(
-                        value = modelInput,
-                        onValueChange = {
-                            modelInput = it
-                            model = it
-                        },
-                        label = { Text("视觉模型") },
-                        placeholder = { Text("例如：qwen3.6-plus / glm-4.6v-flashx / gpt-4o-mini") },
-                        trailingIcon = {
-                            if (recommendedPresets.isNotEmpty()) {
-                                ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded)
-                            }
-                        },
-                        modifier = Modifier
-                            .menuAnchor()
-                            .fillMaxWidth(),
-                        singleLine = true
-                    )
-                    if (recommendedPresets.isNotEmpty()) {
-                        ExposedDropdownMenu(
-                            expanded = modelExpanded,
-                            onDismissRequest = { modelExpanded = false }
-                        ) {
-                            recommendedPresets.forEach { preset ->
-                                DropdownMenuItem(
-                                    text = {
-                                        Text(
-                                            if (preset.note.isBlank()) preset.label
-                                            else "${preset.label}  ${preset.note}"
-                                        )
-                                    },
-                                    onClick = {
-                                        modelExpanded = false
-                                        model = preset.model
-                                        modelInput = preset.label
-                                    }
-                                )
-                            }
+                        if (sttProvider == AiProvider.DASHSCOPE || sttProvider == AiProvider.GEMINI) {
+                            Text(
+                                text = "语音输入会自动配置，无需再填语音模型。",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
+
                     }
                 }
-
-                if (provider == AiProvider.DASHSCOPE) {
-                    Text(
-                        text = "Qwen 当前区域：${qwenRegion.displayName}",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-
-                Text(
-                    text = "语音识别仍走 DashScope ASR。",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
             }
         },
         confirmButton = {
@@ -2060,18 +2322,49 @@ private fun AiModelSettingsDialog(
                     } else {
                         qwenRegion
                     }
-                    val newSettings = ApiSettings(
-                        provider = provider,
-                        apiKey = apiKey.trim(),
-                        baseUrl = baseUrl.trim(),
-                        model = model.trim(),
-                        qwenRegion = normalizedRegion
+                    val normalizedSttRegion = if (sttProvider == AiProvider.DASHSCOPE) {
+                        QwenRegion.entries.firstOrNull { it.baseUrl == sttBaseUrl.trim() }
+                    } else {
+                        null
+                    }
+
+                    ApiConfig.saveSettings(
+                        ApiSettings(
+                            provider = provider,
+                            apiKey = apiKey.trim(),
+                            baseUrl = baseUrl.trim(),
+                            model = model.trim(),
+                            qwenRegion = normalizedRegion
+                        )
                     )
-                    ApiConfig.saveSettings(newSettings)
-                    settings = newSettings
+
+                    if (sttProvider != AiProvider.CUSTOM) {
+                        ApiConfig.setApiKey(sttProvider, sttApiKey.trim())
+                        ApiConfig.setBaseUrl(sttProvider, sttBaseUrl.trim())
+                        normalizedSttRegion?.let(ApiConfig::setQwenRegion)
+                    }
+
+                    ApiConfig.saveSttSettings(
+                        SttSettings(
+                            provider = sttProvider,
+                            model = when (sttProvider) {
+                                AiProvider.DASHSCOPE -> "fun-asr-realtime"
+                                AiProvider.GEMINI -> "gemini-2.5-flash-preview-tts"
+                                else -> sttModel.trim()
+                            },
+                            apiKey = sttApiKey.trim(),
+                            baseUrl = sttBaseUrl.trim()
+                        )
+                    )
+
                     onDismiss()
                 },
-                enabled = apiKey.isNotBlank() && baseUrl.isNotBlank() && model.isNotBlank()
+                enabled = apiKey.isNotBlank() &&
+                    baseUrl.isNotBlank() &&
+                    model.isNotBlank() &&
+                    sttApiKey.isNotBlank() &&
+                    sttBaseUrl.isNotBlank() &&
+                    (sttModelIsFixed || sttModel.isNotBlank())
             ) {
                 Text("保存")
             }
@@ -2080,7 +2373,11 @@ private fun AiModelSettingsDialog(
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 TextButton(
                     onClick = {
-                        applyProviderDefaults(provider)
+                        if (selectedConfigTab == 0) {
+                            applyProviderDefaults(provider)
+                        } else {
+                            applySttDefaults(sttProvider)
+                        }
                     }
                 ) {
                     Text("恢复默认")
@@ -2258,12 +2555,13 @@ fun AddAppDialog(
                                                 style = MaterialTheme.typography.bodySmall,
                                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                                             )
-                                        }
-                                    }
                                 }
                             }
                         }
+
                     }
+                }
+            }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))

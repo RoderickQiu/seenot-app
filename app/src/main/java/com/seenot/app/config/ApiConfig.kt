@@ -13,10 +13,15 @@ import com.google.gson.JsonObject
 object ApiConfig {
     private const val PREFS_NAME = "api_config_secure"
     private const val KEY_API_KEY_PREFIX = "api_key_"
-    private const val KEY_BASE_URL = "openai_base_url"
+    private const val KEY_BASE_URL_PREFIX = "base_url_"
+    private const val KEY_BASE_URL_LEGACY = "openai_base_url"
     private const val KEY_PROVIDER = "model_provider"
     private const val KEY_MODEL = "model"
     private const val KEY_QWEN_REGION = "qwen_region"
+    private const val KEY_STT_PROVIDER = "stt_provider"
+    private const val KEY_STT_MODEL = "stt_model"
+    private const val KEY_STT_API_KEY = "stt_api_key"
+    private const val KEY_STT_BASE_URL = "stt_base_url"
 
     private var prefs: SharedPreferences? = null
 
@@ -42,18 +47,23 @@ object ApiConfig {
         prefs?.edit()?.putString("$KEY_API_KEY_PREFIX${provider.name}", key)?.apply()
     }
 
-    fun getBaseUrl(): String {
-        val provider = getProvider()
+    fun getBaseUrl(provider: AiProvider = getProvider()): String {
         val fallback = if (provider == AiProvider.DASHSCOPE) {
             getQwenRegion().baseUrl
         } else {
             provider.defaultBaseUrl
         }
-        return prefs?.getString(KEY_BASE_URL, fallback) ?: fallback
+        val providerScoped = prefs?.getString("$KEY_BASE_URL_PREFIX${provider.name}", null)?.trim()
+        if (!providerScoped.isNullOrBlank()) return providerScoped
+
+        val legacy = prefs?.getString(KEY_BASE_URL_LEGACY, null)?.trim()
+        return if (!legacy.isNullOrBlank() && provider == getProvider()) legacy else fallback
     }
 
-    fun setBaseUrl(url: String) {
-        prefs?.edit()?.putString(KEY_BASE_URL, url)?.apply()
+    fun setBaseUrl(provider: AiProvider = getProvider(), url: String) {
+        prefs?.edit()
+            ?.putString("$KEY_BASE_URL_PREFIX${provider.name}", url.trim())
+            ?.apply()
     }
 
     fun getProvider(): AiProvider {
@@ -86,15 +96,16 @@ object ApiConfig {
     fun setQwenRegion(region: QwenRegion) {
         prefs?.edit()
             ?.putString(KEY_QWEN_REGION, region.name)
-            ?.putString(KEY_BASE_URL, region.baseUrl)
             ?.apply()
+        setBaseUrl(AiProvider.DASHSCOPE, region.baseUrl)
     }
 
     fun getSettings(): ApiSettings {
+        val provider = getProvider()
         return ApiSettings(
-            provider = getProvider(),
-            apiKey = getApiKey(),
-            baseUrl = getBaseUrl(),
+            provider = provider,
+            apiKey = getApiKey(provider),
+            baseUrl = getBaseUrl(provider),
             model = getModel(),
             qwenRegion = getQwenRegion()
         )
@@ -103,11 +114,76 @@ object ApiConfig {
     fun saveSettings(settings: ApiSettings) {
         prefs?.edit()
             ?.putString(KEY_PROVIDER, settings.provider.name)
-            ?.putString(KEY_BASE_URL, settings.baseUrl.trim())
             ?.putString(KEY_MODEL, settings.model.trim())
             ?.putString(KEY_QWEN_REGION, settings.qwenRegion.name)
             ?.apply()
         setApiKey(settings.provider, settings.apiKey.trim())
+        setBaseUrl(settings.provider, settings.baseUrl.trim())
+    }
+
+    fun getSttProvider(): AiProvider {
+        val fallback = defaultSttProviderFor(getProvider())
+        val raw = prefs?.getString(KEY_STT_PROVIDER, fallback.name)
+        val provider = raw?.let { value ->
+            AiProvider.entries.firstOrNull { it.name == value }
+        } ?: fallback
+        return if (provider == AiProvider.ANTHROPIC) fallback else provider
+    }
+
+    fun getSttModel(): String {
+        val provider = getSttProvider()
+        val fallback = defaultSttModelFor(provider)
+        val raw = prefs?.getString(KEY_STT_MODEL, fallback)?.trim().orEmpty()
+        return if (raw.isBlank()) fallback else normalizeSttModel(provider, raw)
+    }
+
+    fun getSttApiKey(provider: AiProvider = getSttProvider()): String {
+        if (provider != AiProvider.CUSTOM) return getApiKey(provider)
+        val dedicated = prefs?.getString(KEY_STT_API_KEY, "")?.trim().orEmpty()
+        return dedicated
+    }
+
+    fun getSttBaseUrl(provider: AiProvider = getSttProvider()): String {
+        if (provider != AiProvider.CUSTOM) return getBaseUrl(provider)
+        val fallback = when (provider) {
+            AiProvider.DASHSCOPE -> getQwenRegion().baseUrl
+            AiProvider.CUSTOM -> ""
+            else -> provider.defaultBaseUrl
+        }
+        val dedicated = prefs?.getString(KEY_STT_BASE_URL, "")?.trim().orEmpty()
+        return dedicated.ifBlank { fallback }
+    }
+
+    fun getSttSettings(): SttSettings {
+        val provider = getSttProvider()
+        return SttSettings(
+            provider = provider,
+            model = getSttModel(),
+            apiKey = getSttApiKey(provider),
+            baseUrl = getSttBaseUrl(provider)
+        )
+    }
+
+    fun saveSttSettings(settings: SttSettings) {
+        val normalizedProvider = if (settings.provider == AiProvider.ANTHROPIC) {
+            defaultSttProviderFor(getProvider())
+        } else {
+            settings.provider
+        }
+        val normalizedModel = normalizeSttModel(normalizedProvider, settings.model.trim())
+
+        prefs?.edit()
+            ?.putString(KEY_STT_PROVIDER, normalizedProvider.name)
+            ?.putString(KEY_STT_MODEL, normalizedModel)
+            ?.putString(
+                KEY_STT_API_KEY,
+                if (normalizedProvider == AiProvider.CUSTOM) settings.apiKey.trim() else ""
+            )
+            ?.putString(
+                KEY_STT_BASE_URL,
+                if (normalizedProvider == AiProvider.CUSTOM) settings.baseUrl.trim() else ""
+            )
+            ?.apply()
     }
 
     fun isConfigured(): Boolean {
@@ -171,6 +247,31 @@ object ApiConfig {
 
         return minorVersion != null && minorVersion >= 1
     }
+
+    private fun defaultSttProviderFor(modelProvider: AiProvider): AiProvider {
+        return when (modelProvider) {
+            AiProvider.ANTHROPIC -> AiProvider.DASHSCOPE
+            else -> modelProvider
+        }
+    }
+
+    private fun normalizeSttModel(provider: AiProvider, model: String): String {
+        if (provider == AiProvider.GEMINI) {
+            return "gemini-2.5-flash-preview-tts"
+        }
+        return if (model.isBlank()) defaultSttModelFor(provider) else model
+    }
+
+    private fun defaultSttModelFor(provider: AiProvider): String {
+        return when (provider) {
+            AiProvider.DASHSCOPE -> "fun-asr-realtime"
+            AiProvider.OPENAI -> "gpt-4o-mini-transcribe"
+            AiProvider.GEMINI -> "gemini-2.5-flash-preview-tts"
+            AiProvider.GLM -> "glm-asr-2512"
+            AiProvider.CUSTOM -> "whisper-1"
+            AiProvider.ANTHROPIC -> "fun-asr-realtime"
+        }
+    }
 }
 
 enum class AiProvider(
@@ -208,6 +309,29 @@ enum class AiProvider(
         defaultBaseUrl = "",
         defaultModel = ""
     )
+}
+
+fun selectableProviders(current: AiProvider? = null): List<AiProvider> {
+    val defaults = listOf(
+        AiProvider.DASHSCOPE,
+        AiProvider.OPENAI,
+        AiProvider.GEMINI,
+        AiProvider.ANTHROPIC,
+        AiProvider.GLM,
+        AiProvider.CUSTOM
+    )
+    return if (current != null && current !in defaults) defaults + current else defaults
+}
+
+fun selectableSttProviders(current: AiProvider? = null): List<AiProvider> {
+    val defaults = listOf(
+        AiProvider.DASHSCOPE,
+        AiProvider.OPENAI,
+        AiProvider.GEMINI,
+        AiProvider.GLM,
+        AiProvider.CUSTOM
+    )
+    return if (current != null && current !in defaults) defaults + current else defaults
 }
 
 data class ApiSettings(
@@ -255,6 +379,13 @@ data class ModelPreset(
     val note: String = ""
 )
 
+data class SttSettings(
+    val provider: AiProvider,
+    val model: String,
+    val apiKey: String,
+    val baseUrl: String
+)
+
 fun recommendedModelPresets(
     provider: AiProvider,
     qwenRegion: QwenRegion = QwenRegion.BEIJING
@@ -299,5 +430,25 @@ fun recommendedModelPresets(
             ModelPreset("glm46v", "GLM 4.6V", "glm-4.6v")
         )
         AiProvider.CUSTOM -> emptyList()
+    }
+}
+
+fun recommendedSttModelPresets(provider: AiProvider): List<ModelPreset> {
+    return when (provider) {
+        AiProvider.DASHSCOPE -> listOf(
+            ModelPreset("das-fun-asr", "DashScope 实时 ASR", "fun-asr-realtime")
+        )
+        AiProvider.OPENAI -> listOf(
+            ModelPreset("oa-4omini-transcribe", "GPT-4o Mini Transcribe", "gpt-4o-mini-transcribe"),
+            ModelPreset("oa-4o-transcribe", "GPT-4o Transcribe", "gpt-4o-transcribe")
+        )
+        AiProvider.GEMINI -> listOf(
+            ModelPreset("gem-fixed-tts", "Gemini 2.5 Flash Preview TTS", "gemini-2.5-flash-preview-tts")
+        )
+        AiProvider.GLM -> listOf(
+            ModelPreset("glm-asr-2512", "GLM ASR 2512", "glm-asr-2512")
+        )
+        AiProvider.CUSTOM -> emptyList()
+        AiProvider.ANTHROPIC -> emptyList()
     }
 }

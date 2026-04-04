@@ -5,7 +5,11 @@ import com.seenot.app.utils.Logger
 import com.seenot.app.ai.parser.IntentParser
 import com.seenot.app.ai.parser.ParsedConstraint
 import com.seenot.app.ai.parser.ParsedIntentResult
+import com.seenot.app.ai.stt.AudioFileRecorder
 import com.seenot.app.ai.stt.SttEngine
+import com.seenot.app.ai.stt.SttResult
+import com.seenot.app.ai.stt.UnifiedTranscriber
+import com.seenot.app.config.AiProvider
 import com.seenot.app.config.ApiConfig
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.InterventionLevel
@@ -28,7 +32,9 @@ class VoiceInputManager(private val context: Context) {
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
     private var sttEngine: SttEngine? = null
+    private var audioFileRecorder: AudioFileRecorder? = null
     private var intentParser: IntentParser? = null
+    private var unifiedTranscriber: UnifiedTranscriber? = null
 
     // Current app info
     private var currentPackageName: String = ""
@@ -54,6 +60,7 @@ class VoiceInputManager(private val context: Context) {
     // Recording state
     private var isRecording = false
     private var recordingStartTime = 0L
+    private var recordingUsesRealtimeDashScope = false
 
     // State flows for UI observation
     private val _recordingState = MutableStateFlow(VoiceRecordingState.IDLE)
@@ -76,9 +83,19 @@ class VoiceInputManager(private val context: Context) {
         if (sttEngine == null) {
             sttEngine = SttEngine(context)
         }
+        if (audioFileRecorder == null) {
+            audioFileRecorder = AudioFileRecorder(context)
+        }
+        if (unifiedTranscriber == null) {
+            unifiedTranscriber = UnifiedTranscriber()
+        }
         if (intentParser == null) {
             intentParser = IntentParser()
         }
+    }
+
+    private fun shouldUseRealtimeDashScope(): Boolean {
+        return ApiConfig.getSttProvider() == AiProvider.DASHSCOPE
     }
 
     /**
@@ -92,37 +109,38 @@ class VoiceInputManager(private val context: Context) {
 
         ensureEngines()
 
-        // Set up callback for real-time transcription results
-        sttEngine?.setCallback(object : SttEngine.TranscriptionCallback {
-            override fun onIntermediateResult(text: String) {
-                Logger.d(TAG, "Intermediate: $text")
-                // Update state on main thread for Compose to recompose
-                scope.launch {
-                    _recognizedText.value = text
+        recordingUsesRealtimeDashScope = shouldUseRealtimeDashScope()
+        val started = if (recordingUsesRealtimeDashScope) {
+            sttEngine?.setCallback(object : SttEngine.TranscriptionCallback {
+                override fun onIntermediateResult(text: String) {
+                    Logger.d(TAG, "Intermediate: $text")
+                    scope.launch {
+                        _recognizedText.value = text
+                    }
                 }
-            }
 
-            override fun onFinalResult(text: String) {
-                Logger.d(TAG, "Final result callback: $text")
-                scope.launch {
-                    _recognizedText.value = text
+                override fun onFinalResult(text: String) {
+                    Logger.d(TAG, "Final result callback: $text")
+                    scope.launch {
+                        _recognizedText.value = text
+                    }
                 }
-            }
 
-            override fun onError(error: String) {
-                Logger.e(TAG, "STT Error callback: $error")
-                scope.launch {
-                    _error.value = error
+                override fun onError(error: String) {
+                    Logger.e(TAG, "STT Error callback: $error")
+                    scope.launch {
+                        _error.value = error
+                    }
                 }
-            }
 
-            override fun onComplete() {
-                Logger.d(TAG, "STT Complete callback")
-            }
-        })
-
-        // Start real-time streaming recognition
-        val started = sttEngine?.startRecording() ?: false
+                override fun onComplete() {
+                    Logger.d(TAG, "STT Complete callback")
+                }
+            })
+            sttEngine?.startRecording() ?: false
+        } else {
+            audioFileRecorder?.startRecording() ?: false
+        }
 
         if (started) {
             isRecording = true
@@ -132,10 +150,11 @@ class VoiceInputManager(private val context: Context) {
             _parsedIntent.value = null
             _error.value = null
 
-            Logger.d(TAG, "Recording started with real-time STT")
+            Logger.d(TAG, "Recording started")
         } else {
             _error.value = "启动录音失败"
             _recordingState.value = VoiceRecordingState.ERROR
+            recordingUsesRealtimeDashScope = false
         }
 
         return started
@@ -152,20 +171,44 @@ class VoiceInputManager(private val context: Context) {
 
         isRecording = false
 
-        // Stop recording immediately
-        sttEngine?.stopRecording()
+        if (recordingUsesRealtimeDashScope) {
+            sttEngine?.stopRecording()
 
-        // Use the current recognized text immediately (no waiting for final callback)
-        val finalText = _recognizedText.value
-
-        if (!finalText.isNullOrBlank()) {
-            _recordingState.value = VoiceRecordingState.PROCESSING
-            Logger.d(TAG, "Stop called, using current recognized text: $finalText")
-            // Parse immediately without waiting for final callback
-            parseIntent(finalText, currentPackageName, currentAppName)
+            val finalText = _recognizedText.value
+            if (!finalText.isNullOrBlank()) {
+                _recordingState.value = VoiceRecordingState.PROCESSING
+                Logger.d(TAG, "Stop called, using current recognized text: $finalText")
+                parseIntent(finalText, currentPackageName, currentAppName)
+            } else {
+                _error.value = "未能识别语音"
+                _recordingState.value = VoiceRecordingState.ERROR
+            }
         } else {
-            _error.value = "未能识别语音"
-            _recordingState.value = VoiceRecordingState.ERROR
+            val audioFile = audioFileRecorder?.stopRecording()
+            if (audioFile == null) {
+                _error.value = "录音失败"
+                _recordingState.value = VoiceRecordingState.ERROR
+                return
+            }
+
+            _recordingState.value = VoiceRecordingState.PROCESSING
+            scope.launch {
+                val result = try {
+                    unifiedTranscriber?.transcribe(audioFile) ?: SttResult.Error("转写器未初始化")
+                } finally {
+                    audioFile.delete()
+                }
+                when (result) {
+                    is SttResult.Success -> {
+                        _recognizedText.value = result.text
+                        parseIntent(result.text, currentPackageName, currentAppName)
+                    }
+                    is SttResult.Error -> {
+                        _error.value = result.message
+                        _recordingState.value = VoiceRecordingState.ERROR
+                    }
+                }
+            }
         }
     }
 
@@ -175,8 +218,13 @@ class VoiceInputManager(private val context: Context) {
     fun cancelRecording() {
         isRecording = false
 
-        sttEngine?.cancelRecording()
+        if (recordingUsesRealtimeDashScope) {
+            sttEngine?.cancelRecording()
+        } else {
+            audioFileRecorder?.cancelRecording()
+        }
 
+        recordingUsesRealtimeDashScope = false
         _recordingState.value = VoiceRecordingState.IDLE
     }
 
@@ -243,9 +291,13 @@ class VoiceInputManager(private val context: Context) {
      */
     fun release() {
         isRecording = false
+        recordingUsesRealtimeDashScope = false
         scope.cancel()
         sttEngine?.release()
+        audioFileRecorder?.release()
         sttEngine = null
+        audioFileRecorder = null
+        unifiedTranscriber = null
         intentParser = null
     }
 }
