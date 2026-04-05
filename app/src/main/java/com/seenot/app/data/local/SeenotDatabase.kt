@@ -4,6 +4,8 @@ import android.content.Context
 import androidx.room.Database
 import androidx.room.Room
 import androidx.room.RoomDatabase
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import com.seenot.app.data.local.dao.AppHintDao
 import com.seenot.app.data.local.dao.IntentConstraintDao
 import com.seenot.app.data.local.dao.RuleRecordDao
@@ -29,7 +31,7 @@ import com.seenot.app.data.local.entity.SessionIntentEntity
         RuleRecordEntity::class,
         AppHintEntity::class
     ],
-    version = 5,
+    version = 6,
     exportSchema = false
 )
 abstract class SeenotDatabase : RoomDatabase() {
@@ -44,6 +46,14 @@ abstract class SeenotDatabase : RoomDatabase() {
     companion object {
         private const val DATABASE_NAME = "seenot_database"
 
+        private val MIGRATION_5_6 = object : Migration(5, 6) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE app_hints ADD COLUMN scopeType TEXT NOT NULL DEFAULT 'INTENT_SPECIFIC'")
+                db.execSQL("ALTER TABLE app_hints ADD COLUMN scopeKey TEXT NOT NULL DEFAULT ''")
+                db.execSQL("UPDATE app_hints SET scopeKey = intentId WHERE scopeKey = ''")
+            }
+        }
+
         @Volatile
         private var INSTANCE: SeenotDatabase? = null
 
@@ -54,6 +64,7 @@ abstract class SeenotDatabase : RoomDatabase() {
                     SeenotDatabase::class.java,
                     DATABASE_NAME
                 )
+                    .addMigrations(MIGRATION_5_6)
                     .build()
                 INSTANCE = instance
                 instance

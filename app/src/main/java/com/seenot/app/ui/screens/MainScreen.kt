@@ -48,9 +48,12 @@ import com.seenot.app.data.repository.RuleRecordRepository
 import com.seenot.app.data.model.APP_HINT_SOURCE_FEEDBACK_GENERATED
 import com.seenot.app.data.model.APP_HINT_SOURCE_INTENT_CARRY_OVER
 import com.seenot.app.data.model.APP_HINT_SOURCE_MANUAL
+import com.seenot.app.data.model.AppHintScopeType
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.InterventionLevel
 import com.seenot.app.data.model.TimeScope
+import com.seenot.app.data.model.buildAppGeneralScopeKey
+import com.seenot.app.data.model.buildAppGeneralScopeLabel
 import com.seenot.app.data.model.buildIntentScopedHintId
 import com.seenot.app.data.model.buildIntentScopedHintLabel
 import com.seenot.app.domain.SessionConstraint
@@ -714,6 +717,7 @@ fun AppRulesDialog(
     var newHintText by remember { mutableStateOf("") }
     var editingHint by remember { mutableStateOf<com.seenot.app.data.model.AppHint?>(null) }
     var editingHintText by remember { mutableStateOf("") }
+    var selectedHintScopeType by remember { mutableStateOf(AppHintScopeType.INTENT_SPECIFIC) }
     var selectedHintIntentId by remember { mutableStateOf<String?>(null) }
     var selectedHintIntentLabel by remember { mutableStateOf<String?>(null) }
 
@@ -749,6 +753,7 @@ fun AppRulesDialog(
             onDismissRequest = {
                 showAddHintDialog = false
                 newHintText = ""
+                selectedHintScopeType = AppHintScopeType.INTENT_SPECIFIC
                 selectedHintIntentId = null
                 selectedHintIntentLabel = null
             },
@@ -756,20 +761,27 @@ fun AppRulesDialog(
             text = {
                 Column {
                     Text(
-                        text = "补充规则只对所选意图生效，不会作为整个 app 的通用说明。",
+                        text = "可选择让这条规则对整个 app 生效，或只放在某一条具体意图下面。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    HintIntentSelector(
-                        options = intentOptions,
-                        selectedIntentId = selectedHintIntentId,
-                        onIntentSelected = {
-                            selectedHintIntentId = it.intentId
-                            selectedHintIntentLabel = it.intentLabel
-                        }
+                    HintScopeSelector(
+                        selectedScopeType = selectedHintScopeType,
+                        onScopeTypeSelected = { selectedHintScopeType = it }
                     )
                     Spacer(modifier = Modifier.height(12.dp))
+                    if (selectedHintScopeType == AppHintScopeType.INTENT_SPECIFIC) {
+                        HintIntentSelector(
+                            options = intentOptions,
+                            selectedIntentId = selectedHintIntentId,
+                            onIntentSelected = {
+                                selectedHintIntentId = it.intentId
+                                selectedHintIntentLabel = it.intentLabel
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
                     OutlinedTextField(
                         value = newHintText,
                         onValueChange = { newHintText = it },
@@ -784,12 +796,25 @@ fun AppRulesDialog(
                 Button(
                     onClick = {
                         val hintTextToSave = newHintText.trim()
-                        val intentId = selectedHintIntentId
-                        val intentLabel = selectedHintIntentLabel
-                        if (hintTextToSave.isNotBlank() && intentId != null && intentLabel != null) {
+                        val targetScope: Triple<String?, String?, String?> = when (selectedHintScopeType) {
+                            AppHintScopeType.APP_GENERAL -> Triple(
+                                buildAppGeneralScopeKey(app.packageName),
+                                buildAppGeneralScopeKey(app.packageName),
+                                buildAppGeneralScopeLabel()
+                            )
+                            AppHintScopeType.INTENT_SPECIFIC -> Triple(
+                                selectedHintIntentId,
+                                selectedHintIntentId,
+                                selectedHintIntentLabel
+                            )
+                        }
+                        val (scopeKey, intentId, intentLabel) = targetScope
+                        if (hintTextToSave.isNotBlank() && scopeKey != null && intentId != null && intentLabel != null) {
                             uiScope.launch {
                                 appHintRepo.addHintFromFeedback(
                                     packageName = app.packageName,
+                                    scopeType = selectedHintScopeType,
+                                    scopeKey = scopeKey,
                                     intentId = intentId,
                                     intentLabel = intentLabel,
                                     hintText = hintTextToSave
@@ -799,10 +824,11 @@ fun AppRulesDialog(
                         }
                         showAddHintDialog = false
                         newHintText = ""
+                        selectedHintScopeType = AppHintScopeType.INTENT_SPECIFIC
                         selectedHintIntentId = null
                         selectedHintIntentLabel = null
                     },
-                    enabled = selectedHintIntentId != null
+                    enabled = selectedHintScopeType == AppHintScopeType.APP_GENERAL || selectedHintIntentId != null
                 ) {
                     Text("添加")
                 }
@@ -812,6 +838,7 @@ fun AppRulesDialog(
                     onClick = {
                         showAddHintDialog = false
                         newHintText = ""
+                        selectedHintScopeType = AppHintScopeType.INTENT_SPECIFIC
                         selectedHintIntentId = null
                         selectedHintIntentLabel = null
                     }
@@ -828,6 +855,7 @@ fun AppRulesDialog(
             onDismissRequest = {
                 editingHint = null
                 editingHintText = ""
+                selectedHintScopeType = AppHintScopeType.INTENT_SPECIFIC
                 selectedHintIntentId = null
                 selectedHintIntentLabel = null
             },
@@ -835,20 +863,27 @@ fun AppRulesDialog(
             text = {
                 Column {
                     Text(
-                        text = "可同时修改规则内容和它所绑定的意图。",
+                        text = "可同时修改规则内容，以及它更适合放在哪一类里。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(12.dp))
-                    HintIntentSelector(
-                        options = intentOptions,
-                        selectedIntentId = selectedHintIntentId ?: hint.intentId,
-                        onIntentSelected = {
-                            selectedHintIntentId = it.intentId
-                            selectedHintIntentLabel = it.intentLabel
-                        }
+                    HintScopeSelector(
+                        selectedScopeType = selectedHintScopeType,
+                        onScopeTypeSelected = { selectedHintScopeType = it }
                     )
                     Spacer(modifier = Modifier.height(12.dp))
+                    if (selectedHintScopeType == AppHintScopeType.INTENT_SPECIFIC) {
+                        HintIntentSelector(
+                            options = intentOptions,
+                            selectedIntentId = selectedHintIntentId ?: hint.intentId,
+                            onIntentSelected = {
+                                selectedHintIntentId = it.intentId
+                                selectedHintIntentLabel = it.intentLabel
+                            }
+                        )
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
                     OutlinedTextField(
                         value = editingHintText,
                         onValueChange = { editingHintText = it },
@@ -863,13 +898,26 @@ fun AppRulesDialog(
                 Button(
                     onClick = {
                         val hintTextToSave = editingHintText.trim()
-                        val targetIntentId = selectedHintIntentId ?: hint.intentId
-                        val targetIntentLabel = selectedHintIntentLabel ?: hint.intentLabel
+                        val targetScope: Triple<String, String, String> = when (selectedHintScopeType) {
+                            AppHintScopeType.APP_GENERAL -> Triple(
+                                buildAppGeneralScopeKey(app.packageName),
+                                buildAppGeneralScopeKey(app.packageName),
+                                buildAppGeneralScopeLabel()
+                            )
+                            AppHintScopeType.INTENT_SPECIFIC -> Triple(
+                                selectedHintIntentId ?: hint.intentId,
+                                selectedHintIntentId ?: hint.intentId,
+                                selectedHintIntentLabel ?: hint.intentLabel
+                            )
+                        }
+                        val (scopeKey, targetIntentId, targetIntentLabel) = targetScope
                         if (hintTextToSave.isNotBlank()) {
                             uiScope.launch {
                                 appHintRepo.updateHint(
                                     hintId = hint.id,
                                     hintText = hintTextToSave,
+                                    scopeType = selectedHintScopeType,
+                                    scopeKey = scopeKey,
                                     intentId = targetIntentId,
                                     intentLabel = targetIntentLabel
                                 )
@@ -878,6 +926,7 @@ fun AppRulesDialog(
                         }
                         editingHint = null
                         editingHintText = ""
+                        selectedHintScopeType = AppHintScopeType.INTENT_SPECIFIC
                         selectedHintIntentId = null
                         selectedHintIntentLabel = null
                     }
@@ -890,6 +939,7 @@ fun AppRulesDialog(
                     onClick = {
                         editingHint = null
                         editingHintText = ""
+                        selectedHintScopeType = AppHintScopeType.INTENT_SPECIFIC
                         selectedHintIntentId = null
                         selectedHintIntentLabel = null
                     }
@@ -902,7 +952,7 @@ fun AppRulesDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("${app.name} 的规则") },
+        title = { Text("${app.name} 的意图") },
         text = {
             LazyColumn(
                 modifier = Modifier
@@ -917,7 +967,7 @@ fun AppRulesDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "预设规则",
+                            text = "预设意图",
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -932,7 +982,7 @@ fun AppRulesDialog(
                 item {
                     if (presetRules.isEmpty()) {
                         Text(
-                            text = "暂无预设规则，点击添加按钮创建",
+                            text = "暂无预设意图，点击添加按钮创建",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1010,7 +1060,7 @@ fun AppRulesDialog(
                 item {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "历史规则",
+                        text = "历史意图",
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -1019,7 +1069,7 @@ fun AppRulesDialog(
                 item {
                     if (historyRules.isEmpty()) {
                         Text(
-                            text = "暂无历史规则",
+                            text = "暂无历史意图",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1080,6 +1130,7 @@ fun AppRulesDialog(
                         )
                         TextButton(
                             onClick = {
+                                selectedHintScopeType = AppHintScopeType.INTENT_SPECIFIC
                                 selectedHintIntentId = intentOptions.firstOrNull()?.intentId
                                 selectedHintIntentLabel = intentOptions.firstOrNull()?.intentLabel
                                 showAddHintDialog = true
@@ -1094,7 +1145,7 @@ fun AppRulesDialog(
 
                 item {
                     Text(
-                        text = "这些规则只会对对应意图生效。来源会区分为手动添加、纠错生成或自动带入。",
+                        text = "补充规则分成两类：一类对整个 app 都生效，一类只用来细化某条具体意图。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1110,97 +1161,85 @@ fun AppRulesDialog(
                     }
                 }
 
-                val groupedHints = hints
-                    .groupBy { it.intentId }
+                val appGeneralHints = hints
+                    .filter { it.scopeType == AppHintScopeType.APP_GENERAL }
+                    .sortedByDescending { it.updatedAt }
+
+                val groupedIntentHints = hints
+                    .filter { it.scopeType == AppHintScopeType.INTENT_SPECIFIC }
+                    .groupBy { it.scopeKey }
                     .values
                     .sortedByDescending { group -> group.maxOfOrNull { it.updatedAt } ?: 0L }
 
-                groupedHints.forEach { group ->
+                if (appGeneralHints.isNotEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "整个 app 都适用",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+                    items(appGeneralHints.size) { index ->
+                        val hint = appGeneralHints[index]
+                        HintCard(
+                            hint = hint,
+                            onEdit = {
+                                editingHint = hint
+                                editingHintText = hint.hintText
+                                selectedHintScopeType = hint.scopeType
+                                selectedHintIntentId = hint.intentId
+                                selectedHintIntentLabel = hint.intentLabel
+                            },
+                            onDelete = {
+                                uiScope.launch {
+                                    appHintRepo.deleteHint(hint.id)
+                                    reloadHints()
+                                }
+                            }
+                        )
+                    }
+                }
+
+                if (groupedIntentHints.isNotEmpty()) {
+                    item {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "只对某条意图生效",
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.secondary
+                        )
+                    }
+                }
+
+                groupedIntentHints.forEach { group ->
                     item {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
                             text = displayHintIntentLabel(group.first().intentLabel),
-                            style = MaterialTheme.typography.labelLarge,
+                            style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.secondary
                         )
                     }
 
                     items(group.size) { index ->
                         val hint = group[index]
-                        Card(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .clickable {
-                                    editingHint = hint
-                                    editingHintText = hint.hintText
-                                    selectedHintIntentId = hint.intentId
-                                    selectedHintIntentLabel = hint.intentLabel
-                                },
-                            colors = CardDefaults.cardColors(
-                                containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
-                            )
-                        ) {
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(8.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Column(modifier = Modifier.weight(1f)) {
-                                    Text(
-                                        text = "来源：${sourceLabelForHint(hint.source)}",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                        maxLines = 1
-                                    )
-                                    Spacer(modifier = Modifier.height(6.dp))
-                                    Text(
-                                        text = hint.hintText,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        maxLines = 2,
-                                        overflow = TextOverflow.Ellipsis
-                                    )
-                                }
-                                Row(
-                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
-                                    verticalAlignment = Alignment.CenterVertically
-                                ) {
-                                    IconButton(
-                                        onClick = {
-                                            editingHint = hint
-                                            editingHintText = hint.hintText
-                                            selectedHintIntentId = hint.intentId
-                                            selectedHintIntentLabel = hint.intentLabel
-                                        },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Edit,
-                                            contentDescription = "编辑",
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
-                                    IconButton(
-                                        onClick = {
-                                            uiScope.launch {
-                                                appHintRepo.deleteHint(hint.id)
-                                                reloadHints()
-                                            }
-                                        },
-                                        modifier = Modifier.size(24.dp)
-                                    ) {
-                                        Icon(
-                                            Icons.Default.Delete,
-                                            contentDescription = "删除",
-                                            tint = MaterialTheme.colorScheme.error,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                    }
+                        HintCard(
+                            hint = hint,
+                            onEdit = {
+                                editingHint = hint
+                                editingHintText = hint.hintText
+                                selectedHintScopeType = hint.scopeType
+                                selectedHintIntentId = hint.intentId
+                                selectedHintIntentLabel = hint.intentLabel
+                            },
+                            onDelete = {
+                                uiScope.launch {
+                                    appHintRepo.deleteHint(hint.id)
+                                    reloadHints()
                                 }
                             }
-                        }
+                        )
                     }
                 }
             }
@@ -1230,6 +1269,7 @@ fun AppRulesDialog(
                 constraints = historyRules[index],
                 onDismiss = { editingRuleIndex = null },
                 onSaveAsPreset = { updatedConstraints ->
+                    val originalConstraints = historyRules[index]
                     val existingFingerprints = presetRules
                         .map { sessionManager.getConstraintFingerprint(listOf(it)) }
                         .toMutableSet()
@@ -1251,6 +1291,15 @@ fun AppRulesDialog(
                         presetRules = newPresets
                         sessionManager.savePresetRules(app.packageName, newPresets)
                     }
+                    uiScope.launch {
+                        rebindHintsForEditedConstraints(
+                            appHintRepo = appHintRepo,
+                            packageName = app.packageName,
+                            originalConstraints = originalConstraints,
+                            updatedConstraints = updatedConstraints
+                        )
+                        reloadHints()
+                    }
                     val newHistory = historyRules.toMutableList().apply { removeAt(index) }
                     historyRules = newHistory
                     sessionManager.saveIntentHistory(app.packageName, newHistory)
@@ -1266,11 +1315,21 @@ fun AppRulesDialog(
                 constraint = presetRules[index],
                 onDismiss = { editingPresetIndex = null },
                 onSave = { updatedConstraint ->
+                    val originalConstraint = presetRules[index]
                     val newPresets = presetRules.toMutableList().apply {
                         this[index] = updatedConstraint
                     }
                     presetRules = newPresets
                     sessionManager.savePresetRules(app.packageName, newPresets)
+                    uiScope.launch {
+                        rebindHintsForEditedConstraints(
+                            appHintRepo = appHintRepo,
+                            packageName = app.packageName,
+                            originalConstraints = listOf(originalConstraint),
+                            updatedConstraints = listOf(updatedConstraint)
+                        )
+                        reloadHints()
+                    }
                     editingPresetIndex = null
                 }
             )
@@ -1282,6 +1341,127 @@ private data class HintIntentOption(
     val intentId: String,
     val intentLabel: String
 )
+
+@Composable
+private fun HintScopeSelector(
+    selectedScopeType: AppHintScopeType,
+    onScopeTypeSelected: (AppHintScopeType) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = "适用范围",
+            style = MaterialTheme.typography.labelMedium
+        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            FilterChip(
+                selected = selectedScopeType == AppHintScopeType.APP_GENERAL,
+                onClick = { onScopeTypeSelected(AppHintScopeType.APP_GENERAL) },
+                label = { Text("整个 app 都适用") }
+            )
+            FilterChip(
+                selected = selectedScopeType == AppHintScopeType.INTENT_SPECIFIC,
+                onClick = { onScopeTypeSelected(AppHintScopeType.INTENT_SPECIFIC) },
+                label = { Text("只对这条意图生效") }
+            )
+        }
+    }
+}
+
+@Composable
+private fun HintCard(
+    hint: com.seenot.app.data.model.AppHint,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onEdit),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(8.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "来源：${sourceLabelForHint(hint.source)}",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = hint.hintText,
+                    style = MaterialTheme.typography.bodySmall,
+                    maxLines = 2,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = onEdit,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Edit,
+                        contentDescription = "编辑",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(24.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = "删除",
+                        tint = MaterialTheme.colorScheme.error,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+private suspend fun rebindHintsForEditedConstraints(
+    appHintRepo: AppHintRepository,
+    packageName: String,
+    originalConstraints: List<SessionConstraint>,
+    updatedConstraints: List<SessionConstraint>
+) {
+    val updatedById = updatedConstraints.associateBy { it.id }
+    originalConstraints.forEach { original ->
+        val updated = updatedById[original.id] ?: return@forEach
+        val oldIntentId = buildIntentScopedHintId(original)
+        val newIntentId = buildIntentScopedHintId(updated)
+        val newIntentLabel = buildIntentScopedHintLabel(updated)
+        if (oldIntentId != newIntentId || buildIntentScopedHintLabel(original) != newIntentLabel) {
+            appHintRepo.moveHintsToScope(
+                packageName = packageName,
+                fromScopeType = AppHintScopeType.INTENT_SPECIFIC,
+                fromScopeKey = oldIntentId,
+                toScopeType = AppHintScopeType.INTENT_SPECIFIC,
+                toScopeKey = newIntentId,
+                toIntentId = newIntentId,
+                toIntentLabel = newIntentLabel
+            )
+        }
+    }
+}
 
 private fun displayHintIntentLabel(rawLabel: String): String {
     val match = Regex("""^(.*?)(?:\s*\((.*)\))?$""").matchEntire(rawLabel.trim()) ?: return rawLabel
@@ -1329,7 +1509,7 @@ private fun buildHintIntentOptions(
     presetRules.forEach(::addConstraint)
     historyRules.flatten().forEach(::addConstraint)
     lastIntentRules.forEach(::addConstraint)
-    existingHints.forEach { hint ->
+    existingHints.filter { it.scopeType == AppHintScopeType.INTENT_SPECIFIC }.forEach { hint ->
         options.putIfAbsent(
             hint.intentId,
             HintIntentOption(
@@ -1418,7 +1598,7 @@ fun AddPresetRuleDialog(
     onConfirm: (SessionConstraint) -> Unit
 ) {
     RuleEditorDialog(
-        title = "添加预设规则",
+        title = "添加预设意图",
         initialConstraint = SessionConstraint(
             id = java.util.UUID.randomUUID().toString(),
             type = ConstraintType.DENY,
@@ -1441,7 +1621,7 @@ fun EditPresetRuleDialog(
     onSave: (SessionConstraint) -> Unit
 ) {
     RuleEditorDialog(
-        title = "编辑预设规则",
+        title = "编辑预设意图",
         initialConstraint = constraint,
         confirmText = "保存",
         onDismiss = onDismiss,
@@ -1466,7 +1646,7 @@ fun EditHistoryRuleDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("编辑规则") },
+        title = { Text("编辑意图") },
         text = {
             LazyColumn(
                 modifier = Modifier.fillMaxWidth(),
@@ -1593,7 +1773,7 @@ fun EditConstraintDialog(
     onSave: (SessionConstraint) -> Unit
 ) {
     RuleEditorDialog(
-        title = "编辑规则项",
+        title = "编辑意图项",
         initialConstraint = constraint,
         confirmText = "保存",
         onDismiss = onDismiss,
@@ -1682,7 +1862,7 @@ private fun RuleEditorForm(
             .heightIn(max = 430.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        Text(text = "规则类型", style = MaterialTheme.typography.labelMedium)
+        Text(text = "意图类型", style = MaterialTheme.typography.labelMedium)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1885,7 +2065,7 @@ fun AppItem(
             IconButton(onClick = onEditRules) {
                 Icon(
                     Icons.Default.Edit,
-                    contentDescription = "编辑规则",
+                    contentDescription = "编辑意图",
                     tint = MaterialTheme.colorScheme.primary
                 )
             }
@@ -3290,7 +3470,7 @@ fun ExportDialog(
 
                 if (selectedExportTab == 0) {
                     Text(
-                        text = "导出当前监控应用、预设规则、默认规则、最近规则历史和 AI 补充说明。",
+                        text = "导出当前监控应用、预设意图、默认意图、最近意图历史和 AI 补充说明。",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )

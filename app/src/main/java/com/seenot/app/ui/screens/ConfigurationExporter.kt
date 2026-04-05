@@ -9,6 +9,9 @@ import com.google.gson.GsonBuilder
 import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
 import com.seenot.app.data.model.AppHint
+import com.seenot.app.data.model.AppHintScopeType
+import com.seenot.app.data.model.buildAppGeneralScopeKey
+import com.seenot.app.data.model.buildAppGeneralScopeLabel
 import com.seenot.app.data.repository.AppHintRepository
 import com.seenot.app.domain.SessionConstraint
 import com.seenot.app.domain.SessionManager
@@ -156,9 +159,24 @@ class ConfigurationExporter(private val context: Context) {
 
                     appHintRepository.deleteHintsForPackage(packageName)
                     appConfig.supplementalHints.forEach { hint ->
+                        val resolvedScopeKey = hint.scopeKey.ifBlank {
+                            when (hint.scopeType) {
+                                AppHintScopeType.APP_GENERAL -> buildAppGeneralScopeKey(packageName)
+                                AppHintScopeType.INTENT_SPECIFIC -> hint.intentId
+                            }
+                        }
+                        val resolvedIntentLabel = hint.intentLabel.ifBlank {
+                            when (hint.scopeType) {
+                                AppHintScopeType.APP_GENERAL -> buildAppGeneralScopeLabel()
+                                AppHintScopeType.INTENT_SPECIFIC -> hint.intentLabel
+                            }
+                        }
                         appHintRepository.saveHint(
                             hint.copy(
                                 packageName = packageName,
+                                scopeKey = resolvedScopeKey,
+                                intentId = hint.intentId.ifBlank { resolvedScopeKey },
+                                intentLabel = resolvedIntentLabel,
                                 hintText = hint.hintText.trim()
                             )
                         )

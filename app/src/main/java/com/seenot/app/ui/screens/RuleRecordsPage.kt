@@ -45,6 +45,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.graphics.Color
+import com.seenot.app.data.model.AppHintScopeType
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.RuleRecord
 import com.seenot.app.data.repository.RuleRecordRepository
@@ -146,6 +147,8 @@ fun RuleRecordsPage(
     var hintDialogRecord by remember { mutableStateOf<RuleRecord?>(null) }
     var hintDialogText by remember { mutableStateOf("") }
     var generatedHintDraft by remember { mutableStateOf("") }
+    var generatedHintScopeType by remember { mutableStateOf(AppHintScopeType.INTENT_SPECIFIC) }
+    var generatedHintScopeLabel by remember { mutableStateOf("只对这条意图生效") }
     var isGeneratingHint by remember { mutableStateOf(false) }
     var hintGenerationAttempted by remember { mutableStateOf(false) }
     val sessionManager = remember { SessionManager.getInstance(context) }
@@ -459,10 +462,12 @@ fun RuleRecordsPage(
                 hintDialogRecord = null
                 hintDialogText = ""
                 generatedHintDraft = ""
+                generatedHintScopeType = AppHintScopeType.INTENT_SPECIFIC
+                generatedHintScopeLabel = "只对这条意图生效"
                 isGeneratingHint = false
                 hintGenerationAttempted = false
             },
-            title = { Text("生成附加规则") },
+            title = { Text("生成补充规则") },
             text = {
                 Column {
                     Text(
@@ -471,7 +476,7 @@ fun RuleRecordsPage(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "系统会结合这条 record 的截图、当前意图和应用特点自动生成补充规则，并且只绑定到当前这条意图。你也可以补充一句，帮助它更准确。",
+                        text = "系统会结合这条记录的截图、当前意图和应用特点，先生成一条草稿，再判断它更适合放在整个 app 通用，还是只对这条意图生效。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -500,7 +505,7 @@ fun RuleRecordsPage(
                         }
                     } else if (hintGenerationAttempted) {
                         Text(
-                            text = "生成结果",
+                            text = "建议放在：$generatedHintScopeLabel",
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -530,6 +535,8 @@ fun RuleRecordsPage(
                                 if (result.generatedRule != null) {
                                     generatedHintDraft = result.generatedRule
                                 }
+                                generatedHintScopeType = result.generatedScopeType
+                                generatedHintScopeLabel = result.generatedScopeLabel
                                 Toast.makeText(context, result.userMessage, Toast.LENGTH_SHORT).show()
                             }
                             return@Button
@@ -539,6 +546,7 @@ fun RuleRecordsPage(
                             record = dialogRecord,
                             userNote = hintDialogText.takeIf { it.isNotBlank() },
                             confirmedRule = generatedHintDraft.takeIf { it.isNotBlank() },
+                            confirmedScopeType = generatedHintScopeType,
                             source = "record_detail"
                         ) { result ->
                             Toast.makeText(context, result.userMessage, Toast.LENGTH_SHORT).show()
@@ -554,6 +562,8 @@ fun RuleRecordsPage(
                         hintDialogRecord = null
                         hintDialogText = ""
                         generatedHintDraft = ""
+                        generatedHintScopeType = AppHintScopeType.INTENT_SPECIFIC
+                        generatedHintScopeLabel = "只对这条意图生效"
                         hintGenerationAttempted = false
                     }
                     ,
@@ -577,6 +587,8 @@ fun RuleRecordsPage(
                                     if (result.generatedRule != null) {
                                         generatedHintDraft = result.generatedRule
                                     }
+                                    generatedHintScopeType = result.generatedScopeType
+                                    generatedHintScopeLabel = result.generatedScopeLabel
                                     Toast.makeText(context, result.userMessage, Toast.LENGTH_SHORT).show()
                                 }
                             },
@@ -592,6 +604,8 @@ fun RuleRecordsPage(
                             hintDialogRecord = null
                             hintDialogText = ""
                             generatedHintDraft = ""
+                            generatedHintScopeType = AppHintScopeType.INTENT_SPECIFIC
+                            generatedHintScopeLabel = "只对这条意图生效"
                             hintGenerationAttempted = false
                         }
                     ) {

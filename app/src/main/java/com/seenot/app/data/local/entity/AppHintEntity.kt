@@ -24,6 +24,8 @@ data class AppHintEntity(
     @PrimaryKey
     val id: String,
     val packageName: String,
+    val scopeType: String = "INTENT_SPECIFIC",
+    val scopeKey: String = "",
     val intentId: String,
     val intentLabel: String,
     val hintText: String,

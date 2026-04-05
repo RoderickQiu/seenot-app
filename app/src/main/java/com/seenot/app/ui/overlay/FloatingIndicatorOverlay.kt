@@ -370,7 +370,7 @@ class FloatingIndicatorOverlay(
                 )
 
                 addView(
-                    buildHeaderButton("改规则") {
+                    buildHeaderButton("改意图") {
                         state = state.copy(isExpanded = false)
                         render()
                         onTapToReopen()
@@ -414,7 +414,7 @@ class FloatingIndicatorOverlay(
         if (statuses.isEmpty()) {
             rootContainer?.addView(
                 TextView(context).apply {
-                    text = "还没有规则"
+                    text = "还没有意图"
                     textSize = 13f
                     setTextColor(subtleTextColor)
                 }
@@ -521,7 +521,7 @@ class FloatingIndicatorOverlay(
                         FalsePositiveRuleReviewOverlay.show(
                             context = context,
                             titleText = "判断有误？",
-                            subtitleText = "会先生成一条补充规则草稿，你可以修改后再保存",
+                            subtitleText = "会先生成一条补充规则草稿，并判断它更适合放在整个 app 通用，还是只对当前这条意图生效",
                             onGenerate = { callback ->
                                 sessionManager.previewCurrentJudgmentFalsePositiveRule(
                                     constraintType = status.type,
@@ -529,11 +529,12 @@ class FloatingIndicatorOverlay(
                                     onComplete = callback
                                 )
                             },
-                            onSave = { ruleText, callback ->
+                            onSave = { ruleText, scopeType, callback ->
                                 sessionManager.saveCurrentJudgmentFalsePositiveRule(
                                     constraintType = status.type,
                                     isConditionMatched = status.isConditionMatched,
                                     confirmedRule = ruleText,
+                                    scopeType = scopeType,
                                     source = "floating_overlay",
                                     onComplete = callback
                                 )
@@ -604,7 +605,7 @@ class FloatingIndicatorOverlay(
     private fun buildCompactStatusText(): String {
         val constraints = currentConstraints()
         return if (constraints.isEmpty()) {
-            "点击设置规则"
+            "点击设置意图"
         } else {
             constraints.take(2).joinToString(" | ") { constraint ->
                 when (constraint.type) {

@@ -1,13 +1,16 @@
 package com.seenot.app.ai.feedback
 
 import android.content.Context
-import com.seenot.app.ai.OpenAiCompatibleClient
 import com.google.gson.JsonParser
+import com.seenot.app.ai.OpenAiCompatibleClient
 import com.seenot.app.config.ApiConfig
-import com.seenot.app.data.model.AppHint
 import com.seenot.app.data.model.APP_HINT_SOURCE_INTENT_CARRY_OVER
+import com.seenot.app.data.model.AppHint
+import com.seenot.app.data.model.AppHintScopeType
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.RuleRecord
+import com.seenot.app.data.model.buildAppGeneralScopeKey
+import com.seenot.app.data.model.buildAppGeneralScopeLabel
 import com.seenot.app.data.model.buildIntentScopedHintId
 import com.seenot.app.data.model.buildIntentScopedHintLabel
 import com.seenot.app.data.repository.AppHintRepository
@@ -27,12 +30,10 @@ data class GeneratedFalsePositiveRuleResult(
 
 data class FalsePositiveRulePreview(
     val ruleText: String? = null,
+    val scopeType: AppHintScopeType = AppHintScopeType.INTENT_SPECIFIC,
+    val scopeKey: String? = null,
     val targetIntentId: String? = null,
     val targetIntentLabel: String? = null
-)
-
-private data class CarryOverHintSelectionResponse(
-    val carryOverIds: List<String>
 )
 
 class FalsePositiveRuleGenerator(private val context: Context) {
@@ -55,17 +56,19 @@ class FalsePositiveRuleGenerator(private val context: Context) {
             ?: return@withContext FalsePositiveRulePreview()
         val targetIntentId = buildIntentScopedHintId(targetConstraint)
         val targetIntentLabel = buildIntentScopedHintLabel(targetConstraint)
-        val existingHints = appHintRepository.getHintsForIntent(packageName, targetIntentId)
+        val appGeneralHints = appHintRepository.getHintsForAppGeneral(packageName)
+        val intentSpecificHints = appHintRepository.getHintsForIntent(packageName, targetIntentId)
         val trimmedNote = userNote?.trim().orEmpty()
 
-        val generatedRule = if (ApiConfig.isConfigured()) {
+        val generated = if (ApiConfig.isConfigured()) {
             runCatching {
-                generateRuleWithAi(
+                generateScopedRuleWithAi(
                     appName = appName,
                     packageName = packageName,
                     record = record,
                     targetConstraint = targetConstraint,
-                    existingHints = existingHints,
+                    appGeneralHints = appGeneralHints,
+                    intentSpecificHints = intentSpecificHints,
                     userNote = trimmedNote.takeIf { it.isNotBlank() }
                 )
             }.onFailure { e ->
@@ -75,10 +78,22 @@ class FalsePositiveRuleGenerator(private val context: Context) {
             null
         }
 
+        val resolvedScopeType = generated?.scopeType ?: AppHintScopeType.INTENT_SPECIFIC
+        val scopeKey = when (resolvedScopeType) {
+            AppHintScopeType.APP_GENERAL -> buildAppGeneralScopeKey(packageName)
+            AppHintScopeType.INTENT_SPECIFIC -> targetIntentId
+        }
+        val label = when (resolvedScopeType) {
+            AppHintScopeType.APP_GENERAL -> buildAppGeneralScopeLabel()
+            AppHintScopeType.INTENT_SPECIFIC -> targetIntentLabel
+        }
+
         FalsePositiveRulePreview(
-            ruleText = generatedRule,
-            targetIntentId = targetIntentId,
-            targetIntentLabel = targetIntentLabel
+            ruleText = generated?.ruleText,
+            scopeType = resolvedScopeType,
+            scopeKey = scopeKey,
+            targetIntentId = scopeKey,
+            targetIntentLabel = label
         )
     }
 
@@ -89,63 +104,147 @@ class FalsePositiveRuleGenerator(private val context: Context) {
         constraints: List<SessionConstraint>,
         userNote: String? = null
     ): GeneratedFalsePositiveRuleResult = withContext(Dispatchers.IO) {
-        val targetConstraint = resolveTargetConstraint(record, constraints) ?: constraints.firstOrNull()
-            ?: return@withContext GeneratedFalsePositiveRuleResult()
-        val targetIntentId = buildIntentScopedHintId(targetConstraint)
-        val targetIntentLabel = buildIntentScopedHintLabel(targetConstraint)
-        val existingHints = appHintRepository.getHintsForIntent(packageName, targetIntentId)
-        val trimmedNote = userNote?.trim().orEmpty()
-
-        val generatedRule = if (ApiConfig.isConfigured()) {
-            runCatching {
-                generateRuleWithAi(
-                    appName = appName,
-                    packageName = packageName,
-                    record = record,
-                    targetConstraint = targetConstraint,
-                    existingHints = existingHints,
-                    userNote = trimmedNote.takeIf { it.isNotBlank() }
-                )
-            }.onFailure { e ->
-                Logger.w(TAG, "Failed to generate false-positive rule with AI: ${e.message}")
-            }.getOrNull()
-        } else {
-            null
-        }
-
-        val finalRule = generatedRule ?: trimmedNote.takeIf { it.isNotBlank() }
+        val preview = generateRulePreview(
+            packageName = packageName,
+            appName = appName,
+            record = record,
+            constraints = constraints,
+            userNote = userNote
+        )
+        val finalRule = preview.ruleText ?: userNote?.trim()?.takeIf { it.isNotBlank() }
         if (finalRule.isNullOrBlank()) {
             return@withContext GeneratedFalsePositiveRuleResult()
         }
 
         val saveResult = appHintRepository.saveHintIfNew(
             packageName = packageName,
-            intentId = targetIntentId,
-            intentLabel = targetIntentLabel,
+            scopeType = preview.scopeType,
+            scopeKey = preview.scopeKey.orEmpty(),
+            intentId = preview.targetIntentId.orEmpty(),
+            intentLabel = preview.targetIntentLabel.orEmpty(),
             hintText = finalRule
+        )
+
+        GeneratedFalsePositiveRuleResult(
+            savedHint = saveResult.hint,
+            ruleText = saveResult.hint.hintText,
+            reusedExistingHint = !saveResult.created,
+            usedUserNoteFallback = preview.ruleText.isNullOrBlank() && !userNote.isNullOrBlank()
+        )
+    }
+
+    suspend fun saveConfirmedRule(
+        packageName: String,
+        record: RuleRecord,
+        constraints: List<SessionConstraint>,
+        scopeType: AppHintScopeType,
+        ruleText: String,
+        source: String? = null,
+        sourceHintId: String? = null
+    ): GeneratedFalsePositiveRuleResult = withContext(Dispatchers.IO) {
+        val targetConstraint = resolveTargetConstraint(record, constraints) ?: constraints.firstOrNull()
+            ?: return@withContext GeneratedFalsePositiveRuleResult()
+
+        val scopeKey = when (scopeType) {
+            AppHintScopeType.APP_GENERAL -> buildAppGeneralScopeKey(packageName)
+            AppHintScopeType.INTENT_SPECIFIC -> buildIntentScopedHintId(targetConstraint)
+        }
+        val label = when (scopeType) {
+            AppHintScopeType.APP_GENERAL -> buildAppGeneralScopeLabel()
+            AppHintScopeType.INTENT_SPECIFIC -> buildIntentScopedHintLabel(targetConstraint)
+        }
+
+        val saveResult = appHintRepository.saveHintIfNew(
+            packageName = packageName,
+            scopeType = scopeType,
+            scopeKey = scopeKey,
+            intentId = scopeKey,
+            intentLabel = label,
+            hintText = ruleText,
+            source = source ?: com.seenot.app.data.model.APP_HINT_SOURCE_FEEDBACK_GENERATED,
+            sourceHintId = sourceHintId
         )
         GeneratedFalsePositiveRuleResult(
             savedHint = saveResult.hint,
             ruleText = saveResult.hint.hintText,
             reusedExistingHint = !saveResult.created,
-            usedUserNoteFallback = generatedRule.isNullOrBlank() && trimmedNote.isNotBlank()
+            usedUserNoteFallback = false
         )
     }
 
-    private suspend fun generateRuleWithAi(
+    suspend fun autoCarryOverHintsForIntent(
+        packageName: String,
+        appName: String,
+        targetConstraint: SessionConstraint,
+        existingPackageHints: List<AppHint>
+    ): List<AppHint> = withContext(Dispatchers.IO) {
+        if (!ApiConfig.isConfigured()) return@withContext emptyList()
+
+        val targetIntentId = buildIntentScopedHintId(targetConstraint)
+        val targetIntentLabel = buildIntentScopedHintLabel(targetConstraint)
+        if (appHintRepository.getHintsForIntent(packageName, targetIntentId).isNotEmpty()) {
+            return@withContext emptyList()
+        }
+
+        val candidates = existingPackageHints
+            .filter {
+                it.isActive &&
+                    it.scopeType == AppHintScopeType.INTENT_SPECIFIC &&
+                    it.intentId != targetIntentId &&
+                    it.sourceHintId == null
+            }
+            .distinctBy { "${it.intentId}|${it.hintText.trim()}" }
+            .take(8)
+
+        if (candidates.isEmpty()) return@withContext emptyList()
+
+        val selectedIds = runCatching {
+            selectCarryOverHintIdsWithAi(
+                appName = appName,
+                packageName = packageName,
+                targetConstraint = targetConstraint,
+                candidates = candidates
+            )
+        }.onFailure { e ->
+            Logger.w(TAG, "Failed to auto carry over hints: ${e.message}")
+        }.getOrDefault(emptyList())
+
+        val saved = mutableListOf<AppHint>()
+        selectedIds.take(2).forEach { sourceHintId ->
+            val sourceHint = candidates.firstOrNull { it.id == sourceHintId } ?: return@forEach
+            val saveResult = appHintRepository.saveHintIfNew(
+                packageName = packageName,
+                scopeType = AppHintScopeType.INTENT_SPECIFIC,
+                scopeKey = targetIntentId,
+                intentId = targetIntentId,
+                intentLabel = targetIntentLabel,
+                hintText = sourceHint.hintText,
+                source = APP_HINT_SOURCE_INTENT_CARRY_OVER,
+                sourceHintId = sourceHint.id
+            )
+            if (saveResult.created) {
+                saved += saveResult.hint
+            }
+        }
+        saved
+    }
+
+    private suspend fun generateScopedRuleWithAi(
         appName: String,
         packageName: String,
         record: RuleRecord,
         targetConstraint: SessionConstraint,
-        existingHints: List<AppHint>,
+        appGeneralHints: List<AppHint>,
+        intentSpecificHints: List<AppHint>,
         userNote: String?
-    ): String? {
+    ): ScopedRuleGenerationResult? {
         val prompt = buildPrompt(
             appName = appName,
             packageName = packageName,
             record = record,
             targetConstraint = targetConstraint,
-            existingHints = existingHints,
+            appGeneralHints = appGeneralHints,
+            intentSpecificHints = intentSpecificHints,
             userNote = userNote
         )
 
@@ -164,7 +263,8 @@ class FalsePositiveRuleGenerator(private val context: Context) {
         packageName: String,
         record: RuleRecord,
         targetConstraint: SessionConstraint,
-        existingHints: List<AppHint>,
+        appGeneralHints: List<AppHint>,
+        intentSpecificHints: List<AppHint>,
         userNote: String?
     ): String {
         val constraintsText = run {
@@ -177,8 +277,14 @@ class FalsePositiveRuleGenerator(private val context: Context) {
             "- [$type] ${targetConstraint.description}$timePart$scopePart"
         }
 
-        val existingHintsText = if (existingHints.isNotEmpty()) {
-            existingHints.take(8).joinToString("\n") { "- ${it.hintText}" }
+        val appGeneralHintsText = if (appGeneralHints.isNotEmpty()) {
+            appGeneralHints.take(8).joinToString("\n") { "- ${it.hintText}" }
+        } else {
+            "- 暂无"
+        }
+
+        val intentSpecificHintsText = if (intentSpecificHints.isNotEmpty()) {
+            intentSpecificHints.take(8).joinToString("\n") { "- ${it.hintText}" }
         } else {
             "- 暂无"
         }
@@ -218,30 +324,27 @@ class FalsePositiveRuleGenerator(private val context: Context) {
         return """
 你是 SeeNot 的误报纠偏引擎。用户已经明确确认：下面这条判断是误报。
 
-你的任务：基于原始 intent、当前截图、应用特点、已有附加规则和用户补充说明，生成 1 条新的“附加判断规则”，用于后续减少同类误报。
+你的任务：基于原始 intent、当前截图、应用特点、已有补充规则和用户补充说明，生成 1 条新的“补充判断规则”，用于后续减少同类误报。
 
-这条补充规则只服务于“当前这一条 intent / 约束”，不能替别的 intent 概括，也不能写成整个 app 的通用定义。
+但你必须先判断这条规则更适合沉淀在哪一层：
+1. APP_GENERAL：适用于这个 app 的通用页面边界，可被多个 intent 复用
+2. INTENT_SPECIFIC：只适用于当前这一条 intent / 约束
 
 注意：用户已经明确确认“系统这次判断反了”。你必须以“用户纠正后的正确判断”为准生成规则，不能顺着系统原判断继续加强。
-
-补充背景：这条原始判断通常来自一个更小、更便宜的在线分析模型，它的页面理解可能不稳定，甚至会误读功能边界。你必须批判性看待“系统原判断”和“AI 对截图的描述”，把它们只当作参考证据，不能盲从；当它们与用户纠正冲突时，以用户纠正为准。
 
 要求：
 1. 只输出 1 条规则，必须具体、窄、可执行。
 2. 规则的作用是细化边界或说明例外，不能推翻用户原始 intent，更不能重写它的完整定义。
-3. 尽量使用应用内具体模块名，比如：群聊、私聊、聊天列表、首页、搜索页、详情页、播放页、评论区、个人主页。
-4. 规则应该优先描述“页面边界 / 场景边界 / 功能边界”，而不是直接给出全局放行结论。
-5. 如果是 [禁止] 误报，优先写成“什么页面属于 A 类页面、什么页面属于 B 类页面”，例如“全屏沉浸式视频播放页不应仅因顶部位于推荐 tab 就被当作推荐列表页”。
-6. 如果是 [时间限制] 误报，优先写成“哪些页面属于计时目标、哪些页面属于相邻但不同的场景边界”，而不是笼统说“都计时/都不计时”。
+3. 如果你选择 APP_GENERAL，规则必须描述这个 app 的通用页面机制或通用边界，不要把当前主题词当成核心锚点。
+4. 如果你选择 INTENT_SPECIFIC，规则可以围绕当前 intent 的具体目标边界来写。
+5. 尽量使用应用内具体模块名，比如：群聊、私聊、聊天列表、首页、搜索页、详情页、播放页、评论区、个人主页。
+6. 规则应该优先描述“页面边界 / 场景边界 / 功能边界”，而不是直接给出全局放行结论。
 7. 规则方向必须和“用户纠正后”的正确判断一致；如果这次应该算计时，就生成帮助未来判为计时的规则；如果这次应该不计时，就生成帮助未来判为不计时的规则。
-8. 只围绕当前这条约束写，不要为了覆盖“未来相似约束”而故意放宽。
-9. 严禁输出“判定为正常”“不违规”“不计入违规”“直接放行”这类全局放行措辞；要改写成“不要把它识别成当前目标边界”或“它更接近另一类页面”。
-10. 不要生成过宽泛的规则，例如“这个 app 都不算”。
-11. 禁止出现“只有……才算……”“应判定为……”“都应视为……”这类重定义句式。
-12. 如果信息不足以生成高质量规则，返回 no_rule。
-13. 输出必须是 JSON，对象格式如下：
+8. 如果信息不足以生成高质量规则，返回 no_rule。
+9. 输出必须是 JSON，对象格式如下：
 {
   "decision": "create_rule" 或 "no_rule",
+  "scope_type": "APP_GENERAL" 或 "INTENT_SPECIFIC",
   "supplemental_rule": "规则文本",
   "reason": "一句话解释"
 }
@@ -263,64 +366,17 @@ $constraintsText
 本次纠正目标：
 - $correctionGoalText
 
-已有附加规则：
-$existingHintsText
+已有通用边界规则：
+$appGeneralHintsText
+
+当前 intent 已有专属补充规则：
+$intentSpecificHintsText
 
 用户补充说明：
 ${userNote ?: "无"}
 
-生成规则时，优先避免与“已有附加规则”重复。最终规则应该像“页面分类边界提示”，而不是“结果放行指令”。只输出 JSON，不要输出解释性文字。
+只输出 JSON，不要输出解释性文字。
         """.trimIndent()
-    }
-
-    suspend fun autoCarryOverHintsForIntent(
-        packageName: String,
-        appName: String,
-        targetConstraint: SessionConstraint,
-        existingPackageHints: List<AppHint>
-    ): List<AppHint> = withContext(Dispatchers.IO) {
-        if (!ApiConfig.isConfigured()) return@withContext emptyList()
-
-        val targetIntentId = buildIntentScopedHintId(targetConstraint)
-        val targetIntentLabel = buildIntentScopedHintLabel(targetConstraint)
-        if (appHintRepository.getHintsForIntent(packageName, targetIntentId).isNotEmpty()) {
-            return@withContext emptyList()
-        }
-
-        val candidates = existingPackageHints
-            .filter { it.isActive && it.intentId != targetIntentId && it.sourceHintId == null }
-            .distinctBy { "${it.intentId}|${it.hintText.trim()}" }
-            .take(8)
-
-        if (candidates.isEmpty()) return@withContext emptyList()
-
-        val selectedIds = runCatching {
-            selectCarryOverHintIdsWithAi(
-                appName = appName,
-                packageName = packageName,
-                targetConstraint = targetConstraint,
-                candidates = candidates
-            )
-        }.onFailure { e ->
-            Logger.w(TAG, "Failed to auto carry over hints: ${e.message}")
-        }.getOrDefault(emptyList())
-
-        val saved = mutableListOf<AppHint>()
-        selectedIds.take(2).forEach { sourceHintId ->
-            val sourceHint = candidates.firstOrNull { it.id == sourceHintId } ?: return@forEach
-            val saveResult = appHintRepository.saveHintIfNew(
-                packageName = packageName,
-                intentId = targetIntentId,
-                intentLabel = targetIntentLabel,
-                hintText = sourceHint.hintText,
-                source = APP_HINT_SOURCE_INTENT_CARRY_OVER,
-                sourceHintId = sourceHint.id
-            )
-            if (saveResult.created) {
-                saved += saveResult.hint
-            }
-        }
-        saved
     }
 
     private fun buildImageContent(imagePath: String?): String? {
@@ -340,34 +396,6 @@ ${userNote ?: "无"}
             Logger.w(TAG, "Failed to encode image for false-positive rule generation", e)
             null
         }
-    }
-
-    suspend fun saveConfirmedRule(
-        packageName: String,
-        record: RuleRecord,
-        constraints: List<SessionConstraint>,
-        ruleText: String,
-        source: String? = null,
-        sourceHintId: String? = null
-    ): GeneratedFalsePositiveRuleResult = withContext(Dispatchers.IO) {
-        val targetConstraint = resolveTargetConstraint(record, constraints) ?: constraints.firstOrNull()
-            ?: return@withContext GeneratedFalsePositiveRuleResult()
-        val targetIntentId = buildIntentScopedHintId(targetConstraint)
-        val targetIntentLabel = buildIntentScopedHintLabel(targetConstraint)
-        val saveResult = appHintRepository.saveHintIfNew(
-            packageName = packageName,
-            intentId = targetIntentId,
-            intentLabel = targetIntentLabel,
-            hintText = ruleText,
-            source = source ?: com.seenot.app.data.model.APP_HINT_SOURCE_FEEDBACK_GENERATED,
-            sourceHintId = sourceHintId
-        )
-        GeneratedFalsePositiveRuleResult(
-            savedHint = saveResult.hint,
-            ruleText = saveResult.hint.hintText,
-            reusedExistingHint = !saveResult.created,
-            usedUserNoteFallback = false
-        )
     }
 
     private suspend fun callMultimodal(content: List<Map<String, Any>>): String? {
@@ -390,14 +418,14 @@ ${userNote ?: "无"}
                     userPrompt = prompt,
                     imageDataUrl = imageDataUrl,
                     temperature = 0.2,
-                    maxTokens = 600,
+                    maxTokens = 700,
                     modelOverride = ApiConfig.getFeedbackModel()
                 )
             } else {
                 llmClient.completeText(
                     userPrompt = prompt,
                     temperature = 0.2,
-                    maxTokens = 600,
+                    maxTokens = 700,
                     modelOverride = ApiConfig.getFeedbackModel()
                 )
             }
@@ -410,7 +438,7 @@ ${userNote ?: "无"}
         }
     }
 
-    private fun parseGeneratedRule(responseText: String): String? {
+    private fun parseGeneratedRule(responseText: String): ScopedRuleGenerationResult? {
         return try {
             val cleaned = cleanJson(responseText)
             val obj = JsonParser.parseString(cleaned).asJsonObject
@@ -418,10 +446,19 @@ ${userNote ?: "无"}
             if (decision != "create_rule") {
                 return null
             }
-            obj.get("supplemental_rule")
+            val scopeType = when (obj.get("scope_type")?.asString?.trim()?.uppercase()) {
+                AppHintScopeType.APP_GENERAL.name -> AppHintScopeType.APP_GENERAL
+                else -> AppHintScopeType.INTENT_SPECIFIC
+            }
+            val ruleText = obj.get("supplemental_rule")
                 ?.asString
                 ?.trim()
-                ?.takeIf { it.isNotBlank() && isSafeSupplementalRule(it) }
+                ?.takeIf { it.isNotBlank() }
+                ?: return null
+            ScopedRuleGenerationResult(
+                scopeType = scopeType,
+                ruleText = ruleText
+            )
         } catch (e: Exception) {
             Logger.w(TAG, "Failed to parse generated false-positive rule: ${e.message}")
             null
@@ -437,7 +474,7 @@ ${userNote ?: "无"}
         val prompt = """
 你在做 SeeNot 的补充规则复用筛选。
 
-目标：判断哪些“旧 intent 的补充规则”可以安全地自动带入到“当前新 intent”。
+目标：判断哪些“旧 intent 的专属补充规则”可以安全地自动带入到“当前新 intent”。
 
 原则：
 1. 只允许选“非常确定仍然适用”的规则。
@@ -494,21 +531,6 @@ ${candidates.joinToString("\n") { "- id=${it.id} | 来自=${it.intentLabel} | �
         }
     }
 
-    private fun isSafeSupplementalRule(rule: String): Boolean {
-        val normalized = rule.replace(Regex("\\s+"), "")
-        val dangerousPatterns = listOf(
-            Regex("只有.+才"),
-            Regex("应判定为"),
-            Regex("都应视为"),
-            Regex("直接放行"),
-            Regex("判定为正常"),
-            Regex("不违规"),
-            Regex("都算"),
-            Regex("都不算")
-        )
-        return dangerousPatterns.none { it.containsMatchIn(normalized) }
-    }
-
     private fun cleanJson(text: String): String {
         var cleaned = text.trim()
 
@@ -519,14 +541,49 @@ ${candidates.joinToString("\n") { "- id=${it.id} | 来自=${it.intentLabel} | �
             }
         }
 
-        cleaned = cleaned.trim().trimEnd('`').trim()
-
-        val jsonStart = cleaned.indexOf('{')
-        val jsonEnd = cleaned.lastIndexOf('}')
-        if (jsonStart >= 0 && jsonEnd > jsonStart) {
-            cleaned = cleaned.substring(jsonStart, jsonEnd + 1)
+        if (cleaned.endsWith("```")) {
+            cleaned = cleaned.substring(0, cleaned.length - 3)
         }
 
-        return cleaned
+        cleaned = cleaned.trimEnd('`')
+
+        if (cleaned.startsWith("```")) {
+            cleaned = cleaned.substring(3).trim()
+        }
+        if (cleaned.endsWith("```")) {
+            cleaned = cleaned.substring(0, cleaned.length - 3).trim()
+        }
+
+        val jsonStart = cleaned.indexOf('{')
+        if (jsonStart >= 0) {
+            var braceCount = 0
+            var inString = false
+            var escape = false
+            for (i in jsonStart until cleaned.length) {
+                val c = cleaned[i]
+                when {
+                    escape -> escape = false
+                    c == '\\' -> escape = true
+                    c == '"' -> inString = !inString
+                    !inString -> when (c) {
+                        '{' -> braceCount++
+                        '}' -> {
+                            braceCount--
+                            if (braceCount == 0) {
+                                cleaned = cleaned.substring(jsonStart, i + 1)
+                                break
+                            }
+                        }
+                    }
+                }
+            }
+        }
+
+        return cleaned.trim()
     }
+
+    private data class ScopedRuleGenerationResult(
+        val scopeType: AppHintScopeType,
+        val ruleText: String
+    )
 }

@@ -17,6 +17,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
+import com.seenot.app.data.model.AppHintScopeType
 import com.seenot.app.domain.FalsePositiveFeedbackResult
 import com.seenot.app.domain.FalsePositiveRulePreviewResult
 import com.seenot.app.utils.Logger
@@ -26,7 +27,7 @@ class FalsePositiveRuleReviewOverlay(
     private val titleText: String,
     private val subtitleText: String,
     private val onGenerate: ((FalsePositiveRulePreviewResult) -> Unit) -> Unit,
-    private val onSave: (String, (FalsePositiveFeedbackResult) -> Unit) -> Unit
+    private val onSave: (String, AppHintScopeType, (FalsePositiveFeedbackResult) -> Unit) -> Unit
 ) {
     companion object {
         private const val TAG = "FalsePositiveRuleOverlay"
@@ -39,7 +40,7 @@ class FalsePositiveRuleReviewOverlay(
             titleText: String,
             subtitleText: String,
             onGenerate: ((FalsePositiveRulePreviewResult) -> Unit) -> Unit,
-            onSave: (String, (FalsePositiveFeedbackResult) -> Unit) -> Unit
+            onSave: (String, AppHintScopeType, (FalsePositiveFeedbackResult) -> Unit) -> Unit
         ) {
             dismiss()
             val dialog = FalsePositiveRuleReviewOverlay(
@@ -66,6 +67,7 @@ class FalsePositiveRuleReviewOverlay(
     private var progressBar: ProgressBar? = null
     private var regenerateButton: Button? = null
     private var saveButton: Button? = null
+    private var latestScopeType: AppHintScopeType = AppHintScopeType.INTENT_SPECIFIC
     private var isGenerating = false
     private var isSaving = false
 
@@ -238,7 +240,7 @@ class FalsePositiveRuleReviewOverlay(
             isSaving = true
             updateButtons()
             statusText?.text = "正在保存补充规则…"
-            onSave(draft) { result ->
+            onSave(draft, latestScopeType) { result ->
                 isSaving = false
                 if (result.success) {
                     ToastOverlay.show(context, result.userMessage)
@@ -292,8 +294,9 @@ class FalsePositiveRuleReviewOverlay(
             draftInput?.visibility = View.VISIBLE
             regenerateButton?.visibility = View.VISIBLE
             saveButton?.visibility = View.VISIBLE
+            latestScopeType = result.generatedScopeType
             draftInput?.setText(result.generatedRule.orEmpty())
-            statusText?.text = result.userMessage
+            statusText?.text = "${result.userMessage} · 建议放在：${result.generatedScopeLabel}"
             updateButtons()
         }
     }

@@ -7,6 +7,15 @@ const val APP_HINT_SOURCE_MANUAL = "manual"
 const val APP_HINT_SOURCE_FEEDBACK_GENERATED = "feedback_generated"
 const val APP_HINT_SOURCE_INTENT_CARRY_OVER = "intent_carry_over"
 
+enum class AppHintScopeType {
+    APP_GENERAL,
+    INTENT_SPECIFIC
+}
+
+fun buildAppGeneralScopeKey(packageName: String): String = "app::$packageName"
+
+fun buildAppGeneralScopeLabel(): String = "整个 app 都适用"
+
 fun buildIntentScopedHintId(constraint: SessionConstraint): String {
     val normalizedDescription = constraint.description
         .trim()

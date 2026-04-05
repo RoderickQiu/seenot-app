@@ -815,6 +815,12 @@ class ScreenAnalyzer(
         val imageDataUrl = "data:image/jpeg;base64,${bitmapToBase64(screenshot)}"
         Logger.d(TAG, "[AI] Image base64 size: ${imageDataUrl.length} chars")
 
+        val appGeneralHints = if (packageName.isNotBlank()) {
+            appHintRepository.getHintsForAppGeneral(packageName).map { it.hintText }
+        } else {
+            emptyList()
+        }
+
         val constraintHints = if (packageName.isNotBlank()) {
             constraints.associate { constraint ->
                 constraint.id to appHintRepository
@@ -830,6 +836,7 @@ class ScreenAnalyzer(
             constraints = constraints,
             appName = appName,
             packageName = packageName,
+            appGeneralHints = appGeneralHints,
             constraintHints = constraintHints
         )
         Logger.d(TAG, "[AI] Prompt length: ${prompt.length} chars")
@@ -1072,6 +1079,7 @@ class ScreenAnalyzer(
         constraints: List<SessionConstraint>,
         appName: String = "",
         packageName: String = "",
+        appGeneralHints: List<String> = emptyList(),
         constraintHints: Map<String, List<String>> = emptyMap()
     ): String {
         // Group constraints by type
@@ -1129,7 +1137,13 @@ class ScreenAnalyzer(
             if (packageName.isNotBlank()) appendLine("- 应用包名：$packageName")
         }.trimEnd()
 
-        val appHintSection = buildString {
+        val appGeneralHintSection = appGeneralHints
+            .map { it.trim() }
+            .filter { it.isNotBlank() }
+            .take(8)
+            .joinToString("\n") { "   - $it" }
+
+        val intentHintSection = buildString {
             constraints.forEachIndexed { index, constraint ->
                 val hints = constraintHints[constraint.id].orEmpty()
                     .map { it.trim() }
@@ -1145,11 +1159,22 @@ class ScreenAnalyzer(
             }
         }.trimEnd()
 
-        val appHintSectionText = if (appHintSection.isNotBlank()) {
-            """
+        val appHintSectionText = buildString {
+            if (appGeneralHintSection.isNotBlank()) {
+                appendLine()
+                appendLine("4. **应用通用边界规则（默认对所有意图生效）：**")
+                appendLine(appGeneralHintSection)
+            }
+            if (intentHintSection.isNotBlank()) {
+                if (isNotBlank()) appendLine()
+                appendLine("5. **当前意图专属补充规则（只细化当前约束）：**")
+                appendLine(intentHintSection)
+            }
+        }.trim()
 
-4. **意图级补充规则（来自历史误报反馈）：**
-$appHintSection
+        val appHintSectionBlock = if (appHintSectionText.isNotBlank()) {
+            """
+$appHintSectionText
             """.trimIndent()
         } else {
             ""
@@ -1184,7 +1209,7 @@ $envInfo
    - 用户主动点击并浏览该内容：才算违规（用户有主动意图，是用户主动选择的内容）
 
 $typeSpecificRules
-$appHintSectionText
+$appHintSectionBlock
 
 **当前约束：**
 $constraintsText

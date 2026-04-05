@@ -45,6 +45,20 @@ interface AppHintDao {
 
     @Query(
         "SELECT * FROM app_hints " +
+            "WHERE packageName = :packageName AND scopeType = :scopeType AND isActive = 1 " +
+            "ORDER BY createdAt DESC"
+    )
+    suspend fun getHintsForScopeType(packageName: String, scopeType: String): List<AppHintEntity>
+
+    @Query(
+        "SELECT * FROM app_hints " +
+            "WHERE packageName = :packageName AND scopeType = :scopeType AND isActive = 1 " +
+            "ORDER BY createdAt DESC"
+    )
+    fun getHintsForScopeTypeFlow(packageName: String, scopeType: String): Flow<List<AppHintEntity>>
+
+    @Query(
+        "SELECT * FROM app_hints " +
             "WHERE packageName = :packageName AND intentId = :intentId AND isActive = 1 " +
             "ORDER BY createdAt DESC"
     )
@@ -56,6 +70,20 @@ interface AppHintDao {
             "ORDER BY createdAt DESC"
     )
     fun getHintsForIntentFlow(packageName: String, intentId: String): Flow<List<AppHintEntity>>
+
+    @Query(
+        "SELECT * FROM app_hints " +
+            "WHERE packageName = :packageName AND scopeType = :scopeType AND scopeKey = :scopeKey AND isActive = 1 " +
+            "ORDER BY createdAt DESC"
+    )
+    suspend fun getHintsForScopeKey(packageName: String, scopeType: String, scopeKey: String): List<AppHintEntity>
+
+    @Query(
+        "SELECT * FROM app_hints " +
+            "WHERE packageName = :packageName AND scopeType = :scopeType AND scopeKey = :scopeKey AND isActive = 1 " +
+            "ORDER BY createdAt DESC"
+    )
+    fun getHintsForScopeKeyFlow(packageName: String, scopeType: String, scopeKey: String): Flow<List<AppHintEntity>>
 
     @Query("SELECT * FROM app_hints WHERE id = :hintId")
     suspend fun getHintById(hintId: String): AppHintEntity?
@@ -72,6 +100,19 @@ interface AppHintDao {
     )
     suspend fun updateHintIntent(
         hintId: String,
+        intentId: String,
+        intentLabel: String,
+        updatedAt: Long = System.currentTimeMillis()
+    )
+
+    @Query(
+        "UPDATE app_hints SET scopeType = :scopeType, scopeKey = :scopeKey, intentId = :intentId, " +
+            "intentLabel = :intentLabel, updatedAt = :updatedAt WHERE id = :hintId"
+    )
+    suspend fun updateHintScope(
+        hintId: String,
+        scopeType: String,
+        scopeKey: String,
         intentId: String,
         intentLabel: String,
         updatedAt: Long = System.currentTimeMillis()

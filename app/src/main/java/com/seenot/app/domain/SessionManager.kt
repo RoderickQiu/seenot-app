@@ -11,6 +11,7 @@ import com.seenot.app.config.ApiConfig
 import com.seenot.app.data.local.SeenotDatabase
 import com.seenot.app.data.local.entity.IntentConstraintEntity
 import com.seenot.app.data.local.entity.SessionEntity
+import com.seenot.app.data.model.AppHintScopeType
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.InterventionLevel
 import com.seenot.app.data.model.RuleRecord
@@ -502,7 +503,7 @@ class SessionManager(private val context: Context) {
                         System.currentTimeMillis() + FALSE_POSITIVE_DIALOG_COOLDOWN_MS
                     showFalsePositiveReviewOverlay(
                         title = "误报纠正",
-                        subtitle = "会先生成一条补充规则草稿，你可以直接修改后再保存",
+                        subtitle = "会先生成一条补充规则草稿，并判断它更适合放在整个 app 通用，还是只对当前这条意图生效",
                         onGenerate = { callback ->
                             previewFalsePositiveForLatestViolation(
                                 session = session,
@@ -510,11 +511,12 @@ class SessionManager(private val context: Context) {
                                 callback = callback
                             )
                         },
-                        onSave = { ruleText, callback ->
+                        onSave = { ruleText, scopeType, callback ->
                             saveFalsePositiveForLatestViolation(
                                 session = session,
                                 constraint = constraint,
                                 confirmedRule = ruleText,
+                                scopeType = scopeType,
                                 source = "intervention_dialog",
                                 onComplete = callback
                             )
@@ -626,6 +628,7 @@ class SessionManager(private val context: Context) {
         session: ActiveSession,
         constraint: SessionConstraint,
         confirmedRule: String,
+        scopeType: AppHintScopeType,
         source: String,
         onComplete: (FalsePositiveFeedbackResult) -> Unit
     ) {
@@ -654,6 +657,7 @@ class SessionManager(private val context: Context) {
                     fallbackSession = session,
                     userNote = null,
                     confirmedRule = confirmedRule,
+                    confirmedScopeType = scopeType,
                     source = source
                 )
                 onComplete(result)
@@ -776,6 +780,7 @@ class SessionManager(private val context: Context) {
         constraintType: ConstraintType,
         isConditionMatched: Boolean,
         confirmedRule: String,
+        scopeType: AppHintScopeType,
         source: String = "floating_overlay",
         onComplete: (FalsePositiveFeedbackResult) -> Unit
     ) {
@@ -806,6 +811,7 @@ class SessionManager(private val context: Context) {
                     fallbackSession = session,
                     userNote = null,
                     confirmedRule = confirmedRule,
+                    confirmedScopeType = scopeType,
                     source = source
                 )
                 onComplete(result)
@@ -825,6 +831,7 @@ class SessionManager(private val context: Context) {
         record: RuleRecord,
         userNote: String? = null,
         confirmedRule: String? = null,
+        confirmedScopeType: AppHintScopeType? = null,
         source: String = "record_detail",
         onComplete: ((FalsePositiveFeedbackResult) -> Unit)? = null
     ) {
@@ -834,6 +841,7 @@ class SessionManager(private val context: Context) {
                 fallbackSession = _activeSession.value,
                 userNote = userNote,
                 confirmedRule = confirmedRule,
+                confirmedScopeType = confirmedScopeType,
                 source = source
             )
             onComplete?.invoke(result)
@@ -866,7 +874,12 @@ class SessionManager(private val context: Context) {
                     FalsePositiveRulePreviewResult(
                         success = true,
                         generatedRule = preview.ruleText,
-                        userMessage = if (preview.ruleText.isNullOrBlank()) "这次没生成出理想规则，你可以直接修改下面的草稿或重新生成"
+                        generatedScopeType = preview.scopeType,
+                        generatedScopeLabel = when (preview.scopeType) {
+                            AppHintScopeType.APP_GENERAL -> "整个 app 都适用"
+                            AppHintScopeType.INTENT_SPECIFIC -> "只对这条意图生效"
+                        },
+                        userMessage = if (preview.ruleText.isNullOrBlank()) "这次先给了一个不太理想的草稿，你可以直接改，或再试一次"
                         else "补充规则已生成，可直接修改后保存"
                     )
                 )
@@ -886,7 +899,7 @@ class SessionManager(private val context: Context) {
         title: String,
         subtitle: String,
         onGenerate: ((FalsePositiveRulePreviewResult) -> Unit) -> Unit,
-        onSave: (String, (FalsePositiveFeedbackResult) -> Unit) -> Unit
+        onSave: (String, AppHintScopeType, (FalsePositiveFeedbackResult) -> Unit) -> Unit
     ) {
         FalsePositiveRuleReviewOverlay.show(
             context = context,
@@ -902,6 +915,7 @@ class SessionManager(private val context: Context) {
         fallbackSession: ActiveSession?,
         userNote: String?,
         confirmedRule: String?,
+        confirmedScopeType: AppHintScopeType? = null,
         source: String
     ): FalsePositiveFeedbackResult {
         return falsePositiveLearningMutex.withLock {
@@ -935,6 +949,7 @@ class SessionManager(private val context: Context) {
                             packageName = packageName,
                             record = record,
                             constraints = contextInfo.constraints,
+                            scopeType = confirmedScopeType ?: AppHintScopeType.INTENT_SPECIFIC,
                             ruleText = finalRule
                         )
                     }
@@ -1766,6 +1781,8 @@ data class FalsePositiveFeedbackResult(
 data class FalsePositiveRulePreviewResult(
     val success: Boolean,
     val generatedRule: String? = null,
+    val generatedScopeType: AppHintScopeType = AppHintScopeType.INTENT_SPECIFIC,
+    val generatedScopeLabel: String = "只对这条意图生效",
     val userMessage: String
 )
 

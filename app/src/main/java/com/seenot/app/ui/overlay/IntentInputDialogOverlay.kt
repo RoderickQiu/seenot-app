@@ -247,7 +247,7 @@ class IntentInputDialogOverlay(
 
         // Subtitle
         val subtitle = TextView(context).apply {
-            text = "说出你的使用规则"
+            text = "说出你的使用意图"
             textSize = 14f
             setTextColor(subtleTextColor)
             gravity = Gravity.CENTER
@@ -334,7 +334,7 @@ class IntentInputDialogOverlay(
             setOnClickListener { confirmAndTransition() }
         }
         confirmText = TextView(context).apply {
-            text = "确认规则"
+            text = "确认意图"
             textSize = 15f
             setTextColor(Color.WHITE)
             typeface = Typeface.DEFAULT_BOLD
@@ -356,7 +356,7 @@ class IntentInputDialogOverlay(
 
         // Preset rules section title
         val presetTitle = TextView(context).apply {
-            text = "预设规则"
+            text = "预设意图"
             textSize = 13f
             setTextColor(subtleTextColor)
             layoutParams = LinearLayout.LayoutParams(
@@ -399,7 +399,7 @@ class IntentInputDialogOverlay(
 
         // History section title
         val historyTitle = TextView(context).apply {
-            text = "历史规则"
+            text = "历史意图"
             textSize = 13f
             setTextColor(subtleTextColor)
             layoutParams = LinearLayout.LayoutParams(
@@ -487,7 +487,7 @@ class IntentInputDialogOverlay(
 
         if (presetRules.isEmpty()) {
             val emptyText = TextView(context).apply {
-                text = "暂无预设规则"
+                text = "暂无预设意图"
                 textSize = 13f
                 setTextColor(subtleTextColor)
                 gravity = Gravity.CENTER
@@ -590,7 +590,7 @@ class IntentInputDialogOverlay(
 
         if (history.isEmpty()) {
             val emptyText = TextView(context).apply {
-                text = "暂无历史规则"
+                text = "暂无历史意图"
                 textSize = 13f
                 setTextColor(subtleTextColor)
                 gravity = Gravity.CENTER
@@ -730,7 +730,7 @@ class IntentInputDialogOverlay(
                     shape = GradientDrawable.OVAL
                     setColor(successColor)
                 }
-                statusText?.text = "规则已识别"
+                statusText?.text = "意图已识别"
                 statusText?.setTextColor(successColor)
 
                 val rulesText = pendingConstraints?.joinToString("\n") { c ->
