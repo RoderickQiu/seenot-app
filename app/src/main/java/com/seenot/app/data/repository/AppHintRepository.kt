@@ -4,6 +4,8 @@ import android.content.Context
 import com.seenot.app.data.local.SeenotDatabase
 import com.seenot.app.data.local.entity.AppHintEntity
 import com.seenot.app.data.model.AppHint
+import com.seenot.app.data.model.APP_HINT_SOURCE_FEEDBACK_GENERATED
+import com.seenot.app.data.model.APP_HINT_SOURCE_MANUAL
 import com.seenot.app.utils.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
@@ -41,17 +43,32 @@ class AppHintRepository(private val context: Context) {
      * Save hint for a specific app from misclassification feedback
      * This is the key method for the feedback loop
      */
-    suspend fun addHintFromFeedback(packageName: String, hintText: String): AppHint {
+    suspend fun addHintFromFeedback(
+        packageName: String,
+        intentId: String,
+        intentLabel: String,
+        hintText: String
+    ): AppHint {
         val hint = AppHint(
             packageName = packageName,
+            intentId = intentId,
+            intentLabel = intentLabel,
+            source = APP_HINT_SOURCE_MANUAL,
             hintText = hintText.trim()
         )
         return saveHint(hint)
     }
 
-    suspend fun saveHintIfNew(packageName: String, hintText: String): SaveHintResult {
+    suspend fun saveHintIfNew(
+        packageName: String,
+        intentId: String,
+        intentLabel: String,
+        hintText: String,
+        source: String = APP_HINT_SOURCE_FEEDBACK_GENERATED,
+        sourceHintId: String? = null
+    ): SaveHintResult {
         val normalized = normalizeHintText(hintText)
-        val existing = getHintsForPackage(packageName).firstOrNull {
+        val existing = getHintsForIntent(packageName, intentId).firstOrNull {
             normalizeHintText(it.hintText) == normalized
         }
         if (existing != null) {
@@ -61,7 +78,11 @@ class AppHintRepository(private val context: Context) {
         val saved = saveHint(
             AppHint(
                 packageName = packageName,
-                hintText = hintText.trim()
+                intentId = intentId,
+                intentLabel = intentLabel,
+                hintText = hintText.trim(),
+                source = source,
+                sourceHintId = sourceHintId
             )
         )
         return SaveHintResult(saved, created = true)
@@ -90,11 +111,21 @@ class AppHintRepository(private val context: Context) {
         return dao.getHintsForPackage(packageName).map { it.toModel() }
     }
 
+    suspend fun getHintsForIntent(packageName: String, intentId: String): List<AppHint> {
+        return dao.getHintsForIntent(packageName, intentId).map { it.toModel() }
+    }
+
     /**
      * Get hints for a specific package as Flow
      */
     fun getHintsForPackageFlow(packageName: String): Flow<List<AppHint>> {
         return dao.getHintsForPackageFlow(packageName).map { entities ->
+            entities.map { it.toModel() }
+        }
+    }
+
+    fun getHintsForIntentFlow(packageName: String, intentId: String): Flow<List<AppHint>> {
+        return dao.getHintsForIntentFlow(packageName, intentId).map { entities ->
             entities.map { it.toModel() }
         }
     }
@@ -115,6 +146,17 @@ class AppHintRepository(private val context: Context) {
             true
         } catch (e: Exception) {
             Logger.e(TAG, "Error updating hint", e)
+            false
+        }
+    }
+
+    suspend fun updateHint(hintId: String, hintText: String, intentId: String, intentLabel: String): Boolean {
+        return try {
+            dao.updateHintText(hintId, hintText.trim())
+            dao.updateHintIntent(hintId, intentId, intentLabel)
+            true
+        } catch (e: Exception) {
+            Logger.e(TAG, "Error updating hint intent", e)
             false
         }
     }
@@ -182,7 +224,11 @@ class AppHintRepository(private val context: Context) {
         return AppHint(
             id = id,
             packageName = packageName,
+            intentId = intentId,
+            intentLabel = intentLabel,
             hintText = hintText,
+            source = source,
+            sourceHintId = sourceHintId,
             isActive = isActive,
             createdAt = createdAt,
             updatedAt = updatedAt
@@ -193,7 +239,11 @@ class AppHintRepository(private val context: Context) {
         return AppHintEntity(
             id = id,
             packageName = packageName,
+            intentId = intentId,
+            intentLabel = intentLabel,
             hintText = hintText,
+            source = source,
+            sourceHintId = sourceHintId,
             isActive = isActive,
             createdAt = createdAt,
             updatedAt = updatedAt

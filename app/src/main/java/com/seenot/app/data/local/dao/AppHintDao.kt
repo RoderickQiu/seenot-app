@@ -43,6 +43,20 @@ interface AppHintDao {
     @Query("SELECT * FROM app_hints WHERE packageName = :packageName AND isActive = 1 ORDER BY createdAt DESC")
     fun getHintsForPackageFlow(packageName: String): Flow<List<AppHintEntity>>
 
+    @Query(
+        "SELECT * FROM app_hints " +
+            "WHERE packageName = :packageName AND intentId = :intentId AND isActive = 1 " +
+            "ORDER BY createdAt DESC"
+    )
+    suspend fun getHintsForIntent(packageName: String, intentId: String): List<AppHintEntity>
+
+    @Query(
+        "SELECT * FROM app_hints " +
+            "WHERE packageName = :packageName AND intentId = :intentId AND isActive = 1 " +
+            "ORDER BY createdAt DESC"
+    )
+    fun getHintsForIntentFlow(packageName: String, intentId: String): Flow<List<AppHintEntity>>
+
     @Query("SELECT * FROM app_hints WHERE id = :hintId")
     suspend fun getHintById(hintId: String): AppHintEntity?
 
@@ -51,6 +65,17 @@ interface AppHintDao {
 
     @Query("UPDATE app_hints SET hintText = :hintText, updatedAt = :updatedAt WHERE id = :hintId")
     suspend fun updateHintText(hintId: String, hintText: String, updatedAt: Long = System.currentTimeMillis())
+
+    @Query(
+        "UPDATE app_hints SET intentId = :intentId, intentLabel = :intentLabel, updatedAt = :updatedAt " +
+            "WHERE id = :hintId"
+    )
+    suspend fun updateHintIntent(
+        hintId: String,
+        intentId: String,
+        intentLabel: String,
+        updatedAt: Long = System.currentTimeMillis()
+    )
 
     @Query("SELECT COUNT(*) FROM app_hints WHERE packageName = :packageName AND isActive = 1")
     suspend fun getActiveHintCountForPackage(packageName: String): Int

@@ -145,6 +145,9 @@ fun RuleRecordsPage(
     var showHintDialog by remember { mutableStateOf(false) }
     var hintDialogRecord by remember { mutableStateOf<RuleRecord?>(null) }
     var hintDialogText by remember { mutableStateOf("") }
+    var generatedHintDraft by remember { mutableStateOf("") }
+    var isGeneratingHint by remember { mutableStateOf(false) }
+    var hintGenerationAttempted by remember { mutableStateOf(false) }
     val sessionManager = remember { SessionManager.getInstance(context) }
 
     // Handle back press
@@ -451,9 +454,13 @@ fun RuleRecordsPage(
         val dialogRecord = hintDialogRecord!!
         AlertDialog(
             onDismissRequest = {
+                if (isGeneratingHint) return@AlertDialog
                 showHintDialog = false
                 hintDialogRecord = null
                 hintDialogText = ""
+                generatedHintDraft = ""
+                isGeneratingHint = false
+                hintGenerationAttempted = false
             },
             title = { Text("生成附加规则") },
             text = {
@@ -464,7 +471,7 @@ fun RuleRecordsPage(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "系统会结合这条 record 的截图、原始 intent 和应用特点自动生成附加规则。你也可以补充一句，帮助它更准确。",
+                        text = "系统会结合这条 record 的截图、当前意图和应用特点自动生成补充规则，并且只绑定到当前这条意图。你也可以补充一句，帮助它更准确。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -477,14 +484,61 @@ fun RuleRecordsPage(
                         minLines = 2,
                         maxLines = 4
                     )
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    if (isGeneratingHint) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                            Text(
+                                text = "正在生成补充规则草稿…",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else if (hintGenerationAttempted) {
+                        Text(
+                            text = "生成结果",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        OutlinedTextField(
+                            value = generatedHintDraft,
+                            onValueChange = { generatedHintDraft = it },
+                            modifier = Modifier.fillMaxWidth(),
+                            placeholder = { Text("可直接修改生成结果，或自己写一条更准确的补充规则") },
+                            minLines = 3,
+                            maxLines = 6
+                        )
+                    }
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
+                        if (!hintGenerationAttempted) {
+                            isGeneratingHint = true
+                            sessionManager.previewFalsePositiveRule(
+                                record = dialogRecord,
+                                userNote = hintDialogText.takeIf { it.isNotBlank() }
+                            ) { result ->
+                                isGeneratingHint = false
+                                hintGenerationAttempted = true
+                                if (result.generatedRule != null) {
+                                    generatedHintDraft = result.generatedRule
+                                }
+                                Toast.makeText(context, result.userMessage, Toast.LENGTH_SHORT).show()
+                            }
+                            return@Button
+                        }
+
                         sessionManager.markRecordAsWrong(
                             record = dialogRecord,
                             userNote = hintDialogText.takeIf { it.isNotBlank() },
+                            confirmedRule = generatedHintDraft.takeIf { it.isNotBlank() },
                             source = "record_detail"
                         ) { result ->
                             Toast.makeText(context, result.userMessage, Toast.LENGTH_SHORT).show()
@@ -499,20 +553,50 @@ fun RuleRecordsPage(
                         showHintDialog = false
                         hintDialogRecord = null
                         hintDialogText = ""
+                        generatedHintDraft = ""
+                        hintGenerationAttempted = false
                     }
+                    ,
+                    enabled = if (!hintGenerationAttempted) !isGeneratingHint else generatedHintDraft.isNotBlank() && !isGeneratingHint
                 ) {
-                    Text("保存")
+                    Text(if (hintGenerationAttempted) "保存" else "生成")
                 }
             },
             dismissButton = {
-                TextButton(
-                    onClick = {
-                        showHintDialog = false
-                        hintDialogRecord = null
-                        hintDialogText = ""
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (hintGenerationAttempted) {
+                        TextButton(
+                            onClick = {
+                                isGeneratingHint = true
+                                sessionManager.previewFalsePositiveRule(
+                                    record = dialogRecord,
+                                    userNote = hintDialogText.takeIf { it.isNotBlank() }
+                                ) { result ->
+                                    isGeneratingHint = false
+                                    hintGenerationAttempted = true
+                                    if (result.generatedRule != null) {
+                                        generatedHintDraft = result.generatedRule
+                                    }
+                                    Toast.makeText(context, result.userMessage, Toast.LENGTH_SHORT).show()
+                                }
+                            },
+                            enabled = !isGeneratingHint
+                        ) {
+                            Text("重新生成")
+                        }
                     }
-                ) {
-                    Text("取消")
+                    TextButton(
+                        onClick = {
+                            if (isGeneratingHint) return@TextButton
+                            showHintDialog = false
+                            hintDialogRecord = null
+                            hintDialogText = ""
+                            generatedHintDraft = ""
+                            hintGenerationAttempted = false
+                        }
+                    ) {
+                        Text("取消")
+                    }
                 }
             }
         )

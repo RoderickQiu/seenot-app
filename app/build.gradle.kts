@@ -63,6 +63,55 @@ android {
     }
 }
 
+val verifyRoomMigrations by tasks.registering {
+    group = "verification"
+    description = "Fails the build if Room database version changes without a matching migration."
+
+    val dbFile = layout.projectDirectory.file("src/main/java/com/seenot/app/data/local/SeenotDatabase.kt")
+    val javaSourceDir = layout.projectDirectory.dir("src/main/java")
+    val kotlinSourceDir = layout.projectDirectory.dir("src/main/kotlin")
+    val guardBaselineFile = layout.projectDirectory.file("ROOM_MIGRATION_GUARD_BASELINE")
+    inputs.file(dbFile)
+    if (javaSourceDir.asFile.exists()) {
+        inputs.dir(javaSourceDir)
+    }
+    if (kotlinSourceDir.asFile.exists()) {
+        inputs.dir(kotlinSourceDir)
+    }
+    inputs.file(guardBaselineFile)
+
+    doLast {
+        val dbText = dbFile.asFile.readText()
+
+        val versionMatch = Regex("""version\s*=\s*(\d+)""").find(dbText)
+            ?: error("Could not find Room database version in SeenotDatabase.kt")
+        val currentVersion = versionMatch.groupValues[1].toInt()
+        val baselineVersion = guardBaselineFile.asFile.readText().trim().toInt()
+
+        if (currentVersion <= baselineVersion) return@doLast
+
+        val expectedFrom = currentVersion - 1
+        val migrationRegex = Regex("""Migration\s*\(\s*$expectedFrom\s*,\s*$currentVersion\s*\)""")
+        val sourceRoots = listOf(
+            javaSourceDir.asFile,
+            kotlinSourceDir.asFile
+        ).filter { it.exists() }
+
+        val hasMatchingMigration = sourceRoots
+            .flatMap { root -> root.walkTopDown().filter { it.isFile && (it.extension == "kt" || it.extension == "java") }.toList() }
+            .any { file -> migrationRegex.containsMatchIn(file.readText()) }
+
+        check(hasMatchingMigration) {
+            "Room database version is $currentVersion, but no matching Migration($expectedFrom, $currentVersion) was found. " +
+                "Add an explicit migration before changing the version."
+        }
+    }
+}
+
+tasks.named("preBuild") {
+    dependsOn(verifyRoomMigrations)
+}
+
 dependencies {
     // Compose BOM
     val composeBom = platform("androidx.compose:compose-bom:2024.02.00")

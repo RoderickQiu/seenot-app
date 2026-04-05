@@ -45,9 +45,14 @@ import com.seenot.app.ai.parser.AppInfo
 import com.seenot.app.ui.overlay.VoiceInputOverlay
 import com.seenot.app.data.repository.AppHintRepository
 import com.seenot.app.data.repository.RuleRecordRepository
+import com.seenot.app.data.model.APP_HINT_SOURCE_FEEDBACK_GENERATED
+import com.seenot.app.data.model.APP_HINT_SOURCE_INTENT_CARRY_OVER
+import com.seenot.app.data.model.APP_HINT_SOURCE_MANUAL
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.InterventionLevel
 import com.seenot.app.data.model.TimeScope
+import com.seenot.app.data.model.buildIntentScopedHintId
+import com.seenot.app.data.model.buildIntentScopedHintLabel
 import com.seenot.app.domain.SessionConstraint
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
@@ -693,59 +698,83 @@ fun AppRulesDialog(
     sessionManager: SessionManager,
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
+    val uiScope = rememberCoroutineScope()
+    val appHintRepo = remember { AppHintRepository(context) }
+
     var historyRules by remember { mutableStateOf<List<List<SessionConstraint>>>(emptyList()) }
     var presetRules by remember { mutableStateOf<List<SessionConstraint>>(emptyList()) }
+    var lastIntentRules by remember { mutableStateOf<List<SessionConstraint>>(emptyList()) }
     var showAddPresetDialog by remember { mutableStateOf(false) }
     var editingRuleIndex by remember { mutableStateOf<Int?>(null) }
     var editingPresetIndex by remember { mutableStateOf<Int?>(null) }
 
-    // Hints state
     var hints by remember { mutableStateOf<List<com.seenot.app.data.model.AppHint>>(emptyList()) }
     var showAddHintDialog by remember { mutableStateOf(false) }
     var newHintText by remember { mutableStateOf("") }
     var editingHint by remember { mutableStateOf<com.seenot.app.data.model.AppHint?>(null) }
     var editingHintText by remember { mutableStateOf("") }
-    val context = LocalContext.current
-    val appHintRepo = remember { com.seenot.app.data.repository.AppHintRepository(context) }
+    var selectedHintIntentId by remember { mutableStateOf<String?>(null) }
+    var selectedHintIntentLabel by remember { mutableStateOf<String?>(null) }
 
-    // Load rules
+    suspend fun reloadHints() {
+        hints = appHintRepo.getHintsForPackage(app.packageName)
+    }
+
     LaunchedEffect(app.packageName) {
         val loadedPresetRules = sessionManager.loadPresetRules(app.packageName)
         presetRules = loadedPresetRules
 
-        // Filter out history rules that duplicate preset rules
         val loadedHistoryRules = sessionManager.loadIntentHistory(app.packageName)
         val presetFingerprints = loadedPresetRules.map { sessionManager.getConstraintFingerprint(listOf(it)) }.toSet()
         historyRules = loadedHistoryRules.filter { history ->
             val fingerprint = sessionManager.getConstraintFingerprint(history)
             fingerprint !in presetFingerprints
         }
-
-        // Load hints for this app
-        hints = appHintRepo.getHintsForPackage(app.packageName)
+        lastIntentRules = sessionManager.loadLastIntent(app.packageName).orEmpty()
+        reloadHints()
     }
 
-    // Add Hint Dialog
+    val intentOptions = remember(presetRules, historyRules, lastIntentRules, hints) {
+        buildHintIntentOptions(
+            presetRules = presetRules,
+            historyRules = historyRules,
+            lastIntentRules = lastIntentRules,
+            existingHints = hints
+        )
+    }
+
     if (showAddHintDialog) {
         AlertDialog(
             onDismissRequest = {
                 showAddHintDialog = false
                 newHintText = ""
+                selectedHintIntentId = null
+                selectedHintIntentLabel = null
             },
-            title = { Text("添加AI补充说明") },
+            title = { Text("添加 AI 补充规则") },
             text = {
                 Column {
                     Text(
-                        text = "告诉AI这个应用的特殊使用场景，帮助AI更准确判断：",
+                        text = "补充规则只对所选意图生效，不会作为整个 app 的通用说明。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HintIntentSelector(
+                        options = intentOptions,
+                        selectedIntentId = selectedHintIntentId,
+                        onIntentSelected = {
+                            selectedHintIntentId = it.intentId
+                            selectedHintIntentLabel = it.intentLabel
+                        }
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     OutlinedTextField(
                         value = newHintText,
                         onValueChange = { newHintText = it },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("例如：我只用这个APP看新闻，不刷短视频") },
+                        placeholder = { Text("例如：不要仅因详情页露出商品卡片，就识别成推荐列表") },
                         minLines = 2,
                         maxLines = 4
                     )
@@ -755,52 +784,76 @@ fun AppRulesDialog(
                 Button(
                     onClick = {
                         val hintTextToSave = newHintText.trim()
-                        if (hintTextToSave.isNotBlank()) {
-                            kotlinx.coroutines.GlobalScope.launch {
-                                appHintRepo.addHintFromFeedback(app.packageName, hintTextToSave)
-                                hints = appHintRepo.getHintsForPackage(app.packageName)
+                        val intentId = selectedHintIntentId
+                        val intentLabel = selectedHintIntentLabel
+                        if (hintTextToSave.isNotBlank() && intentId != null && intentLabel != null) {
+                            uiScope.launch {
+                                appHintRepo.addHintFromFeedback(
+                                    packageName = app.packageName,
+                                    intentId = intentId,
+                                    intentLabel = intentLabel,
+                                    hintText = hintTextToSave
+                                )
+                                reloadHints()
                             }
                         }
                         showAddHintDialog = false
                         newHintText = ""
-                    }
+                        selectedHintIntentId = null
+                        selectedHintIntentLabel = null
+                    },
+                    enabled = selectedHintIntentId != null
                 ) {
                     Text("添加")
                 }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    showAddHintDialog = false
-                    newHintText = ""
-                }) {
+                TextButton(
+                    onClick = {
+                        showAddHintDialog = false
+                        newHintText = ""
+                        selectedHintIntentId = null
+                        selectedHintIntentLabel = null
+                    }
+                ) {
                     Text("取消")
                 }
             }
         )
     }
 
-    // Edit Hint Dialog
     if (editingHint != null) {
         val hint = editingHint!!
         AlertDialog(
             onDismissRequest = {
                 editingHint = null
                 editingHintText = ""
+                selectedHintIntentId = null
+                selectedHintIntentLabel = null
             },
-            title = { Text("编辑AI补充说明") },
+            title = { Text("编辑 AI 补充规则") },
             text = {
                 Column {
                     Text(
-                        text = "修改AI补充说明，帮助AI更准确判断：",
+                        text = "可同时修改规则内容和它所绑定的意图。",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    HintIntentSelector(
+                        options = intentOptions,
+                        selectedIntentId = selectedHintIntentId ?: hint.intentId,
+                        onIntentSelected = {
+                            selectedHintIntentId = it.intentId
+                            selectedHintIntentLabel = it.intentLabel
+                        }
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     OutlinedTextField(
                         value = editingHintText,
                         onValueChange = { editingHintText = it },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("例如：我只用这个APP看新闻，不刷短视频") },
+                        placeholder = { Text("例如：不要仅因详情页露出商品卡片，就识别成推荐列表") },
                         minLines = 2,
                         maxLines = 4
                     )
@@ -810,24 +863,37 @@ fun AppRulesDialog(
                 Button(
                     onClick = {
                         val hintTextToSave = editingHintText.trim()
+                        val targetIntentId = selectedHintIntentId ?: hint.intentId
+                        val targetIntentLabel = selectedHintIntentLabel ?: hint.intentLabel
                         if (hintTextToSave.isNotBlank()) {
-                            kotlinx.coroutines.GlobalScope.launch {
-                                appHintRepo.updateHintText(hint.id, hintTextToSave)
-                                hints = appHintRepo.getHintsForPackage(app.packageName)
+                            uiScope.launch {
+                                appHintRepo.updateHint(
+                                    hintId = hint.id,
+                                    hintText = hintTextToSave,
+                                    intentId = targetIntentId,
+                                    intentLabel = targetIntentLabel
+                                )
+                                reloadHints()
                             }
                         }
                         editingHint = null
                         editingHintText = ""
+                        selectedHintIntentId = null
+                        selectedHintIntentLabel = null
                     }
                 ) {
                     Text("保存")
                 }
             },
             dismissButton = {
-                TextButton(onClick = {
-                    editingHint = null
-                    editingHintText = ""
-                }) {
+                TextButton(
+                    onClick = {
+                        editingHint = null
+                        editingHintText = ""
+                        selectedHintIntentId = null
+                        selectedHintIntentLabel = null
+                    }
+                ) {
                     Text("取消")
                 }
             }
@@ -844,7 +910,6 @@ fun AppRulesDialog(
                     .heightIn(max = 400.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                // Preset Rules Section
                 item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -1001,7 +1066,6 @@ fun AppRulesDialog(
                     }
                 }
 
-                // AI Hints Section
                 item {
                     Spacer(modifier = Modifier.height(16.dp))
                     Row(
@@ -1010,11 +1074,17 @@ fun AppRulesDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "AI 补充说明",
+                            text = "AI 补充规则",
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.primary
                         )
-                        TextButton(onClick = { showAddHintDialog = true }) {
+                        TextButton(
+                            onClick = {
+                                selectedHintIntentId = intentOptions.firstOrNull()?.intentId
+                                selectedHintIntentLabel = intentOptions.firstOrNull()?.intentLabel
+                                showAddHintDialog = true
+                            }
+                        ) {
                             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(4.dp))
                             Text("添加")
@@ -1023,73 +1093,111 @@ fun AppRulesDialog(
                 }
 
                 item {
+                    Text(
+                        text = "这些规则只会对对应意图生效。来源会区分为手动添加、纠错生成或自动带入。",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                item {
                     if (hints.isEmpty()) {
                         Text(
-                            text = "暂无补充说明，添加后可帮助AI更准确判断",
+                            text = "暂无补充规则",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
 
-                items(hints.size) { index ->
-                    val hint = hints[index]
-                    Card(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                editingHint = hint
-                                editingHintText = hint.hintText
-                            },
-                        colors = CardDefaults.cardColors(
-                            containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
+                val groupedHints = hints
+                    .groupBy { it.intentId }
+                    .values
+                    .sortedByDescending { group -> group.maxOfOrNull { it.updatedAt } ?: 0L }
+
+                groupedHints.forEach { group ->
+                    item {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = displayHintIntentLabel(group.first().intentLabel),
+                            style = MaterialTheme.typography.labelLarge,
+                            color = MaterialTheme.colorScheme.secondary
                         )
-                    ) {
-                        Row(
+                    }
+
+                    items(group.size) { index ->
+                        val hint = group[index]
+                        Card(
                             modifier = Modifier
                                 .fillMaxWidth()
-                                .padding(8.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = hint.hintText,
-                                style = MaterialTheme.typography.bodySmall,
-                                modifier = Modifier.weight(1f)
+                                .clickable {
+                                    editingHint = hint
+                                    editingHintText = hint.hintText
+                                    selectedHintIntentId = hint.intentId
+                                    selectedHintIntentLabel = hint.intentLabel
+                                },
+                            colors = CardDefaults.cardColors(
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.3f)
                             )
+                        ) {
                             Row(
-                                horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(8.dp),
+                                horizontalArrangement = Arrangement.SpaceBetween,
                                 verticalAlignment = Alignment.CenterVertically
                             ) {
-                                IconButton(
-                                    onClick = {
-                                        editingHint = hint
-                                        editingHintText = hint.hintText
-                                    },
-                                    modifier = Modifier.size(24.dp)
-                                ) {
-                                    Icon(
-                                        Icons.Default.Edit,
-                                        contentDescription = "编辑",
-                                        tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(18.dp)
+                                Column(modifier = Modifier.weight(1f)) {
+                                    Text(
+                                        text = "来源：${sourceLabelForHint(hint.source)}",
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                        maxLines = 1
+                                    )
+                                    Spacer(modifier = Modifier.height(6.dp))
+                                    Text(
+                                        text = hint.hintText,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        maxLines = 2,
+                                        overflow = TextOverflow.Ellipsis
                                     )
                                 }
-                                IconButton(
-                                    onClick = {
-                                        kotlinx.coroutines.GlobalScope.launch {
-                                            appHintRepo.deleteHint(hint.id)
-                                            hints = appHintRepo.getHintsForPackage(app.packageName)
-                                        }
-                                    },
-                                    modifier = Modifier.size(24.dp)
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Icon(
-                                        Icons.Default.Delete,
-                                        contentDescription = "删除",
-                                        tint = MaterialTheme.colorScheme.error,
-                                        modifier = Modifier.size(18.dp)
-                                    )
+                                    IconButton(
+                                        onClick = {
+                                            editingHint = hint
+                                            editingHintText = hint.hintText
+                                            selectedHintIntentId = hint.intentId
+                                            selectedHintIntentLabel = hint.intentLabel
+                                        },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Edit,
+                                            contentDescription = "编辑",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
+                                    IconButton(
+                                        onClick = {
+                                            uiScope.launch {
+                                                appHintRepo.deleteHint(hint.id)
+                                                reloadHints()
+                                            }
+                                        },
+                                        modifier = Modifier.size(24.dp)
+                                    ) {
+                                        Icon(
+                                            Icons.Default.Delete,
+                                            contentDescription = "删除",
+                                            tint = MaterialTheme.colorScheme.error,
+                                            modifier = Modifier.size(18.dp)
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -1104,7 +1212,6 @@ fun AppRulesDialog(
         }
     )
 
-    // Add Preset Rule Dialog
     if (showAddPresetDialog) {
         AddPresetRuleDialog(
             onDismiss = { showAddPresetDialog = false },
@@ -1117,7 +1224,6 @@ fun AppRulesDialog(
         )
     }
 
-    // Edit Rule Dialog
     editingRuleIndex?.let { index ->
         if (index < historyRules.size) {
             EditHistoryRuleDialog(
@@ -1154,7 +1260,6 @@ fun AppRulesDialog(
         }
     }
 
-    // Edit Preset Rule Dialog
     editingPresetIndex?.let { index ->
         if (index < presetRules.size) {
             EditPresetRuleDialog(
@@ -1170,6 +1275,137 @@ fun AppRulesDialog(
                 }
             )
         }
+    }
+}
+
+private data class HintIntentOption(
+    val intentId: String,
+    val intentLabel: String
+)
+
+private fun displayHintIntentLabel(rawLabel: String): String {
+    val match = Regex("""^(.*?)(?:\s*\((.*)\))?$""").matchEntire(rawLabel.trim()) ?: return rawLabel
+    val base = match.groupValues[1].trim()
+    val extrasRaw = match.groupValues.getOrNull(2)?.trim().orEmpty()
+    if (extrasRaw.isBlank()) return base
+
+    val filteredExtras = extrasRaw
+        .split("/")
+        .map { it.trim() }
+        .filter { it.isNotBlank() }
+        .filterNot {
+            it == TimeScope.SESSION.name ||
+                it == TimeScope.PER_CONTENT.name ||
+                it == TimeScope.CONTINUOUS.name ||
+                it == TimeScope.DAILY_TOTAL.name
+        }
+
+    return if (filteredExtras.isEmpty()) {
+        base
+    } else {
+        "$base (${filteredExtras.joinToString(" / ")})"
+    }
+}
+
+private fun buildHintIntentOptions(
+    presetRules: List<SessionConstraint>,
+    historyRules: List<List<SessionConstraint>>,
+    lastIntentRules: List<SessionConstraint>,
+    existingHints: List<com.seenot.app.data.model.AppHint>
+): List<HintIntentOption> {
+    val options = linkedMapOf<String, HintIntentOption>()
+
+    fun addConstraint(constraint: SessionConstraint) {
+        val intentId = buildIntentScopedHintId(constraint)
+        options.putIfAbsent(
+            intentId,
+            HintIntentOption(
+                intentId = intentId,
+                intentLabel = displayHintIntentLabel(buildIntentScopedHintLabel(constraint))
+            )
+        )
+    }
+
+    presetRules.forEach(::addConstraint)
+    historyRules.flatten().forEach(::addConstraint)
+    lastIntentRules.forEach(::addConstraint)
+    existingHints.forEach { hint ->
+        options.putIfAbsent(
+            hint.intentId,
+            HintIntentOption(
+                intentId = hint.intentId,
+                intentLabel = displayHintIntentLabel(hint.intentLabel)
+            )
+        )
+    }
+
+    return options.values.toList()
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun HintIntentSelector(
+    options: List<HintIntentOption>,
+    selectedIntentId: String?,
+    onIntentSelected: (HintIntentOption) -> Unit
+) {
+    var expanded by remember { mutableStateOf(false) }
+    val selected = options.firstOrNull { it.intentId == selectedIntentId } ?: options.firstOrNull()
+
+    LaunchedEffect(options, selected?.intentId, selectedIntentId) {
+        if (selected != null && selectedIntentId == null) {
+            onIntentSelected(selected)
+        }
+    }
+
+    if (options.isEmpty()) {
+        Text(
+            text = "当前还没有可绑定的意图，请先保留至少一个意图记录。",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        return
+    }
+
+    ExposedDropdownMenuBox(
+        expanded = expanded,
+        onExpandedChange = { expanded = !expanded }
+    ) {
+        OutlinedTextField(
+            value = selected?.intentLabel.orEmpty(),
+            onValueChange = {},
+            readOnly = true,
+            modifier = Modifier
+                .fillMaxWidth()
+                .menuAnchor(),
+            label = { Text("关联意图") },
+            trailingIcon = {
+                ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
+            }
+        )
+        ExposedDropdownMenu(
+            expanded = expanded,
+            onDismissRequest = { expanded = false }
+        ) {
+            options.forEach { option ->
+                DropdownMenuItem(
+                    text = { Text(option.intentLabel) },
+                    onClick = {
+                        onIntentSelected(option)
+                        expanded = false
+                    }
+                )
+            }
+        }
+    }
+}
+
+private fun sourceLabelForHint(source: String): String {
+    return when (source) {
+        APP_HINT_SOURCE_MANUAL -> "手动添加"
+        APP_HINT_SOURCE_FEEDBACK_GENERATED -> "纠错生成"
+        APP_HINT_SOURCE_INTENT_CARRY_OVER -> "自动带入"
+        else -> source
     }
 }
 
@@ -1805,9 +2041,9 @@ fun SettingsTab(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Logs Section
+        // Export Section
         Text(
-            text = "日志管理",
+            text = "导出",
             style = MaterialTheme.typography.titleMedium
         )
         Spacer(modifier = Modifier.height(8.dp))
@@ -1820,11 +2056,11 @@ fun SettingsTab(
         ) {
             Icon(Icons.Default.Download, contentDescription = null)
             Spacer(modifier = Modifier.width(8.dp))
-            Text("导出日志")
+            Text("导出")
         }
 
         if (showLogExportDialog) {
-            LogExportDialog(
+            ExportDialog(
                 onDismiss = { showLogExportDialog = false }
             )
         }
@@ -2976,16 +3212,38 @@ fun VoiceInputDialog(
 }
 
 @Composable
-fun LogExportDialog(
+fun ExportDialog(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
+    val configurationExporter = remember { ConfigurationExporter(context) }
 
     var startDate by remember { mutableStateOf("") }
     var endDate by remember { mutableStateOf("") }
     var isExporting by remember { mutableStateOf(false) }
     var exportMessage by remember { mutableStateOf("") }
+    var selectedExportTab by remember { mutableIntStateOf(0) }
+    val importLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.OpenDocument()
+    ) { uri ->
+        if (uri != null) {
+            scope.launch {
+                isExporting = true
+                exportMessage = "正在导入应用和规则..."
+                try {
+                    val importedCount = configurationExporter.importConfiguration(uri) { progress ->
+                        exportMessage = progress
+                    }.getOrThrow()
+                    exportMessage = "导入成功！共导入 $importedCount 个应用配置"
+                } catch (e: Exception) {
+                    exportMessage = "导入失败: ${e.message}"
+                } finally {
+                    isExporting = false
+                }
+            }
+        }
+    }
 
     // Get current date as default
     val currentDate = remember {
@@ -3000,41 +3258,206 @@ fun LogExportDialog(
         startDate = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault()).format(calendar.time)
     }
 
-    Dialog(onDismissRequest = onDismiss) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp)
-        ) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text("导出") },
+        text = {
             Column(
-                modifier = Modifier.padding(16.dp),
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(max = 520.dp)
+                    .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                Text(
-                    text = "分享日志",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
+                TabRow(selectedTabIndex = selectedExportTab) {
+                    Tab(
+                        selected = selectedExportTab == 0,
+                        onClick = {
+                            selectedExportTab = 0
+                            exportMessage = ""
+                        },
+                        text = { Text("应用和规则") }
+                    )
+                    Tab(
+                        selected = selectedExportTab == 1,
+                        onClick = {
+                            selectedExportTab = 1
+                            exportMessage = ""
+                        },
+                        text = { Text("日志") }
+                    )
+                }
 
-                // Start date
-                OutlinedTextField(
-                    value = startDate,
-                    onValueChange = { startDate = it },
-                    label = { Text("开始日期 (yyyy-MM-dd)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !isExporting
-                )
+                if (selectedExportTab == 0) {
+                    Text(
+                        text = "导出当前监控应用、预设规则、默认规则、最近规则历史和 AI 补充说明。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
 
-                // End date
-                OutlinedTextField(
-                    value = endDate,
-                    onValueChange = { endDate = it },
-                    label = { Text("结束日期 (yyyy-MM-dd)") },
-                    modifier = Modifier.fillMaxWidth(),
-                    enabled = !isExporting
-                )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    isExporting = true
+                                    exportMessage = "正在导出应用和规则..."
+                                    try {
+                                        val uri = configurationExporter.exportConfiguration { progress ->
+                                            exportMessage = progress
+                                        }
+                                        if (uri != null) {
+                                            configurationExporter.shareExportedFile(uri) { error ->
+                                                exportMessage = error
+                                            }
+                                            if (!exportMessage.contains("失败")) {
+                                                exportMessage = "配置导出成功！"
+                                            }
+                                        } else if (exportMessage.isBlank()) {
+                                            exportMessage = "配置导出失败"
+                                        }
+                                    } catch (e: Exception) {
+                                        exportMessage = "配置导出失败: ${e.message}"
+                                    } finally {
+                                        isExporting = false
+                                    }
+                                }
+                            },
+                            enabled = !isExporting,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            if (isExporting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text("导出")
+                            }
+                        }
 
-                // Export message
+                        Button(
+                            onClick = {
+                                exportMessage = ""
+                                importLauncher.launch(arrayOf("application/json", "text/plain"))
+                            },
+                            enabled = !isExporting,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Text("导入")
+                        }
+                    }
+                } else {
+                    Text(
+                        text = "分享全部日志，或按日期范围分享日志。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    OutlinedTextField(
+                        value = startDate,
+                        onValueChange = { startDate = it },
+                        label = { Text("开始日期 (yyyy-MM-dd)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isExporting
+                    )
+
+                    OutlinedTextField(
+                        value = endDate,
+                        onValueChange = { endDate = it },
+                        label = { Text("结束日期 (yyyy-MM-dd)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isExporting
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    isExporting = true
+                                    exportMessage = "正在分享所有日志..."
+                                    try {
+                                        val success = com.seenot.app.utils.Logger.shareAllLogs(context)
+                                        exportMessage = if (success) "分享成功！" else "分享失败，请检查日志"
+                                        if (success) {
+                                            kotlinx.coroutines.delay(1000)
+                                            onDismiss()
+                                        }
+                                    } catch (e: Exception) {
+                                        exportMessage = "分享失败: ${e.message}"
+                                    } finally {
+                                        isExporting = false
+                                    }
+                                }
+                            },
+                            enabled = !isExporting,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            if (isExporting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text("分享全部")
+                            }
+                        }
+
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    isExporting = true
+                                    exportMessage = "正在分享日志..."
+                                    try {
+                                        val dateFormat = java.text.SimpleDateFormat(
+                                            "yyyy-MM-dd",
+                                            java.util.Locale.getDefault()
+                                        )
+                                        val start = dateFormat.parse(startDate)
+                                        val end = dateFormat.parse(endDate)
+
+                                        if (start != null && end != null) {
+                                            val success = com.seenot.app.utils.Logger.shareLogs(context, start, end)
+                                            exportMessage = if (success) {
+                                                "分享成功！"
+                                            } else {
+                                                "分享失败，请检查日期格式和日志"
+                                            }
+                                            if (success) {
+                                                kotlinx.coroutines.delay(1000)
+                                                onDismiss()
+                                            }
+                                        } else {
+                                            exportMessage = "日期格式错误"
+                                        }
+                                    } catch (e: Exception) {
+                                        exportMessage = "分享失败: ${e.message}"
+                                    } finally {
+                                        isExporting = false
+                                    }
+                                }
+                            },
+                            enabled = !isExporting && startDate.isNotEmpty() && endDate.isNotEmpty(),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            if (isExporting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            } else {
+                                Text("分享范围")
+                            }
+                        }
+                    }
+                }
+
                 if (exportMessage.isNotEmpty()) {
                     Text(
                         text = exportMessage,
@@ -3046,108 +3469,15 @@ fun LogExportDialog(
                         }
                     )
                 }
-
-                // Buttons
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp)
-                ) {
-                    // Export all logs button
-                    OutlinedButton(
-                        onClick = {
-                            scope.launch {
-                                isExporting = true
-                                exportMessage = "正在分享所有日志..."
-
-                                try {
-                                    val success = com.seenot.app.utils.Logger.shareAllLogs(context)
-                                    exportMessage = if (success) {
-                                        "分享成功！"
-                                    } else {
-                                        "分享失败，请检查日志"
-                                    }
-                                    if (success) {
-                                        kotlinx.coroutines.delay(1000)
-                                        onDismiss()
-                                    }
-                                } catch (e: Exception) {
-                                    exportMessage = "分享失败: ${e.message}"
-                                } finally {
-                                    isExporting = false
-                                }
-                            }
-                        },
-                        enabled = !isExporting,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        if (isExporting) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp
-                            )
-                        } else {
-                            Text("分享全部")
-                        }
-                    }
-
-                    // Export range button
-                    Button(
-                        onClick = {
-                            scope.launch {
-                                isExporting = true
-                                exportMessage = "正在分享日志..."
-
-                                try {
-                                    val dateFormat = java.text.SimpleDateFormat("yyyy-MM-dd", java.util.Locale.getDefault())
-                                    val start = dateFormat.parse(startDate)
-                                    val end = dateFormat.parse(endDate)
-
-                                    if (start != null && end != null) {
-                                        val success = com.seenot.app.utils.Logger.shareLogs(context, start, end)
-                                        exportMessage = if (success) {
-                                            "分享成功！"
-                                        } else {
-                                            "分享失败，请检查日期格式和日志"
-                                        }
-                                        if (success) {
-                                            kotlinx.coroutines.delay(1000)
-                                            onDismiss()
-                                        }
-                                    } else {
-                                        exportMessage = "日期格式错误"
-                                    }
-                                } catch (e: Exception) {
-                                    exportMessage = "分享失败: ${e.message}"
-                                } finally {
-                                    isExporting = false
-                                }
-                            }
-                        },
-                        enabled = !isExporting && startDate.isNotEmpty() && endDate.isNotEmpty(),
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        if (isExporting) {
-                            CircularProgressIndicator(
-                                modifier = Modifier.size(16.dp),
-                                strokeWidth = 2.dp,
-                                color = MaterialTheme.colorScheme.onPrimary
-                            )
-                        } else {
-                            Text("分享范围")
-                        }
-                    }
-                }
-
-                // Close button
-                TextButton(
-                    onClick = onDismiss,
-                    modifier = Modifier.align(Alignment.End)
-                ) {
-                    Text("关闭")
-                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("关闭")
             }
         }
-    }
+    )
 }
 
 private fun getAppDisplayName(context: android.content.Context, packageName: String): String {

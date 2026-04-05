@@ -29,7 +29,7 @@ import com.seenot.app.data.local.entity.SessionIntentEntity
         RuleRecordEntity::class,
         AppHintEntity::class
     ],
-    version = 4,
+    version = 5,
     exportSchema = false
 )
 abstract class SeenotDatabase : RoomDatabase() {
@@ -54,7 +54,6 @@ abstract class SeenotDatabase : RoomDatabase() {
                     SeenotDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .fallbackToDestructiveMigration()
                     .build()
                 INSTANCE = instance
                 instance

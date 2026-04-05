@@ -26,6 +26,7 @@ import com.google.gson.Gson
 import com.seenot.app.config.ApiConfig
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.RuleRecord
+import com.seenot.app.data.model.buildIntentScopedHintId
 import com.seenot.app.data.repository.AppHintRepository
 import com.seenot.app.data.repository.RuleRecordRepository
 import com.seenot.app.config.RuleRecordingPrefs
@@ -814,10 +815,14 @@ class ScreenAnalyzer(
         val imageDataUrl = "data:image/jpeg;base64,${bitmapToBase64(screenshot)}"
         Logger.d(TAG, "[AI] Image base64 size: ${imageDataUrl.length} chars")
 
-        val appHints = if (packageName.isNotBlank()) {
-            appHintRepository.getHintsForPackage(packageName)
+        val constraintHints = if (packageName.isNotBlank()) {
+            constraints.associate { constraint ->
+                constraint.id to appHintRepository
+                    .getHintsForIntent(packageName, buildIntentScopedHintId(constraint))
+                    .map { it.hintText }
+            }
         } else {
-            emptyList()
+            emptyMap()
         }
 
         // Build prompt with constraints
@@ -825,7 +830,7 @@ class ScreenAnalyzer(
             constraints = constraints,
             appName = appName,
             packageName = packageName,
-            appHints = appHints.map { it.hintText }
+            constraintHints = constraintHints
         )
         Logger.d(TAG, "[AI] Prompt length: ${prompt.length} chars")
 
@@ -1067,7 +1072,7 @@ class ScreenAnalyzer(
         constraints: List<SessionConstraint>,
         appName: String = "",
         packageName: String = "",
-        appHints: List<String> = emptyList()
+        constraintHints: Map<String, List<String>> = emptyMap()
     ): String {
         // Group constraints by type
         val denyAllowConstraints = constraints.filter { it.type != ConstraintType.TIME_CAP }
@@ -1124,19 +1129,27 @@ class ScreenAnalyzer(
             if (packageName.isNotBlank()) appendLine("- 应用包名：$packageName")
         }.trimEnd()
 
-        val appHintsText = appHints
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .take(8)
-            .joinToString("\n") { "- $it" }
+        val appHintSection = buildString {
+            constraints.forEachIndexed { index, constraint ->
+                val hints = constraintHints[constraint.id].orEmpty()
+                    .map { it.trim() }
+                    .filter { it.isNotBlank() }
+                    .take(6)
+                if (hints.isEmpty()) return@forEachIndexed
 
-        val appHintSection = if (appHintsText.isNotBlank()) {
+                if (isNotBlank()) appendLine()
+                appendLine("4.${index + 1} **仅针对约束 ${index + 1} 的补充规则：**")
+                appendLine("   - 以下规则只用于细化当前这一条约束的页面边界，不能外推到别的约束")
+                appendLine("   - 这些规则不是完整定义，不能覆盖原始 intent")
+                hints.forEach { appendLine("   - $it") }
+            }
+        }.trimEnd()
+
+        val appHintSectionText = if (appHintSection.isNotBlank()) {
             """
 
-4. **应用附加判断规则（来自历史误报反馈）：**
-   - 以下规则用于细化边界，优先用于避免误报
-   - 只有当截图明确符合这些界面特征时才使用，不要生搬硬套
-$appHintsText
+4. **意图级补充规则（来自历史误报反馈）：**
+$appHintSection
             """.trimIndent()
         } else {
             ""
@@ -1171,7 +1184,7 @@ $envInfo
    - 用户主动点击并浏览该内容：才算违规（用户有主动意图，是用户主动选择的内容）
 
 $typeSpecificRules
-$appHintSection
+$appHintSectionText
 
 **当前约束：**
 $constraintsText

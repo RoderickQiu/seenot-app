@@ -24,7 +24,11 @@ data class AppHintEntity(
     @PrimaryKey
     val id: String,
     val packageName: String,
+    val intentId: String,
+    val intentLabel: String,
     val hintText: String,
+    val source: String = "manual",
+    val sourceHintId: String? = null,
     val isActive: Boolean = true,
     val createdAt: Long = System.currentTimeMillis(),
     val updatedAt: Long = System.currentTimeMillis()

@@ -518,15 +518,27 @@ class FloatingIndicatorOverlay(
                         cornerRadius = 12.dp().toFloat()
                     }
                     setOnClickListener {
-                        JudgmentFeedbackConfirmOverlay.show(context, status.type) {
-                            sessionManager.markCurrentJudgmentAsWrong(
-                                constraintType = status.type,
-                                isConditionMatched = status.isConditionMatched,
-                                source = "floating_overlay"
-                            ) { result ->
-                                ToastOverlay.show(context, result.userMessage)
+                        FalsePositiveRuleReviewOverlay.show(
+                            context = context,
+                            titleText = "判断有误？",
+                            subtitleText = "会先生成一条补充规则草稿，你可以修改后再保存",
+                            onGenerate = { callback ->
+                                sessionManager.previewCurrentJudgmentFalsePositiveRule(
+                                    constraintType = status.type,
+                                    isConditionMatched = status.isConditionMatched,
+                                    onComplete = callback
+                                )
+                            },
+                            onSave = { ruleText, callback ->
+                                sessionManager.saveCurrentJudgmentFalsePositiveRule(
+                                    constraintType = status.type,
+                                    isConditionMatched = status.isConditionMatched,
+                                    confirmedRule = ruleText,
+                                    source = "floating_overlay",
+                                    onComplete = callback
+                                )
                             }
-                        }
+                        )
                     }
                 }
             )
