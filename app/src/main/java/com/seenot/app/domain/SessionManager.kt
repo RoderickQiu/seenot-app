@@ -684,6 +684,10 @@ class SessionManager(private val context: Context) {
                         "generatedRule=${generated.ruleText != null}, reused=${generated.reusedExistingHint}"
                 )
 
+                if (!shouldPauseJudgment) {
+                    refreshActiveSessionAnalysisAfterFalsePositive(source)
+                }
+
                 buildFalsePositiveFeedbackResult(record, generated, shouldPauseJudgment)
             } catch (e: Exception) {
                 Logger.e(TAG, "Failed to process false positive record", e)
@@ -710,6 +714,15 @@ class SessionManager(private val context: Context) {
     ): Boolean {
         if (activeSession == null) return false
         return source == "floating_overlay" || source == "intervention_dialog"
+    }
+
+    private fun refreshActiveSessionAnalysisAfterFalsePositive(source: String) {
+        val active = _activeSession.value ?: return
+        if (active.isPaused || !ApiConfig.isConfigured()) return
+
+        Logger.d(TAG, "Refreshing analysis after false positive from $source")
+        screenAnalyzer?.pauseAnalysis()
+        startScreenAnalysis(active.appPackageName, active.appDisplayName, active.constraints)
     }
 
     private suspend fun resolveFalsePositiveContext(

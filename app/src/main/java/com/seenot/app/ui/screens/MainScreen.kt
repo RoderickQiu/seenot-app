@@ -754,9 +754,10 @@ fun AppRulesDialog(
             confirmButton = {
                 Button(
                     onClick = {
-                        if (newHintText.isNotBlank()) {
+                        val hintTextToSave = newHintText.trim()
+                        if (hintTextToSave.isNotBlank()) {
                             kotlinx.coroutines.GlobalScope.launch {
-                                appHintRepo.addHintFromFeedback(app.packageName, newHintText)
+                                appHintRepo.addHintFromFeedback(app.packageName, hintTextToSave)
                                 hints = appHintRepo.getHintsForPackage(app.packageName)
                             }
                         }
@@ -808,9 +809,10 @@ fun AppRulesDialog(
             confirmButton = {
                 Button(
                     onClick = {
-                        if (editingHintText.isNotBlank()) {
+                        val hintTextToSave = editingHintText.trim()
+                        if (hintTextToSave.isNotBlank()) {
                             kotlinx.coroutines.GlobalScope.launch {
-                                appHintRepo.updateHintText(hint.id, editingHintText)
+                                appHintRepo.updateHintText(hint.id, hintTextToSave)
                                 hints = appHintRepo.getHintsForPackage(app.packageName)
                             }
                         }
@@ -1865,6 +1867,7 @@ private fun AiModelSettingsDialog(
     var apiKey by remember { mutableStateOf(initialSettings.apiKey) }
     var baseUrl by remember { mutableStateOf(initialSettings.baseUrl) }
     var model by remember { mutableStateOf(initialSettings.model) }
+    var feedbackModel by remember { mutableStateOf(initialSettings.feedbackModel) }
     var qwenRegion by remember { mutableStateOf(initialSettings.qwenRegion) }
 
     var sttProvider by remember { mutableStateOf(initialSttSettings.provider) }
@@ -1875,6 +1878,7 @@ private fun AiModelSettingsDialog(
     var selectedConfigTab by remember { mutableIntStateOf(0) }
     var providerExpanded by remember { mutableStateOf(false) }
     var modelExpanded by remember { mutableStateOf(false) }
+    var feedbackModelExpanded by remember { mutableStateOf(false) }
     var baseUrlExpanded by remember { mutableStateOf(false) }
     var sttProviderExpanded by remember { mutableStateOf(false) }
     var sttModelExpanded by remember { mutableStateOf(false) }
@@ -1894,6 +1898,12 @@ private fun AiModelSettingsDialog(
     var modelInput by remember {
         mutableStateOf(
             recommendedPresets.firstOrNull { it.model == initialSettings.model }?.model ?: initialSettings.model
+        )
+    }
+    var feedbackModelInput by remember {
+        mutableStateOf(
+            recommendedPresets.firstOrNull { it.model == initialSettings.feedbackModel }?.model
+                ?: initialSettings.feedbackModel
         )
     }
     var sttModelInput by remember {
@@ -1944,6 +1954,11 @@ private fun AiModelSettingsDialog(
             .firstOrNull { it.model == defaults.model }
             ?.model
             ?: defaults.model
+        feedbackModel = defaults.feedbackModel
+        feedbackModelInput = recommendedModelPresets(target, nextRegion)
+            .firstOrNull { it.model == defaults.feedbackModel }
+            ?.model
+            ?: defaults.feedbackModel
         apiKey = nextApiKey
 
         if (target == sttProvider && target != AiProvider.CUSTOM) {
@@ -2143,6 +2158,62 @@ private fun AiModelSettingsDialog(
                             }
                         }
 
+                        ExposedDropdownMenuBox(
+                            expanded = feedbackModelExpanded,
+                            onExpandedChange = {
+                                if (recommendedPresets.isNotEmpty()) {
+                                    feedbackModelExpanded = !feedbackModelExpanded
+                                }
+                            }
+                        ) {
+                            OutlinedTextField(
+                                value = feedbackModelInput,
+                                onValueChange = {
+                                    feedbackModelInput = it
+                                    feedbackModel = it
+                                },
+                                label = { Text("纠偏模型") },
+                                placeholder = { Text("报错后生成补充规则时使用") },
+                                trailingIcon = {
+                                    if (recommendedPresets.isNotEmpty()) {
+                                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = feedbackModelExpanded)
+                                    }
+                                },
+                                modifier = Modifier
+                                    .menuAnchor()
+                                    .fillMaxWidth(),
+                                singleLine = true
+                            )
+                            if (recommendedPresets.isNotEmpty()) {
+                                ExposedDropdownMenu(
+                                    expanded = feedbackModelExpanded,
+                                    onDismissRequest = { feedbackModelExpanded = false }
+                                ) {
+                                    recommendedPresets.forEach { preset ->
+                                        DropdownMenuItem(
+                                            text = {
+                                                Text(
+                                                    if (preset.note.isBlank()) preset.model
+                                                    else "${preset.model}  ${preset.note}"
+                                                )
+                                            },
+                                            onClick = {
+                                                feedbackModelExpanded = false
+                                                feedbackModel = preset.model
+                                                feedbackModelInput = preset.model
+                                            }
+                                        )
+                                    }
+                                }
+                            }
+                        }
+
+                        Text(
+                            text = "纠偏模型不会高频使用，只在你报错后生成补充规则时参与分析。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
                         if (provider == AiProvider.DASHSCOPE) {
                             Text(
                                 text = "Qwen 当前区域：${qwenRegion.displayName}",
@@ -2334,6 +2405,7 @@ private fun AiModelSettingsDialog(
                             apiKey = apiKey.trim(),
                             baseUrl = baseUrl.trim(),
                             model = model.trim(),
+                            feedbackModel = feedbackModel.trim().ifBlank { model.trim() },
                             qwenRegion = normalizedRegion
                         )
                     )
@@ -2362,6 +2434,7 @@ private fun AiModelSettingsDialog(
                 enabled = apiKey.isNotBlank() &&
                     baseUrl.isNotBlank() &&
                     model.isNotBlank() &&
+                    feedbackModel.isNotBlank() &&
                     sttApiKey.isNotBlank() &&
                     sttBaseUrl.isNotBlank() &&
                     (sttModelIsFixed || sttModel.isNotBlank())

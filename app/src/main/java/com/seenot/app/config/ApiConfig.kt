@@ -17,6 +17,7 @@ object ApiConfig {
     private const val KEY_BASE_URL_LEGACY = "openai_base_url"
     private const val KEY_PROVIDER = "model_provider"
     private const val KEY_MODEL = "model"
+    private const val KEY_FEEDBACK_MODEL = "feedback_model"
     private const val KEY_QWEN_REGION = "qwen_region"
     private const val KEY_STT_PROVIDER = "stt_provider"
     private const val KEY_STT_MODEL = "stt_model"
@@ -86,6 +87,16 @@ object ApiConfig {
         prefs?.edit()?.putString(KEY_MODEL, model.trim())?.apply()
     }
 
+    fun getFeedbackModel(): String {
+        val fallback = getModel()
+        val raw = prefs?.getString(KEY_FEEDBACK_MODEL, fallback)?.trim().orEmpty()
+        return if (raw.isBlank()) fallback else raw
+    }
+
+    fun setFeedbackModel(model: String) {
+        prefs?.edit()?.putString(KEY_FEEDBACK_MODEL, model.trim())?.apply()
+    }
+
     fun getQwenRegion(): QwenRegion {
         val raw = prefs?.getString(KEY_QWEN_REGION, QwenRegion.BEIJING.name)
         return raw?.let { value ->
@@ -107,6 +118,7 @@ object ApiConfig {
             apiKey = getApiKey(provider),
             baseUrl = getBaseUrl(provider),
             model = getModel(),
+            feedbackModel = getFeedbackModel(),
             qwenRegion = getQwenRegion()
         )
     }
@@ -115,6 +127,7 @@ object ApiConfig {
         prefs?.edit()
             ?.putString(KEY_PROVIDER, settings.provider.name)
             ?.putString(KEY_MODEL, settings.model.trim())
+            ?.putString(KEY_FEEDBACK_MODEL, settings.feedbackModel.trim())
             ?.putString(KEY_QWEN_REGION, settings.qwenRegion.name)
             ?.apply()
         setApiKey(settings.provider, settings.apiKey.trim())
@@ -339,6 +352,7 @@ data class ApiSettings(
     val apiKey: String,
     val baseUrl: String,
     val model: String,
+    val feedbackModel: String,
     val qwenRegion: QwenRegion
 ) {
     companion object {
@@ -348,6 +362,7 @@ data class ApiSettings(
                 apiKey = "",
                 baseUrl = provider.defaultBaseUrl,
                 model = provider.defaultModel,
+                feedbackModel = provider.defaultModel,
                 qwenRegion = QwenRegion.BEIJING
             )
         }

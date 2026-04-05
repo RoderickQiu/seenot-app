@@ -96,6 +96,11 @@ class ToastOverlay private constructor(
     }
 
     fun show() {
+        if (Looper.myLooper() != Looper.getMainLooper()) {
+            Handler(Looper.getMainLooper()).post { show() }
+            return
+        }
+
         val ctx = context ?: return
 
         if (!canDrawOverlays(ctx) || !isAccessibilityServiceEnabled(ctx)) {
@@ -185,6 +190,13 @@ class ToastOverlay private constructor(
         private var currentToast: ToastOverlay? = null
 
         fun show(context: Context, message: String, duration: Long = 3000L) {
+            if (Looper.myLooper() != Looper.getMainLooper()) {
+                Handler(Looper.getMainLooper()).post {
+                    show(context, message, duration)
+                }
+                return
+            }
+
             currentToast?.dismiss()
             
             val toast = ToastOverlay(context, message, duration)
