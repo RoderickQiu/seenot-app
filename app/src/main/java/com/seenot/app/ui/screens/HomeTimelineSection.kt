@@ -93,16 +93,17 @@ fun HomeTimelineSection(
         }
 
         val visible = events.asReversed().take(80)
+        val stacked = remember(visible) { stackConsecutiveSameDisplayEvents(visible) }
 
         Column(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            visible.forEach { event ->
-                TimelineEventRow(
-                    event = event,
-                    appLabel = remember(event.packageName, event.appName) {
-                        resolveAppLabel(context, event.packageName, event.appName)
+            stacked.forEach { stack ->
+                TimelineEventStackRow(
+                    stack = stack,
+                    appLabel = remember(stack.events) {
+                        resolveStackAppLabel(context, stack)
                     }
                 )
             }
@@ -217,6 +218,21 @@ private sealed class TimelineEvent {
         override val title: String,
         override val subtitle: String?
     ) : TimelineEvent()
+}
+
+private data class TimelineEventStack(
+    val events: List<TimelineEvent>
+) {
+    val latestEvent: TimelineEvent = events.maxByOrNull { it.timestamp } ?: events.first()
+    val packageName: String? get() = latestEvent.packageName
+    val appName: String? get() = latestEvent.appName
+}
+
+private fun resolveStackAppLabel(context: Context, stack: TimelineEventStack): String {
+    val appKeys = stack.events.map { (it.packageName ?: "") to (it.appName ?: "") }.distinct()
+    if (appKeys.size > 1) return "多应用"
+    val event = stack.latestEvent
+    return resolveAppLabel(context, event.packageName, event.appName)
 }
 
 private data class StateKey(val type: ConstraintType, val key: String)
@@ -433,6 +449,101 @@ private fun localizeActionTitle(actionType: String?, actionReason: String?): Str
 }
 
 @Composable
+private fun TimelineEventStackRow(
+    stack: TimelineEventStack,
+    appLabel: String,
+    modifier: Modifier = Modifier
+) {
+    if (stack.events.size == 1) {
+        TimelineEventRow(
+            event = stack.events.first(),
+            appLabel = appLabel,
+            modifier = modifier
+        )
+        return
+    }
+
+    val latestEvent = stack.latestEvent
+    val (icon, color) = remember(latestEvent) { iconAndColor(latestEvent) }
+    val primaryLines = remember(stack.events) {
+        stack.events
+            .asReversed()
+            .map { it.subtitle?.takeIf { subtitle -> subtitle.isNotBlank() } ?: it.title }
+            .distinct()
+    }
+    val hiddenCount = (primaryLines.size - 3).coerceAtLeast(0)
+    val shownLines = primaryLines.take(3)
+    val metaText = "${formatTime(latestEvent.timestamp)} · $appLabel · 共${stack.events.size}条"
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp)
+        ) {
+            RowTopLine(
+                icon = icon,
+                iconColor = color,
+                content = {
+                    shownLines.forEach { line ->
+                        Text(
+                            text = line,
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    if (hiddenCount > 0) {
+                        Text(
+                            text = "另外 $hiddenCount 条",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Text(
+                        text = metaText,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
+            )
+        }
+    }
+}
+
+@Composable
+private fun RowTopLine(
+    icon: ImageVector,
+    iconColor: Color,
+    content: @Composable () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = iconColor,
+            modifier = Modifier.size(22.dp)
+        )
+        Spacer(modifier = Modifier.size(12.dp))
+        Column(
+            modifier = Modifier.weight(1f)
+        ) {
+            content()
+        }
+    }
+}
+
+@Composable
 private fun TimelineEventRow(
     event: TimelineEvent,
     appLabel: String,
@@ -453,52 +564,49 @@ private fun TimelineEventRow(
             modifier = Modifier.padding(12.dp)
         ) {
             RowTopLine(
-                primaryText = primaryText,
-                metaText = metaText,
                 icon = icon,
-                iconColor = color
+                iconColor = color,
+                content = {
+                    Text(
+                        text = primaryText,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Text(
+                        text = metaText,
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                }
             )
         }
     }
 }
 
-@Composable
-private fun RowTopLine(
-    primaryText: String,
-    metaText: String,
-    icon: ImageVector,
-    iconColor: Color
-) {
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
-    ) {
-        Icon(
-            imageVector = icon,
-            contentDescription = null,
-            tint = iconColor,
-            modifier = Modifier.size(22.dp)
-        )
-        Spacer(modifier = Modifier.size(12.dp))
-        Column(
-            modifier = Modifier.weight(1f)
-        ) {
-            Text(
-                text = primaryText,
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Bold,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = metaText,
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
+private fun stackConsecutiveSameDisplayEvents(events: List<TimelineEvent>): List<TimelineEventStack> {
+    if (events.isEmpty()) return emptyList()
+
+    val stacks = ArrayList<TimelineEventStack>()
+    var current = mutableListOf(events.first())
+
+    for (event in events.drop(1)) {
+        val last = current.last()
+        val sameApp = last.packageName == event.packageName && last.appName == event.appName
+        val sameTitle = last.title == event.title
+        val sameSubtitle = last.subtitle.orEmpty() == event.subtitle.orEmpty()
+        if (sameApp && sameTitle && sameSubtitle) {
+            current.add(event)
+        } else {
+            stacks.add(TimelineEventStack(events = current))
+            current = mutableListOf(event)
         }
     }
+    stacks.add(TimelineEventStack(events = current))
+    return stacks
 }
 
 private fun iconAndColor(event: TimelineEvent): Pair<ImageVector, Color> {
