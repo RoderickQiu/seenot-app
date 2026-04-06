@@ -239,6 +239,11 @@ class SeenotAccessibilityService : AccessibilityService() {
 
                     if (packageName == null) return
 
+                    if (packageName == this.packageName) {
+                        Logger.d(TAG, "Ignoring SeeNot package window event before foreground tracking: $packageName")
+                        return
+                    }
+
                     // Debounce: ignore rapid switches
                     val now = System.currentTimeMillis()
                     if (now - lastAppSwitchTime < APP_SWITCH_DEBOUNCE_MS) {
@@ -253,17 +258,18 @@ class SeenotAccessibilityService : AccessibilityService() {
                     }
 
                     if (packageName != _currentPackage.value) {
-                        Logger.d(TAG, "App switched to: $packageName")
-                        lastAppSwitchTime = now
-                        _currentPackage.value = packageName
-
-                        // Check if className is capable before calling checkAndShowOverlay
-                        // Exception: always process launcher to ensure proper state tracking
+                        // Only publish foreground-package changes once the window looks like
+                        // a real app/launcher surface; otherwise transient frame/layout events
+                        // can incorrectly resume sessions while the user is still on desktop.
+                        val isLauncher = isLauncher(packageName)
                         val isCapable = isCapableClass(className)
-                        if (isCapable || isLauncher(packageName)) {
+                        if (isCapable || isLauncher) {
+                            Logger.d(TAG, "App switched to: $packageName")
+                            lastAppSwitchTime = now
+                            _currentPackage.value = packageName
                             checkAndShowOverlay(packageName, className)
                         } else {
-                            Logger.d(TAG, "Not a capable class: $className, package updated but skipping overlay logic")
+                            Logger.d(TAG, "Not a capable class: $className, skipping package update for $packageName")
                         }
                     } else {
                         Logger.d(TAG, "Same package, skipping: $packageName")
@@ -436,10 +442,18 @@ class SeenotAccessibilityService : AccessibilityService() {
      * Otherwise, show the intent input dialog first, then transition to the indicator
      * after the user confirms rules.
      */
-    private fun showIndicatorAndOverlay(packageName: String, isQuickReturn: Boolean = false) {
+    private fun showIndicatorAndOverlay(
+        packageName: String,
+        isQuickReturn: Boolean = false,
+        showLeadingIndicator: Boolean = true
+    ) {
         currentMonitoredPackage = packageName
 
-        Logger.d(TAG, "showIndicatorAndOverlay called for: $packageName, isQuickReturn=$isQuickReturn")
+        Logger.d(
+            TAG,
+            "showIndicatorAndOverlay called for: $packageName, " +
+                "isQuickReturn=$isQuickReturn, showLeadingIndicator=$showLeadingIndicator"
+        )
 
         val sessionManager = SessionManager.getInstance(this)
 
@@ -471,11 +485,24 @@ class SeenotAccessibilityService : AccessibilityService() {
         }
 
         Logger.d(TAG, "No active session, showing intent input dialog for: $packageName")
-        showIntentInputDialog(packageName, appName, sessionManager)
+        showIntentInputDialog(
+            packageName = packageName,
+            appName = appName,
+            sessionManager = sessionManager,
+            showLeadingIndicator = showLeadingIndicator
+        )
     }
 
-    private fun showIntentInputDialog(packageName: String, appName: String, sessionManager: SessionManager, allowDefaultRuleAutoApply: Boolean = true) {
-        showCompactIndicator(packageName, appName, sessionManager)
+    private fun showIntentInputDialog(
+        packageName: String,
+        appName: String,
+        sessionManager: SessionManager,
+        allowDefaultRuleAutoApply: Boolean = true,
+        showLeadingIndicator: Boolean = true
+    ) {
+        if (showLeadingIndicator) {
+            showCompactIndicator(packageName, appName, sessionManager)
+        }
 
         IntentInputDialogOverlay.show(
             context = this,
@@ -537,6 +564,33 @@ class SeenotAccessibilityService : AccessibilityService() {
                 showIntentInputDialog(packageName, appName, sessionManager, allowDefaultRuleAutoApply = false)
             }
         )
+    }
+
+    fun forceRestartOverlayForCurrentApp(packageName: String) {
+        if (_currentPackage.value != packageName) {
+            Logger.d(
+                TAG,
+                "forceRestartOverlayForCurrentApp ignored: foreground=${_currentPackage.value}, requested=$packageName"
+            )
+            return
+        }
+
+        serviceScope.launch {
+            try {
+                Logger.d(TAG, "Force restarting overlay flow for current app: $packageName")
+                currentMonitoredPackage = null
+                lastExitedPackage = null
+                lastExitedTime = 0L
+                dismissAllOverlays()
+                showIndicatorAndOverlay(
+                    packageName = packageName,
+                    isQuickReturn = false,
+                    showLeadingIndicator = false
+                )
+            } catch (e: Exception) {
+                Logger.e(TAG, "Failed to force restart overlay for $packageName", e)
+            }
+        }
     }
 
     private fun dismissAllOverlays() {

@@ -54,7 +54,7 @@ class SessionManager(private val context: Context) {
         private const val MAX_HISTORY_PER_APP = 10
 
         // Short vs long session pause threshold (ms)
-        private const val SHORT_PAUSE_THRESHOLD = 30_000L // 30 seconds
+        private const val SHORT_PAUSE_THRESHOLD = 10_000L // 10 seconds, shortened temporarily for testing
         private const val FALSE_POSITIVE_DIALOG_COOLDOWN_MS = 30_000L
         private const val DIALOG_REENTRY_COOLDOWN_MS = 5_000L
 
@@ -111,7 +111,7 @@ class SessionManager(private val context: Context) {
     // Action executor for interventions
     private var actionExecutor: ActionExecutor? = null
 
-    // Session pause tracking for 30s recovery (used when leaving to non-controlled apps / home)
+    // Session pause tracking for short recovery window (used when leaving to non-controlled apps / home)
     private var sessionPausedAt: Long? = null
 
     // Suspended sessions from controlled-app-to-controlled-app switches
@@ -216,7 +216,8 @@ class SessionManager(private val context: Context) {
             )
             endSession(SessionEndReason.USER_LEFT)
             sessionPausedAt = null
-            requestNewSession(currentSession.appPackageName)
+            SeenotAccessibilityService.instance?.forceRestartOverlayForCurrentApp(currentSession.appPackageName)
+                ?: requestNewSession(currentSession.appPackageName)
         }
     }
 
@@ -257,13 +258,15 @@ class SessionManager(private val context: Context) {
                 Logger.d(TAG, ">>> Session was paused, time diff: ${timeDiff}ms, threshold: ${SHORT_PAUSE_THRESHOLD}ms")
 
                 if (pausedAt != null && timeDiff <= SHORT_PAUSE_THRESHOLD) {
-                    Logger.d(TAG, ">>> Resuming session within 30s for: $packageName")
+                    Logger.d(TAG, ">>> Resuming session within short threshold for: $packageName")
                     resumeSession()
                     sessionPausedAt = null
                 } else {
-                    Logger.d(TAG, ">>> Session expired (>30s or no pausedAt), creating new session for: $packageName")
+                    Logger.d(TAG, ">>> Session expired (beyond short threshold or no pausedAt), creating new session for: $packageName")
                     endSession(SessionEndReason.USER_LEFT)
-                    requestNewSession(packageName)
+                    sessionPausedAt = null
+                    SeenotAccessibilityService.instance?.forceRestartOverlayForCurrentApp(packageName)
+                        ?: requestNewSession(packageName)
                 }
             } else {
                 Logger.d(TAG, ">>> Session already active for: $packageName, ignoring")
@@ -327,7 +330,7 @@ class SessionManager(private val context: Context) {
 
         pauseSession()
         sessionPausedAt = System.currentTimeMillis()
-        Logger.d(TAG, ">>> Session paused at ${sessionPausedAt}, will auto-end if not resumed within 30s")
+        Logger.d(TAG, ">>> Session paused at ${sessionPausedAt}, will auto-end if not resumed within ${SHORT_PAUSE_THRESHOLD}ms")
     }
 
     private suspend fun requestNewSession(packageName: String) {
