@@ -541,8 +541,6 @@ fun AppsTab(modifier: Modifier = Modifier) {
 
     // State for add app dialog
     var showAddAppDialog by remember { mutableStateOf(false) }
-    var showAIRuleAssistantDialog by remember { mutableStateOf(false) }
-
     // State for app rules dialog
     var selectedAppForRules by remember { mutableStateOf<AppInfo?>(null) }
 
@@ -643,20 +641,6 @@ fun AppsTab(modifier: Modifier = Modifier) {
             }
         }
 
-        // AI Assistant FAB - positioned at bottom right
-        Box(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            contentAlignment = Alignment.BottomEnd
-        ) {
-            FloatingActionButton(
-                onClick = { showAIRuleAssistantDialog = true },
-                containerColor = MaterialTheme.colorScheme.primaryContainer
-            ) {
-                Icon(Icons.Default.Psychology, contentDescription = "AI助手")
-            }
-        }
     }
 
     // Add App Dialog
@@ -677,16 +661,6 @@ fun AppsTab(modifier: Modifier = Modifier) {
             app = app,
             sessionManager = sessionManager,
             onDismiss = { selectedAppForRules = null }
-        )
-    }
-
-    // AI Rule Assistant Dialog
-    if (showAIRuleAssistantDialog) {
-        AIRuleAssistantDialog(
-            context = context,
-            sessionManager = sessionManager,
-            monitoredApps = controlledAppList,
-            onDismiss = { showAIRuleAssistantDialog = false }
         )
     }
 }
