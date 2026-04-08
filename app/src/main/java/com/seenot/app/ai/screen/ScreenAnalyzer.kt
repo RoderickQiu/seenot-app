@@ -375,9 +375,30 @@ class ScreenAnalyzer(
             // Call AI to analyze
             Logger.d(TAG, "🤖 Calling AI analysis...")
             val aiStart = System.currentTimeMillis()
-            val matches = callAIAnalysis(processedBitmap, constraints, currentAppDisplayName ?: "", currentPackageName ?: "")
+            val aiAnalysis = callAIAnalysis(processedBitmap, constraints, currentAppDisplayName ?: "", currentPackageName ?: "")
             val aiDuration = System.currentTimeMillis() - aiStart
             Logger.d(TAG, "✅ AI analysis complete (${aiDuration}ms)")
+
+            if (aiAnalysis.isSensitive) {
+                Logger.d(
+                    TAG,
+                    "🔒 Sensitive screen detected, skipping persistence and feedback" +
+                        (aiAnalysis.sensitiveReason?.let { ": $it" } ?: "")
+                )
+
+                bitmapToRecycle?.recycle()
+                bitmapToRecycle = null
+
+                return ScreenAnalysisResult(
+                    timestamp = System.currentTimeMillis(),
+                    success = true,
+                    screenshotHash = lastQuickHash,
+                    constraintMatches = emptyList(),
+                    isSensitive = true
+                )
+            }
+
+            val matches = aiAnalysis.matches
 
             // Log violation results
             val totalDuration = System.currentTimeMillis() - totalStart
@@ -810,7 +831,7 @@ class ScreenAnalyzer(
         constraints: List<SessionConstraint>,
         appName: String = "",
         packageName: String = ""
-    ): List<ConstraintMatch> = withContext(Dispatchers.IO) {
+    ): ParsedAiAnalysis = withContext(Dispatchers.IO) {
 
         val imageDataUrl = "data:image/jpeg;base64,${bitmapToBase64(screenshot)}"
         Logger.d(TAG, "[AI] Image base64 size: ${imageDataUrl.length} chars")
@@ -844,7 +865,7 @@ class ScreenAnalyzer(
         try {
             if (!ApiConfig.isConfigured()) {
                 Logger.e(TAG, "[AI] API key is empty!")
-                return@withContext emptyList()
+                return@withContext ParsedAiAnalysis()
             }
 
             Logger.d(TAG, "[AI] Calling configured multimodal model")
@@ -862,20 +883,20 @@ class ScreenAnalyzer(
             Logger.d(TAG, "[AI] Response text length: ${responseText.length} chars")
             Logger.d(TAG, "[AI] Response (full): $responseText")
 
-            val matches = parseAIResponseFromText(responseText, constraints)
-            Logger.d(TAG, "[AI] Parsed ${matches.size} constraint matches")
-            matches
+            val analysis = parseAIResponseFromText(responseText, constraints)
+            Logger.d(TAG, "[AI] Parsed ${analysis.matches.size} constraint matches")
+            analysis
         } catch (e: CancellationException) {
             Logger.d(TAG, "[AI] Analysis cancelled: ${e.message}")
-            emptyList()
+            ParsedAiAnalysis()
         } catch (e: IllegalStateException) {
             Logger.e(TAG, "[AI] Config/API error: ${e.message}", e)
             showAiErrorToast(e.message)
-            emptyList()
+            ParsedAiAnalysis()
         } catch (e: Exception) {
             Logger.e(TAG, "[AI] Analysis failed: ${e.message}", e)
             showAiErrorToast(e.message)
-            emptyList()
+            ParsedAiAnalysis()
         }
     }
 
@@ -904,7 +925,7 @@ class ScreenAnalyzer(
     /**
      * Parse AI response text (JSON format) to constraint matches
      */
-    private fun parseAIResponseFromText(responseText: String, constraints: List<SessionConstraint>): List<ConstraintMatch> {
+    private fun parseAIResponseFromText(responseText: String, constraints: List<SessionConstraint>): ParsedAiAnalysis {
         return try {
             // Clean the response text - extract JSON from potential markdown or text wrapper
             val cleanedText = cleanJSONResponse(responseText)
@@ -912,12 +933,23 @@ class ScreenAnalyzer(
 
             // Use lenient parsing
             val parser = com.google.gson.JsonParser.parseString(cleanedText)
+            var isSensitive = false
+            var sensitiveReason: String? = null
 
             val results = if (parser.isJsonArray) {
                 parser.asJsonArray
             } else if (parser.isJsonObject) {
                 // If it's an object, check if it has a "results" or "analysis" field
                 val obj = parser.asJsonObject
+                isSensitive = obj.get("sensitive")?.let {
+                    when {
+                        it.isJsonPrimitive && it.asJsonPrimitive.isBoolean -> it.asBoolean
+                        it.isJsonPrimitive && it.asJsonPrimitive.isString -> it.asString.equals("true", ignoreCase = true)
+                        else -> false
+                    }
+                } ?: false
+                sensitiveReason = obj.get("sensitive_reason")?.asString
+                    ?: obj.get("sensitiveReason")?.asString
                 if (obj.has("results")) {
                     obj.getAsJsonArray("results")
                 } else if (obj.has("analysis")) {
@@ -928,10 +960,10 @@ class ScreenAnalyzer(
                 }
             } else {
                 Logger.e(TAG, "[AI] Unexpected JSON type: ${parser}")
-                return emptyList()
+                return ParsedAiAnalysis()
             }
 
-            results.mapNotNull { element ->
+            val matches = results.mapNotNull { element ->
                 try {
                     val obj = element.asJsonObject
 
@@ -988,13 +1020,17 @@ class ScreenAnalyzer(
                     Logger.w(TAG, "[AI] Failed to parse result element: ${e.message}")
                     null
                 }
-            }.also { matches ->
-                Logger.d(TAG, "[AI] Successfully parsed ${matches.size} constraint matches")
             }
+            Logger.d(TAG, "[AI] Successfully parsed ${matches.size} constraint matches")
+            ParsedAiAnalysis(
+                matches = matches,
+                isSensitive = isSensitive,
+                sensitiveReason = sensitiveReason
+            )
         } catch (e: Exception) {
             Logger.e(TAG, "[AI] Failed to parse response: ${e.message}")
             Logger.d(TAG, "[AI] Raw response for debug: ${responseText.take(500)}")
-            emptyList()
+            ParsedAiAnalysis()
         }
     }
 
@@ -1215,14 +1251,26 @@ $appHintSectionBlock
 $constraintsText
 
 **输出格式（严格JSON）：**
-[
-  {
-    "constraint_id": "1",
-    "reason": "用户在[应用名]-[具体功能模块]",
-    "decision": "见下方说明",
-    "confidence": 0-100的置信度分数
-  }
-]
+{
+  "sensitive": true 或 false,
+  "sensitive_reason": "仅在 sensitive=true 时填写，简短说明页面为何敏感",
+  "results": [
+    {
+      "constraint_id": "1",
+      "reason": "用户在[应用名]-[具体功能模块]",
+      "decision": "见下方说明",
+      "confidence": 0-100的置信度分数
+    }
+  ]
+}
+
+sensitive 判断规则：
+- 只有当前截图已经进入真实付款、支付授权、登录/注册/验证、身份验证、资金转移页面，或正在直接展示高敏感金融信息、账号凭据信息时，才返回 sensitive=true
+- 典型 true：收银台、立即支付/确认付款页、支付密码输入、短信验证码、邮箱验证码、登录页、注册页、账号密码填写页、密码管理器/密码列表、银行卡/花呗/支付宝付款确认、转账确认、刷脸/指纹确认、实名/身份认证、银行卡详情或卡管理页、转账记录/交易记录、账单明细、钱包余额/资产余额页
+- 以下一律返回 sensitive=false：购物车、商品详情、加入购物车、立即购买、底部“结算”按钮、订单/支付流程入口、待支付列表、金额合计展示、营销卡片或补差价入口
+- 不要因为页面“可能下一步会支付”或“之后也许要登录”就标记 sensitive；必须是当前屏幕正在要求用户完成付款、登录/注册/验证码校验、身份/支付授权，或已经直接暴露上述敏感金融信息、账号凭据信息
+- sensitive 只用于标记该截图是否属于敏感页面，不替代下面每条约束的 decision 判断
+- 如果页面看起来普通、无明确付款/登录/验证操作，也没有展示上述敏感金融信息、账号凭据信息，返回 sensitive=false
 
 decision取值：
 $decisionValues
@@ -1342,9 +1390,16 @@ data class ScreenAnalysisResult(
     val success: Boolean,
     val isDuplicate: Boolean = false,
     val isReusedFromCache: Boolean = false,
+    val isSensitive: Boolean = false,
     val screenshotHash: String? = null,
     val errorMessage: String? = null,
     val constraintMatches: List<ConstraintMatch>
+)
+
+private data class ParsedAiAnalysis(
+    val matches: List<ConstraintMatch> = emptyList(),
+    val isSensitive: Boolean = false,
+    val sensitiveReason: String? = null
 )
 
 /**
