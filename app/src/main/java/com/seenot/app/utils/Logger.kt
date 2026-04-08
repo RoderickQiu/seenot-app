@@ -7,10 +7,12 @@ import android.os.Environment
 import android.util.Log
 import androidx.core.content.FileProvider
 import java.io.File
+import java.io.FileOutputStream
 import java.io.FileWriter
 import java.io.IOException
 import java.text.SimpleDateFormat
 import java.util.*
+import java.util.concurrent.ExecutorService
 import java.util.concurrent.Executors
 import java.util.concurrent.ScheduledExecutorService
 import java.util.concurrent.TimeUnit
@@ -80,9 +82,12 @@ object Logger {
     private const val MAX_LOG_FILE_SIZE = 1 * 1024 * 1024 // 1MB
     private const val MAX_LOG_ENTRIES = 1000 // Maximum log entries per file
 
-    private val executor = Executors.newSingleThreadExecutor()
+    private val executor: ExecutorService = Executors.newSingleThreadExecutor()
     private val healthCheckExecutor: ScheduledExecutorService = Executors.newSingleThreadScheduledExecutor()
+    private val fileWriteLock = Any()
 
+    @Volatile
+    private var appContext: Context? = null
     private var logDirectory: File? = null
     private var currentLogFile: File? = null
     private var currentLevel: Level = Level.DEBUG
@@ -95,24 +100,31 @@ object Logger {
      * Initialize the logger with application context
      */
     fun init(context: Context, level: Level = Level.DEBUG) {
-        if (isInitialized.getAndSet(true)) {
+        appContext = context.applicationContext
+        currentLevel = level
+
+        if (isInitialized.get()) {
             Log.w(TAG, "Logger already initialized")
             return
         }
 
-        currentLevel = level
+        synchronized(fileWriteLock) {
+            if (isInitialized.get()) {
+                Log.w(TAG, "Logger already initialized")
+                return
+            }
 
-        executor.execute {
             try {
-                setupLogDirectory(context)
-                i(TAG, "Logger initialized successfully")
-
-                // Start periodic health check
-                startHealthCheck()
+                setupLogDirectory(appContext ?: context.applicationContext)
+                isInitialized.set(true)
             } catch (e: Exception) {
                 Log.e(TAG, "Failed to initialize logger", e)
+                return
             }
         }
+
+        i(TAG, "Logger initialized successfully")
+        startHealthCheck()
     }
 
     /**
@@ -166,35 +178,91 @@ object Logger {
      */
     private fun writeToFile(level: Level, tag: String, message: String, throwable: Throwable? = null) {
         executor.execute {
-            try {
-                checkDayRotation()
+            writeToFileSafely(level, tag, message, throwable, forceSync = false)
+        }
+    }
 
-                val logFile = currentLogFile ?: return@execute
+    /**
+     * Write a critical log entry synchronously to reduce loss on fatal crashes.
+     */
+    fun eImmediate(tag: String, message: String, throwable: Throwable? = null) {
+        if (currentLevel.value > Level.ERROR.value) return
 
-                // Check if rotation is needed
+        if (throwable != null) {
+            Log.e(tag, message, throwable)
+        } else {
+            Log.e(tag, message)
+        }
+        writeToFileSafely(Level.ERROR, tag, message, throwable, forceSync = true)
+    }
+
+    private fun writeToFileSafely(
+        level: Level,
+        tag: String,
+        message: String,
+        throwable: Throwable?,
+        forceSync: Boolean
+    ) {
+        try {
+            synchronized(fileWriteLock) {
+                ensureLogFileReady()
+                val logFile = currentLogFile ?: return
+
                 if (logFile.length() > MAX_LOG_FILE_SIZE || logEntryCount >= MAX_LOG_ENTRIES) {
                     rotateLogFile()
                 }
 
-                val timestamp = timeFormat.format(Date())
-                val levelStr = level.name.padEnd(5)
-                val logEntry = buildString {
-                    append("$timestamp $levelStr [$tag] $message")
-                    throwable?.let {
-                        append("\n")
-                        append(it.stackTraceToString())
-                    }
-                    append("\n")
-                }
+                val updatedLogFile = currentLogFile ?: return
+                val logEntry = buildLogEntry(level, tag, message, throwable)
 
-                FileWriter(logFile, true).use { writer ->
-                    writer.write(logEntry)
+                if (forceSync) {
+                    FileOutputStream(updatedLogFile, true).use { output ->
+                        output.write(logEntry.toByteArray(Charsets.UTF_8))
+                        output.flush()
+                        output.fd.sync()
+                    }
+                } else {
+                    FileWriter(updatedLogFile, true).use { writer ->
+                        writer.write(logEntry)
+                        writer.flush()
+                    }
                 }
 
                 logEntryCount++
-            } catch (e: IOException) {
-                Log.e(TAG, "Failed to write log to file", e)
             }
+        } catch (e: IOException) {
+            Log.e(TAG, "Failed to write log to file", e)
+        } catch (e: Exception) {
+            Log.e(TAG, "Unexpected error while writing log to file", e)
+        }
+    }
+
+    private fun ensureLogFileReady() {
+        if (logDirectory == null || currentLogFile == null) {
+            val context = appContext ?: return
+            setupLogDirectory(context)
+            return
+        }
+
+        checkDayRotation()
+
+        val logFile = currentLogFile ?: return
+        val parentDir = logFile.parentFile
+        if (parentDir == null || !parentDir.exists()) {
+            createCurrentDayDirectory()
+        }
+    }
+
+    private fun buildLogEntry(level: Level, tag: String, message: String, throwable: Throwable?): String {
+        val timestamp = timeFormat.format(Date())
+        val levelStr = level.name.padEnd(5)
+        return buildString {
+            append("$timestamp $levelStr [$tag] $message")
+            throwable?.let {
+                append("\n")
+                append(it.stackTraceToString())
+            }
+            append("\n")
         }
     }
 

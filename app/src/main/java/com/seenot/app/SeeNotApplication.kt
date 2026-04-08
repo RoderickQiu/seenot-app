@@ -50,20 +50,22 @@ class SeeNotApplication : Application() {
 
         Thread.setDefaultUncaughtExceptionHandler { thread, throwable ->
             try {
-                // Log the uncaught exception
-                Logger.e(TAG, "Uncaught exception in thread: ${thread.name}", throwable)
-                Logger.e(TAG, "Stack trace: ${throwable.stackTraceToString()}")
+                val crashSummary = buildString {
+                    append("Uncaught exception in thread: ${thread.name}")
+                    append("\nThread ID: ${thread.id}, Priority: ${thread.priority}")
+                    append("\nException type: ${throwable.javaClass.name}")
+                    append("\nException message: ${throwable.message}")
+                }
+                Logger.eImmediate(TAG, crashSummary, throwable)
 
-                // Log additional context
-                Logger.e(TAG, "Thread ID: ${thread.id}, Priority: ${thread.priority}")
-                Logger.e(TAG, "Exception type: ${throwable.javaClass.name}")
-                Logger.e(TAG, "Exception message: ${throwable.message}")
-
-                // Log cause chain if exists
                 var cause = throwable.cause
                 var depth = 1
                 while (cause != null && depth <= 5) {
-                    Logger.e(TAG, "Caused by [$depth]: ${cause.javaClass.name}: ${cause.message}")
+                    Logger.eImmediate(
+                        TAG,
+                        "Caused by [$depth]: ${cause.javaClass.name}: ${cause.message}",
+                        cause
+                    )
                     cause = cause.cause
                     depth++
                 }
