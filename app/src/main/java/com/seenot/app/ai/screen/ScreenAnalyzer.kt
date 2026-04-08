@@ -1108,6 +1108,26 @@ class ScreenAnalyzer(
         return cleaned.trim()
     }
 
+    private fun normalizeHintText(text: String): String {
+        return text.trim().replace(Regex("\\s+"), " ")
+    }
+
+    private fun buildEffectiveConstraintDescription(
+        baseDescription: String,
+        hints: List<String>
+    ): String {
+        val normalized = hints
+            .map(::normalizeHintText)
+            .filter { it.isNotBlank() }
+            .distinct()
+            .take(5)
+        if (normalized.isEmpty()) return baseDescription
+
+        val base = baseDescription.trim().trimEnd('。', '.', ';', '；')
+        val hintText = normalized.joinToString("；") { "边界规则：$it" }
+        return "$base。$hintText"
+    }
+
     /**
      * Build analysis prompt with constraints
      */
@@ -1128,7 +1148,11 @@ class ScreenAnalyzer(
                 ConstraintType.DENY -> "禁止"
                 ConstraintType.TIME_CAP -> "时间限制"
             }
-            "${index + 1}. [$typeLabel] ${constraint.description}"
+            val effectiveDescription = buildEffectiveConstraintDescription(
+                baseDescription = constraint.description,
+                hints = appGeneralHints + constraintHints[constraint.id].orEmpty()
+            )
+            "${index + 1}. [$typeLabel] $effectiveDescription"
         }.joinToString("\n")
 
         // Build type-specific rules
@@ -1140,6 +1164,10 @@ class ScreenAnalyzer(
                 appendLine("   - **多条件约束（OR逻辑）**：如果约束描述包含多个条件（如\"朋友圈和视频号\"），判断屏幕是否包含**任一**条件")
                 appendLine("     例：[禁止] 朋友圈和视频号 → 在朋友圈违规，在视频号也违规，在聊天界面不违规")
                 appendLine("   - 必须精确匹配功能名称，不要泛化")
+                appendLine("   - **若约束本身是排除式/补集式表达**：必须保守判定。只有看到足够明确的正向语义证据，才能判定当前内容落在被排除集合中")
+                appendLine("   - 不要因为“没看到目标主题”就反推“当前一定属于非目标主题”；缺少目标证据不等于反向成立")
+                appendLine("   - 如果只是首页信息流、发现页卡片、封面、缩略图、短标题或推荐曝光，且语义不足以稳定判断，优先返回 safe，不要猜测")
+                appendLine("   - 必须先识别当前正在消费的具体主题，再判断它是否明显落在被排除集合中；语义模糊时优先 safe")
                 if (timeCapConstraints.isNotEmpty()) appendLine()
             }
 
@@ -1173,49 +1201,6 @@ class ScreenAnalyzer(
             if (packageName.isNotBlank()) appendLine("- 应用包名：$packageName")
         }.trimEnd()
 
-        val appGeneralHintSection = appGeneralHints
-            .map { it.trim() }
-            .filter { it.isNotBlank() }
-            .take(8)
-            .joinToString("\n") { "   - $it" }
-
-        val intentHintSection = buildString {
-            constraints.forEachIndexed { index, constraint ->
-                val hints = constraintHints[constraint.id].orEmpty()
-                    .map { it.trim() }
-                    .filter { it.isNotBlank() }
-                    .take(6)
-                if (hints.isEmpty()) return@forEachIndexed
-
-                if (isNotBlank()) appendLine()
-                appendLine("4.${index + 1} **仅针对约束 ${index + 1} 的补充规则：**")
-                appendLine("   - 以下规则只用于细化当前这一条约束的页面边界，不能外推到别的约束")
-                appendLine("   - 这些规则不是完整定义，不能覆盖原始 intent")
-                hints.forEach { appendLine("   - $it") }
-            }
-        }.trimEnd()
-
-        val appHintSectionText = buildString {
-            if (appGeneralHintSection.isNotBlank()) {
-                appendLine()
-                appendLine("4. **应用通用边界规则（默认对所有意图生效）：**")
-                appendLine(appGeneralHintSection)
-            }
-            if (intentHintSection.isNotBlank()) {
-                if (isNotBlank()) appendLine()
-                appendLine("5. **当前意图专属补充规则（只细化当前约束）：**")
-                appendLine(intentHintSection)
-            }
-        }.trim()
-
-        val appHintSectionBlock = if (appHintSectionText.isNotBlank()) {
-            """
-$appHintSectionText
-            """.trimIndent()
-        } else {
-            ""
-        }
-
         return """
 **当前环境：**
 $envInfo
@@ -1245,7 +1230,6 @@ $envInfo
    - 用户主动点击并浏览该内容：才算违规（用户有主动意图，是用户主动选择的内容）
 
 $typeSpecificRules
-$appHintSectionBlock
 
 **当前约束：**
 $constraintsText
