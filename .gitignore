@@ -1,17 +1,67 @@
-*.iml
-.gradle
-/local.properties
-/.idea/caches
-/.idea/libraries
-/.idea/modules.xml
-/.idea/workspace.xml
-/.idea/navEditor.xml
-/.idea/assetWizardSettings.xml
-.DS_Store
-/build
-/captures
-.externalNativeBuild
-.cxx
+# Built application files
+*.apk
+*.ap_
+*.aab
+
+# Gradle
+.gradle/
+build/
+!gradle/wrapper/gradle-wrapper.jar
+
+# Local configuration
 local.properties
-.kotlin
-.VSCodeCounter
+
+# IntelliJ / Android Studio
+*.iml
+.idea/
+!.idea/codeStyles/
+!.idea/gradle.xml
+!.idea/jarRepositories.xml
+!.idea/misc.xml
+!.idea/navEditor.xml
+!.idea/assetWizardSettings.xml
+
+# VSCode
+.vscode/
+
+# Kotlin
+.kotlin/
+
+# Native C/C++ builds
+.cxx/
+externalNativeBuild/
+
+# Android SDK
+/captures
+*.hprof
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Environment
+.env
+.env.*
+*.env
+
+# Debug logs
+*.log
+
+# Keystore
+*.jks
+*.keystore
+
+# Proguard
+*proguard*
+
+# Test files
+*/test-data/
+
+# ai-debugger build output
+ai-debugger/bin/
+
+# markdowns
+*.md
+!README.md
+!PRD.md
+!AGENTS.md
