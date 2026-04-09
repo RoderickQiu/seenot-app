@@ -63,5 +63,5 @@ ai-debugger/bin/
 # markdowns
 *.md
 !README.md
-!CLAUDE.md
 !PRD.md
+!AGENTS.md

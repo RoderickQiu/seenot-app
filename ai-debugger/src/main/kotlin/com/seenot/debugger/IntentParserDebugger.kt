@@ -188,12 +188,17 @@ class IntentParserDebugger {
 
 ⚠️ 重要原则：
 1. 只生成一个约束，将用户的所有限制合并到这一个约束中
-2. 区分两种场景：
-   - "不能看X" → DENY（黑名单）
-   - "最多X分钟"（无内容限制）→ TIME_CAP
+2. 用户可能使用任何语言表达同一个意图。你必须按语义理解，而不是只匹配中文措辞。
+3. 区分两种语义：
+   - Exclusive / allowlist intent：用户只允许自己看/做某类内容，例如 "只看X"、"只想看X"、"only X"、"just X"、"nothing but X"。由于当前 schema 没有 ALLOW，这类语义也要编码为 DENY，但 description 必须改写成“会触发干预的补集内容”，即“除X外的其他内容”。
+   - Blocklist intent：用户不允许某类内容，例如 "不能看X"、"不要看X"、"don't look at X"。这类也使用 DENY，description 直接写被禁止内容。
+   - Pure time limit：只有时间限制、没有内容限制时，使用 TIME_CAP。
 3. 时间限制直接加在约束的 timeLimitMinutes 字段上
 4. 如果既有内容限制又有时间限制，使用 DENY，时间加在同一个约束上
 5. **多条件合并**：如果用户提到多个内容（如"不能看朋友圈和视频号"），将它们合并到一个约束的 description 中
+6. 对于 DENY，description 必须始终写“什么内容会触发干预”，不能直接复述 allowlist 原话
+7. **语言规则（高优先级）**：description 必须与用户输入保持同一种语言。中文输入就输出中文 description；英文输入就输出英文 description；不要无故翻译成另一种语言。
+8. 规则必须保持泛化，不要把推理建立在某个具体 app、品牌或中文固定短语上；同类语义在淘宝/京东/Amazon、微信/WhatsApp/Telegram 中都应一致处理
 
 规则类型:
 - DENY: 黑名单，禁止使用某功能/内容
@@ -235,6 +240,21 @@ class IntentParserDebugger {
 输入："不能看朋友圈和视频号"
 输出：{"constraints":[{"type":"DENY","description":"朋友圈和视频号","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
 
+输入："只看微信消息"
+输出：{"constraints":[{"type":"DENY","description":"除微信消息外的其他内容","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
+
+输入："只想看旅行相关内容"
+输出：{"constraints":[{"type":"DENY","description":"除旅行相关内容外的其他内容","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
+
+输入："only look at messages"
+输出：{"constraints":[{"type":"DENY","description":"all other content except messages","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
+
+输入："only look at WeChat messages"
+输出：{"constraints":[{"type":"DENY","description":"all other content except WeChat messages","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
+
+输入："just work chats, no feed"
+输出：{"constraints":[{"type":"DENY","description":"feed","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
+
 输入："每天最多10分钟"
 输出：{"constraints":[{"type":"TIME_CAP","description":"每日时间限制","timeLimitMinutes":10,"timeScope":"DAILY_TOTAL","intervention":"STRICT"}]}
 
@@ -242,7 +262,7 @@ class IntentParserDebugger {
                 """.trimIndent()
 
         val messages = listOf(
-            Message.builder().role(Role.SYSTEM.value).content("你是一个智能的意图解析助手。").build(),
+            Message.builder().role(Role.SYSTEM.value).content("You are a multilingual intent parser. 你要按语义理解用户意图，而不是依赖某一种语言或某个具体 app 的固定说法。").build(),
             Message.builder().role(Role.USER.value).content(prompt).build()
         )
 
