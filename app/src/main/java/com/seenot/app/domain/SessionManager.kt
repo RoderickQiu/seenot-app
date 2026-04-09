@@ -54,7 +54,7 @@ class SessionManager(private val context: Context) {
         private const val MAX_HISTORY_PER_APP = 10
 
         // Short vs long session pause threshold (ms)
-        private const val SHORT_PAUSE_THRESHOLD = 10_000L // 10 seconds, shortened temporarily for testing
+        private const val SHORT_PAUSE_THRESHOLD = 30_000L // 30 seconds
         private const val FALSE_POSITIVE_DIALOG_COOLDOWN_MS = 30_000L
         private const val DIALOG_REENTRY_COOLDOWN_MS = 5_000L
 
@@ -315,6 +315,17 @@ class SessionManager(private val context: Context) {
             suspendedSessions.remove(packageName)
             false
         }
+    }
+
+    fun hasResumableSession(packageName: String): Boolean {
+        val active = _activeSession.value
+        if (active?.appPackageName == packageName && active.isPaused) {
+            val pausedAt = sessionPausedAt ?: return false
+            return System.currentTimeMillis() - pausedAt <= SHORT_PAUSE_THRESHOLD
+        }
+
+        val (_, pausedAt) = suspendedSessions[packageName] ?: return false
+        return System.currentTimeMillis() - pausedAt <= SHORT_PAUSE_THRESHOLD
     }
 
     private suspend fun onControlledAppExited(@Suppress("UNUSED_PARAMETER") packageName: String) {

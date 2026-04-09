@@ -374,12 +374,10 @@ class SeenotAccessibilityService : AccessibilityService() {
                     currentMonitoredPackage = packageName
                     
                     if (quickReturn) {
-                        // Check if there's an active session for this app
-                        val existingSession = sessionManager.activeSession.value
-                        val hasSession = existingSession != null && existingSession.appPackageName == packageName
+                        val hasResumableSession = sessionManager.hasResumableSession(packageName)
 
-                        if (hasSession) {
-                            Logger.d(TAG, "Quick return to $packageName with active session - swipe back, no overlay changes")
+                        if (hasResumableSession) {
+                            Logger.d(TAG, "Quick return to $packageName with resumable session - swipe back, no overlay changes")
                             lastExitedPackage = null
                             lastExitedTime = 0L
                             return
@@ -469,6 +467,15 @@ class SeenotAccessibilityService : AccessibilityService() {
         val existingSession = sessionManager.activeSession.value
         if (existingSession != null && existingSession.appPackageName == packageName) {
             Logger.d(TAG, "Active session exists, showing compact indicator for: $packageName")
+            showCompactIndicator(packageName, appName, sessionManager)
+            return
+        }
+
+        if (sessionManager.hasResumableSession(packageName)) {
+            Logger.d(
+                TAG,
+                "Resumable session exists for $packageName, showing compact indicator and waiting for SessionManager resume"
+            )
             showCompactIndicator(packageName, appName, sessionManager)
             return
         }
