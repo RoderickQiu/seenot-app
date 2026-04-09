@@ -161,7 +161,7 @@ class IntentParserDebugger {
 
         // 保存详细结果
         val reportFile = File("results/test-results-${System.currentTimeMillis()}.json")
-        reportFile.parentFile.mkdirs()
+        reportFile.parentFile?.mkdirs()
         reportFile.writeText(gson.toJson(results))
         println("\n💾 详细结果已保存: ${reportFile.absolutePath}")
     }
