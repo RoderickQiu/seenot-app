@@ -270,6 +270,7 @@ class VoiceInputManager(private val context: Context) {
             return
         }
 
+        ensureEngines()
         _recordingState.value = VoiceRecordingState.PROCESSING
         parseIntent(text, packageName, appName)
     }

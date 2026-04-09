@@ -9,21 +9,24 @@ import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
-import android.os.Handler
-import android.os.Looper
 import com.seenot.app.utils.Logger
+import android.text.InputType
 import android.view.Gravity
+import android.view.KeyEvent
 import android.view.MotionEvent
 import android.view.View
 import android.view.WindowManager
+import android.view.inputmethod.EditorInfo
+import android.widget.EditText
 import android.widget.FrameLayout
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.ScrollView
 import android.widget.TextView
-import android.widget.Toast
 import com.seenot.app.ui.overlay.ToastOverlay
 import androidx.core.content.ContextCompat
+import com.seenot.app.config.AiProvider
+import com.seenot.app.config.ApiConfig
 import com.seenot.app.ai.voice.VoiceInputManager
 import com.seenot.app.ai.voice.VoiceRecordingState
 import com.seenot.app.data.model.ConstraintType
@@ -82,13 +85,16 @@ class IntentInputDialogOverlay(
     }
 
     private enum class Mode { IDLE, RECORDING, PROCESSING, SHOWING_RULES }
+    private enum class InputSource { NONE, VOICE, TEXT }
 
     private var windowManager: WindowManager? = null
     private var voiceInputManager: VoiceInputManager? = null
     private var rootView: View? = null
     private var mode = Mode.IDLE
     private var pendingConstraints: List<SessionConstraint>? = null
-    private var autoConfirmHandler: Handler? = null
+    private var pendingInputSource = InputSource.NONE
+    private var hasAudioPermission = false
+    private var isVoiceInputAvailable = false
 
     private val scope = CoroutineScope(Dispatchers.Main + Job())
     private val density = context.resources.displayMetrics.density
@@ -118,22 +124,19 @@ class IntentInputDialogOverlay(
     private var historyContainer: LinearLayout? = null
     private var confirmButton: LinearLayout? = null
     private var confirmText: TextView? = null
+    private var retryVoiceButton: TextView? = null
     private var rulesPreviewText: TextView? = null
+    private var textInput: EditText? = null
     private var presetRules: List<SessionConstraint> = emptyList()
 
     @SuppressLint("ClickableViewAccessibility")
     fun show(allowDefaultRuleAutoApply: Boolean = true) {
         windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
-        val hasAudioPermission = ContextCompat.checkSelfPermission(
+        hasAudioPermission = ContextCompat.checkSelfPermission(
             context, Manifest.permission.RECORD_AUDIO
         ) == PackageManager.PERMISSION_GRANTED
-
-        if (!hasAudioPermission) {
-            ToastOverlay.show(context, "需要麦克风权限才能使用语音输入")
-            onDismissed()
-            return
-        }
+        isVoiceInputAvailable = hasAudioPermission && hasUsableVoiceConfig()
 
         if (allowDefaultRuleAutoApply) {
             val defaultRule = sessionManager.getDefaultRule(packageName)
@@ -167,13 +170,12 @@ class IntentInputDialogOverlay(
                         val parsed = manager.parsedIntent.value
                         if (parsed != null && parsed.constraints.isNotEmpty()) {
                             pendingConstraints = parsed.constraints
+                            if (pendingInputSource == InputSource.TEXT) {
+                                confirmAndTransition()
+                                return@collectLatest
+                            }
                             mode = Mode.SHOWING_RULES
                             updateUI()
-                            // Auto-confirm after a short delay
-                            autoConfirmHandler = Handler(Looper.getMainLooper())
-                            autoConfirmHandler?.postDelayed({
-                                confirmAndTransition()
-                            }, 800)
                         } else {
                             ToastOverlay.show(context, "未能识别意图")
                             mode = Mode.IDLE
@@ -247,7 +249,7 @@ class IntentInputDialogOverlay(
 
         // Subtitle
         val subtitle = TextView(context).apply {
-            text = "说出你的使用意图"
+            text = "可以说话，也可以直接键盘输入"
             textSize = 14f
             setTextColor(subtleTextColor)
             gravity = Gravity.CENTER
@@ -301,6 +303,38 @@ class IntentInputDialogOverlay(
         }
         card.addView(statusText)
 
+        textInput = EditText(context).apply {
+            hint = "输入意图后按回车直接生效"
+            setPadding(16.dp(), 14.dp(), 16.dp(), 14.dp())
+            background = GradientDrawable().apply {
+                cornerRadius = 14.dp().toFloat()
+                setColor(historyBgColor)
+                setStroke(1, cardBorderColor)
+            }
+            textSize = 14f
+            setTextColor(textColor)
+            setHintTextColor(subtleTextColor)
+            inputType = InputType.TYPE_CLASS_TEXT or InputType.TYPE_TEXT_FLAG_CAP_SENTENCES
+            imeOptions = EditorInfo.IME_ACTION_DONE
+            maxLines = 1
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = 12.dp() }
+            setOnEditorActionListener { _, actionId, event ->
+                val isSubmit = actionId == EditorInfo.IME_ACTION_DONE ||
+                    actionId == EditorInfo.IME_ACTION_GO ||
+                    (event?.keyCode == KeyEvent.KEYCODE_ENTER && event.action == KeyEvent.ACTION_DOWN)
+                if (isSubmit) {
+                    submitTextIntent()
+                    true
+                } else {
+                    false
+                }
+            }
+        }
+        card.addView(textInput)
+
         // Rules preview (hidden until parsed)
         rulesPreviewText = TextView(context).apply {
             textSize = 14f
@@ -341,6 +375,21 @@ class IntentInputDialogOverlay(
         }
         confirmButton?.addView(confirmText)
         card.addView(confirmButton)
+
+        retryVoiceButton = TextView(context).apply {
+            text = "再说一次"
+            textSize = 14f
+            setTextColor(primaryColor)
+            gravity = Gravity.CENTER
+            visibility = View.GONE
+            setPadding(16.dp(), 0, 16.dp(), 12.dp())
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            setOnClickListener { restartVoiceInput() }
+        }
+        card.addView(retryVoiceButton)
 
         // Divider
         val divider = View(context).apply {
@@ -673,12 +722,16 @@ class IntentInputDialogOverlay(
 
     private fun selectHistoryIntent(constraints: List<SessionConstraint>) {
         pendingConstraints = constraints
+        pendingInputSource = InputSource.NONE
         confirmAndTransition()
     }
 
     private fun handleMicClick() {
+        if (!isVoiceInputAvailable) return
+
         when (mode) {
             Mode.IDLE -> {
+                pendingInputSource = InputSource.VOICE
                 voiceInputManager?.setCurrentApp(packageName, appName)
                 voiceInputManager?.startRecording()
             }
@@ -687,9 +740,31 @@ class IntentInputDialogOverlay(
             }
             Mode.PROCESSING -> { /* ignore */ }
             Mode.SHOWING_RULES -> {
-                confirmAndTransition()
+                restartVoiceInput()
             }
         }
+    }
+
+    private fun restartVoiceInput() {
+        if (!isVoiceInputAvailable) return
+        pendingConstraints = null
+        pendingInputSource = InputSource.VOICE
+        textInput?.setText("")
+        voiceInputManager?.cancelRecording()
+        mode = Mode.IDLE
+        updateUI()
+        voiceInputManager?.setCurrentApp(packageName, appName)
+        voiceInputManager?.startRecording()
+    }
+
+    private fun submitTextIntent() {
+        val text = textInput?.text?.toString()?.trim().orEmpty()
+        if (text.isBlank()) return
+
+        pendingConstraints = null
+        pendingInputSource = InputSource.TEXT
+        voiceInputManager?.setCurrentApp(packageName, appName)
+        voiceInputManager?.parseTextInput(text, packageName, appName)
     }
 
     @SuppressLint("SetTextI18n")
@@ -700,10 +775,16 @@ class IntentInputDialogOverlay(
                     shape = GradientDrawable.OVAL
                     setColor(primaryColor)
                 }
-                statusText?.text = "点击开始录音"
+                statusText?.text = when {
+                    isVoiceInputAvailable -> "点击麦克风开始录音，或直接键盘输入"
+                    !hasAudioPermission -> "未开启麦克风权限，可直接键盘输入"
+                    else -> "未配置可用语音输入，可直接键盘输入"
+                }
                 statusText?.setTextColor(subtleTextColor)
                 rulesPreviewText?.visibility = View.GONE
                 confirmButton?.visibility = View.GONE
+                retryVoiceButton?.visibility = View.GONE
+                textInput?.isEnabled = true
             }
             Mode.RECORDING -> {
                 micBg?.background = GradientDrawable().apply {
@@ -714,23 +795,31 @@ class IntentInputDialogOverlay(
                 statusText?.setTextColor(recordingColor)
                 rulesPreviewText?.visibility = View.GONE
                 confirmButton?.visibility = View.GONE
+                retryVoiceButton?.visibility = View.GONE
+                textInput?.isEnabled = false
             }
             Mode.PROCESSING -> {
                 micBg?.background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
                     setColor(processingColor)
                 }
-                statusText?.text = "处理中..."
+                statusText?.text = "正在解析..."
                 statusText?.setTextColor(processingColor)
                 rulesPreviewText?.visibility = View.GONE
                 confirmButton?.visibility = View.GONE
+                retryVoiceButton?.visibility = View.GONE
+                textInput?.isEnabled = false
             }
             Mode.SHOWING_RULES -> {
                 micBg?.background = GradientDrawable().apply {
                     shape = GradientDrawable.OVAL
                     setColor(successColor)
                 }
-                statusText?.text = "意图已识别"
+                statusText?.text = if (pendingInputSource == InputSource.VOICE) {
+                    "意图已识别，请手动确认；不对的话可以再说一次"
+                } else {
+                    "意图已识别"
+                }
                 statusText?.setTextColor(successColor)
 
                 val rulesText = pendingConstraints?.joinToString("\n") { c ->
@@ -746,21 +835,40 @@ class IntentInputDialogOverlay(
                 } ?: ""
                 rulesPreviewText?.text = rulesText
                 rulesPreviewText?.visibility = View.VISIBLE
-                confirmButton?.visibility = View.VISIBLE
+                confirmButton?.visibility = if (pendingInputSource == InputSource.VOICE) View.VISIBLE else View.GONE
+                retryVoiceButton?.visibility =
+                    if (pendingInputSource == InputSource.VOICE && isVoiceInputAvailable) View.VISIBLE else View.GONE
+                textInput?.isEnabled = true
             }
         }
+        micButton?.isEnabled = isVoiceInputAvailable
+        micButton?.alpha = if (isVoiceInputAvailable) 1f else 0.45f
     }
 
     private fun confirmAndTransition() {
         val constraints = pendingConstraints ?: return
         sessionManager.saveLastIntent(packageName, constraints)
+        pendingInputSource = InputSource.NONE
         dismiss()
         onIntentConfirmed(constraints)
     }
 
+    private fun hasUsableVoiceConfig(): Boolean {
+        val settings = ApiConfig.getSttSettings()
+        val providerSupported = when (settings.provider) {
+            AiProvider.DASHSCOPE,
+            AiProvider.OPENAI,
+            AiProvider.GLM,
+            AiProvider.CUSTOM -> true
+            AiProvider.GEMINI,
+            AiProvider.ANTHROPIC -> false
+        }
+        if (!providerSupported) return false
+        if (settings.apiKey.isBlank() || settings.model.isBlank()) return false
+        return settings.provider == AiProvider.DASHSCOPE || settings.baseUrl.isNotBlank()
+    }
+
     private fun dismissInternal() {
-        autoConfirmHandler?.removeCallbacksAndMessages(null)
-        autoConfirmHandler = null
         voiceInputManager?.cancelRecording()
         voiceInputManager?.release()
         voiceInputManager = null
