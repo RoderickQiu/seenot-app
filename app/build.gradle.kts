@@ -15,13 +15,27 @@ android {
         versionCode = 1
         versionName = "1.0.0"
 
-        // Load API key from local.properties (not committed to git)
-        val dashscopeKey = project.findProperty("DASHSCOPE_API_KEY") as? String ?: ""
-        buildConfigField("String", "DASHSCOPE_API_KEY", "\"$dashscopeKey\"")
-        val runtimeEventLoggingEnabled =
-            (project.findProperty("SEENOT_ENABLE_RUNTIME_EVENT_LOGGING") as? String)
+        val developmentModeEnabled =
+            (project.findProperty("SEENOT_DEVELOPMENT_MODE") as? String)
                 ?.toBooleanStrictOrNull()
                 ?: false
+        val rawDashscopeKey = project.findProperty("DASHSCOPE_API_KEY") as? String ?: ""
+        val buildTimestampMs = System.currentTimeMillis()
+        val devDashscopeKeyValidUntilMs = if (developmentModeEnabled && rawDashscopeKey.isNotBlank()) {
+            buildTimestampMs + 14L * 24L * 60L * 60L * 1000L
+        } else {
+            0L
+        }
+        val injectedDashscopeKey = if (developmentModeEnabled) rawDashscopeKey else ""
+
+        buildConfigField("String", "DASHSCOPE_API_KEY", "\"$injectedDashscopeKey\"")
+        buildConfigField("boolean", "ENABLE_DEVELOPMENT_MODE", developmentModeEnabled.toString())
+        buildConfigField(
+            "long",
+            "DEVELOPMENT_DASHSCOPE_KEY_VALID_UNTIL_EPOCH_MS",
+            "${devDashscopeKeyValidUntilMs}L"
+        )
+        val runtimeEventLoggingEnabled = developmentModeEnabled
         buildConfigField(
             "boolean",
             "ENABLE_RUNTIME_EVENT_LOGGING",

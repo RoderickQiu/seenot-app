@@ -23,6 +23,8 @@ object ApiConfig {
     private const val KEY_STT_MODEL = "stt_model"
     private const val KEY_STT_API_KEY = "stt_api_key"
     private const val KEY_STT_BASE_URL = "stt_base_url"
+    private const val KEY_DEV_DASHSCOPE_KEY = "dev_dashscope_injected_key"
+    private const val KEY_DEV_DASHSCOPE_VALID_UNTIL_MS = "dev_dashscope_injected_valid_until_ms"
 
     private var prefs: SharedPreferences? = null
 
@@ -45,7 +47,17 @@ object ApiConfig {
     }
 
     fun setApiKey(provider: AiProvider = getProvider(), key: String) {
-        prefs?.edit()?.putString("$KEY_API_KEY_PREFIX${provider.name}", key)?.apply()
+        val trimmed = key.trim()
+        prefs?.edit()?.putString("$KEY_API_KEY_PREFIX${provider.name}", trimmed)?.apply()
+        if (provider == AiProvider.DASHSCOPE) {
+            val injectedKey = prefs?.getString(KEY_DEV_DASHSCOPE_KEY, "")?.trim().orEmpty()
+            if (injectedKey.isNotBlank() && trimmed != injectedKey) {
+                prefs?.edit()
+                    ?.remove(KEY_DEV_DASHSCOPE_KEY)
+                    ?.remove(KEY_DEV_DASHSCOPE_VALID_UNTIL_MS)
+                    ?.apply()
+            }
+        }
     }
 
     fun getBaseUrl(provider: AiProvider = getProvider()): String {
@@ -201,6 +213,38 @@ object ApiConfig {
 
     fun isConfigured(): Boolean {
         return getApiKey().isNotBlank()
+    }
+
+    fun reconcileDevelopmentInjectedDashscopeKey(
+        buildInjectedKey: String,
+        developmentModeEnabled: Boolean,
+        validUntilEpochMs: Long,
+        nowEpochMs: Long = System.currentTimeMillis()
+    ) {
+        val injectedKey = prefs?.getString(KEY_DEV_DASHSCOPE_KEY, "")?.trim().orEmpty()
+        val shouldUseInjectedKey = developmentModeEnabled &&
+            buildInjectedKey.isNotBlank() &&
+            validUntilEpochMs > nowEpochMs
+
+        if (!shouldUseInjectedKey) {
+            if (injectedKey.isNotBlank() && getApiKey(AiProvider.DASHSCOPE) == injectedKey) {
+                setApiKey(AiProvider.DASHSCOPE, "")
+            }
+            prefs?.edit()
+                ?.remove(KEY_DEV_DASHSCOPE_KEY)
+                ?.remove(KEY_DEV_DASHSCOPE_VALID_UNTIL_MS)
+                ?.apply()
+            return
+        }
+
+        prefs?.edit()
+            ?.putString(KEY_DEV_DASHSCOPE_KEY, buildInjectedKey)
+            ?.putLong(KEY_DEV_DASHSCOPE_VALID_UNTIL_MS, validUntilEpochMs)
+            ?.apply()
+
+        if (getApiKey(AiProvider.DASHSCOPE).isBlank()) {
+            setApiKey(AiProvider.DASHSCOPE, buildInjectedKey)
+        }
     }
 
     fun providerExtraBody(

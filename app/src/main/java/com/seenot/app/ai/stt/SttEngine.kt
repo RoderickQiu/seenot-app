@@ -96,7 +96,7 @@ class SttEngine(private val context: Context) {
             }
 
             val apiKey = ApiConfig.getApiKey(AiProvider.DASHSCOPE)
-                .ifBlank { BuildConfig.DASHSCOPE_API_KEY }
+                .ifBlank { currentInjectedDashscopeKeyIfActive() }
             if (apiKey.isBlank()) {
                 Logger.e(TAG, "API key is empty")
                 return false
@@ -298,6 +298,18 @@ class SttEngine(private val context: Context) {
      */
     fun isMaxDurationExceeded(): Boolean {
         return getRecordingDuration() >= MAX_RECORDING_DURATION_MS
+    }
+
+    private fun currentInjectedDashscopeKeyIfActive(nowEpochMs: Long = System.currentTimeMillis()): String {
+        return if (
+            BuildConfig.ENABLE_DEVELOPMENT_MODE &&
+            BuildConfig.DASHSCOPE_API_KEY.isNotBlank() &&
+            BuildConfig.DEVELOPMENT_DASHSCOPE_KEY_VALID_UNTIL_EPOCH_MS > nowEpochMs
+        ) {
+            BuildConfig.DASHSCOPE_API_KEY
+        } else {
+            ""
+        }
     }
 
     private fun cleanup() {

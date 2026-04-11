@@ -363,6 +363,20 @@ class ScreenAnalyzer(
 
         try {
             val totalStart = System.currentTimeMillis()
+            val sessionManager = com.seenot.app.domain.SessionManager.getInstance(context)
+            val sessionId = sessionManager.activeSession.value?.sessionId ?: 0L
+
+            runtimeEventLogger.log(
+                eventType = RuntimeEventType.ANALYSIS_STARTED,
+                sessionId = sessionId,
+                appPackage = currentPackageName,
+                appDisplayName = currentAppDisplayName,
+                payload = mapOf(
+                    "analysis_id" to analysisId,
+                    "constraint_ids" to constraints.map { it.id }
+                ),
+                timestamp = totalStart
+            )
 
             // Dismiss all toasts before screenshot
             Logger.d(TAG, "📴 Dismissing all toasts...")
@@ -446,9 +460,6 @@ class ScreenAnalyzer(
             val totalDuration = System.currentTimeMillis() - totalStart
             Logger.d(TAG, "📊 Total analysis time: ${totalDuration}ms")
 
-            // Get SessionManager instance once
-            val sessionManager = com.seenot.app.domain.SessionManager.getInstance(context)
-
             // Update content match states in SessionManager
             matches.forEach { match ->
                 val isInTargetContent = when (match.constraint.type) {
@@ -476,21 +487,6 @@ class ScreenAnalyzer(
             val packageName = currentPackageName
             val bitmapToSave = processedBitmap // Keep reference for screenshot saving
 
-            // Get session ID from sessionManager
-            val sessionId = sessionManager.activeSession.value?.sessionId ?: 0L
-
-            runtimeEventLogger.log(
-                eventType = RuntimeEventType.ANALYSIS_STARTED,
-                sessionId = sessionId,
-                appPackage = packageName,
-                appDisplayName = currentAppDisplayName,
-                payload = mapOf(
-                    "analysis_id" to analysisId,
-                    "constraint_ids" to constraints.map { it.id },
-                    "screenshot_hash" to lastQuickHash
-                )
-            )
-            
             if (packageName != null && matches.isNotEmpty()) {
                 try {
                     for (match in matches) {

@@ -2090,7 +2090,8 @@ fun SettingsTab(
 
     Column(
         modifier = modifier
-            .fillMaxWidth()
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
             .padding(16.dp)
     ) {
         Text(
@@ -2286,6 +2287,18 @@ private fun AiModelSettingsDialog(
     val sttProviderOptions = remember(sttProvider) { selectableSttProviders(sttProvider) }
     val sttModelIsFixed = sttProvider == AiProvider.DASHSCOPE || sttProvider == AiProvider.GEMINI
     val sttUsesSharedProviderConfig = sttProvider != AiProvider.CUSTOM
+    val devDashscopeKeyValidUntilEpochMs = BuildConfig.DEVELOPMENT_DASHSCOPE_KEY_VALID_UNTIL_EPOCH_MS
+    val isDevDashscopeKeyActive = BuildConfig.ENABLE_DEVELOPMENT_MODE &&
+        BuildConfig.DASHSCOPE_API_KEY.isNotBlank() &&
+        devDashscopeKeyValidUntilEpochMs > System.currentTimeMillis()
+    val devDashscopeKeyExpiryText = remember(devDashscopeKeyValidUntilEpochMs) {
+        if (devDashscopeKeyValidUntilEpochMs <= 0L) {
+            ""
+        } else {
+            java.text.SimpleDateFormat("yyyy-MM-dd HH:mm", java.util.Locale.getDefault())
+                .format(java.util.Date(devDashscopeKeyValidUntilEpochMs))
+        }
+    }
 
     var modelInput by remember {
         mutableStateOf(
@@ -2404,6 +2417,14 @@ private fun AiModelSettingsDialog(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    if (isDevDashscopeKeyActive) {
+                        Text(
+                            text = "当前为开发模式，已临时提供 DashScope API Key，可用至 $devDashscopeKeyExpiryText。到期后会自动停用，你仍可在这里手动填写自己的 Key。",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.tertiary
+                        )
+                    }
+
                     if (selectedConfigTab == 0) {
                         ExposedDropdownMenuBox(
                             expanded = providerExpanded,
@@ -3388,7 +3409,7 @@ fun ExportDialog(
         if (uri != null) {
             scope.launch {
                 isExporting = true
-                exportMessage = "正在导入应用和规则..."
+                exportMessage = "正在导入应用配置..."
                 try {
                     val importedCount = configurationExporter.importConfiguration(uri) { progress ->
                         exportMessage = progress
@@ -3428,7 +3449,7 @@ fun ExportDialog(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 val availableTabs = buildList {
-                    add("应用和规则")
+                    add("应用配置")
                     add("日志")
                     if (runtimeEventEnabled) {
                         add("运行事件")
@@ -3447,7 +3468,7 @@ fun ExportDialog(
                             selectedExportTab = 0
                             exportMessage = ""
                         },
-                        text = { Text("应用和规则") }
+                        text = { Text("应用配置") }
                     )
                     Tab(
                         selected = safeSelectedTab == 1,
@@ -3484,7 +3505,7 @@ fun ExportDialog(
                             onClick = {
                                 scope.launch {
                                     isExporting = true
-                                    exportMessage = "正在导出应用和规则..."
+                                    exportMessage = "正在导出应用配置..."
                                     try {
                                         val uri = configurationExporter.exportConfiguration { progress ->
                                             exportMessage = progress

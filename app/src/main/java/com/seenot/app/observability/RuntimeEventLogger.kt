@@ -89,7 +89,7 @@ class RuntimeEventLogger private constructor(context: Context) {
         onProgress: (String) -> Unit = {}
     ): Uri? = withContext(Dispatchers.IO) {
         if (!isEnabled()) {
-            onProgress("运行事件记录未启用，请先在 local.properties 中设置 SEENOT_ENABLE_RUNTIME_EVENT_LOGGING=true")
+            onProgress("运行事件记录未启用，请先在 local.properties 中设置 SEENOT_DEVELOPMENT_MODE=true")
             return@withContext null
         }
 

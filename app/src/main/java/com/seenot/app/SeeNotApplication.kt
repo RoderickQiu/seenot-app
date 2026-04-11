@@ -10,8 +10,6 @@ import com.seenot.app.utils.Logger
 class SeeNotApplication : Application() {
     companion object {
         private const val TAG = "SeeNotApplication"
-
-        private const val DEFAULT_API_KEY = BuildConfig.DASHSCOPE_API_KEY
     }
 
     override fun onCreate() {
@@ -27,11 +25,18 @@ class SeeNotApplication : Application() {
         // Initialize API Config
         ApiConfig.init(this)
 
+        ApiConfig.reconcileDevelopmentInjectedDashscopeKey(
+            buildInjectedKey = BuildConfig.DASHSCOPE_API_KEY,
+            developmentModeEnabled = BuildConfig.ENABLE_DEVELOPMENT_MODE,
+            validUntilEpochMs = BuildConfig.DEVELOPMENT_DASHSCOPE_KEY_VALID_UNTIL_EPOCH_MS
+        )
+
         // Seed default LLM provider config on fresh installs.
         if (!ApiConfig.isConfigured()) {
+            val defaultApiKey = currentInjectedDashscopeKeyIfActive()
             ApiConfig.saveSettings(
                 ApiSettings.defaults(AiProvider.DASHSCOPE).copy(
-                    apiKey = DEFAULT_API_KEY
+                    apiKey = defaultApiKey
                 )
             )
             Logger.i(TAG, "AI model config seeded from defaults")
@@ -79,5 +84,17 @@ class SeeNotApplication : Application() {
         }
 
         Logger.i(TAG, "Global exception handler installed")
+    }
+
+    private fun currentInjectedDashscopeKeyIfActive(nowEpochMs: Long = System.currentTimeMillis()): String {
+        return if (
+            BuildConfig.ENABLE_DEVELOPMENT_MODE &&
+            BuildConfig.DASHSCOPE_API_KEY.isNotBlank() &&
+            BuildConfig.DEVELOPMENT_DASHSCOPE_KEY_VALID_UNTIL_EPOCH_MS > nowEpochMs
+        ) {
+            BuildConfig.DASHSCOPE_API_KEY
+        } else {
+            ""
+        }
     }
 }

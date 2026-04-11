@@ -129,6 +129,7 @@ class SessionManager(private val context: Context) {
     // Minimal in-session suppression after user marks a violation as false positive.
     private var falsePositiveDialogCooldownUntil = 0L
     private var dialogReentryCooldownUntil = 0L
+    private var pendingSessionStartContext: PendingSessionStartContext? = null
 
     private fun logRuntimeEvent(
         eventType: RuntimeEventType,
@@ -142,6 +143,26 @@ class SessionManager(private val context: Context) {
             appDisplayName = session?.appDisplayName,
             payload = payload
         )
+    }
+
+    @Synchronized
+    private fun setPendingSessionStartContext(
+        triggerSource: String,
+        switchFromPackage: String? = null,
+        switchToPackage: String? = null
+    ) {
+        pendingSessionStartContext = PendingSessionStartContext(
+            triggerSource = triggerSource,
+            switchFromPackage = switchFromPackage,
+            switchToPackage = switchToPackage
+        )
+    }
+
+    @Synchronized
+    private fun consumePendingSessionStartContext(): PendingSessionStartContext? {
+        val context = pendingSessionStartContext
+        pendingSessionStartContext = null
+        return context
     }
     private val falsePositiveLearningMutex = Mutex()
 
@@ -233,8 +254,15 @@ class SessionManager(private val context: Context) {
             )
             endSession(SessionEndReason.USER_LEFT)
             sessionPausedAt = null
+            setPendingSessionStartContext(
+                triggerSource = "device_recovery_after_pause_timeout",
+                switchToPackage = currentSession.appPackageName
+            )
             SeenotAccessibilityService.instance?.forceRestartOverlayForCurrentApp(currentSession.appPackageName)
-                ?: requestNewSession(currentSession.appPackageName)
+                ?: requestNewSession(
+                    packageName = currentSession.appPackageName,
+                    triggerSource = "device_recovery_after_pause_timeout"
+                )
         }
     }
 
@@ -282,29 +310,43 @@ class SessionManager(private val context: Context) {
                     Logger.d(TAG, ">>> Session expired (beyond short threshold or no pausedAt), creating new session for: $packageName")
                     endSession(SessionEndReason.USER_LEFT)
                     sessionPausedAt = null
+                    setPendingSessionStartContext(
+                        triggerSource = "recreate_after_pause_expired",
+                        switchToPackage = packageName
+                    )
                     SeenotAccessibilityService.instance?.forceRestartOverlayForCurrentApp(packageName)
-                        ?: requestNewSession(packageName)
+                        ?: requestNewSession(
+                            packageName = packageName,
+                            triggerSource = "recreate_after_pause_expired"
+                        )
                 }
             } else {
                 Logger.d(TAG, ">>> Session already active for: $packageName, ignoring")
             }
         } else if (currentSession != null && currentSession.appPackageName != packageName) {
             Logger.d(TAG, ">>> Switching from ${currentSession.appPackageName} to $packageName, suspending old session")
-            suspendCurrentSession(currentSession)
+            suspendCurrentSession(currentSession, packageName)
 
             tryResumeSuspendedSession(packageName) || run {
-                requestNewSession(packageName)
+                requestNewSession(
+                    packageName = packageName,
+                    triggerSource = "switch_from_other_controlled_app",
+                    switchFromPackage = currentSession.appPackageName
+                )
                 false
             }
         } else if (currentSession == null) {
             if (!tryResumeSuspendedSession(packageName)) {
                 Logger.d(TAG, ">>> No active or suspended session, creating new session for: $packageName")
-                requestNewSession(packageName)
+                requestNewSession(
+                    packageName = packageName,
+                    triggerSource = "enter_controlled_app"
+                )
             }
         }
     }
 
-    private fun suspendCurrentSession(session: ActiveSession) {
+    private fun suspendCurrentSession(session: ActiveSession, switchToPackage: String? = null) {
         timerJob?.cancel()
         stopScreenAnalysis()
         _activeSession.value = session.copy(isPaused = true)
@@ -316,7 +358,10 @@ class SessionManager(private val context: Context) {
             sessionId = session.sessionId,
             appPackage = session.appPackageName,
             appDisplayName = session.appDisplayName,
-            payload = mapOf("pause_reason" to "switch_to_other_controlled_app")
+            payload = buildMap {
+                put("pause_reason", "switch_to_other_controlled_app")
+                put("switch_to_package", switchToPackage)
+            }
         )
         
         scope.launch {
@@ -368,13 +413,26 @@ class SessionManager(private val context: Context) {
         Logger.d(TAG, ">>> Session paused at ${sessionPausedAt}, will auto-end if not resumed within ${SHORT_PAUSE_THRESHOLD}ms")
     }
 
-    private suspend fun requestNewSession(packageName: String) {
+    private suspend fun requestNewSession(
+        packageName: String,
+        triggerSource: String = "request_new_session",
+        switchFromPackage: String? = null
+    ) {
+        setPendingSessionStartContext(
+            triggerSource = triggerSource,
+            switchFromPackage = switchFromPackage,
+            switchToPackage = packageName
+        )
         runtimeEventLogger.log(
             eventType = RuntimeEventType.SESSION_NEW_REQUEST_SHOWN,
             sessionId = null,
             appPackage = packageName,
             appDisplayName = null,
-            payload = emptyMap()
+            payload = buildMap {
+                put("trigger_source", triggerSource)
+                put("switch_from_package", switchFromPackage)
+                put("switch_to_package", packageName)
+            }
         )
         _sessionEvents.emit(SessionEvent.ShowVoiceInput(packageName))
     }
@@ -384,6 +442,7 @@ class SessionManager(private val context: Context) {
         displayName: String,
         constraints: List<SessionConstraint>
     ): Long {
+        val startContext = consumePendingSessionStartContext()
         val sessionId = repository.createSession(
             appPackageName = packageName,
             appDisplayName = displayName,
@@ -427,11 +486,13 @@ class SessionManager(private val context: Context) {
         logRuntimeEvent(
             eventType = RuntimeEventType.SESSION_STARTED,
             session = activeSession,
-            payload = mapOf(
-                "active_constraint_ids" to constraints.map { it.id },
-                "time_limit_ms" to constraints.mapNotNull { it.timeLimitMs }.maxOrNull(),
-                "trigger_source" to "create_session"
-            )
+            payload = buildMap {
+                put("active_constraint_ids", constraints.map { it.id })
+                put("time_limit_ms", constraints.mapNotNull { it.timeLimitMs }.maxOrNull())
+                put("trigger_source", startContext?.triggerSource ?: "create_session")
+                put("switch_from_package", startContext?.switchFromPackage)
+                put("switch_to_package", startContext?.switchToPackage ?: packageName)
+            }
         )
 
         _sessionEvents.emit(SessionEvent.SessionStarted(activeSession))
@@ -1934,6 +1995,12 @@ data class ActiveSession(
     val isPaused: Boolean = false,
     val constraintTimeRemaining: Map<String, Long?> = emptyMap(),
     val violationCount: Int = 0
+)
+
+private data class PendingSessionStartContext(
+    val triggerSource: String,
+    val switchFromPackage: String?,
+    val switchToPackage: String?
 )
 
 /**
