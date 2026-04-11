@@ -21,6 +21,8 @@ import com.seenot.app.data.repository.RuleRecordRepository
 import com.seenot.app.data.repository.AppHintRepository
 import com.seenot.app.data.repository.SessionRepository
 import com.seenot.app.domain.action.ActionExecutor
+import com.seenot.app.observability.RuntimeEventLogger
+import com.seenot.app.observability.RuntimeEventType
 import com.seenot.app.service.SeenotAccessibilityService
 import com.seenot.app.ui.overlay.InterventionFeedbackDialogOverlay
 import com.seenot.app.ui.overlay.FalsePositiveRuleReviewOverlay
@@ -81,6 +83,7 @@ class SessionManager(private val context: Context) {
     private val ruleRecordRepository = RuleRecordRepository(context)
     private val appHintRepository = AppHintRepository(context)
     private val falsePositiveRuleGenerator = FalsePositiveRuleGenerator(context)
+    private val runtimeEventLogger = RuntimeEventLogger.getInstance(context)
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -126,6 +129,20 @@ class SessionManager(private val context: Context) {
     // Minimal in-session suppression after user marks a violation as false positive.
     private var falsePositiveDialogCooldownUntil = 0L
     private var dialogReentryCooldownUntil = 0L
+
+    private fun logRuntimeEvent(
+        eventType: RuntimeEventType,
+        session: ActiveSession? = _activeSession.value,
+        payload: Map<String, Any?> = emptyMap()
+    ) {
+        runtimeEventLogger.log(
+            eventType = eventType,
+            sessionId = session?.sessionId,
+            appPackage = session?.appPackageName,
+            appDisplayName = session?.appDisplayName,
+            payload = payload
+        )
+    }
     private val falsePositiveLearningMutex = Mutex()
 
     @Volatile
@@ -294,6 +311,13 @@ class SessionManager(private val context: Context) {
         suspendedSessions[session.appPackageName] = Pair(session.copy(isPaused = true), System.currentTimeMillis())
         _activeSession.value = null
         sessionPausedAt = null
+        runtimeEventLogger.log(
+            eventType = RuntimeEventType.SESSION_PAUSED,
+            sessionId = session.sessionId,
+            appPackage = session.appPackageName,
+            appDisplayName = session.appDisplayName,
+            payload = mapOf("pause_reason" to "switch_to_other_controlled_app")
+        )
         
         scope.launch {
             _sessionEvents.emit(SessionEvent.SessionPaused(session))
@@ -345,6 +369,13 @@ class SessionManager(private val context: Context) {
     }
 
     private suspend fun requestNewSession(packageName: String) {
+        runtimeEventLogger.log(
+            eventType = RuntimeEventType.SESSION_NEW_REQUEST_SHOWN,
+            sessionId = null,
+            appPackage = packageName,
+            appDisplayName = null,
+            payload = emptyMap()
+        )
         _sessionEvents.emit(SessionEvent.ShowVoiceInput(packageName))
     }
 
@@ -393,6 +424,16 @@ class SessionManager(private val context: Context) {
             startScreenAnalysis(packageName, displayName, constraints)
         }
 
+        logRuntimeEvent(
+            eventType = RuntimeEventType.SESSION_STARTED,
+            session = activeSession,
+            payload = mapOf(
+                "active_constraint_ids" to constraints.map { it.id },
+                "time_limit_ms" to constraints.mapNotNull { it.timeLimitMs }.maxOrNull(),
+                "trigger_source" to "create_session"
+            )
+        )
+
         _sessionEvents.emit(SessionEvent.SessionStarted(activeSession))
 
         return sessionId
@@ -415,8 +456,8 @@ class SessionManager(private val context: Context) {
             packageName = packageName,
             displayName = displayName,
             constraints = constraints,
-            onViolation = { constraint, confidence ->
-                handleViolation(constraint, confidence)
+            onViolation = { constraint, confidence, analysisId ->
+                handleViolation(constraint, confidence, analysisId)
             }
         )
 
@@ -426,7 +467,7 @@ class SessionManager(private val context: Context) {
     /**
      * Handle violation detected by screen analyzer
      */
-    private fun handleViolation(constraint: SessionConstraint, confidence: Double) {
+    private fun handleViolation(constraint: SessionConstraint, confidence: Double, analysisId: String?) {
         if (isFalsePositiveLearningInProgress) {
             Logger.d(TAG, "False-positive learning in progress, skipping violation handling")
             return
@@ -448,6 +489,15 @@ class SessionManager(private val context: Context) {
         }
 
         if (InterventionFeedbackDialogOverlay.isShowing()) {
+            logRuntimeEvent(
+                eventType = RuntimeEventType.INTERVENTION_BLOCKED_COOLDOWN,
+                session = currentSession,
+                payload = mapOf(
+                    "analysis_id" to analysisId,
+                    "constraint_id" to constraint.id,
+                    "blocked_reason" to "dialog_visible"
+                )
+            )
             Logger.d(TAG, "Feedback dialog already visible, ignoring new violation")
             return
         }
@@ -455,6 +505,16 @@ class SessionManager(private val context: Context) {
         if (System.currentTimeMillis() < dialogReentryCooldownUntil &&
             constraint.type != ConstraintType.TIME_CAP
         ) {
+            logRuntimeEvent(
+                eventType = RuntimeEventType.INTERVENTION_BLOCKED_COOLDOWN,
+                session = currentSession,
+                payload = mapOf(
+                    "analysis_id" to analysisId,
+                    "constraint_id" to constraint.id,
+                    "blocked_reason" to "dialog_reentry_cooldown",
+                    "cooldown_remaining_ms" to (dialogReentryCooldownUntil - System.currentTimeMillis())
+                )
+            )
             Logger.d(TAG, "Dialog reentry cooldown active, ignoring violation")
             return
         }
@@ -462,13 +522,33 @@ class SessionManager(private val context: Context) {
         if (System.currentTimeMillis() < falsePositiveDialogCooldownUntil &&
             constraint.type != ConstraintType.TIME_CAP
         ) {
+            logRuntimeEvent(
+                eventType = RuntimeEventType.INTERVENTION_BLOCKED_COOLDOWN,
+                session = currentSession,
+                payload = mapOf(
+                    "analysis_id" to analysisId,
+                    "constraint_id" to constraint.id,
+                    "blocked_reason" to "false_positive_cooldown",
+                    "cooldown_remaining_ms" to (falsePositiveDialogCooldownUntil - System.currentTimeMillis())
+                )
+            )
             Logger.d(TAG, "False-positive cooldown active, ignoring forced action candidate")
             return
         }
 
         if (shouldInterceptViolationWithDialog(constraint)) {
             Logger.d(TAG, "Intercepting violation with feedback dialog")
-            showInterventionFeedbackDialog(currentSession, constraint, confidence)
+            logRuntimeEvent(
+                eventType = RuntimeEventType.INTERVENTION_DIALOG_SHOWN,
+                session = currentSession,
+                payload = mapOf(
+                    "analysis_id" to analysisId,
+                    "constraint_id" to constraint.id,
+                    "confidence" to confidence,
+                    "dialog_intercepted" to true
+                )
+            )
+            showInterventionFeedbackDialog(currentSession, constraint, confidence, analysisId)
         } else {
             // Execute intervention based on confidence
             executor.executeIntervention(
@@ -476,7 +556,8 @@ class SessionManager(private val context: Context) {
                 confidence,
                 "violation",
                 currentSession.appDisplayName,
-                currentSession.appPackageName
+                currentSession.appPackageName,
+                analysisId
             )
         }
 
@@ -495,7 +576,8 @@ class SessionManager(private val context: Context) {
     private fun showInterventionFeedbackDialog(
         session: ActiveSession,
         constraint: SessionConstraint,
-        confidence: Double
+        confidence: Double,
+        analysisId: String?
     ) {
         val isGentle = constraint.interventionLevel == InterventionLevel.GENTLE
         scope.launch {
@@ -512,6 +594,15 @@ class SessionManager(private val context: Context) {
                 primaryButtonText = if (isGentle) "回到正事" else "退出",
                 secondaryButtonText = if (isGentle) "我知道了，但还是继续" else null,
                 onFalsePositive = {
+                    logRuntimeEvent(
+                        eventType = RuntimeEventType.USER_MARKED_MISUNDERSTAND,
+                        session = session,
+                        payload = mapOf(
+                            "analysis_id" to analysisId,
+                            "constraint_id" to constraint.id,
+                            "source_surface" to "intervention_dialog"
+                        )
+                    )
                     dialogReentryCooldownUntil =
                         System.currentTimeMillis() + DIALOG_REENTRY_COOLDOWN_MS
                     falsePositiveDialogCooldownUntil =
@@ -541,11 +632,23 @@ class SessionManager(private val context: Context) {
                 onPrimaryAction = {
                     dialogReentryCooldownUntil =
                         System.currentTimeMillis() + DIALOG_REENTRY_COOLDOWN_MS
+                    if (!isGentle) {
+                        logRuntimeEvent(
+                            eventType = RuntimeEventType.USER_CHOSE_EXIT,
+                            session = session,
+                            payload = mapOf(
+                                "analysis_id" to analysisId,
+                                "constraint_id" to constraint.id,
+                                "source_surface" to "intervention_dialog"
+                            )
+                        )
+                    }
                     if (isGentle) {
                         actionExecutor?.executeUserConfirmedReturn(
                             constraint = constraint,
                             appName = session.appDisplayName,
-                            packageName = session.appPackageName
+                            packageName = session.appPackageName,
+                            analysisId = analysisId
                         )
                     } else {
                         actionExecutor?.executeIntervention(
@@ -553,7 +656,8 @@ class SessionManager(private val context: Context) {
                             confidence,
                             "violation",
                             session.appDisplayName,
-                            session.appPackageName
+                            session.appPackageName,
+                            analysisId
                         )
                     }
                 },
@@ -561,6 +665,12 @@ class SessionManager(private val context: Context) {
                     {
                         dialogReentryCooldownUntil =
                             System.currentTimeMillis() + DIALOG_REENTRY_COOLDOWN_MS
+                        actionExecutor?.allowOnce(
+                            constraint = constraint,
+                            appName = session.appDisplayName,
+                            packageName = session.appPackageName,
+                            analysisId = analysisId
+                        )
                     }
                 } else {
                     null
@@ -971,6 +1081,19 @@ class SessionManager(private val context: Context) {
                     ruleRecordRepository.markRecord(record.id, true)
                 }
 
+                runtimeEventLogger.log(
+                    eventType = RuntimeEventType.USER_SUBMITTED_REPAIR_NOTE,
+                    sessionId = record.sessionId,
+                    appPackage = packageName,
+                    appDisplayName = fallbackSession?.appDisplayName,
+                    payload = mapOf(
+                        "record_id" to record.id,
+                        "constraint_id" to record.constraintId,
+                        "source_surface" to source,
+                        "user_note_length" to (userNote?.trim()?.length ?: 0)
+                    )
+                )
+
                 val contextInfo = resolveFalsePositiveContext(record, packageName, fallbackSession)
                 val generated = confirmedRule
                     ?.trim()
@@ -998,6 +1121,25 @@ class SessionManager(private val context: Context) {
                         "generatedRule=${generated.ruleText != null}, reused=${generated.reusedExistingHint}"
                 )
 
+                runtimeEventLogger.log(
+                    eventType = if (generated.reusedExistingHint) {
+                        RuntimeEventType.REPAIR_REUSED_EXISTING
+                    } else {
+                        RuntimeEventType.REPAIR_SAVED
+                    },
+                    sessionId = record.sessionId,
+                    appPackage = packageName,
+                    appDisplayName = contextInfo.appName,
+                    payload = mapOf(
+                        "record_id" to record.id,
+                        "constraint_id" to record.constraintId,
+                        "source_surface" to source,
+                        "generated_rule" to generated.ruleText,
+                        "reused_existing_rule" to generated.reusedExistingHint,
+                        "rule_id" to generated.savedHint?.id
+                    )
+                )
+
                 if (!shouldPauseJudgment) {
                     refreshActiveSessionAnalysisAfterFalsePositive(source)
                 }
@@ -1005,6 +1147,18 @@ class SessionManager(private val context: Context) {
                 buildFalsePositiveFeedbackResult(record, generated, shouldPauseJudgment)
             } catch (e: Exception) {
                 Logger.e(TAG, "Failed to process false positive record", e)
+                runtimeEventLogger.log(
+                    eventType = RuntimeEventType.REPAIR_FAILED,
+                    sessionId = record.sessionId,
+                    appPackage = packageName,
+                    appDisplayName = fallbackSession?.appDisplayName,
+                    payload = mapOf(
+                        "record_id" to record.id,
+                        "constraint_id" to record.constraintId,
+                        "source_surface" to source,
+                        "error_message" to e.message
+                    )
+                )
                 FalsePositiveFeedbackResult(
                     success = false,
                     recordId = record.id,
@@ -1196,6 +1350,12 @@ class SessionManager(private val context: Context) {
             startScreenAnalysis(session.appPackageName, session.appDisplayName, session.constraints)
         }
 
+        logRuntimeEvent(
+            eventType = RuntimeEventType.SESSION_RESUMED,
+            session = session,
+            payload = mapOf("resume_reason" to "resume_session")
+        )
+
         scope.launch {
             _sessionEvents.emit(SessionEvent.SessionResumed(session))
         }
@@ -1213,6 +1373,12 @@ class SessionManager(private val context: Context) {
         stopScreenAnalysis()
 
         _activeSession.value = session.copy(isPaused = true)
+
+        logRuntimeEvent(
+            eventType = RuntimeEventType.SESSION_PAUSED,
+            session = session,
+            payload = mapOf("pause_reason" to "pause_session")
+        )
 
         Logger.d(TAG, ">>> pauseSession emitting SessionPaused event")
         scope.launch {
@@ -1240,6 +1406,14 @@ class SessionManager(private val context: Context) {
         // Clear active session
         _activeSession.value = null
         Logger.d(TAG, "!!! Session cleared (set to null)")
+
+        runtimeEventLogger.log(
+            eventType = RuntimeEventType.SESSION_ENDED,
+            sessionId = session.sessionId,
+            appPackage = session.appPackageName,
+            appDisplayName = session.appDisplayName,
+            payload = mapOf("end_reason" to reason.name)
+        )
 
         // Emit session ended event
         _sessionEvents.emit(SessionEvent.SessionEnded(session, reason))

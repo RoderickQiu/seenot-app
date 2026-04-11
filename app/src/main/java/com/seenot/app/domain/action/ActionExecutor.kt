@@ -7,6 +7,8 @@ import android.os.VibratorManager
 import com.seenot.app.data.model.InterventionLevel
 import com.seenot.app.data.repository.RuleRecordRepository
 import com.seenot.app.domain.SessionConstraint
+import com.seenot.app.observability.RuntimeEventLogger
+import com.seenot.app.observability.RuntimeEventType
 import com.seenot.app.service.SeenotAccessibilityService
 import com.seenot.app.ui.overlay.ToastOverlay
 import com.seenot.app.utils.Logger
@@ -44,6 +46,7 @@ class ActionExecutor(private val context: Context) {
     }
 
     private val ruleRecordRepository = RuleRecordRepository(context)
+    private val runtimeEventLogger = RuntimeEventLogger.getInstance(context)
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 
     private var lastActionTime = 0L
@@ -57,7 +60,8 @@ class ActionExecutor(private val context: Context) {
     fun executeUserConfirmedReturn(
         constraint: SessionConstraint,
         appName: String = "unknown",
-        packageName: String? = null
+        packageName: String? = null,
+        analysisId: String? = null
     ) {
         Logger.d(TAG, "User confirmed return for gentle intervention: ${constraint.description}")
         executeAction(
@@ -65,7 +69,8 @@ class ActionExecutor(private val context: Context) {
             constraint = constraint,
             reason = REASON_GENTLE_CONFIRMED_RETURN,
             appName = appName,
-            packageName = packageName
+            packageName = packageName,
+            analysisId = analysisId
         )
     }
 
@@ -77,7 +82,8 @@ class ActionExecutor(private val context: Context) {
         confidence: Double,
         reason: String = "violation", // "violation" or "timeout"
         appName: String = "unknown",
-        packageName: String? = null
+        packageName: String? = null,
+        analysisId: String? = null
     ) {
         Logger.d(TAG, "=== executeIntervention called ===")
         Logger.d(TAG, "Constraint: ${constraint.description}")
@@ -85,8 +91,38 @@ class ActionExecutor(private val context: Context) {
         Logger.d(TAG, "Confidence: $confidence")
         Logger.d(TAG, "Reason: $reason")
 
+        val action = determineAction(constraint.interventionLevel, confidence)
+        runtimeEventLogger.log(
+            eventType = RuntimeEventType.INTERVENTION_CANDIDATE,
+            sessionId = com.seenot.app.domain.SessionManager.getInstance(context).activeSession.value?.sessionId,
+            appPackage = packageName,
+            appDisplayName = appName,
+            payload = mapOf(
+                "analysis_id" to analysisId,
+                "constraint_id" to constraint.id,
+                "constraint_type" to constraint.type.name,
+                "intervention_level" to constraint.interventionLevel.name,
+                "confidence" to confidence,
+                "chosen_action" to action.name
+            )
+        )
+
         // Check cooldown
         if (System.currentTimeMillis() < cooldownEndTime) {
+            val remaining = cooldownEndTime - System.currentTimeMillis()
+            runtimeEventLogger.log(
+                eventType = RuntimeEventType.INTERVENTION_BLOCKED_COOLDOWN,
+                sessionId = com.seenot.app.domain.SessionManager.getInstance(context).activeSession.value?.sessionId,
+                appPackage = packageName,
+                appDisplayName = appName,
+                payload = mapOf(
+                    "analysis_id" to analysisId,
+                    "constraint_id" to constraint.id,
+                    "chosen_action" to action.name,
+                    "blocked_reason" to "cooldown",
+                    "cooldown_remaining_ms" to remaining
+                )
+            )
             Logger.d(TAG, "❌ In cooldown period (until ${cooldownEndTime - System.currentTimeMillis()}ms left), skipping action")
             return
         } else {
@@ -96,18 +132,28 @@ class ActionExecutor(private val context: Context) {
         // Check throttle
         val now = System.currentTimeMillis()
         if (now - lastActionTime < ACTION_THROTTLE_MS && lastActionType == ActionType.GO_HOME) {
+            runtimeEventLogger.log(
+                eventType = RuntimeEventType.INTERVENTION_BLOCKED_THROTTLE,
+                sessionId = com.seenot.app.domain.SessionManager.getInstance(context).activeSession.value?.sessionId,
+                appPackage = packageName,
+                appDisplayName = appName,
+                payload = mapOf(
+                    "analysis_id" to analysisId,
+                    "constraint_id" to constraint.id,
+                    "chosen_action" to action.name,
+                    "blocked_reason" to "throttle",
+                    "throttle_window_ms" to ACTION_THROTTLE_MS
+                )
+            )
             Logger.d(TAG, "❌ Action throttled (last action ${now - lastActionTime}ms ago), skipping")
             return
         }
 
         val interventionLevel = constraint.interventionLevel
         Logger.d(TAG, "Intervention level: $interventionLevel")
-
-        // Determine action based on confidence and intervention level
-        val action = determineAction(interventionLevel, confidence)
         Logger.d(TAG, "→ Determined action: $action")
 
-        executeAction(action, constraint, reason, appName, packageName)
+        executeAction(action, constraint, reason, appName, packageName, analysisId)
     }
 
     /**
@@ -163,7 +209,14 @@ class ActionExecutor(private val context: Context) {
     /**
      * Execute the action
      */
-    private fun executeAction(action: ActionType, constraint: SessionConstraint, reason: String, appName: String, packageName: String?) {
+    private fun executeAction(
+        action: ActionType,
+        constraint: SessionConstraint,
+        reason: String,
+        appName: String,
+        packageName: String?,
+        analysisId: String? = null
+    ) {
         val now = System.currentTimeMillis()
         lastActionTime = now
         lastActionType = action
@@ -176,10 +229,23 @@ class ActionExecutor(private val context: Context) {
         Logger.d(TAG, "⏰ Timestamp: $now")
         Logger.d(TAG, "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━")
 
+        runtimeEventLogger.log(
+            eventType = RuntimeEventType.INTERVENTION_EXECUTED,
+            sessionId = com.seenot.app.domain.SessionManager.getInstance(context).activeSession.value?.sessionId,
+            appPackage = packageName,
+            appDisplayName = appName,
+            payload = mapOf(
+                "analysis_id" to analysisId,
+                "constraint_id" to constraint.id,
+                "action" to action.name,
+                "reason" to reason
+            )
+        )
+
         when (action) {
             ActionType.TOAST -> executeToast(constraint)
-            ActionType.AUTO_BACK -> executeAutoBack(constraint, reason)
-            ActionType.GO_HOME -> executeGoHome(constraint, reason)
+            ActionType.AUTO_BACK -> executeAutoBack(constraint, reason, appName, packageName, analysisId)
+            ActionType.GO_HOME -> executeGoHome(constraint, reason, appName, packageName, analysisId)
             ActionType.HUD_HIGHLIGHT -> executeHudHighlight(constraint.description)
             ActionType.VIBRATE -> executeVibrate()
         }
@@ -260,7 +326,13 @@ class ActionExecutor(private val context: Context) {
     /**
      * Perform auto-back gesture
      */
-    private fun executeAutoBack(constraint: SessionConstraint, reason: String) {
+    private fun executeAutoBack(
+        constraint: SessionConstraint,
+        reason: String,
+        appName: String,
+        packageName: String?,
+        analysisId: String?
+    ) {
         Logger.d(TAG, "[executeAutoBack] Attempting auto-back gesture...")
 
         // Show toast before action
@@ -280,16 +352,47 @@ class ActionExecutor(private val context: Context) {
         if (service != null) {
             service.performBackGesture { success ->
                 Logger.d(TAG, "[executeAutoBack] Auto-back gesture result: ${if (success) "✅ SUCCESS" else "❌ FAILED"}")
+                runtimeEventLogger.log(
+                    eventType = RuntimeEventType.INTERVENTION_RESULT,
+                    sessionId = com.seenot.app.domain.SessionManager.getInstance(context).activeSession.value?.sessionId,
+                    appPackage = packageName,
+                    appDisplayName = appName,
+                    payload = mapOf(
+                        "analysis_id" to analysisId,
+                        "constraint_id" to constraint.id,
+                        "action" to ActionType.AUTO_BACK.name,
+                        "action_success" to success
+                    )
+                )
             }
         } else {
             Logger.w(TAG, "[executeAutoBack] AccessibilityService is null, cannot perform gesture")
+            runtimeEventLogger.log(
+                eventType = RuntimeEventType.INTERVENTION_RESULT,
+                sessionId = com.seenot.app.domain.SessionManager.getInstance(context).activeSession.value?.sessionId,
+                appPackage = packageName,
+                appDisplayName = appName,
+                payload = mapOf(
+                    "analysis_id" to analysisId,
+                    "constraint_id" to constraint.id,
+                    "action" to ActionType.AUTO_BACK.name,
+                    "action_success" to false,
+                    "failure_reason" to "accessibility_service_unavailable"
+                )
+            )
         }
     }
 
     /**
      * Go to home screen
      */
-    private fun executeGoHome(constraint: SessionConstraint, reason: String) {
+    private fun executeGoHome(
+        constraint: SessionConstraint,
+        reason: String,
+        appName: String,
+        packageName: String?,
+        analysisId: String?
+    ) {
         Logger.d(TAG, "[executeGoHome] Attempting to go home...")
 
         // Show toast before action
@@ -304,9 +407,34 @@ class ActionExecutor(private val context: Context) {
         if (service != null) {
             service.performHomeGesture { success ->
                 Logger.d(TAG, "[executeGoHome] Go home gesture result: ${if (success) "✅ SUCCESS" else "❌ FAILED"}")
+                runtimeEventLogger.log(
+                    eventType = RuntimeEventType.INTERVENTION_RESULT,
+                    sessionId = com.seenot.app.domain.SessionManager.getInstance(context).activeSession.value?.sessionId,
+                    appPackage = packageName,
+                    appDisplayName = appName,
+                    payload = mapOf(
+                        "analysis_id" to analysisId,
+                        "constraint_id" to constraint.id,
+                        "action" to ActionType.GO_HOME.name,
+                        "action_success" to success
+                    )
+                )
             }
         } else {
             Logger.w(TAG, "[executeGoHome] AccessibilityService is null, cannot perform gesture")
+            runtimeEventLogger.log(
+                eventType = RuntimeEventType.INTERVENTION_RESULT,
+                sessionId = com.seenot.app.domain.SessionManager.getInstance(context).activeSession.value?.sessionId,
+                appPackage = packageName,
+                appDisplayName = appName,
+                payload = mapOf(
+                    "analysis_id" to analysisId,
+                    "constraint_id" to constraint.id,
+                    "action" to ActionType.GO_HOME.name,
+                    "action_success" to false,
+                    "failure_reason" to "accessibility_service_unavailable"
+                )
+            )
         }
     }
 
@@ -346,9 +474,25 @@ class ActionExecutor(private val context: Context) {
     /**
      * Allow this once - override for false positives
      */
-    fun allowOnce() {
+    fun allowOnce(
+        constraint: SessionConstraint? = null,
+        appName: String = "unknown",
+        packageName: String? = null,
+        analysisId: String? = null
+    ) {
         Logger.d(TAG, "Allow once triggered")
         cooldownEndTime = System.currentTimeMillis() + COOLDOWN_MS
+        runtimeEventLogger.log(
+            eventType = RuntimeEventType.USER_CHOSE_ALLOW_ONCE,
+            sessionId = com.seenot.app.domain.SessionManager.getInstance(context).activeSession.value?.sessionId,
+            appPackage = packageName,
+            appDisplayName = appName,
+            payload = mapOf(
+                "analysis_id" to analysisId,
+                "constraint_id" to constraint?.id,
+                "cooldown_until" to cooldownEndTime
+            )
+        )
     }
 
     /**

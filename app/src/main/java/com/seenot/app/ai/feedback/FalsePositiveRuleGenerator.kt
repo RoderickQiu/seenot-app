@@ -15,6 +15,8 @@ import com.seenot.app.data.model.buildIntentScopedHintId
 import com.seenot.app.data.model.buildIntentScopedHintLabel
 import com.seenot.app.data.repository.AppHintRepository
 import com.seenot.app.domain.SessionConstraint
+import com.seenot.app.observability.RuntimeEventLogger
+import com.seenot.app.observability.RuntimeEventType
 import com.seenot.app.utils.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -43,6 +45,7 @@ class FalsePositiveRuleGenerator(private val context: Context) {
     }
 
     private val appHintRepository = AppHintRepository(context)
+    private val runtimeEventLogger = RuntimeEventLogger.getInstance(context)
     private val llmClient = OpenAiCompatibleClient()
 
     suspend fun generateRulePreview(
@@ -125,6 +128,20 @@ class FalsePositiveRuleGenerator(private val context: Context) {
             hintText = finalRule
         )
 
+        runtimeEventLogger.log(
+            eventType = RuntimeEventType.RULE_GENERATED,
+            sessionId = record.sessionId,
+            appPackage = packageName,
+            appDisplayName = appName,
+            payload = mapOf(
+                "rule_id" to saveResult.hint.id,
+                "source_record_id" to record.id,
+                "constraint_id" to record.constraintId,
+                "scope_type" to preview.scopeType.name,
+                "reused_existing_rule" to !saveResult.created
+            )
+        )
+
         GeneratedFalsePositiveRuleResult(
             savedHint = saveResult.hint,
             ruleText = saveResult.hint.hintText,
@@ -163,6 +180,20 @@ class FalsePositiveRuleGenerator(private val context: Context) {
             hintText = ruleText,
             source = source ?: com.seenot.app.data.model.APP_HINT_SOURCE_FEEDBACK_GENERATED,
             sourceHintId = sourceHintId
+        )
+        runtimeEventLogger.log(
+            eventType = RuntimeEventType.RULE_GENERATED,
+            sessionId = record.sessionId,
+            appPackage = packageName,
+            appDisplayName = packageName,
+            payload = mapOf(
+                "rule_id" to saveResult.hint.id,
+                "source_record_id" to record.id,
+                "constraint_id" to record.constraintId,
+                "scope_type" to scopeType.name,
+                "reused_existing_rule" to !saveResult.created,
+                "source_hint_id" to sourceHintId
+            )
         )
         GeneratedFalsePositiveRuleResult(
             savedHint = saveResult.hint,

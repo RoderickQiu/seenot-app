@@ -26,12 +26,15 @@ import com.google.gson.Gson
 import com.seenot.app.config.ApiConfig
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.RuleRecord
+import com.seenot.app.data.model.AppHint
 import com.seenot.app.data.model.buildIntentScopedHintId
 import com.seenot.app.data.repository.AppHintRepository
 import com.seenot.app.data.repository.RuleRecordRepository
 import com.seenot.app.config.RuleRecordingPrefs
 import com.seenot.app.domain.SessionConstraint
 import com.seenot.app.domain.SessionManager
+import com.seenot.app.observability.RuntimeEventLogger
+import com.seenot.app.observability.RuntimeEventType
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -81,6 +84,7 @@ class ScreenAnalyzer(
 
     private val gson = Gson()
     private val appHintRepository = AppHintRepository(context)
+    private val runtimeEventLogger = RuntimeEventLogger.getInstance(context)
     private val llmClient = OpenAiCompatibleClient()
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
@@ -118,7 +122,7 @@ class ScreenAnalyzer(
         packageName: String,
         displayName: String,
         constraints: List<SessionConstraint>,
-        onViolation: (SessionConstraint, Double) -> Unit
+        onViolation: (SessionConstraint, Double, String?) -> Unit
     ) {
         currentPackageName = packageName
         currentAppDisplayName = displayName
@@ -153,6 +157,13 @@ class ScreenAnalyzer(
 
                 val blockingOverlay = getBlockingOverlayName()
                 if (blockingOverlay != null) {
+                    runtimeEventLogger.log(
+                        eventType = RuntimeEventType.ANALYSIS_SKIPPED_OVERLAY,
+                        sessionId = SessionManager.getInstance(context).activeSession.value?.sessionId,
+                        appPackage = currentPackageName,
+                        appDisplayName = currentAppDisplayName,
+                        payload = mapOf("skipped_reason" to blockingOverlay)
+                    )
                     Logger.d(TAG, "⏸️ Blocking overlay visible ($blockingOverlay), skipping screenshot analysis")
                     continue
                 }
@@ -160,6 +171,13 @@ class ScreenAnalyzer(
                 // Capture screenshot for hash comparison FIRST (before full processing)
                 val screenshot = captureScreenshotWithDelay() ?: continue
                 if (isLikelyBlackFrame(screenshot)) {
+                    runtimeEventLogger.log(
+                        eventType = RuntimeEventType.ANALYSIS_SKIPPED_BLACK_FRAME,
+                        sessionId = SessionManager.getInstance(context).activeSession.value?.sessionId,
+                        appPackage = currentPackageName,
+                        appDisplayName = currentAppDisplayName,
+                        payload = mapOf("screenshot_hash" to computeQuickHash(screenshot))
+                    )
                     Logger.d(TAG, "⏸️ Likely black/invalid frame detected, skipping screenshot analysis")
                     screenshot.recycle()
                     resetTransientAnalysisState()
@@ -173,6 +191,17 @@ class ScreenAnalyzer(
 
                 if (isSameFrame) {
                     screenshot.recycle()
+                    val previousAnalysisId = _lastAnalysisResult.value?.analysisId
+                    runtimeEventLogger.log(
+                        eventType = RuntimeEventType.ANALYSIS_SKIPPED_SAME_FRAME,
+                        sessionId = SessionManager.getInstance(context).activeSession.value?.sessionId,
+                        appPackage = currentPackageName,
+                        appDisplayName = currentAppDisplayName,
+                        payload = mapOf(
+                            "analysis_id" to previousAnalysisId,
+                            "screenshot_hash" to quickHash
+                        )
+                    )
                     Logger.d(TAG, "🖼️ Same frame (hash: ${quickHash.take(12)}...), skipping AI")
 
                     // 画面没变但上次有 violation？这次还要干预
@@ -190,7 +219,7 @@ class ScreenAnalyzer(
                                     else -> false
                                 }
                                 if (shouldAct) {
-                                    onViolation(match.constraint, match.confidence)
+                                    onViolation(match.constraint, match.confidence, result.analysisId)
                                 }
                             }
                         }
@@ -201,7 +230,11 @@ class ScreenAnalyzer(
                 lastQuickHash = quickHash
                 Logger.d(TAG, "🆕 New frame (hash: ${quickHash.take(12)}...), analyzing")
 
-                val result = analyzeScreen(activeConstraints, screenshot)
+                val result = analyzeScreen(
+                    constraints = activeConstraints,
+                    preCapturedScreenshot = screenshot,
+                    analysisId = runtimeEventLogger.newEventId()
+                )
                 _lastAnalysisResult.value = result
 
                 // Save violation state for keyframe detection
@@ -236,7 +269,7 @@ class ScreenAnalyzer(
                         }
 
                         if (shouldAct) {
-                            onViolation(worstViolation.constraint, worstViolation.confidence)
+                            onViolation(worstViolation.constraint, worstViolation.confidence, result.analysisId)
                         }
                     }
                 } else {
@@ -312,7 +345,8 @@ class ScreenAnalyzer(
      */
     suspend fun analyzeScreen(
         constraints: List<SessionConstraint>,
-        preCapturedScreenshot: Bitmap? = null
+        preCapturedScreenshot: Bitmap? = null,
+        analysisId: String = runtimeEventLogger.newEventId()
     ): ScreenAnalysisResult {
         _isAnalyzing.value = true
 
@@ -352,6 +386,7 @@ class ScreenAnalyzer(
                     Logger.e(TAG, "❌ Failed to capture screenshot!")
                     showToast("截图失败")
                     return ScreenAnalysisResult(
+                        analysisId = analysisId,
                         timestamp = System.currentTimeMillis(),
                         success = false,
                         errorMessage = "Failed to capture screenshot",
@@ -375,7 +410,13 @@ class ScreenAnalyzer(
             // Call AI to analyze
             Logger.d(TAG, "🤖 Calling AI analysis...")
             val aiStart = System.currentTimeMillis()
-            val aiAnalysis = callAIAnalysis(processedBitmap, constraints, currentAppDisplayName ?: "", currentPackageName ?: "")
+            val aiAnalysis = callAIAnalysis(
+                screenshot = processedBitmap,
+                constraints = constraints,
+                appName = currentAppDisplayName ?: "",
+                packageName = currentPackageName ?: "",
+                analysisId = analysisId
+            )
             val aiDuration = System.currentTimeMillis() - aiStart
             Logger.d(TAG, "✅ AI analysis complete (${aiDuration}ms)")
 
@@ -390,6 +431,7 @@ class ScreenAnalyzer(
                 bitmapToRecycle = null
 
                 return ScreenAnalysisResult(
+                    analysisId = analysisId,
                     timestamp = System.currentTimeMillis(),
                     success = true,
                     screenshotHash = lastQuickHash,
@@ -436,6 +478,18 @@ class ScreenAnalyzer(
 
             // Get session ID from sessionManager
             val sessionId = sessionManager.activeSession.value?.sessionId ?: 0L
+
+            runtimeEventLogger.log(
+                eventType = RuntimeEventType.ANALYSIS_STARTED,
+                sessionId = sessionId,
+                appPackage = packageName,
+                appDisplayName = currentAppDisplayName,
+                payload = mapOf(
+                    "analysis_id" to analysisId,
+                    "constraint_ids" to constraints.map { it.id },
+                    "screenshot_hash" to lastQuickHash
+                )
+            )
             
             if (packageName != null && matches.isNotEmpty()) {
                 try {
@@ -461,6 +515,29 @@ class ScreenAnalyzer(
                             elapsedTimeMs = aiDuration
                         )
                         val savedRecord = ruleRecordRepository.saveRecord(record)
+                        runtimeEventLogger.log(
+                            eventType = RuntimeEventType.CONSTRAINT_EVALUATED,
+                            sessionId = sessionId,
+                            appPackage = packageName,
+                            appDisplayName = currentAppDisplayName,
+                            payload = mapOf(
+                                "analysis_id" to analysisId,
+                                "record_id" to savedRecord.id,
+                                "constraint_id" to match.constraint.id,
+                                "constraint_type" to match.constraint.type.name,
+                                "constraint_description" to match.constraint.description,
+                                "predicted_state" to when {
+                                    match.constraint.type == ConstraintType.TIME_CAP && match.isInScope == true -> "in_scope"
+                                    match.constraint.type == ConstraintType.TIME_CAP && match.isInScope == false -> "out_of_scope"
+                                    match.isViolation -> "violates"
+                                    else -> "safe"
+                                },
+                                "is_condition_matched" to isConditionMatched,
+                                "confidence" to match.confidence,
+                                "reason_text" to match.reason,
+                                "is_in_scope" to match.isInScope
+                            )
+                        )
 
                         // Save screenshot for the record (synchronous, before bitmap is recycled)
                         ruleRecordRepository.saveScreenshotForRecord(savedRecord.id, bitmapToSave, false)
@@ -477,7 +554,24 @@ class ScreenAnalyzer(
             bitmapToRecycle?.recycle()
             bitmapToRecycle = null
 
+            runtimeEventLogger.log(
+                eventType = RuntimeEventType.ANALYSIS_COMPLETED,
+                sessionId = sessionId,
+                appPackage = packageName,
+                appDisplayName = currentAppDisplayName,
+                payload = mapOf(
+                    "analysis_id" to analysisId,
+                    "screenshot_hash" to lastQuickHash,
+                    "ai_latency_ms" to aiDuration,
+                    "total_latency_ms" to totalDuration,
+                    "is_violation" to violations.isNotEmpty(),
+                    "highest_confidence" to violations.maxOfOrNull { it.confidence },
+                    "violated_constraint_ids" to violations.map { it.constraint.id }
+                )
+            )
+
             return ScreenAnalysisResult(
+                analysisId = analysisId,
                 timestamp = System.currentTimeMillis(),
                 success = true,
                 screenshotHash = lastQuickHash,
@@ -489,6 +583,7 @@ class ScreenAnalyzer(
             if (e.message?.contains("cancelled", ignoreCase = true) == true) {
                 Logger.d(TAG, "Analysis cancelled (user left app)")
                 return ScreenAnalysisResult(
+                    analysisId = analysisId,
                     timestamp = System.currentTimeMillis(),
                     success = false,
                     errorMessage = "Cancelled",
@@ -499,6 +594,7 @@ class ScreenAnalyzer(
             Logger.e(TAG, "❌ Analysis failed: ${e.message}", e)
             showToast("分析失败: ${e.message}")
             return ScreenAnalysisResult(
+                analysisId = analysisId,
                 timestamp = System.currentTimeMillis(),
                 success = false,
                 errorMessage = e.message,
@@ -830,14 +926,15 @@ class ScreenAnalyzer(
         screenshot: Bitmap,
         constraints: List<SessionConstraint>,
         appName: String = "",
-        packageName: String = ""
+        packageName: String = "",
+        analysisId: String
     ): ParsedAiAnalysis = withContext(Dispatchers.IO) {
 
         val imageDataUrl = "data:image/jpeg;base64,${bitmapToBase64(screenshot)}"
         Logger.d(TAG, "[AI] Image base64 size: ${imageDataUrl.length} chars")
 
         val appGeneralHints = if (packageName.isNotBlank()) {
-            appHintRepository.getHintsForAppGeneral(packageName).map { it.hintText }
+            appHintRepository.getHintsForAppGeneral(packageName)
         } else {
             emptyList()
         }
@@ -846,10 +943,26 @@ class ScreenAnalyzer(
             constraints.associate { constraint ->
                 constraint.id to appHintRepository
                     .getHintsForIntent(packageName, buildIntentScopedHintId(constraint))
-                    .map { it.hintText }
             }
         } else {
             emptyMap()
+        }
+
+        val reusedHintIds = appGeneralHints.map { it.id } + constraintHints.values.flatten().map { it.id }
+        if (reusedHintIds.isNotEmpty()) {
+            runtimeEventLogger.log(
+                eventType = RuntimeEventType.RULE_REUSED_IN_ANALYSIS,
+                sessionId = SessionManager.getInstance(context).activeSession.value?.sessionId,
+                appPackage = packageName,
+                appDisplayName = appName,
+                payload = mapOf(
+                    "analysis_id" to analysisId,
+                    "rule_ids" to reusedHintIds.distinct(),
+                    "app_general_rule_ids" to appGeneralHints.map { it.id },
+                    "constraint_rule_ids" to constraintHints.mapValues { (_, hints) -> hints.map { it.id } },
+                    "reused_count" to reusedHintIds.distinct().size
+                )
+            )
         }
 
         // Build prompt with constraints
@@ -857,8 +970,8 @@ class ScreenAnalyzer(
             constraints = constraints,
             appName = appName,
             packageName = packageName,
-            appGeneralHints = appGeneralHints,
-            constraintHints = constraintHints
+            appGeneralHints = appGeneralHints.map(AppHint::hintText),
+            constraintHints = constraintHints.mapValues { (_, hints) -> hints.map(AppHint::hintText) }
         )
         Logger.d(TAG, "[AI] Prompt length: ${prompt.length} chars")
 
@@ -1370,6 +1483,7 @@ $decisionValues
  * Screen analysis result
  */
 data class ScreenAnalysisResult(
+    val analysisId: String? = null,
     val timestamp: Long,
     val success: Boolean,
     val isDuplicate: Boolean = false,

@@ -18,6 +18,15 @@ android {
         // Load API key from local.properties (not committed to git)
         val dashscopeKey = project.findProperty("DASHSCOPE_API_KEY") as? String ?: ""
         buildConfigField("String", "DASHSCOPE_API_KEY", "\"$dashscopeKey\"")
+        val runtimeEventLoggingEnabled =
+            (project.findProperty("SEENOT_ENABLE_RUNTIME_EVENT_LOGGING") as? String)
+                ?.toBooleanStrictOrNull()
+                ?: false
+        buildConfigField(
+            "boolean",
+            "ENABLE_RUNTIME_EVENT_LOGGING",
+            runtimeEventLoggingEnabled.toString()
+        )
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
         vectorDrawables {

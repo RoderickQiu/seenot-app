@@ -27,6 +27,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.seenot.app.BuildConfig
 import com.seenot.app.config.ApiConfig
 import com.seenot.app.config.AiProvider
 import com.seenot.app.config.ApiSettings
@@ -57,6 +58,7 @@ import com.seenot.app.data.model.buildAppGeneralScopeLabel
 import com.seenot.app.data.model.buildIntentScopedHintId
 import com.seenot.app.data.model.buildIntentScopedHintLabel
 import com.seenot.app.domain.SessionConstraint
+import com.seenot.app.observability.RuntimeEventLogger
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import com.seenot.app.ui.overlay.VoiceInputState
@@ -3372,6 +3374,8 @@ fun ExportDialog(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     val configurationExporter = remember { ConfigurationExporter(context) }
+    val runtimeEventLogger = remember { RuntimeEventLogger.getInstance(context) }
+    val runtimeEventEnabled = BuildConfig.ENABLE_RUNTIME_EVENT_LOGGING
 
     var startDate by remember { mutableStateOf("") }
     var endDate by remember { mutableStateOf("") }
@@ -3423,9 +3427,22 @@ fun ExportDialog(
                     .verticalScroll(rememberScrollState()),
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                TabRow(selectedTabIndex = selectedExportTab) {
+                val availableTabs = buildList {
+                    add("应用和规则")
+                    add("日志")
+                    if (runtimeEventEnabled) {
+                        add("运行事件")
+                    }
+                }
+                val safeSelectedTab = selectedExportTab.coerceIn(0, availableTabs.lastIndex)
+
+                if (safeSelectedTab != selectedExportTab) {
+                    selectedExportTab = safeSelectedTab
+                }
+
+                TabRow(selectedTabIndex = safeSelectedTab) {
                     Tab(
-                        selected = selectedExportTab == 0,
+                        selected = safeSelectedTab == 0,
                         onClick = {
                             selectedExportTab = 0
                             exportMessage = ""
@@ -3433,16 +3450,26 @@ fun ExportDialog(
                         text = { Text("应用和规则") }
                     )
                     Tab(
-                        selected = selectedExportTab == 1,
+                        selected = safeSelectedTab == 1,
                         onClick = {
                             selectedExportTab = 1
                             exportMessage = ""
                         },
                         text = { Text("日志") }
                     )
+                    if (runtimeEventEnabled) {
+                        Tab(
+                            selected = safeSelectedTab == 2,
+                            onClick = {
+                                selectedExportTab = 2
+                                exportMessage = ""
+                            },
+                            text = { Text("运行事件") }
+                        )
+                    }
                 }
 
-                if (selectedExportTab == 0) {
+                if (safeSelectedTab == 0) {
                     Text(
                         text = "导出当前监控应用、预设意图、默认意图、最近意图历史和 AI 补充说明。",
                         style = MaterialTheme.typography.bodyMedium,
@@ -3503,7 +3530,7 @@ fun ExportDialog(
                             Text("导入")
                         }
                     }
-                } else {
+                } else if (safeSelectedTab == 1) {
                     Text(
                         text = "分享全部日志，或按日期范围分享日志。",
                         style = MaterialTheme.typography.bodyMedium,
@@ -3607,6 +3634,118 @@ fun ExportDialog(
                                 )
                             } else {
                                 Text("分享范围")
+                            }
+                        }
+                    }
+                } else {
+                    Text(
+                        text = "导出结构化运行事件 JSONL，可按时间范围筛选。",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
+                    OutlinedTextField(
+                        value = startDate,
+                        onValueChange = { startDate = it },
+                        label = { Text("开始日期 (yyyy-MM-dd)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isExporting
+                    )
+
+                    OutlinedTextField(
+                        value = endDate,
+                        onValueChange = { endDate = it },
+                        label = { Text("结束日期 (yyyy-MM-dd)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        enabled = !isExporting
+                    )
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        OutlinedButton(
+                            onClick = {
+                                scope.launch {
+                                    isExporting = true
+                                    exportMessage = "正在导出运行事件..."
+                                    try {
+                                        val uri = runtimeEventLogger.exportAll { progress ->
+                                            exportMessage = progress
+                                        }
+                                        if (uri != null) {
+                                            runtimeEventLogger.shareExportedFile(uri) { error ->
+                                                exportMessage = error
+                                            }
+                                            if (!exportMessage.contains("失败")) {
+                                                exportMessage = "运行事件导出成功！"
+                                            }
+                                        }
+                                    } catch (e: Exception) {
+                                        exportMessage = "运行事件导出失败: ${e.message}"
+                                    } finally {
+                                        isExporting = false
+                                    }
+                                }
+                            },
+                            enabled = !isExporting,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            if (isExporting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp
+                                )
+                            } else {
+                                Text("导出全部")
+                            }
+                        }
+
+                        Button(
+                            onClick = {
+                                scope.launch {
+                                    isExporting = true
+                                    exportMessage = "正在导出运行事件..."
+                                    try {
+                                        val dateFormat = java.text.SimpleDateFormat(
+                                            "yyyy-MM-dd",
+                                            java.util.Locale.getDefault()
+                                        )
+                                        val start = dateFormat.parse(startDate)
+                                        val end = dateFormat.parse(endDate)
+                                        if (start != null && end != null) {
+                                            val uri = runtimeEventLogger.export(start, end) { progress ->
+                                                exportMessage = progress
+                                            }
+                                            if (uri != null) {
+                                                runtimeEventLogger.shareExportedFile(uri) { error ->
+                                                    exportMessage = error
+                                                }
+                                                if (!exportMessage.contains("失败")) {
+                                                    exportMessage = "运行事件导出成功！"
+                                                }
+                                            }
+                                        } else {
+                                            exportMessage = "日期格式错误"
+                                        }
+                                    } catch (e: Exception) {
+                                        exportMessage = "运行事件导出失败: ${e.message}"
+                                    } finally {
+                                        isExporting = false
+                                    }
+                                }
+                            },
+                            enabled = !isExporting && startDate.isNotEmpty() && endDate.isNotEmpty(),
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            if (isExporting) {
+                                CircularProgressIndicator(
+                                    modifier = Modifier.size(16.dp),
+                                    strokeWidth = 2.dp,
+                                    color = MaterialTheme.colorScheme.onPrimary
+                                )
+                            } else {
+                                Text("导出范围")
                             }
                         }
                     }
