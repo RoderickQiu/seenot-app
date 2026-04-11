@@ -489,15 +489,7 @@ class SessionManager(private val context: Context) {
     private fun shouldInterceptViolationWithDialog(
         constraint: SessionConstraint
     ): Boolean {
-        if (constraint.type == ConstraintType.TIME_CAP) {
-            return false
-        }
-
-        if (constraint.interventionLevel == InterventionLevel.GENTLE) {
-            return false
-        }
-
-        return true
+        return constraint.type != ConstraintType.TIME_CAP
     }
 
     private fun showInterventionFeedbackDialog(
@@ -505,11 +497,20 @@ class SessionManager(private val context: Context) {
         constraint: SessionConstraint,
         confidence: Double
     ) {
+        val isGentle = constraint.interventionLevel == InterventionLevel.GENTLE
         scope.launch {
             InterventionFeedbackDialogOverlay.show(
                 context = context,
                 appName = session.appDisplayName,
                 constraintDescription = constraint.description,
+                titleText = if (isGentle) "先停一下" else "先停一下？",
+                subtitleText = if (isGentle) {
+                    "你现在偏离了刚才想做的事"
+                } else {
+                    "看起来你正在偏离刚才的目标"
+                },
+                primaryButtonText = if (isGentle) "回到正事" else "退出",
+                secondaryButtonText = if (isGentle) "我知道了，但还是继续" else null,
                 onFalsePositive = {
                     dialogReentryCooldownUntil =
                         System.currentTimeMillis() + DIALOG_REENTRY_COOLDOWN_MS
@@ -537,16 +538,32 @@ class SessionManager(private val context: Context) {
                         }
                     )
                 },
-                onExit = {
+                onPrimaryAction = {
                     dialogReentryCooldownUntil =
                         System.currentTimeMillis() + DIALOG_REENTRY_COOLDOWN_MS
-                    actionExecutor?.executeIntervention(
-                        constraint,
-                        confidence,
-                        "violation",
-                        session.appDisplayName,
-                        session.appPackageName
-                    )
+                    if (isGentle) {
+                        actionExecutor?.executeUserConfirmedReturn(
+                            constraint = constraint,
+                            appName = session.appDisplayName,
+                            packageName = session.appPackageName
+                        )
+                    } else {
+                        actionExecutor?.executeIntervention(
+                            constraint,
+                            confidence,
+                            "violation",
+                            session.appDisplayName,
+                            session.appPackageName
+                        )
+                    }
+                },
+                onSecondaryAction = if (isGentle) {
+                    {
+                        dialogReentryCooldownUntil =
+                            System.currentTimeMillis() + DIALOG_REENTRY_COOLDOWN_MS
+                    }
+                } else {
+                    null
                 }
             )
         }

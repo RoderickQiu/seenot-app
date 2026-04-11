@@ -435,13 +435,26 @@ private fun mergeNearbyIntervals(intervals: List<Interval>, maxGapMs: Long): Lis
 private fun localizeActionTitle(actionType: String?, actionReason: String?): String {
     val type = actionType.orEmpty().uppercase(Locale.ROOT)
     return when (type) {
-        "TOAST" -> if (actionReason == "timeout") "时间到提醒" else "违规提醒"
-        "AUTO_BACK" -> if (actionReason == "timeout") "时间到，自动返回" else "检测到违规，自动返回"
-        "GO_HOME" -> if (actionReason == "timeout") "时间到，返回主屏幕" else "严重违规，返回主屏幕"
+        "TOAST" -> when (actionReason) {
+            "timeout" -> "时间到提醒"
+            "gentle_confirmed_return" -> "用户确认后返回"
+            else -> "违规提醒"
+        }
+        "AUTO_BACK" -> when (actionReason) {
+            "timeout" -> "时间到，自动返回"
+            "gentle_confirmed_return" -> "你选择了回到正事"
+            else -> "检测到违规，自动返回"
+        }
+        "GO_HOME" -> when (actionReason) {
+            "timeout" -> "时间到，返回主屏幕"
+            "gentle_confirmed_return" -> "你选择了结束当前内容"
+            else -> "严重违规，返回主屏幕"
+        }
         "HUD_HIGHLIGHT" -> "高亮警告"
         "VIBRATE" -> "震动提醒"
         else -> when (actionReason) {
             "timeout" -> "时间到动作"
+            "gentle_confirmed_return" -> "用户确认动作"
             "violation" -> "违规动作"
             else -> "系统动作"
         }

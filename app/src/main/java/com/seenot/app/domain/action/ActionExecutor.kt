@@ -4,7 +4,6 @@ import android.content.Context
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.os.VibratorManager
-import android.widget.Toast
 import com.seenot.app.data.model.InterventionLevel
 import com.seenot.app.data.repository.RuleRecordRepository
 import com.seenot.app.domain.SessionConstraint
@@ -35,6 +34,7 @@ class ActionExecutor(private val context: Context) {
 
     companion object {
         private const val TAG = "ActionExecutor"
+        const val REASON_GENTLE_CONFIRMED_RETURN = "gentle_confirmed_return"
 
         // Cooldown after forced actions (ms)
         private const val COOLDOWN_MS = 30_000L // 30 seconds
@@ -53,6 +53,21 @@ class ActionExecutor(private val context: Context) {
     // Callback for HUD updates
     private var onViolationWarning: ((String) -> Unit)? = null
     private var onActionTaken: ((ActionType) -> Unit)? = null
+
+    fun executeUserConfirmedReturn(
+        constraint: SessionConstraint,
+        appName: String = "unknown",
+        packageName: String? = null
+    ) {
+        Logger.d(TAG, "User confirmed return for gentle intervention: ${constraint.description}")
+        executeAction(
+            action = ActionType.AUTO_BACK,
+            constraint = constraint,
+            reason = REASON_GENTLE_CONFIRMED_RETURN,
+            appName = appName,
+            packageName = packageName
+        )
+    }
 
     /**
      * Execute intervention based on constraint and confidence
@@ -163,8 +178,8 @@ class ActionExecutor(private val context: Context) {
 
         when (action) {
             ActionType.TOAST -> executeToast(constraint)
-            ActionType.AUTO_BACK -> executeAutoBack(constraint)
-            ActionType.GO_HOME -> executeGoHome(constraint)
+            ActionType.AUTO_BACK -> executeAutoBack(constraint, reason)
+            ActionType.GO_HOME -> executeGoHome(constraint, reason)
             ActionType.HUD_HIGHLIGHT -> executeHudHighlight(constraint.description)
             ActionType.VIBRATE -> executeVibrate()
         }
@@ -245,12 +260,13 @@ class ActionExecutor(private val context: Context) {
     /**
      * Perform auto-back gesture
      */
-    private fun executeAutoBack(constraint: SessionConstraint) {
+    private fun executeAutoBack(constraint: SessionConstraint, reason: String) {
         Logger.d(TAG, "[executeAutoBack] Attempting auto-back gesture...")
 
         // Show toast before action
-        val message = when (constraint.type) {
-            com.seenot.app.data.model.ConstraintType.TIME_CAP -> "⏰ 时间到，自动返回"
+        val message = when {
+            reason == REASON_GENTLE_CONFIRMED_RETURN -> "已帮你回到刚才的目标"
+            constraint.type == com.seenot.app.data.model.ConstraintType.TIME_CAP -> "⏰ 时间到，自动返回"
             else -> "⚠️ 违规，自动返回"
         }
         
@@ -273,12 +289,13 @@ class ActionExecutor(private val context: Context) {
     /**
      * Go to home screen
      */
-    private fun executeGoHome(constraint: SessionConstraint) {
+    private fun executeGoHome(constraint: SessionConstraint, reason: String) {
         Logger.d(TAG, "[executeGoHome] Attempting to go home...")
 
         // Show toast before action
-        val message = when (constraint.type) {
-            com.seenot.app.data.model.ConstraintType.TIME_CAP -> "⏰ 时间到，返回主屏幕"
+        val message = when {
+            reason == REASON_GENTLE_CONFIRMED_RETURN -> "已结束当前分心内容"
+            constraint.type == com.seenot.app.data.model.ConstraintType.TIME_CAP -> "⏰ 时间到，返回主屏幕"
             else -> "⚠️ 严重违规，返回主屏幕"
         }
         ToastOverlay.show(context, message)

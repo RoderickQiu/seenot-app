@@ -25,8 +25,13 @@ class InterventionFeedbackDialogOverlay(
     private val context: Context,
     private val appName: String,
     private val constraintDescription: String,
+    private val titleText: String,
+    private val subtitleText: String,
+    private val primaryButtonText: String,
+    private val secondaryButtonText: String?,
     private val onFalsePositive: () -> Unit,
-    private val onExit: () -> Unit
+    private val onPrimaryAction: () -> Unit,
+    private val onSecondaryAction: (() -> Unit)? = null
 ) {
     companion object {
         private const val TAG = "InterventionDialog"
@@ -39,16 +44,26 @@ class InterventionFeedbackDialogOverlay(
             context: Context,
             appName: String,
             constraintDescription: String,
+            titleText: String = "先停一下？",
+            subtitleText: String = "看起来你正在偏离刚才的目标",
+            primaryButtonText: String = "退出",
+            secondaryButtonText: String? = null,
             onFalsePositive: () -> Unit,
-            onExit: () -> Unit
+            onPrimaryAction: () -> Unit,
+            onSecondaryAction: (() -> Unit)? = null
         ) {
             dismiss()
             val dialog = InterventionFeedbackDialogOverlay(
                 context = context,
                 appName = appName,
                 constraintDescription = constraintDescription,
+                titleText = titleText,
+                subtitleText = subtitleText,
+                primaryButtonText = primaryButtonText,
+                secondaryButtonText = secondaryButtonText,
                 onFalsePositive = onFalsePositive,
-                onExit = onExit
+                onPrimaryAction = onPrimaryAction,
+                onSecondaryAction = onSecondaryAction
             )
             dialog.show()
             currentDialog = dialog.takeIf { it.rootView != null }
@@ -122,7 +137,7 @@ class InterventionFeedbackDialogOverlay(
         card.addView(appLabel)
 
         val title = TextView(context).apply {
-            text = "先停一下？"
+            text = titleText
             textSize = 22f
             setTextColor(primaryTextColor)
             typeface = Typeface.DEFAULT_BOLD
@@ -137,7 +152,7 @@ class InterventionFeedbackDialogOverlay(
         card.addView(title)
 
         val subtitle = TextView(context).apply {
-            text = "看起来你正在偏离刚才的目标"
+            text = subtitleText
             textSize = 15f
             setTextColor(primaryTextColor)
             gravity = Gravity.CENTER
@@ -174,19 +189,33 @@ class InterventionFeedbackDialogOverlay(
         }
         card.addView(falsePositiveButton)
 
-        val exitButton = buildButton(
-            text = "退出",
+        if (!secondaryButtonText.isNullOrBlank()) {
+            val secondaryButton = buildButton(
+                text = secondaryButtonText,
+                backgroundColor = falsePositiveColor,
+                textColor = primaryTextColor
+            ) {
+                dismiss()
+                onSecondaryAction?.invoke()
+            }.apply {
+                (layoutParams as LinearLayout.LayoutParams).topMargin = 10.dp()
+            }
+            card.addView(secondaryButton)
+        }
+
+        val primaryButton = buildButton(
+            text = primaryButtonText,
             backgroundColor = exitColor,
             textColor = Color.WHITE
         ) {
             dismiss()
             Handler(Looper.getMainLooper()).postDelayed({
-                onExit()
+                onPrimaryAction()
             }, EXIT_ACTION_DELAY_MS)
         }.apply {
             (layoutParams as LinearLayout.LayoutParams).topMargin = 10.dp()
         }
-        card.addView(exitButton)
+        card.addView(primaryButton)
 
         dimBg.addView(card)
         rootView = dimBg
