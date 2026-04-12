@@ -21,11 +21,6 @@
     <string name="permission_status">权限状态</string>
     <string name="permissions_enabled">所有权限已开启，可以正常使用</string>
     <string name="permissions_disabled">请开启所有必要权限</string>
-    <string name="usage_guide">使用说明</string>
-    <string name="step_1">在「应用」页面选择要管理的 App</string>
-    <string name="step_2">打开受控 App 时，语音声明你的意图</string>
-    <string name="step_3">AI 会实时守护你的意图，发现违规时提醒或干预</string>
-    <string name="example_utterance">例如：「只看工作消息，10分钟」</string>
 
     <!-- Apps -->
     <string name="search_apps">搜索应用...</string>

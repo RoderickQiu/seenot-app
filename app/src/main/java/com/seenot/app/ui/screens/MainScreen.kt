@@ -18,6 +18,7 @@ import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -82,6 +83,7 @@ fun MainScreen(
 ) {
     val context = LocalContext.current
     var showHomeTimeline by remember { mutableStateOf(RuleRecordingPrefs.isHomeTimelineEnabled(context)) }
+    var showAiSettingsDialog by remember { mutableStateOf(false) }
 
     // State
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -150,9 +152,10 @@ fun MainScreen(
             android.content.pm.PackageManager.PERMISSION_GRANTED
     }
 
-    // Determine if all permissions are granted
-    val allPermissionsGranted = isAccessibilityEnabled && isOverlayEnabled &&
-        isNotificationEnabled && isMicrophoneEnabled
+    // Determine if required permissions are granted. Microphone is optional because text input works.
+    val allPermissionsGranted = isAccessibilityEnabled && isOverlayEnabled && isNotificationEnabled
+    val isAiConfigured = remember(showAiSettingsDialog) { ApiConfig.isConfigured() }
+    val isHomeReady = allPermissionsGranted && isAiConfigured
 
     if (showRuleRecordsPage) {
         val repository = remember { RuleRecordRepository(context) }
@@ -201,6 +204,8 @@ fun MainScreen(
                         isNotificationEnabled = isNotificationEnabled,
                         isMicrophoneEnabled = isMicrophoneEnabled,
                         allPermissionsGranted = allPermissionsGranted,
+                        isAiConfigured = isAiConfigured,
+                        isHomeReady = isHomeReady,
                         onEnableAccessibility = {
                             context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
                         },
@@ -212,12 +217,15 @@ fun MainScreen(
                         onRequestMicrophone = {
                             microphonePermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
                         },
+                        onOpenAiSettings = { showAiSettingsDialog = true },
                         showHomeTimeline = showHomeTimeline,
                         modifier = Modifier.padding(padding)
                     )
                     1 -> AppsTab(modifier = Modifier.padding(padding))
                     2 -> SettingsTab(
                         modifier = Modifier.padding(padding),
+                        aiSettingsRefreshKey = showAiSettingsDialog,
+                        onOpenAiSettings = { showAiSettingsDialog = true },
                         onOpenRuleRecordingSettings = { showRuleRecordingSettings = true },
                         onOpenRuleRecords = { showRuleRecordsPage = true }
                     )
@@ -279,6 +287,12 @@ fun MainScreen(
             }
         )
     }
+
+    if (showAiSettingsDialog) {
+        AiModelSettingsDialog(
+            onDismiss = { showAiSettingsDialog = false }
+        )
+    }
 }
 
 /**
@@ -291,13 +305,17 @@ fun HomeTab(
     isNotificationEnabled: Boolean,
     isMicrophoneEnabled: Boolean,
     allPermissionsGranted: Boolean,
+    isAiConfigured: Boolean,
+    isHomeReady: Boolean,
     onEnableAccessibility: () -> Unit,
     onEnableOverlay: () -> Unit,
     onRequestMicrophone: () -> Unit,
+    onOpenAiSettings: () -> Unit,
     showHomeTimeline: Boolean,
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
+    var showCompletedConfigDetails by rememberSaveable { mutableStateOf(false) }
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -320,8 +338,8 @@ fun HomeTab(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Permission section - only show if not all permissions granted
-        if (!allPermissionsGranted) {
+        // Permission section - always reachable; expanded by default until required setup is complete.
+        if (!isHomeReady || showCompletedConfigDetails) {
             Text(
                 text = "权限状态",
                 style = MaterialTheme.typography.titleMedium,
@@ -360,20 +378,82 @@ fun HomeTab(
 
             Spacer(modifier = Modifier.height(8.dp))
 
-            // Microphone Permission
             PermissionCard(
-                title = "麦克风权限",
+                title = "麦克风权限（可选）",
                 description = "用于语音输入声明意图",
                 isEnabled = isMicrophoneEnabled,
                 onClick = onRequestMicrophone
             )
 
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Spacer(modifier = Modifier.height(24.dp))
+        }
+
+        if (!isHomeReady || showCompletedConfigDetails) {
+            Text(
+                text = "AI 设置",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenAiSettings() }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        if (isAiConfigured) Icons.Default.CheckCircle else Icons.Default.Tune,
+                        contentDescription = null,
+                        tint = if (isAiConfigured) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.secondary
+                        }
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "AI 设置",
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = if (isAiConfigured) {
+                                "已完成配置，点按修改 provider、模型或 API Key"
+                            } else {
+                                "尚未配置，点按完成 AI 设置"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Icon(
+                        Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
             Spacer(modifier = Modifier.height(24.dp))
         }
 
         // Status Summary
-        if (allPermissionsGranted) {
+        if (isHomeReady) {
             Card(
+                modifier = Modifier.clickable {
+                    showCompletedConfigDetails = !showCompletedConfigDetails
+                },
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.primaryContainer
                 )
@@ -390,9 +470,22 @@ fun HomeTab(
                         tint = MaterialTheme.colorScheme.primary
                     )
                     Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = "所有权限已开启，可以正常使用",
-                        style = MaterialTheme.typography.bodyLarge
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = "基础配置已完成，可以正常使用",
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                        Text(
+                            text = if (showCompletedConfigDetails) "点按收起权限与配置入口" else "点按展开权限与配置入口",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onPrimaryContainer
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Icon(
+                        if (showCompletedConfigDetails) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary
                     )
                 }
             }
@@ -415,7 +508,7 @@ fun HomeTab(
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "请开启所有必要权限",
+                        text = "请先完成必要权限和 AI 配置",
                         style = MaterialTheme.typography.bodyLarge
                     )
                 }
@@ -437,21 +530,23 @@ fun HomeTab(
             Column(modifier = Modifier.padding(16.dp)) {
                 StepItem(number = 1, text = "在「应用」页面选择要管理的 App")
                 Spacer(modifier = Modifier.height(8.dp))
-                StepItem(number = 2, text = "打开受控 App 时，语音声明你的意图")
+                StepItem(number = 2, text = "打开受控 App 时，声明你的意图")
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "例如：「只看工作消息，10分钟」",
+                    text = "例如：「只看工作消息，10分钟」。你可以用语音，也可以直接输入。",
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                StepItem(number = 3, text = "AI 会实时守护你的意图，发现违规时提醒或干预")
+                StepItem(number = 3, text = "AI 会实时守护你的意图，并适时提醒或干预")
+                Spacer(modifier = Modifier.height(8.dp))
+                StepItem(number = 4, text = "若系统理解错了，可随时报误报让 AI 修正")
             }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        if (showHomeTimeline) {
+        if (isHomeReady && showHomeTimeline) {
             // Today's timeline (derived from RuleRecord)
             HomeTimelineSection()
         }
@@ -2063,6 +2158,8 @@ fun AppItem(
 @Composable
 fun SettingsTab(
     modifier: Modifier = Modifier,
+    aiSettingsRefreshKey: Boolean = false,
+    onOpenAiSettings: () -> Unit = {},
     onOpenRuleRecordingSettings: () -> Unit = {},
     onOpenRuleRecords: () -> Unit = {}
 ) {
@@ -2071,8 +2168,7 @@ fun SettingsTab(
 
     var selectedLanguage by remember { mutableStateOf("zh") }
     var autoStart by remember { mutableStateOf(sessionManager.isAutoStartEnabled()) }
-    var showAiSettingsDialog by remember { mutableStateOf(false) }
-    val aiSettings = remember(showAiSettingsDialog) { ApiConfig.getSettings() }
+    val aiSettings = remember(aiSettingsRefreshKey) { ApiConfig.getSettings() }
     val aiPresetLabel = remember(aiSettings) {
         recommendedModelPresets(aiSettings.provider, aiSettings.qwenRegion)
             .firstOrNull { it.model == aiSettings.model }
@@ -2108,7 +2204,7 @@ fun SettingsTab(
         )
         Spacer(modifier = Modifier.height(8.dp))
         OutlinedButton(
-            onClick = { showAiSettingsDialog = true },
+            onClick = onOpenAiSettings,
             modifier = Modifier.fillMaxWidth()
         ) {
             Icon(Icons.Default.Tune, contentDescription = null)
@@ -2241,11 +2337,6 @@ fun SettingsTab(
         )
     }
 
-    if (showAiSettingsDialog) {
-        AiModelSettingsDialog(
-            onDismiss = { showAiSettingsDialog = false }
-        )
-    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

@@ -249,7 +249,11 @@ class IntentInputDialogOverlay(
 
         // Subtitle
         val subtitle = TextView(context).apply {
-            text = "可以说话，也可以直接键盘输入"
+            text = if (hasAudioPermission) {
+                "可以说话，也可以直接键盘输入"
+            } else {
+                "直接键盘输入声明意图"
+            }
             textSize = 14f
             setTextColor(subtleTextColor)
             gravity = Gravity.CENTER
@@ -260,39 +264,41 @@ class IntentInputDialogOverlay(
         }
         card.addView(subtitle)
 
-        // Mic button container
-        val micSize = 72.dp()
-        micButton = FrameLayout(context).apply {
-            layoutParams = LinearLayout.LayoutParams(micSize, micSize).apply {
-                bottomMargin = 12.dp()
+        if (hasAudioPermission) {
+            // Mic button container
+            val micSize = 72.dp()
+            micButton = FrameLayout(context).apply {
+                layoutParams = LinearLayout.LayoutParams(micSize, micSize).apply {
+                    bottomMargin = 12.dp()
+                }
             }
-        }
 
-        micBg = View(context).apply {
-            layoutParams = FrameLayout.LayoutParams(micSize, micSize)
-            background = GradientDrawable().apply {
-                shape = GradientDrawable.OVAL
-                setColor(primaryColor)
+            micBg = View(context).apply {
+                layoutParams = FrameLayout.LayoutParams(micSize, micSize)
+                background = GradientDrawable().apply {
+                    shape = GradientDrawable.OVAL
+                    setColor(primaryColor)
+                }
             }
-        }
-        micButton?.addView(micBg)
+            micButton?.addView(micBg)
 
-        micIcon = ImageView(context).apply {
-            setImageResource(android.R.drawable.ic_btn_speak_now)
-            scaleType = ImageView.ScaleType.CENTER_INSIDE
-            layoutParams = FrameLayout.LayoutParams(micSize, micSize).apply {
-                gravity = Gravity.CENTER
+            micIcon = ImageView(context).apply {
+                setImageResource(android.R.drawable.ic_btn_speak_now)
+                scaleType = ImageView.ScaleType.CENTER_INSIDE
+                layoutParams = FrameLayout.LayoutParams(micSize, micSize).apply {
+                    gravity = Gravity.CENTER
+                }
+                setColorFilter(Color.WHITE)
             }
-            setColorFilter(Color.WHITE)
-        }
-        micButton?.addView(micIcon)
+            micButton?.addView(micIcon)
 
-        micButton?.setOnClickListener { handleMicClick() }
-        card.addView(micButton)
+            micButton?.setOnClickListener { handleMicClick() }
+            card.addView(micButton)
+        }
 
         // Status text
         statusText = TextView(context).apply {
-            text = "点击开始录音"
+            text = if (hasAudioPermission) "点击开始录音" else "未开启麦克风权限，可直接键盘输入"
             textSize = 13f
             setTextColor(subtleTextColor)
             gravity = Gravity.CENTER
