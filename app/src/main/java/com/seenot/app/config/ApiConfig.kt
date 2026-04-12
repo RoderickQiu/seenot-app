@@ -418,15 +418,15 @@ enum class QwenRegion(
     val baseUrl: String
 ) {
     BEIJING(
-        displayName = "中国大陆（北京）",
+        displayName = "中国大陆",
         baseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1"
     ),
     SINGAPORE(
-        displayName = "国际（Singapore）",
+        displayName = "国际",
         baseUrl = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
     ),
     VIRGINIA(
-        displayName = "美东（Virginia）",
+        displayName = "美东",
         baseUrl = "https://dashscope-us.aliyuncs.com/compatible-mode/v1"
     )
 }

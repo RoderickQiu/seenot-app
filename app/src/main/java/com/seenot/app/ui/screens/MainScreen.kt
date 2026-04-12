@@ -95,7 +95,6 @@ fun MainScreen(
     var currentVoiceInputPackage by remember { mutableStateOf(voiceInputPackageName) }
 
     // Rule records state
-    var showRuleRecordingSettings by remember { mutableStateOf(false) }
     var showRuleRecordsPage by remember { mutableStateOf(false) }
 
     // Activity result launcher for overlay permission
@@ -226,7 +225,7 @@ fun MainScreen(
                         modifier = Modifier.padding(padding),
                         aiSettingsRefreshKey = showAiSettingsDialog,
                         onOpenAiSettings = { showAiSettingsDialog = true },
-                        onOpenRuleRecordingSettings = { showRuleRecordingSettings = true },
+                        onHomeTimelineChanged = { showHomeTimeline = it },
                         onOpenRuleRecords = { showRuleRecordsPage = true }
                     )
                 }
@@ -274,18 +273,6 @@ fun MainScreen(
                 }
             }
         }
-    }
-
-    // Rule Recording Settings Dialog
-    if (showRuleRecordingSettings) {
-        val repository = remember { RuleRecordRepository(context) }
-        RuleRecordingSettingsDialog(
-            repository = repository,
-            onDismiss = {
-                showRuleRecordingSettings = false
-                showHomeTimeline = RuleRecordingPrefs.isHomeTimelineEnabled(context)
-            }
-        )
     }
 
     if (showAiSettingsDialog) {
@@ -2160,14 +2147,22 @@ fun SettingsTab(
     modifier: Modifier = Modifier,
     aiSettingsRefreshKey: Boolean = false,
     onOpenAiSettings: () -> Unit = {},
-    onOpenRuleRecordingSettings: () -> Unit = {},
+    onHomeTimelineChanged: (Boolean) -> Unit = {},
     onOpenRuleRecords: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val sessionManager = remember { SessionManager.getInstance(context) }
+    val repository = remember { RuleRecordRepository(context) }
+    val scope = rememberCoroutineScope()
 
-    var selectedLanguage by remember { mutableStateOf("zh") }
     var autoStart by remember { mutableStateOf(sessionManager.isAutoStartEnabled()) }
+    var saveRuleRecords by remember { mutableStateOf(RuleRecordingPrefs.isEnabled(context)) }
+    var showHomeTimeline by remember { mutableStateOf(RuleRecordingPrefs.isHomeTimelineEnabled(context)) }
+    var showAnalysisResultToast by remember { mutableStateOf(RuleRecordingPrefs.isAnalysisResultToastEnabled(context)) }
+    var screenshotMode by remember { mutableStateOf(RuleRecordingPrefs.getScreenshotMode(context)) }
+    var screenshotDropdownExpanded by remember { mutableStateOf(false) }
+    var showLogExportDialog by remember { mutableStateOf(false) }
+    var showDeleteConfirm by remember { mutableStateOf(false) }
     val aiSettings = remember(aiSettingsRefreshKey) { ApiConfig.getSettings() }
     val aiPresetLabel = remember(aiSettings) {
         recommendedModelPresets(aiSettings.provider, aiSettings.qwenRegion)
@@ -2175,13 +2170,45 @@ fun SettingsTab(
             ?.model
             ?: aiSettings.model
     }
+    val screenshotModeOptions = listOf(
+        RuleRecordingPrefs.ScreenshotMode.ALL to "保存所有截图",
+        RuleRecordingPrefs.ScreenshotMode.MATCHED_ONLY to "只在有相关判断时保存截图",
+        RuleRecordingPrefs.ScreenshotMode.NONE to "不保存截图"
+    )
+    val selectedScreenshotLabel = screenshotModeOptions.find { it.first == screenshotMode }?.second
+        ?: screenshotModeOptions.first().second
     val aiButtonLabel = remember(aiSettings) {
         when {
             aiSettings.model.isBlank() -> "设置模型"
             aiSettings.provider == AiProvider.DASHSCOPE ->
-                "Qwen · $aiPresetLabel · ${aiSettings.qwenRegion.displayName}"
+                "Qwen · $aiPresetLabel"
             else -> "${aiSettings.provider.displayName} · $aiPresetLabel"
         }
+    }
+
+    if (showDeleteConfirm) {
+        AlertDialog(
+            onDismissRequest = { showDeleteConfirm = false },
+            title = { Text("清空记录") },
+            text = { Text("确定要删除所有判断记录吗？此操作无法撤销。") },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        scope.launch {
+                            repository.clearAllRecords()
+                        }
+                        showDeleteConfirm = false
+                    }
+                ) {
+                    Text("删除", color = MaterialTheme.colorScheme.error)
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDeleteConfirm = false }) {
+                    Text("取消")
+                }
+            }
+        )
     }
 
     Column(
@@ -2198,92 +2225,40 @@ fun SettingsTab(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        Text(
-            text = "AI 模型",
-            style = MaterialTheme.typography.titleMedium
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        OutlinedButton(
-            onClick = onOpenAiSettings,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Icon(Icons.Default.Tune, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text(aiButtonLabel)
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Rule Records + Timeline Section
-        Text(
-            text = "规则记录和时间轴",
-            style = MaterialTheme.typography.titleMedium
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        SettingsSectionCard(
+            title = "AI",
+            description = "模型、语音输入和服务商设置"
         ) {
             OutlinedButton(
-                onClick = onOpenRuleRecordingSettings,
-                modifier = Modifier.weight(1f)
+                onClick = onOpenAiSettings,
+                modifier = Modifier.fillMaxWidth()
             ) {
-                Icon(Icons.Filled.Settings, contentDescription = null)
+                Icon(Icons.Default.Tune, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("记录设置")
-            }
-            OutlinedButton(
-                onClick = onOpenRuleRecords,
-                modifier = Modifier.weight(1f)
-            ) {
-                Icon(Icons.Filled.History, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("查看记录")
+                Text(aiButtonLabel)
             }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Language
-        Text(
-            text = "语言 / Language",
-            style = MaterialTheme.typography.titleMedium
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-            FilterChip(
-                selected = selectedLanguage == "zh",
-                onClick = { selectedLanguage = "zh" },
-                label = { Text("中文") }
-            )
-            FilterChip(
-                selected = selectedLanguage == "en",
-                onClick = { selectedLanguage = "en" },
-                label = { Text("English") }
-            )
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Auto-start
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+        SettingsSectionCard(
+            title = "使用体验",
+            description = "影响首页展示和启动方式"
         ) {
-            Column {
-                Text(
-                    text = "开机自启动",
-                    style = MaterialTheme.typography.titleMedium
-                )
-                Text(
-                    text = "系统启动时自动运行",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Switch(
+            SettingsSwitchRow(
+                title = "首页显示今日时间轴",
+                summary = "关闭后，首页不再显示今日时间轴",
+                checked = showHomeTimeline,
+                onCheckedChange = {
+                    showHomeTimeline = it
+                    RuleRecordingPrefs.setHomeTimelineEnabled(context, it)
+                    onHomeTimelineChanged(it)
+                }
+            )
+            HorizontalDivider()
+            SettingsSwitchRow(
+                title = "开机时自动启动",
+                summary = "系统启动后自动运行 SeeNot",
                 checked = autoStart,
                 onCheckedChange = {
                     autoStart = it
@@ -2294,22 +2269,98 @@ fun SettingsTab(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Export Section
-        Text(
-            text = "导出",
-            style = MaterialTheme.typography.titleMedium
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-
-        var showLogExportDialog by remember { mutableStateOf(false) }
-
-        OutlinedButton(
-            onClick = { showLogExportDialog = true },
-            modifier = Modifier.fillMaxWidth()
+        SettingsSectionCard(
+            title = "判断记录",
+            description = "决定要不要保存判断历史，以及是否即时提醒"
         ) {
-            Icon(Icons.Default.Download, contentDescription = null)
-            Spacer(modifier = Modifier.width(8.dp))
-            Text("导出")
+            SettingsSwitchRow(
+                title = "保存判断记录",
+                summary = "把每次判断结果保存下来，方便之后查看",
+                checked = saveRuleRecords,
+                onCheckedChange = {
+                    saveRuleRecords = it
+                    RuleRecordingPrefs.setEnabled(context, it)
+                }
+            )
+            if (saveRuleRecords) {
+                HorizontalDivider()
+                Box {
+                    SettingsDropdownRow(
+                        title = "截图保存方式",
+                        summary = "截图只保存在应用内部，不会出现在系统相册里",
+                        value = selectedScreenshotLabel,
+                        expanded = screenshotDropdownExpanded,
+                        onClick = { screenshotDropdownExpanded = !screenshotDropdownExpanded }
+                    )
+                    DropdownMenu(
+                        expanded = screenshotDropdownExpanded,
+                        onDismissRequest = { screenshotDropdownExpanded = false },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        screenshotModeOptions.forEach { (mode, label) ->
+                            DropdownMenuItem(
+                                text = { Text(label) },
+                                onClick = {
+                                    screenshotMode = mode
+                                    RuleRecordingPrefs.setScreenshotMode(context, mode)
+                                    screenshotDropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
+            HorizontalDivider()
+            SettingsSwitchRow(
+                title = "每次判断都提醒我",
+                summary = "判断后立刻弹出提示；关闭后不再弹这类提示",
+                checked = showAnalysisResultToast,
+                onCheckedChange = {
+                    showAnalysisResultToast = it
+                    RuleRecordingPrefs.setAnalysisResultToastEnabled(context, it)
+                }
+            )
+            HorizontalDivider()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                OutlinedButton(
+                    onClick = onOpenRuleRecords,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Icon(Icons.Filled.History, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("查看记录")
+                }
+                OutlinedButton(
+                    onClick = { showDeleteConfirm = true },
+                    modifier = Modifier.weight(1f),
+                    colors = ButtonDefaults.outlinedButtonColors(
+                        contentColor = MaterialTheme.colorScheme.error
+                    )
+                ) {
+                    Icon(Icons.Filled.Delete, contentDescription = null)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("清空记录")
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        SettingsSectionCard(
+            title = "导出",
+            description = "导出日志和数据，方便排查问题或备份"
+        ) {
+            OutlinedButton(
+                onClick = { showLogExportDialog = true },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Download, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("导出数据")
+            }
         }
 
         if (showLogExportDialog) {
@@ -2320,23 +2371,129 @@ fun SettingsTab(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // About
-        Text(
-            text = "关于",
-            style = MaterialTheme.typography.titleMedium
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-        Text(
-            text = "SeeNot v1.0.0",
-            style = MaterialTheme.typography.bodyMedium
-        )
-        Text(
-            text = "AI-powered attention management",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+        SettingsSectionCard(
+            title = "关于",
+            description = null
+        ) {
+            Text(
+                text = "SeeNot v1.0.0",
+                style = MaterialTheme.typography.bodyMedium
+            )
+            Text(
+                text = "AI-powered attention management",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun SettingsSectionCard(
+    title: String,
+    description: String?,
+    content: @Composable ColumnScope.() -> Unit
+) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
+            )
+            if (!description.isNullOrBlank()) {
+                Text(
+                    text = description,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            content()
+        }
+    }
+}
+
+@Composable
+private fun SettingsSwitchRow(
+    title: String,
+    summary: String,
+    checked: Boolean,
+    onCheckedChange: (Boolean) -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge
+            )
+            Text(
+                text = summary,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Switch(
+            checked = checked,
+            onCheckedChange = onCheckedChange
         )
     }
+}
 
+@Composable
+private fun SettingsDropdownRow(
+    title: String,
+    summary: String,
+    value: String,
+    expanded: Boolean,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge
+            )
+            Text(
+                text = summary,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
+            Icon(
+                imageVector = if (expanded) Icons.Filled.KeyboardArrowUp else Icons.Filled.KeyboardArrowDown,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

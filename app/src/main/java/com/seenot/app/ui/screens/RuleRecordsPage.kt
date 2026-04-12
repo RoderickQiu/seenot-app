@@ -312,7 +312,7 @@ fun RuleRecordsPage(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )
                         Text(
-                            text = "暂无记录",
+                            text = "暂无记录，可能没有开启“保存判断记录”",
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -894,7 +894,7 @@ private fun RecordDetailDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("记录详情")
+                            Text("详情")
                             if (records.size > 1) {
                                 Text(
                                     text = "${currentIndex + 1} / ${records.size}",

@@ -481,7 +481,7 @@ class ScreenAnalyzer(
             }
 
             // Show toast based on constraint types
-            showAnalysisToast(matches, constraints)
+            showAnalysisToast(matches)
 
             // Save rule records with screenshot
             val packageName = currentPackageName
@@ -619,7 +619,11 @@ class ScreenAnalyzer(
     /**
      * Show analysis result toast based on constraint types
      */
-    private fun showAnalysisToast(matches: List<ConstraintMatch>, allConstraints: List<SessionConstraint>) {
+    private fun showAnalysisToast(matches: List<ConstraintMatch>) {
+        if (!RuleRecordingPrefs.isAnalysisResultToastEnabled(context)) {
+            return
+        }
+
         // Separate by constraint type
         val violations = matches.filter { it.isViolation }
         val timeCapMatches = matches.filter { it.constraint.type == ConstraintType.TIME_CAP }

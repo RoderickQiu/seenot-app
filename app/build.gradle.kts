@@ -4,6 +4,17 @@ plugins {
     id("com.google.devtools.ksp")
 }
 
+val releaseStoreFilePath = project.findProperty("RELEASE_STORE_FILE") as? String
+val releaseStorePassword = project.findProperty("RELEASE_STORE_PASSWORD") as? String
+val releaseKeyAlias = project.findProperty("RELEASE_KEY_ALIAS") as? String
+val releaseKeyPassword = project.findProperty("RELEASE_KEY_PASSWORD") as? String
+val hasReleaseSigningConfig = listOf(
+    releaseStoreFilePath,
+    releaseStorePassword,
+    releaseKeyAlias,
+    releaseKeyPassword
+).all { !it.isNullOrBlank() }
+
 android {
     namespace = "com.seenot.app"
     compileSdk = 35
@@ -51,9 +62,30 @@ android {
     // Specify build tools version
     buildToolsVersion = "35.0.0"
 
+    signingConfigs {
+        create("release") {
+            if (hasReleaseSigningConfig) {
+                storeFile = file(releaseStoreFilePath!!)
+                storePassword = releaseStorePassword
+                keyAlias = releaseKeyAlias
+                keyPassword = releaseKeyPassword
+            }
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            isMinifyEnabled = true
+            isShrinkResources = true
+            if (hasReleaseSigningConfig) {
+                signingConfig = signingConfigs.getByName("release")
+            } else {
+                logger.warn(
+                    "Release signing is not configured. " +
+                        "Set RELEASE_STORE_FILE/RELEASE_STORE_PASSWORD/" +
+                        "RELEASE_KEY_ALIAS/RELEASE_KEY_PASSWORD to generate a signed APK."
+                )
+            }
             proguardFiles(
                 getDefaultProguardFile("proguard-android-optimize.txt"),
                 "proguard-rules.pro"

@@ -21,11 +21,6 @@
     <string name="permission_status">Permission Status</string>
     <string name="permissions_enabled">All permissions enabled, ready to use</string>
     <string name="permissions_disabled">Please enable all required permissions</string>
-    <string name="usage_guide">How to Use</string>
-    <string name="step_1">Select apps to manage in the \"Apps\" tab</string>
-    <string name="step_2">When opening a controlled app, declare your intent via voice</string>
-    <string name="step_3">AI will monitor your intent in real-time and intervene when violations are detected</string>
-    <string name="example_utterance">Example: \"Only check work messages, 10 minutes\"</string>
 
     <!-- Apps -->
     <string name="search_apps">Search apps...</string>
@@ -46,9 +41,6 @@
     <string name="version">Version</string>
 
     <!-- Voice Input -->
-    <string name="declare_intent">Declare Your Intent</string>
-    <string name="tap_to_speak">Tap to Speak</string>
-    <string name="tap_to_stop">Tap to Stop</string>
     <string name="recording">Recording...</string>
     <string name="processing">Processing...</string>
     <string name="understanding_intent">Understanding your intent...</string>
@@ -57,8 +49,18 @@
     <string name="confirm">Confirm</string>
     <string name="try_again">Try Again</string>
     <string name="continue_last_intent">Continue Last Intent</string>
-    <string name="input_your_intent">Input your intent</string>
-    <string name="intent_placeholder">Example: Only check work messages, 10 minutes</string>
+
+    <!-- VoiceInputWindowOverlay -->
+    <string name="voice_input_title">Declare Your Intent</string>
+    <string name="voice_input_subtitle">For %s</string>
+    <string name="start_recording">Start Recording</string>
+    <string name="stop_recording">Stop Recording</string>
+    <string name="use_text_input">Use Text Input</string>
+    <string name="input_intent_title">Input Intent</string>
+    <string name="input_intent_hint">Example: Only check work messages, 10 minutes</string>
+    <string name="cancel">Cancel</string>
+    <string name="permission_required">Permission Required</string>
+    <string name="open_settings">Open Settings</string>
 
     <!-- Session -->
     <string name="session_active">Session Active</string>

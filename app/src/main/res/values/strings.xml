@@ -41,9 +41,6 @@
     <string name="version">版本</string>
 
     <!-- Voice Input -->
-    <string name="declare_intent">声明你的意图</string>
-    <string name="tap_to_speak">点击说话</string>
-    <string name="tap_to_stop">点击停止</string>
     <string name="recording">正在录音...</string>
     <string name="processing">正在解析...</string>
     <string name="understanding_intent">正在理解你的意图...</string>
@@ -52,8 +49,6 @@
     <string name="confirm">确认</string>
     <string name="try_again">再说一次</string>
     <string name="continue_last_intent">继续使用上次意图</string>
-    <string name="input_your_intent">输入你的意图</string>
-    <string name="intent_placeholder">例如：只看工作消息，10分钟</string>
 
     <!-- VoiceInputWindowOverlay -->
     <string name="voice_input_title">声明你的意图</string>

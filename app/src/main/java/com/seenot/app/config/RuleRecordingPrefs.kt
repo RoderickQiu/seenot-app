@@ -12,6 +12,7 @@ object RuleRecordingPrefs {
     private const val KEY_ENABLE_RULE_RECORDING = "enable_rule_recording"
     private const val KEY_SCREENSHOT_MODE = "rule_record_screenshot_mode"
     private const val KEY_SHOW_HOME_TIMELINE = "show_home_timeline"
+    private const val KEY_SHOW_ANALYSIS_RESULT_TOAST = "show_analysis_result_toast"
 
     /**
      * Screenshot save modes:
@@ -76,6 +77,20 @@ object RuleRecordingPrefs {
      */
     fun setHomeTimelineEnabled(context: Context, enabled: Boolean) {
         getPrefs(context).edit().putBoolean(KEY_SHOW_HOME_TIMELINE, enabled).apply()
+    }
+
+    /**
+     * Whether to show toast feedback for each rule analysis/judgment result
+     */
+    fun isAnalysisResultToastEnabled(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_SHOW_ANALYSIS_RESULT_TOAST, false)
+    }
+
+    /**
+     * Set whether to show toast feedback for each rule analysis/judgment result
+     */
+    fun setAnalysisResultToastEnabled(context: Context, enabled: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_SHOW_ANALYSIS_RESULT_TOAST, enabled).apply()
     }
 
     /**
