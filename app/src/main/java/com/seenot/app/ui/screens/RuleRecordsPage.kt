@@ -901,19 +901,12 @@ private fun RecordDetailDialog(
                 // Top bar
                 TopAppBar(
                     title = {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(8.dp)
-                        ) {
-                            Text(stringResource(R.string.record_detail_title))
-                            if (records.size > 1) {
-                                Text(
-                                    text = "${currentIndex + 1} / ${records.size}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
-                        }
+                        Text(
+                            text = "${currentIndex + 1}/${records.size}",
+                            maxLines = 1,
+                            softWrap = false,
+                            overflow = TextOverflow.Ellipsis
+                        )
                     },
                     navigationIcon = {
                         IconButton(onClick = onDismiss) {
@@ -1042,24 +1035,12 @@ private fun RecordDetailDialog(
                                         horizontalArrangement = Arrangement.SpaceBetween,
                                         verticalAlignment = Alignment.CenterVertically
                                     ) {
-                                        Row(
-                                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                                            verticalAlignment = Alignment.CenterVertically,
+                                        Text(
+                                            text = stringResource(R.string.record_ai_result),
+                                            style = MaterialTheme.typography.titleSmall,
+                                            fontWeight = FontWeight.Bold,
                                             modifier = Modifier.weight(1f)
-                                        ) {
-                                            Text(
-                                                text = stringResource(R.string.record_ai_result),
-                                                style = MaterialTheme.typography.titleSmall,
-                                                fontWeight = FontWeight.Bold
-                                            )
-                                            record.confidence?.let { conf ->
-                                                Text(
-                                                    text = stringResource(R.string.record_ai_confidence, (conf * 100).toInt()),
-                                                    style = MaterialTheme.typography.bodySmall,
-                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                                )
-                                            }
-                                        }
+                                        )
                                         if (!record.isMarked) {
                                             TextButton(
                                                 onClick = {
@@ -1079,6 +1060,13 @@ private fun RecordDetailDialog(
                                                 )
                                             }
                                         }
+                                    }
+                                    record.confidence?.let { conf ->
+                                        Text(
+                                            text = stringResource(R.string.record_ai_confidence, (conf * 100).toInt()),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
                                     }
                                     Text(
                                         text = result,
