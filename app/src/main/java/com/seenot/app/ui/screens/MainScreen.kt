@@ -34,6 +34,7 @@ import androidx.compose.ui.window.Dialog
 import com.seenot.app.BuildConfig
 import com.seenot.app.R
 import com.seenot.app.config.ApiConfig
+import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.config.AiProvider
 import com.seenot.app.config.ApiSettings
 import com.seenot.app.config.recommendedModelPresets
@@ -2203,6 +2204,15 @@ fun SettingsTab(
         }
     }
 
+    var selectedLanguage by remember { mutableStateOf(AppLocalePrefs.getLanguage(context)) }
+    var languageDropdownExpanded by remember { mutableStateOf(false) }
+    val languageOptions = listOf(
+        AppLocalePrefs.LANG_ZH to R.string.language_option_zh,
+        AppLocalePrefs.LANG_EN to R.string.language_option_en
+    )
+    val selectedLanguageLabel = languageOptions.find { it.first == selectedLanguage }?.second?.let { context.getString(it) }
+        ?: context.getString(R.string.language_option_zh)
+
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
@@ -2262,6 +2272,39 @@ fun SettingsTab(
             title = stringResource(R.string.experience_settings),
             description = stringResource(R.string.experience_settings_desc)
         ) {
+            Box {
+                SettingsDropdownRow(
+                    title = stringResource(R.string.language),
+                    summary = "",
+                    value = selectedLanguageLabel,
+                    expanded = languageDropdownExpanded,
+                    onClick = { languageDropdownExpanded = !languageDropdownExpanded }
+                )
+                DropdownMenu(
+                    expanded = languageDropdownExpanded,
+                    onDismissRequest = { languageDropdownExpanded = false },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    languageOptions.forEach { (code, labelResId) ->
+                        DropdownMenuItem(
+                            text = { Text(stringResource(labelResId)) },
+                            onClick = {
+                                if (code != selectedLanguage) {
+                                    selectedLanguage = code
+                                    AppLocalePrefs.setLanguage(context, code)
+                                    // Restart activity to apply language change
+                                    (context as? android.app.Activity)?.let { activity ->
+                                        activity.finish()
+                                        activity.startActivity(activity.intent)
+                                    }
+                                }
+                                languageDropdownExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+            HorizontalDivider()
             SettingsSwitchRow(
                 title = stringResource(R.string.show_today_timeline),
                 summary = stringResource(R.string.show_today_timeline_desc),

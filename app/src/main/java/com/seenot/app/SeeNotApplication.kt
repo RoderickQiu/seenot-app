@@ -2,6 +2,7 @@ package com.seenot.app
 
 import android.app.Application
 import com.seenot.app.config.ApiConfig
+import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.config.AiProvider
 import com.seenot.app.config.ApiSettings
 import com.seenot.app.domain.SessionManager
@@ -24,6 +25,9 @@ class SeeNotApplication : Application() {
 
         // Initialize API Config
         ApiConfig.init(this)
+
+        // Apply stored language preference
+        AppLocalePrefs.applyStoredLanguage(this)
 
         ApiConfig.reconcileDevelopmentInjectedDashscopeKey(
             buildInjectedKey = BuildConfig.DASHSCOPE_API_KEY,
