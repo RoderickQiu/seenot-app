@@ -19,6 +19,7 @@ import android.widget.ProgressBar
 import android.widget.TextView
 import com.seenot.app.data.model.AppHintScopeType
 import com.seenot.app.R
+import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.domain.FalsePositiveFeedbackResult
 import com.seenot.app.domain.FalsePositiveRulePreviewResult
 import com.seenot.app.utils.Logger
@@ -44,8 +45,9 @@ class FalsePositiveRuleReviewOverlay(
             onSave: (String, AppHintScopeType, (FalsePositiveFeedbackResult) -> Unit) -> Unit
         ) {
             dismiss()
+            val localizedContext = AppLocalePrefs.createLocalizedContext(context)
             val dialog = FalsePositiveRuleReviewOverlay(
-                context = context,
+                context = localizedContext,
                 titleText = titleText,
                 subtitleText = subtitleText,
                 onGenerate = onGenerate,
@@ -318,6 +320,8 @@ class FalsePositiveRuleReviewOverlay(
             textSize = 15f
             setTextColor(textColor)
             typeface = Typeface.DEFAULT_BOLD
+            setSingleLine()
+            ellipsize = android.text.TextUtils.TruncateAt.END
             background = GradientDrawable().apply {
                 setColor(backgroundColor)
                 cornerRadius = 14.dp().toFloat()

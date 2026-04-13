@@ -46,6 +46,14 @@ class ScreenAnalyzerDebugger {
         private const val MODEL = "qwen3.6-plus"
     }
 
+    private fun outputLanguageName(): String {
+        return if (Locale.getDefault().language.equals("zh", ignoreCase = true)) {
+            "Simplified Chinese"
+        } else {
+            "English"
+        }
+    }
+
     suspend fun singleTest(imageFile: File, constraintDesc: String, constraintType: String = "DENY") {
         println("\n" + "=".repeat(60))
         println("🖼️  图片: ${imageFile.name}")
@@ -180,8 +188,20 @@ class ScreenAnalyzerDebugger {
             """.trimIndent()
         }
 
+        val outputLanguageName = outputLanguageName()
+        val reasonExample = if (outputLanguageName == "English") {
+            "User is on WeChat Moments"
+        } else {
+            "用户在微信-朋友圈页面"
+        }
+
         val prompt = """
 你是屏幕场景识别AI，判断用户当前行为与约束的关系。
+
+**输出语言规则（最高优先级）：**
+- `reason` 必须使用 $outputLanguageName
+- 不要因为截图内容语言变化而切换输出语言
+- `reason` 示例：$reasonExample
 
 **核心任务：**
 1. 识别用户当前所在的具体功能模块
@@ -209,7 +229,7 @@ $typeSpecificRules
 [
   {
     "constraint_id": "1",
-    "reason": "用户在[应用名]-[具体功能模块]",
+    "reason": "$reasonExample",
     "decision": "见下方说明"
   }
 ]

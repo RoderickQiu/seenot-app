@@ -3,6 +3,7 @@ package com.seenot.app.ai.parser
 import android.content.Context
 import com.seenot.app.R
 import com.seenot.app.ai.OpenAiCompatibleClient
+import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.utils.Logger
 import com.google.gson.JsonParser
 import com.seenot.app.data.model.ConstraintType
@@ -16,14 +17,66 @@ class IntentParser(private val contextRef: () -> Context) {
     companion object { private const val TAG = "IntentParser" }
     private val llmClient = OpenAiCompatibleClient()
 
+    private fun buildLanguageAwareExamples(languageCode: String): String {
+        return if (languageCode == AppLocalePrefs.LANG_ZH) {
+            """
+输入："刷微信但不能看朋友圈"
+输出：{"constraints":[{"type":"DENY","description":"朋友圈","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
+
+输入："不能看朋友圈和视频号"
+输出：{"constraints":[{"type":"DENY","description":"朋友圈和视频号","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
+
+输入："只看微信消息"
+输出：{"constraints":[{"type":"DENY","description":"除微信消息外的其他内容","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
+
+输入："只想看旅行相关内容"
+输出：{"constraints":[{"type":"DENY","description":"除旅行相关内容外的其他内容","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
+
+输入："only look at messages"
+输出：{"constraints":[{"type":"DENY","description":"除消息外的其他内容","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
+
+输入："每天最多10分钟"
+输出：{"constraints":[{"type":"TIME_CAP","description":"每日时间限制","timeLimitMinutes":10,"timeScope":"DAILY_TOTAL","intervention":"STRICT"}]}
+
+输入："打开抖音，最多刷15分钟"
+输出：{"constraints":[{"type":"TIME_CAP","description":"使用时长限制","timeLimitMinutes":15,"timeScope":"SESSION","intervention":"STRICT"}]}
+            """.trimIndent()
+        } else {
+            """
+Input: "刷微信但不能看朋友圈"
+Output: {"constraints":[{"type":"DENY","description":"Moments","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
+
+Input: "不能看朋友圈和视频号"
+Output: {"constraints":[{"type":"DENY","description":"Moments and Channels","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
+
+Input: "只看微信消息"
+Output: {"constraints":[{"type":"DENY","description":"all other content except WeChat messages","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
+
+Input: "only look at messages"
+Output: {"constraints":[{"type":"DENY","description":"all other content except messages","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
+
+Input: "每天最多10分钟"
+Output: {"constraints":[{"type":"TIME_CAP","description":"daily time limit","timeLimitMinutes":10,"timeScope":"DAILY_TOTAL","intervention":"STRICT"}]}
+
+Input: "打开抖音，最多刷15分钟"
+Output: {"constraints":[{"type":"TIME_CAP","description":"usage time limit","timeLimitMinutes":15,"timeScope":"SESSION","intervention":"STRICT"}]}
+            """.trimIndent()
+        }
+    }
+
     suspend fun parseIntent(utterance: String, packageName: String, appName: String): ParsedIntentResult {
         return withContext(Dispatchers.IO) {
+            val context = contextRef()
             try {
+                val outputLanguageName = AppLocalePrefs.getAiOutputLanguageName(context)
+                val outputLanguageCode = AppLocalePrefs.getLanguage(context)
+                val examples = buildLanguageAwareExamples(outputLanguageCode)
                 val prompt = """
 请将用户的意图解析为结构化的规则。
 
 应用: $appName ($packageName)
 用户说: "$utterance"
+当前 SeeNot 软件语言: $outputLanguageName
 
 ⚠️ 重要原则：
 1. 只生成一个约束，将用户的所有限制合并到这一个约束中
@@ -36,7 +89,10 @@ class IntentParser(private val contextRef: () -> Context) {
 4. 如果既有内容限制又有时间限制，使用 DENY，时间加在同一个约束上
 5. **多条件合并**：如果用户提到多个内容（如"不能看朋友圈和视频号"），将它们合并到一个约束的 description 中
 6. 对于 DENY，description 必须始终写“什么内容会触发干预”，不能直接复述 allowlist 原话
-7. **语言规则（高优先级）**：description 必须与用户输入保持同一种语言。中文输入就输出中文 description；英文输入就输出英文 description；不要无故翻译成另一种语言。
+7. **语言规则（高优先级）**：description 必须使用当前 SeeNot 软件语言（当前设置：$outputLanguageName），而不是跟随用户输入语言。
+   - 如果当前 SeeNot 是英文，即使用户输入中文，description 也必须输出英文。
+   - 如果当前 SeeNot 是中文，即使用户输入英文，description 也必须输出中文。
+   - 不要输出中英混杂 description。
 8. 规则必须保持泛化，不要把推理建立在某个具体 app、品牌或中文固定短语上；同类语义在淘宝/京东/Amazon、微信/WhatsApp/Telegram 中都应一致处理
 
 规则类型:
@@ -73,35 +129,7 @@ class IntentParser(private val contextRef: () -> Context) {
 }
 
 示例：
-输入："刷微信但不能看朋友圈"
-输出：{"constraints":[{"type":"DENY","description":"朋友圈","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
-
-输入："不能看朋友圈和视频号"
-输出：{"constraints":[{"type":"DENY","description":"朋友圈和视频号","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
-
-输入："只看微信消息"
-输出：{"constraints":[{"type":"DENY","description":"除微信消息外的其他内容","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
-
-输入："只想看旅行相关内容"
-输出：{"constraints":[{"type":"DENY","description":"除旅行相关内容外的其他内容","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
-
-输入："only look at messages"
-输出：{"constraints":[{"type":"DENY","description":"all other content except messages","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
-
-输入："only look at WeChat messages"
-输出：{"constraints":[{"type":"DENY","description":"all other content except WeChat messages","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
-
-输入："just work chats, no feed"
-输出：{"constraints":[{"type":"DENY","description":"feed","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
-
-输入："每天最多10分钟"
-输出：{"constraints":[{"type":"TIME_CAP","description":"每日时间限制","timeLimitMinutes":10,"timeScope":"DAILY_TOTAL","intervention":"STRICT"}]}
-
-输入："打开抖音，最多刷15分钟"
-输出：{"constraints":[{"type":"TIME_CAP","description":"使用时长限制","timeLimitMinutes":15,"timeScope":"SESSION","intervention":"STRICT"}]}
-
-输入："打开小红书看穿搭，但不能看美食，最多10分钟"
-输出：{"constraints":[{"type":"DENY","description":"禁止浏览美食内容","timeLimitMinutes":10,"timeScope":"SESSION","intervention":"MODERATE"}]}
+$examples
 
 如果用户没有明确表达规则，则返回空constraints。
                 """.trimIndent()
@@ -126,8 +154,8 @@ class IntentParser(private val contextRef: () -> Context) {
             } catch (e: Exception) {
                 Logger.e(TAG, "parseIntent failed", e)
                 val errorMsg = when (e) {
-                    is LlmException -> contextRef().getString(R.string.voice_err_parse_failed)
-                    else -> e.message ?: contextRef().getString(R.string.voice_err_parse_failed_simple)
+                    is LlmException -> context.getString(R.string.voice_err_parse_failed)
+                    else -> e.message ?: context.getString(R.string.voice_err_parse_failed_simple)
                 }
                 ParsedIntentResult.Error(errorMsg)
             }
@@ -186,9 +214,10 @@ class IntentParser(private val contextRef: () -> Context) {
     }
 
     private suspend fun callLLM(prompt: String): String {
+        val outputLanguageName = AppLocalePrefs.getAiOutputLanguageName(contextRef())
         for (attempt in 1..3) try {
             return llmClient.completeText(
-                systemPrompt = "You are a multilingual intent parser. 你要按语义理解用户意图，而不是依赖某一种语言或某个具体 app 的固定说法。",
+                systemPrompt = "You are a multilingual intent parser. Interpret user intent semantically across languages and apps. Output all user-facing description text in the current SeeNot UI language: $outputLanguageName.",
                 userPrompt = prompt,
                 temperature = 0.3,
                 maxTokens = 800

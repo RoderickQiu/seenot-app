@@ -15,6 +15,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.seenot.app.R
+import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.utils.Logger
 
@@ -35,8 +36,9 @@ class JudgmentFeedbackConfirmOverlay(
             onConfirm: () -> Unit
         ) {
             dismiss()
+            val localizedContext = AppLocalePrefs.createLocalizedContext(context)
             val dialog = JudgmentFeedbackConfirmOverlay(
-                context = context,
+                context = localizedContext,
                 constraintType = constraintType,
                 onConfirm = onConfirm
             )

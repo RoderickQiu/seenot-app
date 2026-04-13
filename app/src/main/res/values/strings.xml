@@ -256,6 +256,14 @@
     <string name="hud_rule_detail_deny">禁止 %1$s</string>
     <string name="hud_rule_detail_time_cap">限时 %1$s %2$s%3$s分</string>
     <string name="hud_rule_detail_time_cap_no_desc">限时 %1$s%2$s分</string>
+    <string name="hud_compact_time_limit_prefix">限时</string>
+    <string name="hud_compact_status_timing_now">计时中</string>
+    <string name="hud_compact_status_not_timing">未计时</string>
+    <string name="hud_compact_status_normal">正常</string>
+    <string name="hud_compact_status_risk">风险</string>
+    <string name="hud_compact_line_time_cap">%1$s · %2$s · %3$s</string>
+    <string name="hud_compact_line_deny">%1$s · %2$s</string>
+    <string name="hud_duration_minutes_short">%s 分钟</string>
 
     <!-- JudgmentFeedbackConfirmOverlay -->
     <string name="judgment_wrong_title">这次判断不太对？</string>

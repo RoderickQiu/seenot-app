@@ -19,6 +19,7 @@ import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.seenot.app.R
+import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.TimeScope
 import com.seenot.app.domain.ActiveSession
@@ -33,6 +34,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import java.util.Locale
 
 class FloatingIndicatorOverlay(
     private val context: Context,
@@ -335,7 +337,11 @@ class FloatingIndicatorOverlay(
             text = buildCompactStatusText()
             textSize = 12f
             setTextColor(if (this@FloatingIndicatorOverlay.state.isViolating) riskColor else subtleTextColor)
-            maxLines = 1
+            val isChineseUi = AppLocalePrefs.getLanguage(context) == AppLocalePrefs.LANG_ZH
+            maxLines = if (isChineseUi) 1 else 4
+            if (!isChineseUi) {
+                setLineSpacing(0f, 1.08f)
+            }
         }
         rootContainer?.addView(statusTextView)
 
@@ -367,7 +373,9 @@ class FloatingIndicatorOverlay(
                         textSize = 16f
                         setTextColor(strongTextColor)
                         typeface = Typeface.DEFAULT_BOLD
-                        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                        layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f).apply {
+                            marginEnd = 12.dp()
+                        }
                     }
                 )
 
@@ -376,6 +384,8 @@ class FloatingIndicatorOverlay(
                         state = state.copy(isExpanded = false)
                         render()
                         onTapToReopen()
+                    }.apply {
+                        (layoutParams as LinearLayout.LayoutParams).marginEnd = 8.dp()
                     }
                 )
 
@@ -383,8 +393,6 @@ class FloatingIndicatorOverlay(
                     buildHeaderButton(context.getString(R.string.hud_btn_collapse)) {
                         state = state.copy(isExpanded = false)
                         render()
-                    }.apply {
-                        (layoutParams as LinearLayout.LayoutParams).marginStart = 8.dp()
                     }
                 )
             }
@@ -614,23 +622,62 @@ class FloatingIndicatorOverlay(
 
     private fun buildCompactStatusText(): String {
         val constraints = currentConstraints()
+        val isChineseUi = AppLocalePrefs.getLanguage(context) == AppLocalePrefs.LANG_ZH
         return if (constraints.isEmpty()) {
             context.getString(R.string.hud_tap_to_set_intent)
         } else {
-            constraints.take(2).joinToString(" | ") { constraint ->
-                when (constraint.type) {
-                    ConstraintType.DENY -> {
-                        val status = if (state.matchStates[constraint.id] == true)
-                            context.getString(R.string.hud_status_risk) else context.getString(R.string.hud_status_normal)
-                        "${formatConstraintDetail(constraint)}${context.getString(R.string.hud_compact_separator)}$status"
+            if (isChineseUi) {
+                constraints.take(2).joinToString(" | ") { constraint ->
+                    when (constraint.type) {
+                        ConstraintType.DENY -> {
+                            val status = if (state.matchStates[constraint.id] == true)
+                                context.getString(R.string.hud_status_risk) else context.getString(R.string.hud_status_normal)
+                            "${formatConstraintDetailSingleLine(constraint)}${context.getString(R.string.hud_compact_separator)}$status"
+                        }
+                        ConstraintType.TIME_CAP -> {
+                            val status = if (state.matchStates[constraint.id] == true)
+                                context.getString(R.string.hud_status_timing) else context.getString(R.string.hud_status_not_timing)
+                            "${formatConstraintDetailSingleLine(constraint)}${context.getString(R.string.hud_compact_separator)}$status"
+                        }
                     }
-                    ConstraintType.TIME_CAP -> {
-                        val status = if (state.matchStates[constraint.id] == true)
-                            context.getString(R.string.hud_status_timing) else context.getString(R.string.hud_status_not_timing)
-                        "${formatConstraintDetail(constraint)}${context.getString(R.string.hud_compact_separator)}$status"
+                } + if (constraints.size > 2) context.getString(R.string.hud_more_count, constraints.size - 2) else ""
+            } else {
+                buildList {
+                    constraints.take(2).forEach { constraint ->
+                        add(formatCompactConstraintBlock(constraint))
+                    }
+                    if (constraints.size > 2) {
+                        add(context.getString(R.string.hud_more_count, constraints.size - 2))
+                    }
+                }.joinToString("\n")
+            }
+        }
+    }
+
+    private fun formatConstraintDetailSingleLine(constraint: SessionConstraint): String {
+        return when (constraint.type) {
+            ConstraintType.DENY -> {
+                buildString {
+                    append(context.getString(R.string.hud_rule_detail_deny, constraint.description.take(10)))
+                    constraint.timeLimitMs?.let { ms ->
+                        val min = ms / 60000.0
+                        val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
+                        val scopeStr = constraint.timeScope?.let { context.getString(it.displayLabelResId()) } ?: ""
+                        append(" $scopeStr$minText${context.getString(R.string.unit_minute)}")
                     }
                 }
-            } + if (constraints.size > 2) context.getString(R.string.hud_more_count, constraints.size - 2) else ""
+            }
+            ConstraintType.TIME_CAP -> {
+                val min = constraint.timeLimitMs?.let { it / 60000.0 } ?: 0.0
+                val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
+                val scopeStr = constraint.timeScope?.let { context.getString(it.displayLabelResId()) } ?: ""
+                val desc = constraint.description.take(10)
+                if (desc.isNotEmpty()) {
+                    context.getString(R.string.hud_rule_detail_time_cap, desc, scopeStr, minText)
+                } else {
+                    context.getString(R.string.hud_rule_detail_time_cap_no_desc, scopeStr, minText)
+                }
+            }
         }
     }
 
@@ -678,28 +725,76 @@ class FloatingIndicatorOverlay(
     private fun formatConstraintDetail(constraint: SessionConstraint): String {
         return when (constraint.type) {
             ConstraintType.DENY -> {
-                buildString {
-                    append(context.getString(R.string.hud_rule_detail_deny, constraint.description.take(10)))
-                    constraint.timeLimitMs?.let { ms ->
-                        val min = ms / 60000.0
-                        val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
-                        val scopeStr = constraint.timeScope?.let { context.getString(it.displayLabelResId()) } ?: ""
-                        append(" $scopeStr$minText${context.getString(R.string.unit_minute)}")
-                    }
-                }
+                val title = context.getString(
+                    R.string.hud_rule_detail_deny,
+                    truncateCompactDescription(constraint.description)
+                )
+                val meta = buildCompactTimeCapMeta(constraint)
+                if (meta.isBlank()) title else "$title\n$meta"
             }
             ConstraintType.TIME_CAP -> {
-                val min = constraint.timeLimitMs?.let { it / 60000.0 } ?: 0.0
-                val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
-                val scopeStr = constraint.timeScope?.let { context.getString(it.displayLabelResId()) } ?: ""
-                val desc = constraint.description.take(10)
-                if (desc.isNotEmpty()) {
-                    context.getString(R.string.hud_rule_detail_time_cap, desc, scopeStr, minText)
-                } else {
-                    context.getString(R.string.hud_rule_detail_time_cap_no_desc, scopeStr, minText)
-                }
+                val title = buildCompactTimeCapTitle(constraint)
+                val meta = buildCompactTimeCapMeta(constraint)
+                if (meta.isBlank()) title else "$title\n$meta"
             }
         }
+    }
+
+    private fun formatCompactConstraintBlock(constraint: SessionConstraint): String {
+        return when (constraint.type) {
+            ConstraintType.DENY -> {
+                val status = if (state.matchStates[constraint.id] == true) {
+                    context.getString(R.string.hud_compact_status_risk)
+                } else {
+                    context.getString(R.string.hud_compact_status_normal)
+                }
+                val title = context.getString(
+                    R.string.hud_rule_detail_deny,
+                    truncateCompactDescription(constraint.description)
+                )
+                "$title\n$status"
+            }
+            ConstraintType.TIME_CAP -> {
+                val status = if (state.matchStates[constraint.id] == true) {
+                    context.getString(R.string.hud_compact_status_timing_now)
+                } else {
+                    context.getString(R.string.hud_compact_status_not_timing)
+                }
+                val title = buildCompactTimeCapTitle(constraint)
+                val meta = buildCompactTimeCapMeta(constraint)
+                val subtitle = listOf(meta, status).filter { it.isNotBlank() }.joinToString(" · ")
+                "$title\n$subtitle"
+            }
+        }
+    }
+
+    private fun buildCompactTimeCapTitle(constraint: SessionConstraint): String {
+        val description = truncateCompactDescription(constraint.description)
+        val prefix = context.getString(R.string.hud_compact_time_limit_prefix)
+        return if (description.isBlank()) prefix else "$prefix $description"
+    }
+
+    private fun buildCompactTimeCapMeta(constraint: SessionConstraint): String {
+        val durationText = formatDurationMinutesShort(constraint.timeLimitMs)
+        val scopeText = constraint.timeScope?.let { context.getString(it.displayLabelResId()) }.orEmpty()
+        return listOf(scopeText, durationText).filter { it.isNotBlank() }.joinToString(" ")
+    }
+
+    private fun formatDurationMinutesShort(timeLimitMs: Long?): String {
+        if (timeLimitMs == null) return ""
+        val minutes = timeLimitMs / 60000.0
+        val value = if (minutes % 1.0 == 0.0) {
+            minutes.toInt().toString()
+        } else {
+            String.format(Locale.US, "%.1f", minutes)
+        }
+        return context.getString(R.string.hud_duration_minutes_short, value)
+    }
+
+    private fun truncateCompactDescription(description: String, maxChars: Int = 12): String {
+        val text = description.trim()
+        if (text.length <= maxChars) return text
+        return text.take(maxChars).trimEnd() + "…"
     }
 
     private fun getIndicatorColor(): Int {
@@ -771,7 +866,8 @@ class FloatingIndicatorOverlay(
             onTapToReopen: () -> Unit
         ) {
             dismiss()
-            val overlay = FloatingIndicatorOverlay(context, appName, packageName, sessionManager, onTapToReopen)
+            val localizedContext = AppLocalePrefs.createLocalizedContext(context)
+            val overlay = FloatingIndicatorOverlay(localizedContext, appName, packageName, sessionManager, onTapToReopen)
             overlay.show()
             currentOverlay = overlay
         }
@@ -785,7 +881,8 @@ class FloatingIndicatorOverlay(
             onTapToReopen: () -> Unit
         ) {
             dismiss()
-            val overlay = FloatingIndicatorOverlay(context, appName, packageName, sessionManager, onTapToReopen)
+            val localizedContext = AppLocalePrefs.createLocalizedContext(context)
+            val overlay = FloatingIndicatorOverlay(localizedContext, appName, packageName, sessionManager, onTapToReopen)
             overlay.showWithConstraints(constraints)
             currentOverlay = overlay
         }

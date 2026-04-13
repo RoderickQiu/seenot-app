@@ -28,6 +28,7 @@ import com.seenot.app.ui.overlay.ToastOverlay
 import androidx.core.content.ContextCompat
 import com.seenot.app.config.AiProvider
 import com.seenot.app.config.ApiConfig
+import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.ai.voice.VoiceInputManager
 import com.seenot.app.ai.voice.VoiceRecordingState
 import com.seenot.app.data.model.ConstraintType
@@ -40,6 +41,7 @@ import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import java.util.Locale
 
 /**
  * Full-screen dialog overlay shown when user enters a controlled app.
@@ -69,8 +71,9 @@ class IntentInputDialogOverlay(
             allowDefaultRuleAutoApply: Boolean = true
         ) {
             dismiss()
+            val localizedContext = AppLocalePrefs.createLocalizedContext(context)
             val dialog = IntentInputDialogOverlay(
-                context, appName, packageName, sessionManager, onIntentConfirmed, onDismissed
+                localizedContext, appName, packageName, sessionManager, onIntentConfirmed, onDismissed
             )
             dialog.show(allowDefaultRuleAutoApply)
             currentDialog = dialog
@@ -593,31 +596,11 @@ class IntentInputDialogOverlay(
             )
         }
 
-        val constraintText = when (constraints.type) {
-            ConstraintType.DENY -> {
-                buildString {
-                    append(context.getString(R.string.intent_constraint_deny_format, constraints.description.take(10)))
-                    constraints.timeLimitMs?.let { ms ->
-                        val min = ms / 60000.0
-                        val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
-                        val scopeStr = constraints.timeScope?.let { context.getString(it.displayLabelResId()) } ?: ""
-                        append(context.getString(R.string.intent_time_scope_suffix, scopeStr, minText))
-                    }
-                }
-            }
-            ConstraintType.TIME_CAP -> {
-                val min = constraints.timeLimitMs?.let { it / 60000.0 } ?: 0.0
-                val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
-                val scopeStr = constraints.timeScope?.let { context.getString(it.displayLabelResId()) } ?: ""
-                val desc = constraints.description.take(10)
-                if (desc.isNotEmpty()) context.getString(R.string.intent_constraint_time_cap_format, desc, "$scopeStr$minText") else context.getString(R.string.intent_constraint_time_cap_format, "", "$scopeStr$minText")
-            }
-        }
         val descText = TextView(context).apply {
-            text = constraintText
+            text = formatIntentConstraintSummary(constraints)
             textSize = 14f
             setTextColor(textColor)
-            maxLines = 2
+            maxLines = 4
         }
         textContainer.addView(descText)
         
@@ -693,33 +676,11 @@ class IntentInputDialogOverlay(
             row.addView(tag)
         }
 
-        val constraintText = constraints.joinToString(" / ") { c ->
-            when (c.type) {
-                ConstraintType.DENY -> {
-                    buildString {
-                        append(context.getString(R.string.intent_constraint_deny_format, c.description.take(10)))
-                        c.timeLimitMs?.let { ms ->
-                            val min = ms / 60000.0
-                            val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
-                            val scopeStr = c.timeScope?.let { context.getString(it.displayLabelResId()) } ?: ""
-                            append(context.getString(R.string.intent_time_scope_suffix, scopeStr, minText))
-                        }
-                    }
-                }
-                ConstraintType.TIME_CAP -> {
-                    val min = c.timeLimitMs?.let { it / 60000.0 } ?: 0.0
-                    val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
-                    val scopeStr = c.timeScope?.let { context.getString(it.displayLabelResId()) } ?: ""
-                    val desc = c.description.take(10)
-                    if (desc.isNotEmpty()) context.getString(R.string.intent_constraint_time_cap_format, desc, "$scopeStr$minText") else context.getString(R.string.intent_constraint_time_cap_format, "", "$scopeStr$minText")
-                }
-            }
-        }
         val descText = TextView(context).apply {
-            text = constraintText
+            text = constraints.joinToString("\n") { formatIntentConstraintSummary(it) }
             textSize = 14f
             setTextColor(textColor)
-            maxLines = 2
+            maxLines = 6
         }
         row.addView(descText)
 
@@ -761,6 +722,89 @@ class IntentInputDialogOverlay(
         updateUI()
         voiceInputManager?.setCurrentApp(packageName, appName)
         voiceInputManager?.startRecording()
+    }
+
+    private fun formatIntentConstraintSummary(constraint: SessionConstraint): String {
+        val isChineseUi = AppLocalePrefs.getLanguage(context) == AppLocalePrefs.LANG_ZH
+        return when (constraint.type) {
+            ConstraintType.DENY -> {
+                if (isChineseUi) {
+                    formatIntentConstraintSingleLine(constraint)
+                } else {
+                    val title = context.getString(
+                        R.string.hud_rule_detail_deny,
+                        truncateIntentDescription(constraint.description)
+                    )
+                    val meta = buildIntentConstraintMeta(constraint)
+                    if (meta.isBlank()) title else "$title\n$meta"
+                }
+            }
+            ConstraintType.TIME_CAP -> {
+                if (isChineseUi) {
+                    formatIntentConstraintSingleLine(constraint)
+                } else {
+                    val title = buildIntentTimeCapTitle(constraint)
+                    val meta = buildIntentConstraintMeta(constraint)
+                    if (meta.isBlank()) title else "$title\n$meta"
+                }
+            }
+        }
+    }
+
+    private fun formatIntentConstraintSingleLine(constraint: SessionConstraint): String {
+        return when (constraint.type) {
+            ConstraintType.DENY -> {
+                buildString {
+                    append(context.getString(R.string.intent_constraint_deny_format, constraint.description.take(10)))
+                    constraint.timeLimitMs?.let { ms ->
+                        val min = ms / 60000.0
+                        val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
+                        val scopeStr = constraint.timeScope?.let { context.getString(it.displayLabelResId()) } ?: ""
+                        append(context.getString(R.string.intent_time_scope_suffix, scopeStr, minText))
+                    }
+                }
+            }
+            ConstraintType.TIME_CAP -> {
+                val min = constraint.timeLimitMs?.let { it / 60000.0 } ?: 0.0
+                val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
+                val scopeStr = constraint.timeScope?.let { context.getString(it.displayLabelResId()) } ?: ""
+                val desc = constraint.description.take(10)
+                if (desc.isNotEmpty()) {
+                    context.getString(R.string.intent_constraint_time_cap_format, desc, "$scopeStr$minText")
+                } else {
+                    context.getString(R.string.intent_constraint_time_cap_format, "", "$scopeStr$minText")
+                }
+            }
+        }
+    }
+
+    private fun buildIntentTimeCapTitle(constraint: SessionConstraint): String {
+        val description = truncateIntentDescription(constraint.description)
+        val prefix = context.getString(R.string.hud_compact_time_limit_prefix)
+        return if (description.isBlank()) prefix else "$prefix $description"
+    }
+
+    private fun buildIntentConstraintMeta(constraint: SessionConstraint): String {
+        val scopeText = constraint.timeScope?.let { context.getString(it.displayLabelResId()) }.orEmpty()
+        val durationText = formatIntentDurationMinutesShort(constraint.timeLimitMs)
+        return listOf(scopeText, durationText).filter { it.isNotBlank() }.joinToString(" ")
+    }
+
+    private fun formatIntentDurationMinutesShort(timeLimitMs: Long?): String {
+        if (timeLimitMs == null) return ""
+        val minutes = timeLimitMs / 60000.0
+        val value = if (minutes % 1.0 == 0.0) {
+            minutes.toInt().toString()
+        } else {
+            String.format(Locale.US, "%.1f", minutes)
+        }
+        return context.getString(R.string.hud_duration_minutes_short, value)
+    }
+
+    private fun truncateIntentDescription(description: String, maxChars: Int = 12): String {
+        val text = description.trim()
+        if (text.length <= maxChars) return text
+        return text.take(maxChars).trimEnd() + "…"
     }
 
     private fun submitTextIntent() {

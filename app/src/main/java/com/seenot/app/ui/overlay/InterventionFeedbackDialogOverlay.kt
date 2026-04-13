@@ -17,6 +17,7 @@ import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
 import com.seenot.app.R
+import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.utils.Logger
 
 /**
@@ -54,11 +55,12 @@ class InterventionFeedbackDialogOverlay(
             onSecondaryAction: (() -> Unit)? = null
         ) {
             dismiss()
-            val resolvedTitle = titleText ?: context.getString(R.string.intervention_dialog_title)
-            val resolvedSubtitle = subtitleText ?: context.getString(R.string.intervention_dialog_subtitle)
-            val resolvedPrimary = primaryButtonText ?: context.getString(R.string.intervention_dialog_exit)
+            val localizedContext = AppLocalePrefs.createLocalizedContext(context)
+            val resolvedTitle = titleText ?: localizedContext.getString(R.string.intervention_dialog_title)
+            val resolvedSubtitle = subtitleText ?: localizedContext.getString(R.string.intervention_dialog_subtitle)
+            val resolvedPrimary = primaryButtonText ?: localizedContext.getString(R.string.intervention_dialog_exit)
             val dialog = InterventionFeedbackDialogOverlay(
-                context = context,
+                context = localizedContext,
                 appName = appName,
                 constraintDescription = constraintDescription,
                 titleText = resolvedTitle,

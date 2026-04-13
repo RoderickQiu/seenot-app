@@ -86,7 +86,7 @@
 
     <!-- TimeScope labels -->
     <string name="time_scope_session">This session</string>
-    <string name="time_scope_per_content">Per content</string>
+    <string name="time_scope_per_content">Per-content</string>
     <string name="time_scope_continuous">Continuous</string>
     <string name="time_scope_daily_total">Today</string>
     <string name="time_scope_session_short">Session</string>
@@ -252,6 +252,14 @@
     <string name="hud_rule_detail_deny">Deny %1$s</string>
     <string name="hud_rule_detail_time_cap">Limit %1$s %2$s%3$smin</string>
     <string name="hud_rule_detail_time_cap_no_desc">Limit %1$s%2$smin</string>
+    <string name="hud_compact_time_limit_prefix">Limit</string>
+    <string name="hud_compact_status_timing_now">Timing now</string>
+    <string name="hud_compact_status_not_timing">Not timing</string>
+    <string name="hud_compact_status_normal">Normal</string>
+    <string name="hud_compact_status_risk">At risk</string>
+    <string name="hud_compact_line_time_cap">%1$s · %2$s · %3$s</string>
+    <string name="hud_compact_line_deny">%1$s · %2$s</string>
+    <string name="hud_duration_minutes_short">%s min</string>
 
     <!-- JudgmentFeedbackConfirmOverlay -->
     <string name="judgment_wrong_title">This judgment was not quite right?</string>
@@ -460,19 +468,19 @@
     <!-- MainScreen.kt strings -->
 
     <!-- HomeTab -->
-    <string name="permission_notification">Notification permission</string>
+    <string name="permission_notification">Notification Permission</string>
     <string name="permission_notification_desc">Used to show reminder notifications and foreground service</string>
-    <string name="permission_microphone_optional">Microphone permission (optional)</string>
+    <string name="permission_microphone_optional">Microphone Permission (Optional)</string>
     <string name="permission_microphone_desc">Used for voice input to declare intents</string>
     <string name="ai_settings">AI Settings</string>
     <string name="ai_configured_tap_to_modify">Configuration complete. Tap to modify provider, model or API Key.</string>
     <string name="ai_not_configured_tap_to_setup">Not configured. Tap to complete AI setup.</string>
-    <string name="basic_config_complete">Basic configuration complete. Ready to use.</string>
+    <string name="basic_config_complete">Ready to use.</string>
     <string name="tap_to_collapse">Tap to collapse permissions and config</string>
     <string name="tap_to_expand">Tap to expand permissions and config</string>
     <string name="please_complete_permissions_and_ai_config">Please complete required permissions and AI config first</string>
     <string name="usage_instructions">Usage Instructions</string>
-    <string name="step_1_select_apps">Select apps to manage on the 「Apps」 page</string>
+    <string name="step_1_select_apps">Select apps to manage on the \"Apps\" page</string>
     <string name="step_2_declare_intent">Declare your intent when opening a controlled app</string>
     <string name="step_2_intent_example">e.g., "Only check work messages, 10 minutes". You can use voice or type directly.</string>
     <string name="step_3_ai_guards">AI will guard your intent in real-time and remind or intervene when appropriate</string>
@@ -481,7 +489,7 @@
     <!-- AppsTab -->
     <string name="add_app">Add App</string>
     <string name="no_controlled_apps_yet">No controlled apps yet</string>
-    <string name="tap_add_app_to_select">Tap 「Add App」 to select apps to manage</string>
+    <string name="tap_add_app_to_select">Tap \"Add App\" to select apps to manage</string>
 
     <!-- RuleRecordsPage -->
     <string name="add_ai_supplement_rule">Add AI Supplementary Rule</string>
@@ -561,8 +569,8 @@
     <string name="save_judgment_records">Save Judgment Records</string>
     <string name="save_judgment_records_desc">Save each judgment result for later review</string>
     <string name="screenshot_mode_label">Screenshot save mode</string>
-    <string name="screenshot_mode_desc">Screenshots are saved only in app internal storage, not in system gallery</string>
-    <string name="notify_each_judgment">Notify me on every judgment</string>
+    <string name="screenshot_mode_desc">Stored in app storage only, not in system gallery</string>
+    <string name="notify_each_judgment">Show every AI judgment</string>
     <string name="notify_each_judgment_desc">Pop up immediately after judgment; when off, these notifications will not appear</string>
     <string name="view_records">View Records</string>
     <string name="clear_records">Clear Records</string>

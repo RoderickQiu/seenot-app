@@ -1,6 +1,7 @@
 package com.seenot.app.ai.feedback
 
 import android.content.Context
+import com.seenot.app.config.AppLocalePrefs
 import com.google.gson.JsonParser
 import com.seenot.app.ai.OpenAiCompatibleClient
 import com.seenot.app.config.ApiConfig
@@ -298,6 +299,8 @@ class FalsePositiveRuleGenerator(private val context: Context) {
         intentSpecificHints: List<AppHint>,
         userNote: String?
     ): String {
+        val outputLanguageName = AppLocalePrefs.getAiOutputLanguageName(context)
+
         val constraintsText = run {
             val type = when (targetConstraint.type) {
                 ConstraintType.DENY -> "禁止"
@@ -381,6 +384,11 @@ class FalsePositiveRuleGenerator(private val context: Context) {
   "supplemental_rule": "规则文本",
   "reason": "一句话解释"
 }
+
+**输出语言规则（最高优先级）：**
+- `supplemental_rule` 和 `reason` 必须使用 $outputLanguageName
+- 不要因为截图内容是中文就输出中文；也不要因为截图内容是英文就输出英文。始终跟随 SeeNot 当前界面语言
+- 不要输出中英混杂的 supplemental_rule / reason
 
 应用信息：
 - 应用名：$appName

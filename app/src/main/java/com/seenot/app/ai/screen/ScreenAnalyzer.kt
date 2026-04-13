@@ -25,6 +25,7 @@ import com.seenot.app.ui.overlay.VoiceInputOverlay
 import com.seenot.app.ai.OpenAiCompatibleClient
 import com.google.gson.Gson
 import com.seenot.app.config.ApiConfig
+import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.RuleRecord
 import com.seenot.app.data.model.AppHint
@@ -1253,6 +1254,18 @@ class ScreenAnalyzer(
         appGeneralHints: List<String> = emptyList(),
         constraintHints: Map<String, List<String>> = emptyMap()
     ): String {
+        val outputLanguageName = AppLocalePrefs.getAiOutputLanguageName(context)
+        val reasonExample = if (AppLocalePrefs.getLanguage(context) == AppLocalePrefs.LANG_ZH) {
+            "用户在微信-朋友圈页面"
+        } else {
+            "User is on WeChat Moments"
+        }
+        val sensitiveReasonExample = if (AppLocalePrefs.getLanguage(context) == AppLocalePrefs.LANG_ZH) {
+            "支付确认页面"
+        } else {
+            "Payment confirmation page"
+        }
+
         // Group constraints by type
         val denyAllowConstraints = constraints.filter { it.type != ConstraintType.TIME_CAP }
         val timeCapConstraints = constraints.filter { it.type == ConstraintType.TIME_CAP }
@@ -1319,6 +1332,7 @@ class ScreenAnalyzer(
         return """
 **当前环境：**
 $envInfo
+- SeeNot 当前界面语言：$outputLanguageName
 
 你是屏幕场景识别AI，判断用户当前行为与约束的关系。
 
@@ -1326,6 +1340,14 @@ $envInfo
 1. 识别用户当前所在的具体功能模块
 2. 根据约束类型进行相应判断
 3. 输出置信度分数
+
+**输出语言规则（最高优先级）：**
+- `reason` 必须使用 $outputLanguageName
+- `sensitive_reason` 必须使用 $outputLanguageName
+- 不要因为截图内容是中文就输出中文；也不要因为截图内容是英文就输出英文。始终跟随 SeeNot 当前界面语言
+- 不要输出中英混杂的 `reason` / `sensitive_reason`
+- `reason` 示例：$reasonExample
+- `sensitive_reason` 示例：$sensitiveReasonExample
 
 **判断规则：**
 
@@ -1352,11 +1374,11 @@ $constraintsText
 **输出格式（严格JSON）：**
 {
   "sensitive": true 或 false,
-  "sensitive_reason": "仅在 sensitive=true 时填写，简短说明页面为何敏感",
+  "sensitive_reason": "仅在 sensitive=true 时填写，使用 $outputLanguageName，简短说明页面为何敏感",
   "results": [
     {
       "constraint_id": "1",
-      "reason": "用户在[应用名]-[具体功能模块]",
+      "reason": "$reasonExample",
       "decision": "见下方说明",
       "confidence": 0-100的置信度分数
     }
@@ -1381,7 +1403,7 @@ $decisionValues
   - 50 = 完全不确定
 - 考虑部分匹配：部分元素匹配但不是全部，给出中间分数
 - 校准原则：80分意味着你给出这个分数时有80%的正确率
-- reason必须简洁，10-20个字解释置信度
+- reason必须简洁，10-20个字或等价英文短语解释置信度，并且必须使用 $outputLanguageName
         """.trimIndent()
     }
 

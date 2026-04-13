@@ -16,6 +16,7 @@ import android.widget.FrameLayout
 import android.widget.TextView
 import android.widget.Toast
 import androidx.core.graphics.toColorInt
+import com.seenot.app.config.AppLocalePrefs
 import java.lang.ref.WeakReference
 import kotlin.math.roundToInt
 
@@ -198,8 +199,9 @@ class ToastOverlay private constructor(
             }
 
             currentToast?.dismiss()
-            
-            val toast = ToastOverlay(context, message, duration)
+
+            val localizedContext = AppLocalePrefs.createLocalizedContext(context)
+            val toast = ToastOverlay(localizedContext, message, duration)
             currentToast = toast
             toast.show()
         }
