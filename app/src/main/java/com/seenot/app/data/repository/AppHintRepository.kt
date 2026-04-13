@@ -306,7 +306,7 @@ class AppHintRepository(private val context: Context) {
             AppHintScopeType.APP_GENERAL -> Triple(
                 buildAppGeneralScopeKey(packageName),
                 buildAppGeneralScopeKey(packageName),
-                buildAppGeneralScopeLabel()
+                buildAppGeneralScopeLabel(null)
             )
             AppHintScopeType.INTENT_SPECIFIC -> Triple(
                 intentId.orEmpty(),

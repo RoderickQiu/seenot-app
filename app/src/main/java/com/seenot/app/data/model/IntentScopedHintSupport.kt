@@ -1,5 +1,7 @@
 package com.seenot.app.data.model
 
+import android.content.Context
+import com.seenot.app.R
 import com.seenot.app.domain.SessionConstraint
 import java.security.MessageDigest
 
@@ -13,8 +15,6 @@ enum class AppHintScopeType {
 }
 
 fun buildAppGeneralScopeKey(packageName: String): String = "app::$packageName"
-
-fun buildAppGeneralScopeLabel(): String = "整个 app 都适用"
 
 fun buildIntentScopedHintId(constraint: SessionConstraint): String {
     val normalizedDescription = constraint.description
@@ -31,13 +31,26 @@ fun buildIntentScopedHintId(constraint: SessionConstraint): String {
     return "intent_" + sha256(raw).take(16)
 }
 
-fun buildIntentScopedHintLabel(constraint: SessionConstraint): String {
+/**
+ * Returns the scope label for APP_GENERAL hints.
+ * @param context Android context for string resource resolution. If null, returns the default Chinese string
+ *                (suitable for AI prompts where the prompt language is Chinese).
+ */
+fun buildAppGeneralScopeLabel(context: Context?): String =
+    context?.getString(R.string.scope_app_general) ?: "整个 app 都适用"
+
+/**
+ * Returns a human-readable label for a constraint, suitable for display in UI or AI prompts.
+ * @param context Android context for string resource resolution. If null, uses default Chinese strings
+ *                (suitable for AI prompts where the prompt language is Chinese).
+ */
+fun buildIntentScopedHintLabel(context: Context?, constraint: SessionConstraint): String {
     val typeLabel = when (constraint.type) {
-        ConstraintType.DENY -> "禁止"
-        ConstraintType.TIME_CAP -> "时间限制"
+        ConstraintType.DENY -> context?.getString(R.string.rule_label_deny) ?: "禁止"
+        ConstraintType.TIME_CAP -> context?.getString(R.string.rule_label_time_cap) ?: "时间限制"
     }
     val extras = buildList {
-        constraint.timeLimitMs?.let { add("${it / 60000} 分钟") }
+        constraint.timeLimitMs?.let { add(context?.getString(R.string.duration_minutes, it / 60000) ?: "${it / 60000}分钟") }
         constraint.timeScope?.let { add(it.name) }
     }.joinToString(" / ")
 

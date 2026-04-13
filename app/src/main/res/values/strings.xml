@@ -81,4 +81,597 @@
     <string name="fg_channel_desc">用于保持 SeeNot 无障碍服务在后台运行</string>
     <string name="fg_notification_title">SeeNot 正在运行</string>
     <string name="fg_notification_text">AI 注意力管理已启用</string>
+
+    <!-- ========== Hardcoded strings migrated from code ========== -->
+
+    <!-- TimeScope labels (ConstraintEnums & FloatingIndicatorOverlay) -->
+    <string name="time_scope_session">本次</string>
+    <string name="time_scope_per_content">计入时</string>
+    <string name="time_scope_continuous">连续</string>
+    <string name="time_scope_daily_total">今日</string>
+
+    <!-- TimeScope labels (SessionStatusHud — context-specific variants) -->
+    <string name="time_scope_session_short">会话</string>
+    <string name="time_scope_per_content_short">内容</string>
+    <string name="time_scope_daily_total_short">每日</string>
+
+    <!-- ConstraintType labels -->
+    <string name="constraint_type_deny">禁止</string>
+    <string name="constraint_type_time_cap">时间限制</string>
+
+    <!-- ActionExecutor toast messages -->
+    <string name="duration_minutes_seconds">%1$d分%2$d秒</string>
+    <string name="duration_minutes">%d分钟</string>
+    <string name="duration_seconds">%d秒</string>
+    <string name="toast_time_limit_reached">⏰ %1$s 已达 %2$s</string>
+    <string name="toast_violation_warning">⚠️ 注意: %s</string>
+    <string name="toast_return_to_task">已帮你回到刚才的目标</string>
+    <string name="toast_time_up_auto_return">⏰ 时间到，自动返回</string>
+    <string name="toast_violation_auto_return">⚠️ 违规，自动返回</string>
+    <string name="toast_distraction_ended">已结束当前分心内容</string>
+    <string name="toast_time_up_return_home">⏰ 时间到，返回主屏幕</string>
+    <string name="toast_severe_violation_return">⚠️ 严重违规，返回主屏幕</string>
+    <string name="label_time">时间</string>
+
+    <!-- UnifiedTranscriber error messages -->
+    <string name="stt_gemini_not_supported">Gemini 当前不走 UnifiedTranscriber</string>
+    <string name="stt_dashscope_not_supported">DashScope 当前不走 UnifiedTranscriber</string>
+    <string name="stt_anthropic_not_supported">Anthropic 目前不支持语音转写</string>
+    <string name="stt_config_incomplete">语音转写配置不完整</string>
+    <string name="stt_failed">语音转写失败 (%s)</string>
+    <string name="stt_result_empty">语音转写结果为空</string>
+
+    <!-- RuntimeEventLogger messages -->
+    <string name="event_log_not_enabled">运行事件记录未启用，请先在 local.properties 中设置 SEENOT_DEVELOPMENT_MODE=true</string>
+    <string name="event_log_organizing">正在整理运行事件…</string>
+    <string name="event_log_no_events">没有可导出的运行事件</string>
+    <string name="event_log_no_events_in_range">指定范围内没有运行事件</string>
+    <string name="event_log_export_complete">运行事件导出完成！</string>
+    <string name="event_log_export_failed">运行事件导出失败: %s</string>
+    <string name="event_log_share_title">分享 SeeNot 运行事件</string>
+    <string name="share_failed">分享失败: %s</string>
+
+    <!-- ApiConfig provider/region/labels -->
+    <string name="provider_dashscope">阿里云 DashScope</string>
+    <string name="provider_openai">OpenAI</string>
+    <string name="provider_gemini">Google Gemini</string>
+    <string name="provider_anthropic">Anthropic Claude</string>
+    <string name="provider_glm">智谱 GLM</string>
+    <string name="provider_custom">自定义 OpenAI 兼容</string>
+    <string name="region_beijing">中国大陆</string>
+    <string name="region_singapore">国际</string>
+    <string name="region_virginia">美东</string>
+    <string name="model_note_recommended">推荐</string>
+    <string name="stt_dashscope_realtime">DashScope 实时 ASR</string>
+
+    <!-- IntentScopedHintSupport -->
+    <string name="scope_app_general">整个 app 都适用</string>
+    <string name="scope_intent_specific">只对这条意图生效</string>
+    <string name="rule_label_deny">禁止</string>
+    <string name="rule_label_time_cap">时间限制</string>
+    <string name="rule_label_with_duration">%d 分钟</string>
+
+    <!-- SessionManager intervention dialog -->
+    <string name="dialog_title_pause">先停一下</string>
+    <string name="dialog_title_pause_confirm">先停一下？</string>
+    <string name="dialog_subtitle_gentle_deviation">你现在偏离了刚才想做的事</string>
+    <string name="dialog_subtitle_moderate_deviation">看起来你正在偏离刚才的目标</string>
+    <string name="dialog_btn_back_to_task">回到正事</string>
+    <string name="dialog_btn_exit">退出</string>
+    <string name="dialog_btn_continue">我知道了，但还是继续</string>
+
+    <!-- SessionManager false positive review -->
+    <string name="false_positive_review_title">误报纠正</string>
+    <string name="false_positive_review_subtitle">会先生成一条补充规则草稿，并判断它更适合放在整个 app 通用，还是只对当前这条意图生效</string>
+    <string name="error_no_fp_record">没找到对应的误报记录</string>
+    <string name="error_record_fp_failed">记录误报失败</string>
+    <string name="error_generate_rule_failed">生成补充规则失败</string>
+    <string name="error_no_judgment_record">没找到对应的判断记录</string>
+    <string name="fp_draft_generated_poor">这次先给了一个不太理想的草稿，你可以直接改，或再试一次</string>
+    <string name="fp_rule_generated">补充规则已生成，可直接修改后保存</string>
+    <string name="fp_generating_pause">已暂停判断，正在生成补充规则…</string>
+    <string name="fp_similar_rule_exists_resumed">已有相似补充规则，已恢复判断并立即生效</string>
+    <string name="fp_rule_saved_resumed">已保存补充规则，已恢复判断并立即生效</string>
+    <string name="fp_rule_generated_resumed">补充规则已生成，已恢复判断并立即生效</string>
+    <string name="fp_recorded_resumed">已记录这次误报，已恢复判断</string>
+    <string name="fp_recorded">已记录这次误报</string>
+    <string name="fp_recorded_has_similar_rule">已记录误报，已有相似补充规则</string>
+    <string name="fp_recorded_saved_rule">已记录误报，并保存补充规则</string>
+    <string name="fp_recorded_generated_rule">已记录误报，并生成补充规则</string>
+    <string name="fp_recorded_this_resumed">已记录这次误报，已恢复判断</string>
+
+    <!-- Logger -->
+    <string name="log_share_subject">SeeNot 日志</string>
+    <string name="log_share_title">分享日志</string>
+
+    <!-- VoiceInputManager -->
+    <string name="voice_err_start_failed">启动录音失败</string>
+    <string name="voice_err_not_recognized">未能识别语音</string>
+    <string name="voice_err_record_failed">录音失败</string>
+    <string name="voice_err_transcriber_not_init">转写器未初始化</string>
+    <string name="voice_err_parser_not_init">解析器未初始化</string>
+    <string name="voice_err_parse_failed">解析失败: %s</string>
+    <string name="voice_err_no_intent_input">请输入意图描述</string>
+    <string name="voice_err_timeout">语音输入超时</string>
+    <string name="voice_err_parse_intent_failed">未能识别意图</string>
+    <string name="voice_err_recording_failed_with_msg">录音出错: %s</string>
+    <string name="voice_err_parse_failed_simple">解析失败</string>
+
+    <!-- VoiceInputOverlay -->
+    <string name="voice_tap_to_speak">点击说话</string>
+    <string name="voice_or_use_text_input">或使用文本输入</string>
+    <string name="voice_tap_to_stop">点击停止</string>
+
+    <!-- IntentInputDialogOverlay -->
+    <string name="intent_can_speak_or_type">可以说话，也可以直接键盘输入</string>
+    <string name="intent_type_to_declare">直接键盘输入声明意图</string>
+    <string name="intent_tap_to_start_recording">点击开始录音</string>
+    <string name="intent_no_mic_permission_type">未开启麦克风权限，可直接键盘输入</string>
+    <string name="intent_enter_to_confirm">输入意图后按回车直接生效</string>
+    <string name="intent_confirm_title">确认意图</string>
+    <string name="intent_preset_tab">预设意图</string>
+    <string name="intent_history_tab">历史意图</string>
+    <string name="intent_no_preset_yet">暂无预设意图</string>
+    <string name="intent_no_history_yet">暂无历史意图</string>
+    <string name="intent_last_used">上次使用</string>
+    <string name="intent_tap_mic_or_type">点击麦克风开始录音，或直接键盘输入</string>
+    <string name="intent_no_voice_type">未配置可用语音输入，可直接键盘输入</string>
+    <string name="intent_recording_stop_hint">正在录音... 再次点击停止</string>
+    <string name="intent_parsing">正在解析...</string>
+    <string name="intent_parsed_confirm_voice">意图已识别，请手动确认；不对的话可以再说一次</string>
+    <string name="intent_parsed">意图已识别</string>
+    <string name="intent_constraint_deny">禁止</string>
+    <string name="intent_constraint_time_cap">限时</string>
+    <string name="intent_constraint_deny_format">禁止 %s</string>
+    <string name="intent_constraint_time_cap_format">限时 %s %s分</string>
+    <string name="intent_constraint_deny_full">禁止: %s</string>
+    <string name="intent_constraint_time_cap_full">限时: %s %s分钟</string>
+    <string name="intent_time_scope_suffix"> %s%s分</string>
+    <string name="intent_retry">再说一次</string>
+    <string name="intent_skip">跳过</string>
+    <string name="common_or">或</string>
+    <string name="common_error">出错</string>
+
+    <!-- FloatingIndicatorOverlay -->
+    <string name="hud_btn_change_intent">改意图</string>
+    <string name="hud_btn_collapse">收起</string>
+    <string name="hud_no_intent_yet">还没有意图</string>
+    <string name="hud_wrong_judgment">判断错了</string>
+    <string name="hud_judgment_wrong_title">判断有误？</string>
+    <string name="hud_tap_to_set_intent">点击设置意图</string>
+    <string name="hud_status_risk">风险内容</string>
+    <string name="hud_status_normal">正常</string>
+    <string name="hud_status_timing">计时中</string>
+    <string name="hud_status_not_timing">未计时</string>
+    <string name="hud_judgment_deny_format">%s</string>
+    <string name="hud_judgment_deny_safe">安全</string>
+    <string name="hud_judgment_deny_at_risk">风险</string>
+    <string name="hud_judgment_time_cap_timing">计时中</string>
+    <string name="hud_judgment_time_cap_not_timing">未计时</string>
+    <string name="hud_false_positive_review_subtitle">告诉我们正确的情况</string>
+    <string name="hud_compact_separator"> / </string>
+    <string name="hud_more_count">+%d</string>
+    <string name="unit_minute">分钟</string>
+    <string name="hud_rule_type_deny">禁止</string>
+    <string name="hud_rule_type_time_cap">限时</string>
+    <string name="hud_rule_detail_deny">禁止 %1$s</string>
+    <string name="hud_rule_detail_time_cap">限时 %1$s %2$s%3$s分</string>
+    <string name="hud_rule_detail_time_cap_no_desc">限时 %1$s%2$s分</string>
+
+    <!-- JudgmentFeedbackConfirmOverlay -->
+    <string name="judgment_wrong_title">这次判断不太对？</string>
+    <string name="judgment_wrong_content_desc">我们会记下这次关于内容判断的纠正，方便后续优化</string>
+    <string name="judgment_wrong_content_timing">我们会记下这次关于计时判断的纠正，方便后续优化</string>
+    <string name="judgment_false_positive">误报</string>
+
+    <!-- FalsePositiveRuleReviewOverlay -->
+    <string name="fp_generating_draft">正在生成补充规则草稿…</string>
+    <string name="fp_hint_after_generation">生成完成后可直接修改，也可以自己重写</string>
+    <string name="fp_regenerate">重新生成</string>
+    <string name="fp_saving">正在保存补充规则…</string>
+    <string name="fp_cancel">取消</string>
+    <string name="fp_save">保存</string>
+
+    <!-- VoiceInputWindowOverlay -->
+    <string name="overlay_need_permission">需要悬浮窗权限</string>
+    <string name="mic_permission_required_message">需要麦克风权限才能使用语音输入。请在设置中开启权限。</string>
+    <string name="voice_recording_start_failed">启动录音失败，请重试</string>
+    <string name="voice_processing">处理中，请稍候...</string>
+    <string name="voice_recognizing">正在识别...</string>
+    <string name="voice_recording">正在录音...</string>
+    <string name="voice_recognizing_text">识别: %s</string>
+    <string name="voice_parsing">正在解析...</string>
+    <string name="voice_parse_success">解析成功！</string>
+
+    <!-- OpenAiCompatibleClient -->
+    <string name="err_model_response_missing_message">模型返回缺少 message</string>
+    <string name="err_model_response_missing_content">模型返回缺少 content</string>
+
+    <!-- ScreenAnalyzer -->
+    <string name="err_screenshot_failed">截图失败</string>
+    <string name="err_analysis_failed">分析失败: %s</string>
+    <string name="label_unknown">未知</string>
+    <string name="label_unknown_screen">未知界面</string>
+    <string name="label_no_match">无</string>
+    <string name="err_model_request_failed">模型请求失败</string>
+    <string name="err_model_service_unavailable">模型服务暂时不可用</string>
+    <string name="err_model_auth_failed">模型鉴权失败，请检查 API Key</string>
+    <string name="toast_violation_format">⚠️ 违规: %s</string>
+    <string name="toast_compliant_format">✅ 符合规则: %s</string>
+    <string name="toast_timing_format">⏱️ %s 计时中</string>
+    <string name="toast_not_timing_format">⏱️ %s 未计时</string>
+
+    <!-- App general -->
+    <string name="app_general_scope">整个 app 都适用</string>
+
+    <!-- RecordExporter / ConfigurationExporter -->
+    <string name="export_creating_zip">正在创建ZIP文件...</string>
+    <string name="configuration_organizing">正在整理配置...</string>
+    <string name="configuration_export_complete">配置导出完成！</string>
+    <string name="configuration_export_failed">配置导出失败</string>
+    <string name="configuration_reading_file">正在读取导入文件...</string>
+    <string name="configuration_cannot_read_file">无法读取导入文件</string>
+    <string name="configuration_not_valid">不是 SeeNot 配置导出文件</string>
+    <string name="configuration_missing_apps">导入文件缺少 monitoredApps</string>
+    <string name="configuration_importing">正在导入 %1$d/%2$d: %3$s</string>
+    <string name="configuration_import_complete">导入完成！</string>
+    <string name="export_adding_records">正在添加记录数据...</string>
+    <string name="export_adding_metadata">正在添加元数据...</string>
+    <string name="export_adding_screenshot">正在添加截图 %1$d/%2$d...</string>
+    <string name="export_adding_readme">正在添加说明文件...</string>
+    <string name="export_complete">导出完成！</string>
+    <string name="export_failed">导出失败</string>
+    <string name="share_title">分享 SeeNot 记录导出</string>
+    <string name="date_range_separator">至</string>
+    <string name="unknown">未知</string>
+    <string name="readme_title">SeeNot 规则记录导出</string>
+    <string name="readme_description">此归档包含 SeeNot 应用的规则评估记录导出。</string>
+    <string name="readme_contents">内容：</string>
+    <string name="readme_content_records">- records.json: 所有规则评估记录的 JSON 格式数据</string>
+    <string name="readme_content_metadata">- metadata.json: 汇总统计和导出信息</string>
+    <string name="readme_content_images">- images/: 规则评估期间拍摄的截图（PNG 格式）</string>
+    <string name="readme_content_readme">- README.txt: 本文件</string>
+    <string name="readme_field_title">记录字段说明：</string>
+    <string name="readme_field_id">- id: 唯一记录标识符</string>
+    <string name="readme_field_timestamp">- timestamp: 评估时间戳（毫秒）</string>
+    <string name="readme_field_appname">- appName: 被监控应用的名称</string>
+    <string name="readme_field_packagename">- packageName: 应用的包名（可选）</string>
+    <string name="readme_field_hash">- screenshotHash: 截图哈希值，用于去重（可选）</string>
+    <string name="readme_field_constraintid">- constraintId: 被评估的约束 ID</string>
+    <string name="readme_field_type">- constraintType: 约束类型 (DENY/TIME_CAP)</string>
+    <string name="readme_field_content">- constraintContent: 约束内容描述</string>
+    <string name="readme_field_matched">- isConditionMatched: 条件判断结果，含义依赖约束类型</string>
+    <string name="readme_field_matched_deny">  - DENY: true = 正常 / false = 违规</string>
+    <string name="readme_field_matched_timecap">  - TIME_CAP: true = in_scope（正在计时） / false = out_of_scope（当前不计时）</string>
+    <string name="readme_field_confidence">- confidence: AI 置信度分数 (0-100)</string>
+    <string name="readme_field_airesult">- aiResult: AI 原始响应文本（可选）</string>
+    <string name="readme_field_imagepath">- imagePath: 截图路径（在归档中）</string>
+    <string name="readme_field_elapsed">- elapsedTimeMs: AI 处理耗时（毫秒，可选）</string>
+    <string name="readme_field_marked">- isMarked: 是否被用户标记</string>
+    <string name="readme_export_time">导出时间: %s</string>
+    <string name="readme_note">注意：截图保存在应用内部存储中，不会显示在系统图库中。</string>
+
+    <!-- HomeTimelineSection -->
+    <string name="timeline_no_records_today">今天还没有记录。进入受控 App 后，系统会在这里展示违规与计时事件。</string>
+    <string name="timeline_no_records_day">这一天还没有记录。</string>
+    <string name="timeline_prev_day">前一天</string>
+    <string name="timeline_next_day">后一天</string>
+    <string name="timeline_today_label">今日时间轴</string>
+    <string name="timeline_day_format">M月d日时间轴</string>
+    <string name="timeline_unknown_app">未知应用</string>
+    <string name="timeline_multi_app">多应用</string>
+    <string name="timeline_violation_start">违规开始</string>
+    <string name="timeline_timing_interval">%1$s - %2$s 在计时</string>
+    <string name="timeline_meta_format">%1$s · %2$s · 共%3$d条</string>
+    <string name="timeline_event_count_format">共 %d 条</string>
+    <string name="event_timeout_reminder">时间到提醒</string>
+    <string name="event_user_confirmed_return">用户确认后返回</string>
+    <string name="event_violation_reminder">违规提醒</string>
+    <string name="event_timeout_auto_return">时间到，自动返回</string>
+    <string name="event_user_back_to_task">你选择了回到正事</string>
+    <string name="event_violation_auto_return">检测到违规，自动返回</string>
+    <string name="event_timeout_return_home">时间到，返回主屏幕</string>
+    <string name="event_user_ended_content">你选择了结束当前内容</string>
+    <string name="event_severe_violation_return">严重违规，返回主屏幕</string>
+    <string name="event_hud_highlight">高亮警告</string>
+    <string name="event_vibrate">震动提醒</string>
+    <string name="event_timeout_action">时间到动作</string>
+    <string name="event_user_confirm_action">用户确认动作</string>
+    <string name="event_violation_action">违规动作</string>
+    <string name="event_system_action">系统动作</string>
+    <string name="timeline_more_hidden">另外 %d 条</string>
+
+    <!-- RuleRecordsPage -->
+    <string name="record_timing_status">计时状态</string>
+    <string name="record_timing_active">正在计时</string>
+    <string name="record_timing_inactive">当前不计时</string>
+    <string name="record_match_status">匹配状态</string>
+    <string name="record_match_normal">正常 (未违反规则)</string>
+    <string name="record_match_violated">违规 (已违反规则)</string>
+    <string name="record_intent_scope_label">只对这条意图生效</string>
+    <string name="record_page_title">规则记录</string>
+    <string name="record_back">返回</string>
+    <string name="record_select_date">选择日期</string>
+    <string name="record_export">导出记录</string>
+    <string name="record_no_records">暂无记录，可能没有开启"保存判断记录"</string>
+    <string name="record_export_preparing">正在准备导出...</string>
+    <string name="record_export_fail">导出失败</string>
+    <string name="record_generate_title">生成补充规则</string>
+    <string name="record_marked_false_positive">您标记了 \"%1$s\" 为误判。</string>
+    <string name="record_generate_hint">系统会结合这条记录的截图、当前意图和应用特点生成补充规则，并判断它更适合放在整个 app 通用还是只对这条意图生效。</string>
+    <string name="record_hint_placeholder_optional">可选：例如 我只用QQ聊天，不看QQ空间</string>
+    <string name="record_generating_draft">正在生成补充规则草稿…</string>
+    <string name="record_scope_suggestion">建议放在：%s</string>
+    <string name="false_positive_status_format">%s · 建议放在：%s</string>
+    <string name="record_hint_edit_placeholder">可直接修改生成结果，或自己写一条更准确的补充规则</string>
+    <string name="record_generate">生成</string>
+    <string name="record_save">保存</string>
+    <string name="record_regenerate">重新生成</string>
+    <string name="record_cancel">取消</string>
+    <string name="record_filter_all">全部</string>
+    <string name="record_filter_marked">已标记</string>
+    <string name="record_filter_need_attention">需关注</string>
+    <string name="record_filter_normal">普通</string>
+    <string name="record_action_label">干预动作</string>
+    <string name="record_action_detail">动作: %1$s (%2$s)</string>
+    <string name="record_confidence">置信度: %d%%</string>
+    <string name="record_mark">标记</string>
+    <string name="record_unmark">取消标记</string>
+    <string name="record_detail_title">详情</string>
+    <string name="record_close">关闭</string>
+    <string name="record_prev">上一条</string>
+    <string name="record_next">下一条</string>
+    <string name="record_intervention_action">⚡ 干预动作</string>
+    <string name="record_basic_info">基本信息</string>
+    <string name="record_app">应用</string>
+    <string name="record_package">包名</string>
+    <string name="record_time">时间</string>
+    <string name="record_action_type">动作类型</string>
+    <string name="record_trigger_reason">触发原因</string>
+    <string name="record_constraint_type">约束类型</string>
+    <string name="record_constraint_content">约束内容</string>
+    <string name="record_ai_result">AI 分析结果</string>
+    <string name="record_ai_confidence">(置信度: %d%%)</string>
+    <string name="record_mark_false_positive">标记误判</string>
+    <string name="record_screenshot">截图</string>
+    <string name="record_screenshot_not_exist">截图文件不存在</string>
+    <string name="record_processing_time">处理耗时</string>
+    <string name="record_confirm_delete">确认删除</string>
+    <string name="record_confirm_delete_message">确定要删除这条记录吗？此操作无法撤销。</string>
+    <string name="record_delete">删除</string>
+    <string name="record_items_selected">已选择 %d 项</string>
+    <string name="record_export_action">导出</string>
+    <string name="record_delete_action">删除</string>
+    <string name="record_cancel_action">取消</string>
+    <string name="record_confirm">确定</string>
+    <string name="record_today">今天</string>
+    <string name="record_date_format">yyyy年MM月dd日 EEEE</string>
+    <string name="record_time_format">yyyy年MM月dd日 HH:mm:ss</string>
+    <string name="record_action">动作: %1$s (%2$s)</string>
+    <string name="record_export_title">导出记录</string>
+    <string name="record_export_selected">将选中的 %d 条记录导出为 ZIP 文件，可包含截图。</string>
+    <string name="record_export_filtered">将符合条件的 %d 条记录导出为 ZIP 文件，可包含截图。</string>
+    <string name="record_select_app">选择应用</string>
+    <string name="record_all_apps">全部应用</string>
+    <string name="record_export_only_marked">仅导出已标记的记录 (%d 条)</string>
+
+    <!-- RecordExporter / ConfigurationExporter -->
+    <string name="export_record_title">导出记录</string>
+    <string name="export_selected_records">将选中的 %d 条记录导出为 ZIP 文件，可包含截图。</string>
+    <string name="export_filtered_records">将符合条件的 %d 条记录导出为 ZIP 文件，可包含截图。</string>
+    <string name="export_select_app">选择应用</string>
+    <string name="export_all_apps">全部应用</string>
+    <string name="export_only_marked">仅导出已标记的记录 (%d 条)</string>
+    <string name="export_action">导出</string>
+    <string name="export_cancel">取消</string>
+
+    <!-- ========== MainScreen.kt strings ========== -->
+
+    <!-- Tab navigation -->
+
+    <!-- HomeTab -->
+    <string name="permission_notification">通知权限</string>
+    <string name="permission_notification_desc">用于显示提醒通知和前台服务</string>
+    <string name="permission_microphone_optional">麦克风权限（可选）</string>
+    <string name="permission_microphone_desc">用于语音输入声明意图</string>
+    <string name="ai_settings">AI 设置</string>
+    <string name="ai_configured_tap_to_modify">已完成配置，点按修改 provider、模型或 API Key</string>
+    <string name="ai_not_configured_tap_to_setup">尚未配置，点按完成 AI 设置</string>
+    <string name="basic_config_complete">基础配置已完成，可以正常使用</string>
+    <string name="tap_to_collapse">点按收起权限与配置入口</string>
+    <string name="tap_to_expand">点按展开权限与配置入口</string>
+    <string name="please_complete_permissions_and_ai_config">请先完成必要权限和 AI 配置</string>
+    <string name="usage_instructions">使用说明</string>
+    <string name="step_1_select_apps">在「应用」页面选择要管理的 App</string>
+    <string name="step_2_declare_intent">打开受控 App 时，声明你的意图</string>
+    <string name="step_2_intent_example">例如：「只看工作消息，10分钟」。你可以用语音，也可以直接输入。</string>
+    <string name="step_3_ai_guards">AI 会实时守护你的意图，并适时提醒或干预</string>
+    <string name="step_4_report_misreport">若系统理解错了，可随时报误报让 AI 修正</string>
+
+    <!-- AppsTab -->
+    <string name="add_app">添加应用</string>
+    <string name="no_controlled_apps_yet">尚未添加受控应用</string>
+    <string name="tap_add_app_to_select">点击「添加应用」按钮选择要管理的应用</string>
+
+    <!-- RuleRecordsPage -->
+    <string name="add_ai_supplement_rule">添加 AI 补充规则</string>
+    <string name="rule_scope_description">可选择让这条规则对整个 app 生效，或只放在某一条具体意图下面。</string>
+    <string name="rule_example_dont_identify_as_recommend">例如：不要仅因详情页露出商品卡片，就识别成推荐列表</string>
+    <string name="add">添加</string>
+    <string name="edit_ai_supplement_rule">编辑 AI 补充规则</string>
+    <string name="save">保存</string>
+    <string name="close">关闭</string>
+    <string name="app_intents_title">%s 的意图</string>
+    <string name="preset_intents">预设意图</string>
+    <string name="add_preset_intent">添加</string>
+    <string name="no_preset_intents_yet">暂无预设意图，点击添加按钮创建</string>
+    <string name="history_intents">历史意图</string>
+    <string name="no_history_intents_yet">暂无历史意图</string>
+    <string name="ai_supplement_rules">AI 补充规则</string>
+    <string name="supplement_rules_description">补充规则分成两类：一类对整个 app 都生效，一类只用来细化某条具体意图。</string>
+    <string name="no_supplement_rules_yet">暂无补充规则</string>
+    <string name="specific_intent_scope">只对某条意图生效</string>
+    <string name="intent_source_label">来源：%s</string>
+    <string name="no_bindable_intent_yet">当前还没有可绑定的意图，请先保留至少一个意图记录。</string>
+    <string name="bind_intent">关联意图</string>
+    <string name="source_manual">手动添加</string>
+    <string name="source_feedback_generated">纠错生成</string>
+    <string name="source_intent_carry_over">自动带入</string>
+
+    <!-- IntentDialog -->
+    <string name="add_preset_intent_title">添加预设意图</string>
+    <string name="edit_preset_intent_title">编辑预设意图</string>
+    <string name="edit_intent_title">编辑意图</string>
+    <string name="time_cap_format">时间限制: %d 分钟</string>
+    <string name="time_cap_format_decimal">时间限制: %s 分钟</string>
+    <string name="intervention_level_label">干预级别: %s</string>
+    <string name="intervention_gentle">温柔</string>
+    <string name="intervention_moderate">中等</string>
+    <string name="intervention_strict">严格</string>
+    <string name="save_as_preset">保存为预设</string>
+    <string name="edit_intent_item_title">编辑意图项</string>
+    <string name="intent_type">意图类型</string>
+    <string name="description_label">描述</string>
+    <string name="description_hint">例如：短视频、朋友圈和视频号</string>
+    <string name="description_hint_tip">💡 可以输入多个条件，如：朋友圈和视频号</string>
+    <string name="time_limit_minutes_hint">时间限制（分钟，可选）</string>
+    <string name="time_limit_placeholder">例如：30 或 0.5</string>
+    <string name="time_scope_label">时间范围</string>
+    <string name="intervention_level_title">干预级别</string>
+    <string name="scope_label">适用范围</string>
+    <string name="intent_specific_scope">只对这条意图生效</string>
+    <string name="set_as_default">设为默认</string>
+    <string name="unset_as_default">取消默认</string>
+    <string name="edit">编辑</string>
+    <string name="intervention_gentle_desc">仅提醒：弹出提示框提醒用户，但不阻止操作。用户可以继续当前行为。</string>
+    <string name="intervention_moderate_desc">提醒+返回：弹出提示框，并自动返回上一个界面。适合想要中断但不需要强制禁止的场景。</string>
+    <string name="intervention_strict_desc">强制返回：直接返回主屏幕，强制中断当前行为。适合需要强力遏制的场景。</string>
+    <string name="intervention_dialog_title">先停一下？</string>
+    <string name="intervention_dialog_subtitle">看起来你正在偏离刚才的目标</string>
+    <string name="intervention_dialog_exit">退出</string>
+
+    <!-- SettingsTab -->
+    <string name="screenshot_mode_all">保存所有截图</string>
+    <string name="screenshot_mode_matched_only">只在有相关判断时保存截图</string>
+    <string name="screenshot_mode_none">不保存截图</string>
+    <string name="model_not_set">设置模型</string>
+    <string name="clear_records_title">清空记录</string>
+    <string name="clear_records_confirm">确定要删除所有判断记录吗？此操作无法撤销。</string>
+    <string name="delete">删除</string>
+    <string name="settings_ai_title">AI</string>
+    <string name="settings_model_desc">模型、语音输入和服务商设置</string>
+    <string name="experience_settings">使用体验</string>
+    <string name="experience_settings_desc">影响首页展示和启动方式</string>
+    <string name="show_today_timeline">首页显示今日时间轴</string>
+    <string name="show_today_timeline_desc">关闭后，首页不再显示今日时间轴</string>
+    <string name="auto_start_on_boot">开机时自动启动</string>
+    <string name="auto_start_on_boot_desc">系统启动后自动运行 SeeNot</string>
+    <string name="judgment_records">判断记录</string>
+    <string name="judgment_records_desc">决定要不要保存判断历史，以及是否即时提醒</string>
+    <string name="save_judgment_records">保存判断记录</string>
+    <string name="save_judgment_records_desc">把每次判断结果保存下来，方便之后查看</string>
+    <string name="screenshot_mode_label">截图保存方式</string>
+    <string name="screenshot_mode_desc">截图只保存在应用内部，不会出现在系统相册里</string>
+    <string name="notify_each_judgment">每次判断都提醒我</string>
+    <string name="notify_each_judgment_desc">判断后立刻弹出提示；关闭后不再弹这类提示</string>
+    <string name="view_records">查看记录</string>
+    <string name="clear_records">清空记录</string>
+    <string name="export_section">导出</string>
+    <string name="export_section_desc">导出日志和数据，方便排查问题或备份</string>
+    <string name="export_data">导出数据</string>
+    <string name="about_section">关于</string>
+    <string name="edit_intent">编辑意图</string>
+
+    <!-- AiModelSettingsDialog -->
+    <string name="ai_model_settings_title">AI 模型设置</string>
+    <string name="vision_tab">视觉</string>
+    <string name="voice_tab">语音</string>
+    <string name="dev_mode_dashscope_temp_key">当前为开发模式，已临时提供 DashScope API Key，可用至 %s。到期后会自动停用，你仍可在这里手动填写自己的 Key。</string>
+    <string name="vision_provider">视觉 Provider</string>
+    <string name="vision_model">视觉模型</string>
+    <string name="vision_model_hint">例如：qwen3.6-plus / glm-4.6v-flashx / gpt-4o-mini</string>
+    <string name="bias_model">纠偏模型</string>
+    <string name="bias_model_hint">报错后生成补充规则时使用</string>
+    <string name="bias_model_not_highfreq_usage">纠偏模型不会高频使用，只在你报错后生成补充规则时参与分析。</string>
+    <string name="qwen_region_label">Qwen 当前区域：%s</string>
+    <string name="voice_provider">语音 Provider</string>
+    <string name="api_key_shared">API Key（共享）</string>
+    <string name="api_key_independent">API Key（独立）</string>
+    <string name="base_url_shared">Base URL（共享）</string>
+    <string name="base_url_independent">Base URL（独立）</string>
+    <string name="voice_model">语音模型</string>
+    <string name="voice_model_hint">例如：gpt-4o-mini-transcribe / glm-asr-2512</string>
+    <string name="voice_input_auto_config_hint">语音输入会自动配置，无需再填语音模型。</string>
+    <string name="restore_defaults">恢复默认</string>
+    <string name="base_url_placeholder">https://.../v1</string>
+    <string name="api_key">API Key</string>
+    <string name="base_url">Base URL</string>
+
+    <!-- AddAppDialog -->
+    <string name="add_app_title">添加应用</string>
+    <string name="no_apps_available">没有可添加的应用</string>
+    <string name="select_app">选择应用</string>
+    <string name="search_placeholder">搜索…</string>
+
+    <!-- VoiceInputDialog -->
+    <string name="state_recording">正在录音…</string>
+    <string name="state_processing">正在处理…</string>
+    <string name="state_transcribed">识别结果</string>
+    <string name="state_parsed">解析完成</string>
+    <string name="state_error">出现错误</string>
+    <string name="declare_intent_default">声明你的意图</string>
+    <string name="current_app_label">当前应用: %s</string>
+    <string name="continue_last_intent_button">继续使用上次意图</string>
+    <string name="stop_recording_button">停止录音</string>
+    <string name="recognizing_voice">正在识别语音…</string>
+    <string name="recognized_content_label">识别内容:</string>
+    <string name="parsed_result_label">解析结果:</string>
+    <string name="intent_confirmed">意图已确定</string>
+    <string name="parsing_intent">正在解析意图…</string>
+    <string name="input_intent_label">输入你的意图</string>
+    <string name="processing_label">处理中…</string>
+    <string name="confirm_button">确认</string>
+    <string name="start_voice_input_button">开始语音输入</string>
+    <string name="use_text_input_button">使用文本输入</string>
+    <string name="skip_button">跳过</string>
+
+    <!-- ExportDialog -->
+    <string name="exporting_app_config">正在导入应用配置…</string>
+    <string name="import_success">导入成功！共导入 %d 个应用配置</string>
+    <string name="import_failed">导入失败: %s</string>
+    <string name="export_title">导出</string>
+    <string name="app_config">应用配置</string>
+    <string name="logs">日志</string>
+    <string name="runtime_events">运行事件</string>
+    <string name="export_app_config_desc">导出当前监控应用、预设意图、默认意图、最近意图历史和 AI 补充说明。</string>
+    <string name="exporting_app_config_ellipsis">正在导出应用配置…</string>
+    <string name="export_app_config_success">配置导出成功！</string>
+    <string name="export_app_config_failed">配置导出失败</string>
+    <string name="export_app_config_failed_reason">配置导出失败: %s</string>
+    <string name="export_logs_desc">分享全部日志，或按日期范围分享日志。</string>
+    <string name="start_date_label">开始日期 (yyyy-MM-dd)</string>
+    <string name="end_date_label">结束日期 (yyyy-MM-dd)</string>
+    <string name="sharing_all_logs">正在分享所有日志…</string>
+    <string name="share_all_logs_success">分享成功！</string>
+    <string name="share_all_logs_failed">分享失败，请检查日志</string>
+    <string name="share_logs_failed_reason">分享失败: %s</string>
+    <string name="share_all_button">分享全部</string>
+    <string name="sharing_logs">正在分享日志…</string>
+    <string name="share_date_range_button">分享范围</string>
+    <string name="export_runtime_events_desc">导出结构化运行事件 JSONL，可按时间范围筛选。</string>
+    <string name="exporting_runtime_events">正在导出运行事件…</string>
+    <string name="export_runtime_events_success">运行事件导出成功！</string>
+    <string name="export_runtime_events_failed">运行事件导出失败</string>
+    <string name="export_runtime_events_failed_reason">运行事件导出失败: %s</string>
+    <string name="export_all_button">导出全部</string>
+    <string name="export_range_button">导出范围</string>
+    <string name="success">成功</string>
+    <string name="fail">失败</string>
+    <string name="share_success">分享成功！</string>
+    <string name="share_failed_check_logs">分享失败，请检查日志</string>
+    <string name="share_failed_reason">分享失败: %s</string>
+    <string name="share_failed_check_date_and_logs">分享失败，请检查日期格式和日志</string>
+    <string name="date_format_error">日期格式错误</string>
+    <string name="export_button">导出</string>
+    <string name="import_button">导入</string>
 </resources>

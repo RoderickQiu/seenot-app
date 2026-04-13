@@ -4,6 +4,7 @@ import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
+import com.seenot.app.R
 import com.seenot.app.config.ApiConfig
 import com.seenot.app.config.ApiSettings
 import com.seenot.app.utils.Logger

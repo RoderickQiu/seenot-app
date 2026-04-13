@@ -46,7 +46,10 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.seenot.app.R
 import com.seenot.app.data.model.ConstraintType
+import com.seenot.app.data.model.TimeScope
 import kotlin.math.roundToInt
 
 /**
@@ -428,10 +431,10 @@ private fun ConstraintItem(
 
             if (constraint.timeRemainingMs != null && constraint.timeLimitMs != null) {
                 val scopeText = when (constraint.timeScope) {
-                    com.seenot.app.data.model.TimeScope.SESSION -> "会话"
-                    com.seenot.app.data.model.TimeScope.PER_CONTENT -> "内容"
-                    com.seenot.app.data.model.TimeScope.CONTINUOUS -> "连续"
-                    com.seenot.app.data.model.TimeScope.DAILY_TOTAL -> "每日"
+                    TimeScope.SESSION -> stringResource(R.string.time_scope_session_short)
+                    TimeScope.PER_CONTENT -> stringResource(R.string.time_scope_per_content_short)
+                    TimeScope.CONTINUOUS -> stringResource(R.string.time_scope_continuous)
+                    TimeScope.DAILY_TOTAL -> stringResource(R.string.time_scope_daily_total_short)
                     null -> ""
                 }
                 Text(

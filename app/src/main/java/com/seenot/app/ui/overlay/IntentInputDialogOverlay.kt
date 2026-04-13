@@ -9,6 +9,7 @@ import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import com.seenot.app.R
 import com.seenot.app.utils.Logger
 import android.text.InputType
 import android.view.Gravity
@@ -30,7 +31,6 @@ import com.seenot.app.config.ApiConfig
 import com.seenot.app.ai.voice.VoiceInputManager
 import com.seenot.app.ai.voice.VoiceRecordingState
 import com.seenot.app.data.model.ConstraintType
-import com.seenot.app.data.model.displayLabel
 import com.seenot.app.domain.SessionConstraint
 import com.seenot.app.domain.SessionManager
 import kotlinx.coroutines.CoroutineScope
@@ -177,13 +177,13 @@ class IntentInputDialogOverlay(
                             mode = Mode.SHOWING_RULES
                             updateUI()
                         } else {
-                            ToastOverlay.show(context, "未能识别意图")
+                            ToastOverlay.show(context, context.getString(R.string.voice_err_parse_intent_failed))
                             mode = Mode.IDLE
                             updateUI()
                         }
                     }
                     VoiceRecordingState.ERROR -> {
-                        ToastOverlay.show(context, manager.error.value ?: "出错")
+                        ToastOverlay.show(context, manager.error.value ?: context.getString(R.string.voice_err_parse_failed_simple))
                         mode = Mode.IDLE
                         updateUI()
                     }
@@ -250,9 +250,9 @@ class IntentInputDialogOverlay(
         // Subtitle
         val subtitle = TextView(context).apply {
             text = if (hasAudioPermission) {
-                "可以说话，也可以直接键盘输入"
+                context.getString(R.string.intent_can_speak_or_type)
             } else {
-                "直接键盘输入声明意图"
+                context.getString(R.string.intent_type_to_declare)
             }
             textSize = 14f
             setTextColor(subtleTextColor)
@@ -298,7 +298,7 @@ class IntentInputDialogOverlay(
 
         // Status text
         statusText = TextView(context).apply {
-            text = if (hasAudioPermission) "点击开始录音" else "未开启麦克风权限，可直接键盘输入"
+            text = if (hasAudioPermission) context.getString(R.string.intent_tap_to_start_recording) else context.getString(R.string.intent_no_mic_permission_type)
             textSize = 13f
             setTextColor(subtleTextColor)
             gravity = Gravity.CENTER
@@ -310,7 +310,7 @@ class IntentInputDialogOverlay(
         card.addView(statusText)
 
         textInput = EditText(context).apply {
-            hint = "输入意图后按回车直接生效"
+            hint = context.getString(R.string.intent_enter_to_confirm)
             setPadding(16.dp(), 14.dp(), 16.dp(), 14.dp())
             background = GradientDrawable().apply {
                 cornerRadius = 14.dp().toFloat()
@@ -374,7 +374,7 @@ class IntentInputDialogOverlay(
             setOnClickListener { confirmAndTransition() }
         }
         confirmText = TextView(context).apply {
-            text = "确认意图"
+            text = context.getString(R.string.intent_confirm_title)
             textSize = 15f
             setTextColor(Color.WHITE)
             typeface = Typeface.DEFAULT_BOLD
@@ -383,7 +383,7 @@ class IntentInputDialogOverlay(
         card.addView(confirmButton)
 
         retryVoiceButton = TextView(context).apply {
-            text = "再说一次"
+            text = context.getString(R.string.intent_retry)
             textSize = 14f
             setTextColor(primaryColor)
             gravity = Gravity.CENTER
@@ -411,7 +411,7 @@ class IntentInputDialogOverlay(
 
         // Preset rules section title
         val presetTitle = TextView(context).apply {
-            text = "预设意图"
+            text = context.getString(R.string.intent_preset_tab)
             textSize = 13f
             setTextColor(subtleTextColor)
             layoutParams = LinearLayout.LayoutParams(
@@ -454,7 +454,7 @@ class IntentInputDialogOverlay(
 
         // History section title
         val historyTitle = TextView(context).apply {
-            text = "历史意图"
+            text = context.getString(R.string.intent_history_tab)
             textSize = 13f
             setTextColor(subtleTextColor)
             layoutParams = LinearLayout.LayoutParams(
@@ -498,7 +498,7 @@ class IntentInputDialogOverlay(
 
         // Skip button at bottom
         val skipButton = TextView(context).apply {
-            text = "跳过"
+            text = context.getString(R.string.intent_skip)
             textSize = 14f
             setTextColor(subtleTextColor)
             gravity = Gravity.CENTER
@@ -542,7 +542,7 @@ class IntentInputDialogOverlay(
 
         if (presetRules.isEmpty()) {
             val emptyText = TextView(context).apply {
-                text = "暂无预设意图"
+                text = context.getString(R.string.intent_no_preset_yet)
                 textSize = 13f
                 setTextColor(subtleTextColor)
                 gravity = Gravity.CENTER
@@ -596,21 +596,21 @@ class IntentInputDialogOverlay(
         val constraintText = when (constraints.type) {
             ConstraintType.DENY -> {
                 buildString {
-                    append("禁止 ${constraints.description.take(10)}")
+                    append(context.getString(R.string.intent_constraint_deny_format, constraints.description.take(10)))
                     constraints.timeLimitMs?.let { ms ->
                         val min = ms / 60000.0
                         val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
-                        val scopeStr = constraints.timeScope?.displayLabel ?: ""
-                        append(" ${scopeStr}${minText}分")
+                        val scopeStr = constraints.timeScope?.let { context.getString(it.displayLabelResId()) } ?: ""
+                        append(context.getString(R.string.intent_time_scope_suffix, scopeStr, minText))
                     }
                 }
             }
             ConstraintType.TIME_CAP -> {
                 val min = constraints.timeLimitMs?.let { it / 60000.0 } ?: 0.0
                 val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
-                val scopeStr = constraints.timeScope?.displayLabel ?: ""
+                val scopeStr = constraints.timeScope?.let { context.getString(it.displayLabelResId()) } ?: ""
                 val desc = constraints.description.take(10)
-                if (desc.isNotEmpty()) "限时 $desc ${scopeStr}${minText}分" else "限时 ${scopeStr}${minText}分"
+                if (desc.isNotEmpty()) context.getString(R.string.intent_constraint_time_cap_format, desc, "$scopeStr$minText") else context.getString(R.string.intent_constraint_time_cap_format, "", "$scopeStr$minText")
             }
         }
         val descText = TextView(context).apply {
@@ -645,7 +645,7 @@ class IntentInputDialogOverlay(
 
         if (history.isEmpty()) {
             val emptyText = TextView(context).apply {
-                text = "暂无历史意图"
+                text = context.getString(R.string.intent_no_history_yet)
                 textSize = 13f
                 setTextColor(subtleTextColor)
                 gravity = Gravity.CENTER
@@ -682,7 +682,7 @@ class IntentInputDialogOverlay(
 
         if (isLatest) {
             val tag = TextView(context).apply {
-                text = "上次使用"
+                text = context.getString(R.string.intent_last_used)
                 textSize = 11f
                 setTextColor(primaryColor)
                 layoutParams = LinearLayout.LayoutParams(
@@ -697,21 +697,21 @@ class IntentInputDialogOverlay(
             when (c.type) {
                 ConstraintType.DENY -> {
                     buildString {
-                        append("禁止 ${c.description.take(10)}")
+                        append(context.getString(R.string.intent_constraint_deny_format, c.description.take(10)))
                         c.timeLimitMs?.let { ms ->
                             val min = ms / 60000.0
                             val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
-                            val scopeStr = c.timeScope?.displayLabel ?: ""
-                            append(" ${scopeStr}${minText}分")
+                            val scopeStr = c.timeScope?.let { context.getString(it.displayLabelResId()) } ?: ""
+                            append(context.getString(R.string.intent_time_scope_suffix, scopeStr, minText))
                         }
                     }
                 }
                 ConstraintType.TIME_CAP -> {
                     val min = c.timeLimitMs?.let { it / 60000.0 } ?: 0.0
                     val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
-                    val scopeStr = c.timeScope?.displayLabel ?: ""
+                    val scopeStr = c.timeScope?.let { context.getString(it.displayLabelResId()) } ?: ""
                     val desc = c.description.take(10)
-                    if (desc.isNotEmpty()) "限时 $desc ${scopeStr}${minText}分" else "限时 ${scopeStr}${minText}分"
+                    if (desc.isNotEmpty()) context.getString(R.string.intent_constraint_time_cap_format, desc, "$scopeStr$minText") else context.getString(R.string.intent_constraint_time_cap_format, "", "$scopeStr$minText")
                 }
             }
         }
@@ -782,9 +782,9 @@ class IntentInputDialogOverlay(
                     setColor(primaryColor)
                 }
                 statusText?.text = when {
-                    isVoiceInputAvailable -> "点击麦克风开始录音，或直接键盘输入"
-                    !hasAudioPermission -> "未开启麦克风权限，可直接键盘输入"
-                    else -> "未配置可用语音输入，可直接键盘输入"
+                    isVoiceInputAvailable -> context.getString(R.string.intent_tap_mic_or_type)
+                    !hasAudioPermission -> context.getString(R.string.intent_no_mic_permission_type)
+                    else -> context.getString(R.string.intent_no_voice_type)
                 }
                 statusText?.setTextColor(subtleTextColor)
                 rulesPreviewText?.visibility = View.GONE
@@ -797,7 +797,7 @@ class IntentInputDialogOverlay(
                     shape = GradientDrawable.OVAL
                     setColor(recordingColor)
                 }
-                statusText?.text = "正在录音... 再次点击停止"
+                statusText?.text = context.getString(R.string.intent_recording_stop_hint)
                 statusText?.setTextColor(recordingColor)
                 rulesPreviewText?.visibility = View.GONE
                 confirmButton?.visibility = View.GONE
@@ -809,7 +809,7 @@ class IntentInputDialogOverlay(
                     shape = GradientDrawable.OVAL
                     setColor(processingColor)
                 }
-                statusText?.text = "正在解析..."
+                statusText?.text = context.getString(R.string.intent_parsing)
                 statusText?.setTextColor(processingColor)
                 rulesPreviewText?.visibility = View.GONE
                 confirmButton?.visibility = View.GONE
@@ -822,20 +822,20 @@ class IntentInputDialogOverlay(
                     setColor(successColor)
                 }
                 statusText?.text = if (pendingInputSource == InputSource.VOICE) {
-                    "意图已识别，请手动确认；不对的话可以再说一次"
+                    context.getString(R.string.intent_parsed_confirm_voice)
                 } else {
-                    "意图已识别"
+                    context.getString(R.string.intent_parsed)
                 }
                 statusText?.setTextColor(successColor)
 
                 val rulesText = pendingConstraints?.joinToString("\n") { c ->
                     when (c.type) {
-                        ConstraintType.DENY -> "禁止: ${c.description}"
+                        ConstraintType.DENY -> context.getString(R.string.intent_constraint_deny_full, c.description)
                         ConstraintType.TIME_CAP -> {
                             val min = c.timeLimitMs?.let { it / 60000.0 } ?: 0.0
                             val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
                             val desc = c.description
-                            if (desc.isNotEmpty()) "限时: $desc ${minText}分钟" else "限时: ${minText}分钟"
+                            if (desc.isNotEmpty()) context.getString(R.string.intent_constraint_time_cap_full, desc, minText) else context.getString(R.string.intent_constraint_time_cap_full, "", minText)
                         }
                     }
                 } ?: ""

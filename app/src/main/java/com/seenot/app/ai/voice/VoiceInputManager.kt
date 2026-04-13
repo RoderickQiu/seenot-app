@@ -1,6 +1,7 @@
 package com.seenot.app.ai.voice
 
 import android.content.Context
+import com.seenot.app.R
 import com.seenot.app.utils.Logger
 import com.seenot.app.ai.parser.IntentParser
 import com.seenot.app.ai.parser.ParsedConstraint
@@ -90,12 +91,27 @@ class VoiceInputManager(private val context: Context) {
             unifiedTranscriber = UnifiedTranscriber()
         }
         if (intentParser == null) {
-            intentParser = IntentParser()
+            intentParser = IntentParser { context }
         }
     }
 
     private fun shouldUseRealtimeDashScope(): Boolean {
         return ApiConfig.getSttProvider() == AiProvider.DASHSCOPE
+    }
+
+    private fun localizeSttError(message: String): String {
+        return when {
+            message.contains("Gemini") -> context.getString(R.string.stt_gemini_not_supported)
+            message.contains("DashScope") -> context.getString(R.string.stt_dashscope_not_supported)
+            message.contains("Anthropic") -> context.getString(R.string.stt_anthropic_not_supported)
+            message.contains("配置不完整") -> context.getString(R.string.stt_config_incomplete)
+            message.contains("语音转写失败") -> {
+                val code = Regex("\\d+").find(message)?.value
+                context.getString(R.string.stt_failed, code ?: "")
+            }
+            message.contains("结果为空") -> context.getString(R.string.stt_result_empty)
+            else -> message
+        }
     }
 
     /**
@@ -152,7 +168,7 @@ class VoiceInputManager(private val context: Context) {
 
             Logger.d(TAG, "Recording started")
         } else {
-            _error.value = "启动录音失败"
+            _error.value = context.getString(R.string.voice_err_start_failed)
             _recordingState.value = VoiceRecordingState.ERROR
             recordingUsesRealtimeDashScope = false
         }
@@ -180,13 +196,13 @@ class VoiceInputManager(private val context: Context) {
                 Logger.d(TAG, "Stop called, using current recognized text: $finalText")
                 parseIntent(finalText, currentPackageName, currentAppName)
             } else {
-                _error.value = "未能识别语音"
+                _error.value = context.getString(R.string.voice_err_not_recognized)
                 _recordingState.value = VoiceRecordingState.ERROR
             }
         } else {
             val audioFile = audioFileRecorder?.stopRecording()
             if (audioFile == null) {
-                _error.value = "录音失败"
+                _error.value = context.getString(R.string.voice_err_record_failed)
                 _recordingState.value = VoiceRecordingState.ERROR
                 return
             }
@@ -194,7 +210,7 @@ class VoiceInputManager(private val context: Context) {
             _recordingState.value = VoiceRecordingState.PROCESSING
             scope.launch {
                 val result = try {
-                    unifiedTranscriber?.transcribe(audioFile) ?: SttResult.Error("转写器未初始化")
+                    unifiedTranscriber?.transcribe(audioFile) ?: SttResult.Error(context.getString(R.string.voice_err_transcriber_not_init))
                 } finally {
                     audioFile.delete()
                 }
@@ -204,7 +220,7 @@ class VoiceInputManager(private val context: Context) {
                         parseIntent(result.text, currentPackageName, currentAppName)
                     }
                     is SttResult.Error -> {
-                        _error.value = result.message
+                        _error.value = localizeSttError(result.message)
                         _recordingState.value = VoiceRecordingState.ERROR
                     }
                 }
@@ -249,13 +265,13 @@ class VoiceInputManager(private val context: Context) {
                         _recordingState.value = VoiceRecordingState.ERROR
                     }
                     null -> {
-                        _error.value = "解析器未初始化"
+                        _error.value = context.getString(R.string.voice_err_parser_not_init)
                         _recordingState.value = VoiceRecordingState.ERROR
                     }
                 }
             } catch (e: Exception) {
                 Logger.e(TAG, "Intent parsing failed", e)
-                _error.value = "解析失败: ${e.message}"
+                _error.value = context.getString(R.string.voice_err_parse_failed, e.message ?: "unknown")
                 _recordingState.value = VoiceRecordingState.ERROR
             }
         }
@@ -266,7 +282,7 @@ class VoiceInputManager(private val context: Context) {
      */
     fun parseTextInput(text: String, packageName: String, appName: String) {
         if (text.isBlank()) {
-            _error.value = "请输入意图描述"
+            _error.value = context.getString(R.string.voice_err_no_intent_input)
             return
         }
 

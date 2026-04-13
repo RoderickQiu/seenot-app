@@ -18,6 +18,7 @@ import android.widget.LinearLayout
 import android.widget.ProgressBar
 import android.widget.TextView
 import com.seenot.app.data.model.AppHintScopeType
+import com.seenot.app.R
 import com.seenot.app.domain.FalsePositiveFeedbackResult
 import com.seenot.app.domain.FalsePositiveRulePreviewResult
 import com.seenot.app.utils.Logger
@@ -145,7 +146,7 @@ class FalsePositiveRuleReviewOverlay(
         )
 
         statusText = TextView(context).apply {
-            text = "正在生成补充规则草稿…"
+            text = context.getString(R.string.fp_generating_draft)
             textSize = 13f
             setTextColor(secondaryTextColor)
             gravity = Gravity.CENTER
@@ -171,7 +172,7 @@ class FalsePositiveRuleReviewOverlay(
         card.addView(progressBar)
 
         draftInput = EditText(context).apply {
-            hint = "生成完成后可直接修改，也可以自己重写"
+            hint = context.getString(R.string.fp_hint_after_generation)
             setPadding(16.dp(), 14.dp(), 16.dp(), 14.dp())
             background = GradientDrawable().apply {
                 cornerRadius = 14.dp().toFloat()
@@ -203,7 +204,7 @@ class FalsePositiveRuleReviewOverlay(
         }
 
         val cancelButton = buildButton(
-            text = "取消",
+            text = context.getString(R.string.fp_cancel),
             backgroundColor = neutralButtonColor,
             textColor = primaryTextColor
         ) {
@@ -216,7 +217,7 @@ class FalsePositiveRuleReviewOverlay(
         buttonRow.addView(cancelButton)
 
         regenerateButton = buildButton(
-            text = "重新生成",
+            text = context.getString(R.string.fp_regenerate),
             backgroundColor = neutralButtonColor,
             textColor = primaryTextColor
         ) {
@@ -231,7 +232,7 @@ class FalsePositiveRuleReviewOverlay(
         buttonRow.addView(regenerateButton)
 
         saveButton = buildButton(
-            text = "保存",
+            text = context.getString(R.string.fp_save),
             backgroundColor = accentColor,
             textColor = Color.WHITE
         ) {
@@ -239,7 +240,7 @@ class FalsePositiveRuleReviewOverlay(
             if (draft.isBlank() || isSaving) return@buildButton
             isSaving = true
             updateButtons()
-            statusText?.text = "正在保存补充规则…"
+            statusText?.text = context.getString(R.string.fp_saving)
             onSave(draft, latestScopeType) { result ->
                 isSaving = false
                 if (result.success) {
@@ -282,7 +283,7 @@ class FalsePositiveRuleReviewOverlay(
     private fun triggerGeneration() {
         if (isGenerating || isSaving) return
         isGenerating = true
-        statusText?.text = "正在生成补充规则草稿…"
+        statusText?.text = context.getString(R.string.fp_generating_draft)
         progressBar?.visibility = View.VISIBLE
         draftInput?.visibility = View.GONE
         regenerateButton?.visibility = View.GONE
@@ -296,7 +297,7 @@ class FalsePositiveRuleReviewOverlay(
             saveButton?.visibility = View.VISIBLE
             latestScopeType = result.generatedScopeType
             draftInput?.setText(result.generatedRule.orEmpty())
-            statusText?.text = "${result.userMessage} · 建议放在：${result.generatedScopeLabel}"
+            statusText?.text = context.getString(R.string.false_positive_status_format, result.userMessage, result.generatedScopeLabel)
             updateButtons()
         }
     }

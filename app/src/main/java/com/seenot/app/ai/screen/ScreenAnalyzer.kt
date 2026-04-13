@@ -14,6 +14,7 @@ import android.os.Looper
 import android.os.PowerManager
 import android.hardware.display.DisplayManager
 import android.view.Display
+import com.seenot.app.R
 import com.seenot.app.utils.Logger
 import com.seenot.app.ui.overlay.FloatingIndicatorOverlay
 import com.seenot.app.ui.overlay.InterventionFeedbackDialogOverlay
@@ -398,7 +399,7 @@ class ScreenAnalyzer(
 
                 if (screenshot == null) {
                     Logger.e(TAG, "❌ Failed to capture screenshot!")
-                    showToast("截图失败")
+                    showToast(context.getString(R.string.err_screenshot_failed))
                     return ScreenAnalysisResult(
                         analysisId = analysisId,
                         timestamp = System.currentTimeMillis(),
@@ -588,7 +589,7 @@ class ScreenAnalyzer(
             }
 
             Logger.e(TAG, "❌ Analysis failed: ${e.message}", e)
-            showToast("分析失败: ${e.message}")
+            showToast(context.getString(R.string.err_analysis_failed, e.message ?: "unknown"))
             return ScreenAnalysisResult(
                 analysisId = analysisId,
                 timestamp = System.currentTimeMillis(),
@@ -633,11 +634,13 @@ class ScreenAnalyzer(
         val message = buildString {
             // Show violations first (DENY only)
             if (violations.isNotEmpty()) {
-                val reason = violations.firstOrNull()?.reason?.take(20) ?: "未知"
-                append("⚠️ 违规: $reason")
+                val reason = violations.firstOrNull()?.reason?.take(20)
+                    ?: context.getString(R.string.label_unknown)
+                append(context.getString(R.string.toast_violation_format, reason))
             } else if (denyAllowMatches.isNotEmpty()) {
-                val reason = denyAllowMatches.firstOrNull()?.reason?.take(20) ?: "无"
-                append("✅ 符合规则: $reason")
+                val reason = denyAllowMatches.firstOrNull()?.reason?.take(20)
+                    ?: context.getString(R.string.label_no_match)
+                append(context.getString(R.string.toast_compliant_format, reason))
             }
 
             // Show TIME_CAP status - always show, regardless of in/out of scope
@@ -645,12 +648,11 @@ class ScreenAnalyzer(
                 val inScopeCount = timeCapMatches.count { match -> match.isInScope == true }
 
                 if (isNotEmpty()) append(" | ")
+                val reason = timeCapMatches.firstOrNull()?.reason?.take(10) ?: ""
                 if (inScopeCount > 0) {
-                    val reason = timeCapMatches.firstOrNull()?.reason?.take(10) ?: ""
-                    append("⏱️ $reason 计时中")
+                    append(context.getString(R.string.toast_timing_format, reason))
                 } else {
-                    val reason = timeCapMatches.firstOrNull()?.reason?.take(10) ?: ""
-                    append("⏱️ $reason 未计时")
+                    append(context.getString(R.string.toast_not_timing_format, reason))
                 }
             }
         }
@@ -1019,10 +1021,10 @@ class ScreenAnalyzer(
         }
 
         val message = when {
-            errorMessage.isNullOrBlank() -> "模型请求失败"
-            errorMessage.contains("503") -> "模型服务暂时不可用"
-            errorMessage.contains("401") || errorMessage.contains("403") -> "模型鉴权失败，请检查 API Key"
-            else -> "模型请求失败"
+            errorMessage.isNullOrBlank() -> context.getString(R.string.err_model_request_failed)
+            errorMessage.contains("503") -> context.getString(R.string.err_model_service_unavailable)
+            errorMessage.contains("401") || errorMessage.contains("403") -> context.getString(R.string.err_model_auth_failed)
+            else -> context.getString(R.string.err_model_request_failed)
         }
 
         val now = System.currentTimeMillis()
@@ -1126,7 +1128,7 @@ class ScreenAnalyzer(
                         constraint = constraint,
                         isViolation = isViolation,
                         confidence = confidence,
-                        reason = reason.ifBlank { "未知界面" },
+                        reason = reason.ifBlank { context.getString(R.string.label_unknown_screen) },
                         isInScope = isInScope
                     )
                 } catch (e: Exception) {

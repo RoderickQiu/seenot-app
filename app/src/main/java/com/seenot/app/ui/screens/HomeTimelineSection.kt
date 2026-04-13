@@ -33,9 +33,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import com.seenot.app.R
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.RuleRecord
 import com.seenot.app.data.repository.RuleRecordRepository
@@ -59,7 +61,7 @@ fun HomeTimelineSection(
         repository.getRecordsInRangeFlow(dayRange.first, dayRange.second)
     }
     val records by recordsFlow.collectAsState(initial = emptyList())
-    val events = remember(records) { buildTimelineEvents(records) }
+    val events = remember(records, context) { buildTimelineEvents(records, context) }
 
     Column(
         modifier = modifier.fillMaxWidth()
@@ -80,9 +82,9 @@ fun HomeTimelineSection(
             ) {
                 Text(
                     text = if (dayOffset == 0) {
-                        "今天还没有记录。进入受控 App 后，系统会在这里展示违规与计时事件。"
+                        stringResource(R.string.timeline_no_records_today)
                     } else {
-                        "这一天还没有记录。"
+                        stringResource(R.string.timeline_no_records_day)
                     },
                     modifier = Modifier.padding(16.dp),
                     style = MaterialTheme.typography.bodyMedium,
@@ -133,7 +135,7 @@ private fun TimelineHeader(
         ) {
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                contentDescription = "前一天"
+                contentDescription = stringResource(R.string.timeline_prev_day)
             )
         }
 
@@ -143,17 +145,18 @@ private fun TimelineHeader(
         ) {
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = "后一天"
+                contentDescription = stringResource(R.string.timeline_next_day)
             )
         }
     }
 }
 
+@Composable
 private fun dayTitle(dayOffset: Int): String {
-    if (dayOffset == 0) return "今日时间轴"
+    if (dayOffset == 0) return stringResource(R.string.timeline_today_label)
     val cal = Calendar.getInstance()
     cal.add(Calendar.DAY_OF_MONTH, dayOffset)
-    val sdf = SimpleDateFormat("M月d日时间轴", Locale.getDefault())
+    val sdf = SimpleDateFormat(stringResource(R.string.timeline_day_format), Locale.getDefault())
     return sdf.format(cal.time)
 }
 
@@ -173,7 +176,7 @@ private fun getDayRange(dayOffset: Int): Pair<Long, Long> {
 
 private fun resolveAppLabel(context: Context, packageName: String?, fallback: String?): String {
     val pm = context.packageManager
-    val pkg = packageName?.takeIf { it.isNotBlank() } ?: return fallback ?: "未知应用"
+    val pkg = packageName?.takeIf { it.isNotBlank() } ?: return fallback ?: context.getString(R.string.timeline_unknown_app)
     return try {
         val ai = pm.getApplicationInfo(pkg, 0)
         pm.getApplicationLabel(ai).toString()
@@ -230,7 +233,7 @@ private data class TimelineEventStack(
 
 private fun resolveStackAppLabel(context: Context, stack: TimelineEventStack): String {
     val appKeys = stack.events.map { (it.packageName ?: "") to (it.appName ?: "") }.distinct()
-    if (appKeys.size > 1) return "多应用"
+    if (appKeys.size > 1) return context.getString(R.string.timeline_multi_app)
     val event = stack.latestEvent
     return resolveAppLabel(context, event.packageName, event.appName)
 }
@@ -245,20 +248,20 @@ private data class ActionKey(
     val constraintKey: String
 )
 
-private fun buildTimelineEvents(records: List<RuleRecord>): List<TimelineEvent> {
+private fun buildTimelineEvents(records: List<RuleRecord>, context: Context): List<TimelineEvent> {
     if (records.isEmpty()) return emptyList()
 
     val sorted = records.sortedBy { it.timestamp }
     val out = ArrayList<TimelineEvent>()
 
-    out.addAll(buildActionEvents(sorted))
-    out.addAll(buildDenyTransitionEvents(sorted))
-    out.addAll(buildTimeCapRangeEvents(sorted))
+    out.addAll(buildActionEvents(sorted, context))
+    out.addAll(buildDenyTransitionEvents(sorted, context))
+    out.addAll(buildTimeCapRangeEvents(sorted, context))
 
     return out.sortedBy { it.timestamp }
 }
 
-private fun buildActionEvents(records: List<RuleRecord>): List<TimelineEvent> {
+private fun buildActionEvents(records: List<RuleRecord>, context: Context): List<TimelineEvent> {
     return records.mapNotNull { r ->
         if (r.actionType.isNullOrBlank()) return@mapNotNull null
 
@@ -268,13 +271,13 @@ private fun buildActionEvents(records: List<RuleRecord>): List<TimelineEvent> {
             timestamp = ts,
             packageName = r.packageName,
             appName = r.appName,
-            title = localizeActionTitle(r.actionType, r.actionReason),
+            title = localizeActionTitle(r.actionType, r.actionReason, context),
             subtitle = r.constraintContent?.takeIf { it.isNotBlank() }
         )
     }
 }
 
-private fun buildDenyTransitionEvents(records: List<RuleRecord>): List<TimelineEvent> {
+private fun buildDenyTransitionEvents(records: List<RuleRecord>, context: Context): List<TimelineEvent> {
     val denyRecords = records.filter { it.actionType == null && it.constraintType == ConstraintType.DENY }
     val lastState = mutableMapOf<StateKey, Boolean>()
     val violationActionTimes = buildViolationActionTimes(records)
@@ -302,7 +305,7 @@ private fun buildDenyTransitionEvents(records: List<RuleRecord>): List<TimelineE
                         timestamp = r.timestamp,
                         packageName = r.packageName,
                         appName = r.appName,
-                        title = "违规开始",
+                        title = context.getString(R.string.timeline_violation_start),
                         subtitle = r.constraintContent?.takeIf { it.isNotBlank() } ?: r.aiResult?.take(40)
                     )
                 )
@@ -341,7 +344,7 @@ private fun hasNearbyViolationAction(
     return times.any { kotlin.math.abs(it - ts) <= windowMs }
 }
 
-private fun buildTimeCapRangeEvents(records: List<RuleRecord>): List<TimelineEvent> {
+private fun buildTimeCapRangeEvents(records: List<RuleRecord>, context: Context): List<TimelineEvent> {
     val timeRecords = records.filter { it.actionType == null && it.constraintType == ConstraintType.TIME_CAP }
     if (timeRecords.isEmpty()) return emptyList()
 
@@ -360,7 +363,7 @@ private fun buildTimeCapRangeEvents(records: List<RuleRecord>): List<TimelineEve
         val sample = sorted.lastOrNull()
 
         for ((idx, interval) in mergedIntervals.withIndex()) {
-            val title = "${formatTime(interval.startTs)} - ${formatTime(interval.endTs)} 在计时"
+            val title = context.getString(R.string.timeline_timing_interval, formatTime(interval.startTs), formatTime(interval.endTs))
             out.add(
                 TimelineEvent.TimeCapRange(
                     key = "${sample?.id ?: constraintKey}:time-range:$idx",
@@ -432,31 +435,31 @@ private fun mergeNearbyIntervals(intervals: List<Interval>, maxGapMs: Long): Lis
     return merged
 }
 
-private fun localizeActionTitle(actionType: String?, actionReason: String?): String {
+private fun localizeActionTitle(actionType: String?, actionReason: String?, context: Context): String {
     val type = actionType.orEmpty().uppercase(Locale.ROOT)
     return when (type) {
         "TOAST" -> when (actionReason) {
-            "timeout" -> "时间到提醒"
-            "gentle_confirmed_return" -> "用户确认后返回"
-            else -> "违规提醒"
+            "timeout" -> context.getString(R.string.event_timeout_reminder)
+            "gentle_confirmed_return" -> context.getString(R.string.event_user_confirmed_return)
+            else -> context.getString(R.string.event_violation_reminder)
         }
         "AUTO_BACK" -> when (actionReason) {
-            "timeout" -> "时间到，自动返回"
-            "gentle_confirmed_return" -> "你选择了回到正事"
-            else -> "检测到违规，自动返回"
+            "timeout" -> context.getString(R.string.event_timeout_auto_return)
+            "gentle_confirmed_return" -> context.getString(R.string.event_user_back_to_task)
+            else -> context.getString(R.string.event_violation_auto_return)
         }
         "GO_HOME" -> when (actionReason) {
-            "timeout" -> "时间到，返回主屏幕"
-            "gentle_confirmed_return" -> "你选择了结束当前内容"
-            else -> "严重违规，返回主屏幕"
+            "timeout" -> context.getString(R.string.event_timeout_return_home)
+            "gentle_confirmed_return" -> context.getString(R.string.event_user_ended_content)
+            else -> context.getString(R.string.event_severe_violation_return)
         }
-        "HUD_HIGHLIGHT" -> "高亮警告"
-        "VIBRATE" -> "震动提醒"
+        "HUD_HIGHLIGHT" -> context.getString(R.string.event_hud_highlight)
+        "VIBRATE" -> context.getString(R.string.event_vibrate)
         else -> when (actionReason) {
-            "timeout" -> "时间到动作"
-            "gentle_confirmed_return" -> "用户确认动作"
-            "violation" -> "违规动作"
-            else -> "系统动作"
+            "timeout" -> context.getString(R.string.event_timeout_action)
+            "gentle_confirmed_return" -> context.getString(R.string.event_user_confirm_action)
+            "violation" -> context.getString(R.string.event_violation_action)
+            else -> context.getString(R.string.event_system_action)
         }
     }
 }
@@ -486,7 +489,7 @@ private fun TimelineEventStackRow(
     }
     val hiddenCount = (primaryLines.size - 3).coerceAtLeast(0)
     val shownLines = primaryLines.take(3)
-    val metaText = "${formatTime(latestEvent.timestamp)} · $appLabel · 共${stack.events.size}条"
+    val metaText = stringResource(R.string.timeline_meta_format, formatTime(latestEvent.timestamp), appLabel, stack.events.size)
 
     Card(
         modifier = modifier.fillMaxWidth(),
@@ -513,7 +516,7 @@ private fun TimelineEventStackRow(
                     }
                     if (hiddenCount > 0) {
                         Text(
-                            text = "另外 $hiddenCount 条",
+                            text = stringResource(R.string.timeline_more_hidden, hiddenCount),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )

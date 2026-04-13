@@ -14,6 +14,7 @@ import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.seenot.app.R
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.utils.Logger
 
@@ -97,7 +98,7 @@ class JudgmentFeedbackConfirmOverlay(
 
         card.addView(
             TextView(context).apply {
-                text = "这次判断不太对？"
+                text = context.getString(R.string.judgment_wrong_title)
                 textSize = 20f
                 setTextColor(primaryTextColor)
                 typeface = Typeface.DEFAULT_BOLD
@@ -114,8 +115,8 @@ class JudgmentFeedbackConfirmOverlay(
         card.addView(
             TextView(context).apply {
                 text = when (constraintType) {
-                    ConstraintType.DENY -> "我们会记下这次关于内容判断的纠正，方便后续优化"
-                    ConstraintType.TIME_CAP -> "我们会记下这次关于计时判断的纠正，方便后续优化"
+                    ConstraintType.DENY -> context.getString(R.string.judgment_wrong_content_desc)
+                    ConstraintType.TIME_CAP -> context.getString(R.string.judgment_wrong_content_timing)
                 }
                 textSize = 14f
                 setTextColor(secondaryTextColor)
@@ -136,7 +137,7 @@ class JudgmentFeedbackConfirmOverlay(
 
         buttonRow.addView(
             buildButton(
-                text = "取消",
+                text = context.getString(R.string.cancel),
                 backgroundColor = neutralButtonColor,
                 textColor = primaryTextColor
             ) {
@@ -150,7 +151,7 @@ class JudgmentFeedbackConfirmOverlay(
 
         buttonRow.addView(
             buildButton(
-                text = "确认",
+                text = context.getString(R.string.confirm),
                 backgroundColor = confirmColor,
                 textColor = Color.WHITE
             ) {

@@ -20,7 +20,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.tooling.preview.Preview
+import com.seenot.app.R
 import kotlinx.coroutines.delay
 
 /**
@@ -80,10 +82,10 @@ fun VoiceInputOverlay(
                 // Header
                 Text(
                     text = when (state.status) {
-                        VoiceInputStatus.IDLE -> "声明你的意图"
-                        VoiceInputStatus.RECORDING -> "正在录音..."
-                        VoiceInputStatus.PROCESSING -> "正在解析..."
-                        VoiceInputStatus.SHOWING_RESULT -> "识别结果"
+                        VoiceInputStatus.IDLE -> stringResource(R.string.voice_input_title)
+                        VoiceInputStatus.RECORDING -> stringResource(R.string.recording)
+                        VoiceInputStatus.PROCESSING -> stringResource(R.string.processing)
+                        VoiceInputStatus.SHOWING_RESULT -> stringResource(R.string.state_transcribed)
                     },
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
@@ -110,13 +112,13 @@ fun VoiceInputOverlay(
                             ) {
                                 Icon(Icons.Default.Refresh, contentDescription = null)
                                 Spacer(modifier = Modifier.width(8.dp))
-                                Text("继续使用上次意图")
+                                Text(stringResource(R.string.continue_last_intent))
                             }
 
                             Spacer(modifier = Modifier.height(16.dp))
 
                             Text(
-                                text = "或",
+                                text = stringResource(R.string.common_or),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
 
@@ -135,7 +137,7 @@ fun VoiceInputOverlay(
                         ) {
                             Icon(
                                 Icons.Default.Mic,
-                                contentDescription = "开始录音",
+                                contentDescription = stringResource(R.string.start_recording),
                                 tint = Color.White,
                                 modifier = Modifier.size(40.dp)
                             )
@@ -144,7 +146,7 @@ fun VoiceInputOverlay(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         Text(
-                            text = "点击说话",
+                            text = stringResource(R.string.voice_tap_to_speak),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -153,12 +155,12 @@ fun VoiceInputOverlay(
 
                         // Switch to text input
                         TextButton(onClick = { showTextInput = true }) {
-                            Text("或使用文本输入")
+                            Text(stringResource(R.string.voice_or_use_text_input))
                         }
 
                         // Skip button
                         TextButton(onClick = onSkip) {
-                            Text("跳过", color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text(stringResource(R.string.skip), color = MaterialTheme.colorScheme.onSurfaceVariant)
                         }
                     }
 
@@ -175,7 +177,7 @@ fun VoiceInputOverlay(
                         ) {
                             Icon(
                                 Icons.Default.Stop,
-                                contentDescription = "停止录音",
+                                contentDescription = stringResource(R.string.stop_recording),
                                 tint = Color.White,
                                 modifier = Modifier.size(40.dp)
                             )
@@ -184,7 +186,7 @@ fun VoiceInputOverlay(
                         Spacer(modifier = Modifier.height(8.dp))
 
                         Text(
-                            text = "点击停止",
+                            text = stringResource(R.string.voice_tap_to_stop),
                             style = MaterialTheme.typography.bodySmall,
                             color = Color.Red
                         )
@@ -193,7 +195,7 @@ fun VoiceInputOverlay(
 
                         // Cancel button
                         TextButton(onClick = onSkip) {
-                            Text("取消")
+                            Text(stringResource(R.string.cancel))
                         }
                     }
 
@@ -205,7 +207,7 @@ fun VoiceInputOverlay(
                         Spacer(modifier = Modifier.height(16.dp))
 
                         Text(
-                            text = "正在理解你的意图...",
+                            text = stringResource(R.string.understanding_intent),
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
@@ -232,7 +234,7 @@ fun VoiceInputOverlay(
                             onClick = { onSubmitText(state.recognizedText ?: "") },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("确认")
+                            Text(stringResource(R.string.confirm))
                         }
 
                         Spacer(modifier = Modifier.height(8.dp))
@@ -242,7 +244,7 @@ fun VoiceInputOverlay(
                             onClick = { },
                             modifier = Modifier.fillMaxWidth()
                         ) {
-                            Text("再说一次")
+                            Text(stringResource(R.string.try_again))
                         }
                     }
                 }
@@ -254,8 +256,8 @@ fun VoiceInputOverlay(
                     OutlinedTextField(
                         value = textInput,
                         onValueChange = { textInput = it },
-                        label = { Text("输入你的意图") },
-                        placeholder = { Text("例如：只看工作消息，10分钟") },
+                        label = { Text(stringResource(R.string.input_intent_title)) },
+                        placeholder = { Text(stringResource(R.string.input_intent_hint)) },
                         modifier = Modifier.fillMaxWidth(),
                         minLines = 2
                     )
@@ -273,7 +275,7 @@ fun VoiceInputOverlay(
                         modifier = Modifier.fillMaxWidth(),
                         enabled = textInput.isNotBlank()
                     ) {
-                        Text("确认")
+                        Text(stringResource(R.string.confirm))
                     }
                 }
             }
@@ -303,23 +305,3 @@ enum class VoiceInputStatus {
     SHOWING_RESULT
 }
 
-/**
- * Preview provider for VoiceInputOverlay
- */
-@androidx.compose.ui.tooling.preview.Preview
-@Composable
-fun VoiceInputOverlayPreview() {
-    MaterialTheme {
-        VoiceInputOverlay(
-            state = VoiceInputState(
-                appDisplayName = "微信",
-                hasLastIntent = true
-            ),
-            onStartRecording = {},
-            onStopRecording = {},
-            onSubmitText = {},
-            onContinueLastIntent = {},
-            onSkip = {}
-        )
-    }
-}

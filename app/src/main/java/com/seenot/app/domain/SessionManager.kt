@@ -3,6 +3,7 @@ package com.seenot.app.domain
 import android.content.Context
 import android.content.SharedPreferences
 import com.google.gson.Gson
+import com.seenot.app.R
 import com.seenot.app.ai.feedback.FalsePositiveRuleGenerator
 import com.seenot.app.ai.feedback.GeneratedFalsePositiveRuleResult
 import com.seenot.app.ai.feedback.FalsePositiveRulePreview
@@ -646,14 +647,14 @@ class SessionManager(private val context: Context) {
                 context = context,
                 appName = session.appDisplayName,
                 constraintDescription = constraint.description,
-                titleText = if (isGentle) "先停一下" else "先停一下？",
+                titleText = if (isGentle) context.getString(R.string.dialog_title_pause) else context.getString(R.string.dialog_title_pause_confirm),
                 subtitleText = if (isGentle) {
-                    "你现在偏离了刚才想做的事"
+                    context.getString(R.string.dialog_subtitle_gentle_deviation)
                 } else {
-                    "看起来你正在偏离刚才的目标"
+                    context.getString(R.string.dialog_subtitle_moderate_deviation)
                 },
-                primaryButtonText = if (isGentle) "回到正事" else "退出",
-                secondaryButtonText = if (isGentle) "我知道了，但还是继续" else null,
+                primaryButtonText = if (isGentle) context.getString(R.string.dialog_btn_back_to_task) else context.getString(R.string.dialog_btn_exit),
+                secondaryButtonText = if (isGentle) context.getString(R.string.dialog_btn_continue) else null,
                 onFalsePositive = {
                     logRuntimeEvent(
                         eventType = RuntimeEventType.USER_MARKED_MISUNDERSTAND,
@@ -669,8 +670,8 @@ class SessionManager(private val context: Context) {
                     falsePositiveDialogCooldownUntil =
                         System.currentTimeMillis() + FALSE_POSITIVE_DIALOG_COOLDOWN_MS
                     showFalsePositiveReviewOverlay(
-                        title = "误报纠正",
-                        subtitle = "会先生成一条补充规则草稿，并判断它更适合放在整个 app 通用，还是只对当前这条意图生效",
+                        title = context.getString(R.string.false_positive_review_title),
+                        subtitle = context.getString(R.string.false_positive_review_subtitle),
                         onGenerate = { callback ->
                             previewFalsePositiveForLatestViolation(
                                 session = session,
@@ -762,7 +763,7 @@ class SessionManager(private val context: Context) {
                     onComplete?.invoke(
                         FalsePositiveFeedbackResult(
                             success = false,
-                            userMessage = "没找到对应的误报记录"
+                            userMessage = context.getString(R.string.error_no_fp_record)
                         )
                     )
                     return@launch
@@ -781,7 +782,7 @@ class SessionManager(private val context: Context) {
                 onComplete?.invoke(
                     FalsePositiveFeedbackResult(
                         success = false,
-                        userMessage = "记录误报失败"
+                        userMessage = context.getString(R.string.error_record_fp_failed)
                     )
                 )
             }
@@ -807,7 +808,7 @@ class SessionManager(private val context: Context) {
                     callback(
                         FalsePositiveRulePreviewResult(
                             success = false,
-                            userMessage = "没找到对应的误报记录"
+                            userMessage = context.getString(R.string.error_no_fp_record)
                         )
                     )
                     return@launch
@@ -819,7 +820,7 @@ class SessionManager(private val context: Context) {
                 callback(
                     FalsePositiveRulePreviewResult(
                         success = false,
-                        userMessage = "生成补充规则失败"
+                        userMessage = context.getString(R.string.error_generate_rule_failed)
                     )
                 )
             }
@@ -848,7 +849,7 @@ class SessionManager(private val context: Context) {
                     onComplete(
                         FalsePositiveFeedbackResult(
                             success = false,
-                            userMessage = "没找到对应的误报记录"
+                            userMessage = context.getString(R.string.error_no_fp_record)
                         )
                     )
                     return@launch
@@ -868,7 +869,7 @@ class SessionManager(private val context: Context) {
                 onComplete(
                     FalsePositiveFeedbackResult(
                         success = false,
-                        userMessage = "记录误报失败"
+                        userMessage = context.getString(R.string.error_record_fp_failed)
                     )
                 )
             }
@@ -912,7 +913,7 @@ class SessionManager(private val context: Context) {
                     onComplete?.invoke(
                         FalsePositiveFeedbackResult(
                             success = false,
-                            userMessage = "没找到对应的判断记录"
+                            userMessage = context.getString(R.string.error_no_judgment_record)
                         )
                     )
                     return@launch
@@ -931,7 +932,7 @@ class SessionManager(private val context: Context) {
                 onComplete?.invoke(
                     FalsePositiveFeedbackResult(
                         success = false,
-                        userMessage = "记录误报失败"
+                        userMessage = context.getString(R.string.error_record_fp_failed)
                     )
                 )
             }
@@ -959,7 +960,7 @@ class SessionManager(private val context: Context) {
                     onComplete(
                         FalsePositiveRulePreviewResult(
                             success = false,
-                            userMessage = "没找到对应的判断记录"
+                            userMessage = context.getString(R.string.error_no_judgment_record)
                         )
                     )
                     return@launch
@@ -971,7 +972,7 @@ class SessionManager(private val context: Context) {
                 onComplete(
                     FalsePositiveRulePreviewResult(
                         success = false,
-                        userMessage = "生成补充规则失败"
+                        userMessage = context.getString(R.string.error_generate_rule_failed)
                     )
                 )
             }
@@ -1002,7 +1003,7 @@ class SessionManager(private val context: Context) {
                     onComplete(
                         FalsePositiveFeedbackResult(
                             success = false,
-                            userMessage = "没找到对应的判断记录"
+                            userMessage = context.getString(R.string.error_no_judgment_record)
                         )
                     )
                     return@launch
@@ -1022,7 +1023,7 @@ class SessionManager(private val context: Context) {
                 onComplete(
                     FalsePositiveFeedbackResult(
                         success = false,
-                        userMessage = "记录误报失败"
+                        userMessage = context.getString(R.string.error_record_fp_failed)
                     )
                 )
             }
@@ -1078,11 +1079,13 @@ class SessionManager(private val context: Context) {
                         generatedRule = preview.ruleText,
                         generatedScopeType = preview.scopeType,
                         generatedScopeLabel = when (preview.scopeType) {
-                            AppHintScopeType.APP_GENERAL -> "整个 app 都适用"
-                            AppHintScopeType.INTENT_SPECIFIC -> "只对这条意图生效"
+                            AppHintScopeType.APP_GENERAL -> context.getString(R.string.scope_app_general)
+                            AppHintScopeType.INTENT_SPECIFIC -> context.getString(R.string.scope_intent_specific)
                         },
-                        userMessage = if (preview.ruleText.isNullOrBlank()) "这次先给了一个不太理想的草稿，你可以直接改，或再试一次"
-                        else "补充规则已生成，可直接修改后保存"
+                        userMessage = if (preview.ruleText.isNullOrBlank())
+                            context.getString(R.string.fp_draft_generated_poor)
+                        else
+                            context.getString(R.string.fp_rule_generated)
                     )
                 )
             } catch (e: Exception) {
@@ -1090,7 +1093,9 @@ class SessionManager(private val context: Context) {
                 onComplete(
                     FalsePositiveRulePreviewResult(
                         success = false,
-                        userMessage = "生成补充规则失败"
+                        generatedScopeType = AppHintScopeType.INTENT_SPECIFIC,
+                        generatedScopeLabel = context.getString(R.string.scope_intent_specific),
+                        userMessage = context.getString(R.string.error_generate_rule_failed)
                     )
                 )
             }
@@ -1132,7 +1137,7 @@ class SessionManager(private val context: Context) {
             if (shouldPauseJudgment) {
                 isFalsePositiveLearningInProgress = true
                 withContext(Dispatchers.Main) {
-                    ToastOverlay.show(context, "已暂停判断，正在生成补充规则…")
+                    ToastOverlay.show(context, context.getString(R.string.fp_generating_pause))
                 }
                 screenAnalyzer?.pauseAnalysis()
             }
@@ -1223,7 +1228,7 @@ class SessionManager(private val context: Context) {
                 FalsePositiveFeedbackResult(
                     success = false,
                     recordId = record.id,
-                    userMessage = "记录误报失败"
+                    userMessage = context.getString(R.string.error_record_fp_failed)
                 )
             } finally {
                 if (shouldPauseJudgment) {
@@ -1351,13 +1356,13 @@ class SessionManager(private val context: Context) {
     ): FalsePositiveFeedbackResult {
         val message = when {
             generated.ruleText != null && generated.reusedExistingHint ->
-                if (resumedJudgment) "已有相似补充规则，已恢复判断并立即生效" else "已记录误报，已有相似补充规则"
+                if (resumedJudgment) context.getString(R.string.fp_similar_rule_exists_resumed) else context.getString(R.string.fp_recorded_has_similar_rule)
             generated.ruleText != null && generated.usedUserNoteFallback ->
-                if (resumedJudgment) "已保存补充规则，已恢复判断并立即生效" else "已记录误报，并保存补充规则"
+                if (resumedJudgment) context.getString(R.string.fp_rule_saved_resumed) else context.getString(R.string.fp_recorded_saved_rule)
             generated.ruleText != null ->
-                if (resumedJudgment) "补充规则已生成，已恢复判断并立即生效" else "已记录误报，并生成补充规则"
+                if (resumedJudgment) context.getString(R.string.fp_rule_generated_resumed) else context.getString(R.string.fp_recorded_generated_rule)
             else ->
-                if (resumedJudgment) "已记录这次误报，已恢复判断" else "已记录这次误报"
+                if (resumedJudgment) context.getString(R.string.fp_recorded_this_resumed) else context.getString(R.string.fp_recorded)
         }
 
         return FalsePositiveFeedbackResult(
@@ -2054,7 +2059,7 @@ data class FalsePositiveRulePreviewResult(
     val success: Boolean,
     val generatedRule: String? = null,
     val generatedScopeType: AppHintScopeType = AppHintScopeType.INTENT_SPECIFIC,
-    val generatedScopeLabel: String = "只对这条意图生效",
+    val generatedScopeLabel: String = "",
     val userMessage: String
 )
 

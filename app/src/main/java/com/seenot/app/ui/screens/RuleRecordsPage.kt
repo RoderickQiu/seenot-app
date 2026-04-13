@@ -29,6 +29,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -45,6 +46,7 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.activity.compose.BackHandler
 import androidx.compose.ui.graphics.Color
+import com.seenot.app.R
 import com.seenot.app.data.model.AppHintScopeType
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.RuleRecord
@@ -78,15 +80,15 @@ private fun rememberRecordStatus(record: RuleRecord): RecordStatusPresentation {
         ConstraintType.TIME_CAP -> {
             if (record.isConditionMatched) {
                 RecordStatusPresentation(
-                    label = "计时状态",
-                    text = "正在计时",
+                    label = stringResource(R.string.record_timing_status),
+                    text = stringResource(R.string.record_timing_active),
                     accentColor = MaterialTheme.colorScheme.tertiary,
                     containerColor = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.35f)
                 )
             } else {
                 RecordStatusPresentation(
-                    label = "计时状态",
-                    text = "当前不计时",
+                    label = stringResource(R.string.record_timing_status),
+                    text = stringResource(R.string.record_timing_inactive),
                     accentColor = MaterialTheme.colorScheme.outline,
                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                 )
@@ -96,15 +98,15 @@ private fun rememberRecordStatus(record: RuleRecord): RecordStatusPresentation {
         else -> {
             if (record.isConditionMatched) {
                 RecordStatusPresentation(
-                    label = "匹配状态",
-                    text = "正常 (未违反规则)",
+                    label = stringResource(R.string.record_match_status),
+                    text = stringResource(R.string.record_match_normal),
                     accentColor = MaterialTheme.colorScheme.primary,
                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                 )
             } else {
                 RecordStatusPresentation(
-                    label = "匹配状态",
-                    text = "违规 (已违反规则)",
+                    label = stringResource(R.string.record_match_status),
+                    text = stringResource(R.string.record_match_violated),
                     accentColor = MaterialTheme.colorScheme.error,
                     containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
                 )
@@ -148,7 +150,7 @@ fun RuleRecordsPage(
     var hintDialogText by remember { mutableStateOf("") }
     var generatedHintDraft by remember { mutableStateOf("") }
     var generatedHintScopeType by remember { mutableStateOf(AppHintScopeType.INTENT_SPECIFIC) }
-    var generatedHintScopeLabel by remember { mutableStateOf("只对这条意图生效") }
+    var generatedHintScopeLabel by remember { mutableStateOf("") }  // Set to stringResource(R.string.record_intent_scope_label) when dialog opens
     var isGeneratingHint by remember { mutableStateOf(false) }
     var hintGenerationAttempted by remember { mutableStateOf(false) }
     val sessionManager = remember { SessionManager.getInstance(context) }
@@ -203,15 +205,15 @@ fun RuleRecordsPage(
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("规则记录") },
+                title = { Text(stringResource(R.string.record_page_title)) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "返回")
+                        Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.record_back))
                     }
                 },
                 actions = {
                     IconButton(onClick = { showDatePicker = true }) {
-                        Icon(Icons.Filled.DateRange, contentDescription = "选择日期")
+                        Icon(Icons.Filled.DateRange, contentDescription = stringResource(R.string.record_select_date))
                     }
                     IconButton(
                         onClick = {
@@ -220,7 +222,7 @@ fun RuleRecordsPage(
                         },
                         enabled = records.isNotEmpty()
                     ) {
-                        Icon(Icons.Filled.Share, contentDescription = "导出记录")
+                        Icon(Icons.Filled.Share, contentDescription = stringResource(R.string.record_export))
                     }
                 }
             )
@@ -312,7 +314,7 @@ fun RuleRecordsPage(
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                         )
                         Text(
-                            text = "暂无记录，可能没有开启“保存判断记录”",
+                            text = stringResource(R.string.record_no_records),
                             style = MaterialTheme.typography.bodyLarge,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -413,6 +415,8 @@ fun RuleRecordsPage(
     // Export dialog
     if (showExportDialog) {
         val recordsForDialog = recordsToExport ?: filteredRecords
+        val exportPreparingStr = stringResource(R.string.record_export_preparing)
+        val exportFailStr = stringResource(R.string.record_export_fail)
         ExportRecordsDialog(
             records = recordsForDialog,
             exportFromSelection = recordsToExport != null,
@@ -427,7 +431,7 @@ fun RuleRecordsPage(
             onExport = { list ->
                 scope.launch {
                     isExporting = true
-                    exportProgress = "正在准备导出..."
+                    exportProgress = exportPreparingStr
                     try {
                         val exportUri = recordExporter.exportRecordsToZip(list) { progress ->
                             exportProgress = progress
@@ -438,10 +442,10 @@ fun RuleRecordsPage(
                                 Toast.makeText(context, error, Toast.LENGTH_LONG).show()
                             }
                         } else {
-                            Toast.makeText(context, "导出失败", Toast.LENGTH_LONG).show()
+                            Toast.makeText(context, exportFailStr, Toast.LENGTH_LONG).show()
                         }
                     } catch (e: Exception) {
-                        Toast.makeText(context, "导出失败: ${e.message}", Toast.LENGTH_LONG).show()
+                        Toast.makeText(context, exportFailStr + ": ${e.message}", Toast.LENGTH_LONG).show()
                     }
                     isExporting = false
                     exportProgress = ""
@@ -463,20 +467,20 @@ fun RuleRecordsPage(
                 hintDialogText = ""
                 generatedHintDraft = ""
                 generatedHintScopeType = AppHintScopeType.INTENT_SPECIFIC
-                generatedHintScopeLabel = "只对这条意图生效"
+                generatedHintScopeLabel = ""  // Will be set when dialog opens
                 isGeneratingHint = false
                 hintGenerationAttempted = false
             },
-            title = { Text("生成补充规则") },
+            title = { Text(stringResource(R.string.record_generate_title)) },
             text = {
                 Column {
                     Text(
-                        text = "您标记了 \"${dialogRecord.constraintContent?.take(30)}\" 为误判。",
+                        text = stringResource(R.string.record_marked_false_positive, dialogRecord.constraintContent?.take(30) ?: ""),
                         style = MaterialTheme.typography.bodyMedium
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "系统会结合这条记录的截图、当前意图和应用特点，先生成一条草稿，再判断它更适合放在整个 app 通用，还是只对这条意图生效。",
+                        text = stringResource(R.string.record_generate_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -485,7 +489,7 @@ fun RuleRecordsPage(
                         value = hintDialogText,
                         onValueChange = { hintDialogText = it },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("可选：例如 我只用QQ聊天，不看QQ空间") },
+                        placeholder = { Text(stringResource(R.string.record_hint_placeholder_optional)) },
                         minLines = 2,
                         maxLines = 4
                     )
@@ -498,14 +502,14 @@ fun RuleRecordsPage(
                         ) {
                             CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
                             Text(
-                                text = "正在生成补充规则草稿…",
+                                text = stringResource(R.string.record_generating_draft),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     } else if (hintGenerationAttempted) {
                         Text(
-                            text = "建议放在：$generatedHintScopeLabel",
+                            text = stringResource(R.string.record_scope_suggestion, generatedHintScopeLabel),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -514,7 +518,7 @@ fun RuleRecordsPage(
                             value = generatedHintDraft,
                             onValueChange = { generatedHintDraft = it },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("可直接修改生成结果，或自己写一条更准确的补充规则") },
+                            placeholder = { Text(stringResource(R.string.record_hint_edit_placeholder)) },
                             minLines = 3,
                             maxLines = 6
                         )
@@ -563,13 +567,13 @@ fun RuleRecordsPage(
                         hintDialogText = ""
                         generatedHintDraft = ""
                         generatedHintScopeType = AppHintScopeType.INTENT_SPECIFIC
-                        generatedHintScopeLabel = "只对这条意图生效"
+                        generatedHintScopeLabel = ""  // Reset when dismissed
                         hintGenerationAttempted = false
                     }
                     ,
                     enabled = if (!hintGenerationAttempted) !isGeneratingHint else generatedHintDraft.isNotBlank() && !isGeneratingHint
                 ) {
-                    Text(if (hintGenerationAttempted) "保存" else "生成")
+                    Text(if (hintGenerationAttempted) stringResource(R.string.record_save) else stringResource(R.string.record_generate))
                 }
             },
             dismissButton = {
@@ -594,7 +598,7 @@ fun RuleRecordsPage(
                             },
                             enabled = !isGeneratingHint
                         ) {
-                            Text("重新生成")
+                            Text(stringResource(R.string.record_regenerate))
                         }
                     }
                     TextButton(
@@ -605,11 +609,11 @@ fun RuleRecordsPage(
                             hintDialogText = ""
                             generatedHintDraft = ""
                             generatedHintScopeType = AppHintScopeType.INTENT_SPECIFIC
-                            generatedHintScopeLabel = "只对这条意图生效"
+                            generatedHintScopeLabel = ""  // Reset when dismissed
                             hintGenerationAttempted = false
                         }
                     ) {
-                        Text("取消")
+                        Text(stringResource(R.string.record_cancel))
                     }
                 }
             }
@@ -623,7 +627,7 @@ private fun DateNavigationBar(
     onPreviousDay: () -> Unit,
     onNextDay: () -> Unit
 ) {
-    val dateFormat = SimpleDateFormat("yyyy年MM月dd日 EEEE", Locale.CHINA)
+    val dateFormat = SimpleDateFormat(stringResource(R.string.record_date_format), Locale.CHINA)
     val isToday = remember(currentDate) {
         val today = Calendar.getInstance()
         currentDate.get(Calendar.YEAR) == today.get(Calendar.YEAR) &&
@@ -639,12 +643,12 @@ private fun DateNavigationBar(
         verticalAlignment = Alignment.CenterVertically
     ) {
         IconButton(onClick = onPreviousDay) {
-            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = "前一天")
+            Icon(Icons.AutoMirrored.Filled.KeyboardArrowLeft, contentDescription = stringResource(R.string.timeline_prev_day))
         }
 
         Column(horizontalAlignment = Alignment.CenterHorizontally) {
             Text(
-                text = if (isToday) "今天" else dateFormat.format(currentDate.time),
+                text = if (isToday) stringResource(R.string.record_today) else dateFormat.format(currentDate.time),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Medium
             )
@@ -656,7 +660,7 @@ private fun DateNavigationBar(
         ) {
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                contentDescription = "后一天",
+                contentDescription = stringResource(R.string.timeline_next_day),
                 tint = if (isToday)
                     MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f)
                 else
@@ -672,20 +676,27 @@ private fun FilterChipsRow(
     onFilterSelected: (RecordFilter) -> Unit,
     counts: Map<RecordFilter, Int>
 ) {
+    val filters = remember {
+        listOf(
+            RecordFilter.ALL to "",  // Will be resolved at usage
+            RecordFilter.MARKED to "",
+            RecordFilter.MATCHED to "",
+            RecordFilter.NOT_MATCHED to ""
+        )
+    }
     LazyRow(
         modifier = Modifier.fillMaxWidth(),
         contentPadding = PaddingValues(horizontal = 16.dp),
         horizontalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        val filters = listOf(
-            RecordFilter.ALL to "全部",
-            RecordFilter.MARKED to "已标记",
-            RecordFilter.MATCHED to "需关注",
-            RecordFilter.NOT_MATCHED to "普通"
-        )
-
-        items(filters) { (filter, label) ->
+        items(filters) { (filter, _) ->
             val isSelected = selectedFilter == filter
+            val label = when (filter) {
+                RecordFilter.ALL -> stringResource(R.string.record_filter_all)
+                RecordFilter.MARKED -> stringResource(R.string.record_filter_marked)
+                RecordFilter.MATCHED -> stringResource(R.string.record_filter_need_attention)
+                RecordFilter.NOT_MATCHED -> stringResource(R.string.record_filter_normal)
+            }
 
             FilterChip(
                 selected = isSelected,
@@ -758,7 +769,7 @@ private fun RecordItem(
                         // Action record - show lightning icon
                         Icon(
                             imageVector = Icons.Filled.FlashOn,
-                            contentDescription = "干预动作",
+                            contentDescription = stringResource(R.string.record_action_label),
                             modifier = Modifier.size(16.dp),
                             tint = MaterialTheme.colorScheme.error
                         )
@@ -785,7 +796,7 @@ private fun RecordItem(
                 // Show action type or constraint info
                 if (record.actionType != null) {
                     Text(
-                        text = "动作: ${record.actionType} (${record.actionReason ?: "unknown"})",
+                        text = stringResource(R.string.record_action, record.actionType ?: "", record.actionReason ?: "unknown"),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.error,
                         maxLines = 1,
@@ -816,7 +827,7 @@ private fun RecordItem(
                     )
                     record.confidence?.let { conf ->
                         Text(
-                            text = "置信度: ${(conf * 100).toInt()}%",
+                            text = stringResource(R.string.record_confidence, (conf * 100).toInt()),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -828,7 +839,7 @@ private fun RecordItem(
             IconButton(onClick = onToggleMark) {
                 Icon(
                     imageVector = if (record.isMarked) Icons.Outlined.Star else Icons.Outlined.StarOutline,
-                    contentDescription = if (record.isMarked) "取消标记" else "标记",
+                    contentDescription = if (record.isMarked) stringResource(R.string.record_unmark) else stringResource(R.string.record_mark),
                     tint = if (record.isMarked)
                         MaterialTheme.colorScheme.primary
                     else
@@ -854,7 +865,7 @@ private fun RecordDetailDialog(
 
     var showDeleteConfirm by remember { mutableStateOf(false) }
 
-    val timeFormat = SimpleDateFormat("yyyy年MM月dd日 HH:mm:ss", Locale.getDefault())
+    val timeFormat = SimpleDateFormat(stringResource(R.string.record_time_format), Locale.getDefault())
 
     val hasPrevious = currentIndex > 0
     val hasNext = currentIndex < records.size - 1
@@ -894,7 +905,7 @@ private fun RecordDetailDialog(
                             verticalAlignment = Alignment.CenterVertically,
                             horizontalArrangement = Arrangement.spacedBy(8.dp)
                         ) {
-                            Text("详情")
+                            Text(stringResource(R.string.record_detail_title))
                             if (records.size > 1) {
                                 Text(
                                     text = "${currentIndex + 1} / ${records.size}",
@@ -906,7 +917,7 @@ private fun RecordDetailDialog(
                     },
                     navigationIcon = {
                         IconButton(onClick = onDismiss) {
-                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = "关闭")
+                            Icon(Icons.AutoMirrored.Filled.ArrowBack, contentDescription = stringResource(R.string.record_close))
                         }
                     },
                     actions = {
@@ -917,7 +928,7 @@ private fun RecordDetailDialog(
                         ) {
                             Icon(
                                 Icons.AutoMirrored.Filled.KeyboardArrowLeft,
-                                contentDescription = "上一条",
+                                contentDescription = stringResource(R.string.record_prev),
                                 tint = if (hasPrevious)
                                     MaterialTheme.colorScheme.onSurface
                                 else
@@ -931,7 +942,7 @@ private fun RecordDetailDialog(
                         ) {
                             Icon(
                                 Icons.AutoMirrored.Filled.KeyboardArrowRight,
-                                contentDescription = "下一条",
+                                contentDescription = stringResource(R.string.record_next),
                                 tint = if (hasNext)
                                     MaterialTheme.colorScheme.onSurface
                                 else
@@ -948,11 +959,11 @@ private fun RecordDetailDialog(
                                     Icons.Outlined.Star
                                 else
                                     Icons.Outlined.StarOutline,
-                                contentDescription = "标记"
+                                contentDescription = stringResource(R.string.record_mark)
                             )
                         }
                         IconButton(onClick = { showDeleteConfirm = true }) {
-                            Icon(Icons.Filled.Delete, contentDescription = "删除")
+                            Icon(Icons.Filled.Delete, contentDescription = stringResource(R.string.record_delete_action))
                         }
                     }
                 )
@@ -983,19 +994,19 @@ private fun RecordDetailDialog(
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Text(
-                                        text = if (record.actionType != null) "⚡ 干预动作" else "基本信息",
+                                        text = if (record.actionType != null) stringResource(R.string.record_intervention_action) else stringResource(R.string.record_basic_info),
                                         style = MaterialTheme.typography.titleSmall,
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
-                                DetailRow("应用", record.appName)
-                                record.packageName?.let { DetailRow("包名", it) }
-                                DetailRow("时间", timeFormat.format(Date(record.timestamp)))
+                                DetailRow(stringResource(R.string.record_app), record.appName)
+                                record.packageName?.let { DetailRow(stringResource(R.string.record_package), it) }
+                                DetailRow(stringResource(R.string.record_time), timeFormat.format(Date(record.timestamp)))
 
                                 if (record.actionType != null) {
                                     // Action record
-                                    DetailRow("动作类型", record.actionType)
-                                    record.actionReason?.let { DetailRow("触发原因", it) }
+                                    DetailRow(stringResource(R.string.record_action_type), record.actionType)
+                                    record.actionReason?.let { DetailRow(stringResource(R.string.record_trigger_reason), it) }
                                 } else {
                                     // Judgement record
                                     DetailRow(
@@ -1005,10 +1016,10 @@ private fun RecordDetailDialog(
                                 }
 
                                 record.constraintType?.let { type ->
-                                    DetailRow("约束类型", type.name)
+                                    DetailRow(stringResource(R.string.record_constraint_type), type.name)
                                 }
                                 record.constraintContent?.let { content ->
-                                    DetailRow("约束内容", content)
+                                    DetailRow(stringResource(R.string.record_constraint_content), content)
                                 }
                             }
                         }
@@ -1037,13 +1048,13 @@ private fun RecordDetailDialog(
                                             modifier = Modifier.weight(1f)
                                         ) {
                                             Text(
-                                                text = "AI 分析结果",
+                                                text = stringResource(R.string.record_ai_result),
                                                 style = MaterialTheme.typography.titleSmall,
                                                 fontWeight = FontWeight.Bold
                                             )
                                             record.confidence?.let { conf ->
                                                 Text(
-                                                    text = "(置信度: ${(conf * 100).toInt()}%)",
+                                                    text = stringResource(R.string.record_ai_confidence, (conf * 100).toInt()),
                                                     style = MaterialTheme.typography.bodySmall,
                                                     color = MaterialTheme.colorScheme.onSurfaceVariant
                                                 )
@@ -1063,7 +1074,7 @@ private fun RecordDetailDialog(
                                                 )
                                                 Spacer(modifier = Modifier.width(4.dp))
                                                 Text(
-                                                    "标记误判",
+                                                    stringResource(R.string.record_mark_false_positive),
                                                     style = MaterialTheme.typography.labelSmall
                                                 )
                                             }
@@ -1092,7 +1103,7 @@ private fun RecordDetailDialog(
                                     verticalArrangement = Arrangement.spacedBy(8.dp)
                                 ) {
                                     Text(
-                                        text = "截图",
+                                        text = stringResource(R.string.record_screenshot),
                                         style = MaterialTheme.typography.titleSmall,
                                         fontWeight = FontWeight.Bold
                                     )
@@ -1105,7 +1116,7 @@ private fun RecordDetailDialog(
                                         bitmap?.let {
                                             Image(
                                                 bitmap = it.asImageBitmap(),
-                                                contentDescription = "截图",
+                                                contentDescription = stringResource(R.string.record_screenshot),
                                                 modifier = Modifier
                                                     .fillMaxWidth()
                                                     .clip(RoundedCornerShape(8.dp)),
@@ -1114,7 +1125,7 @@ private fun RecordDetailDialog(
                                         }
                                     } else {
                                         Text(
-                                            text = "截图文件不存在",
+                                            text = stringResource(R.string.record_screenshot_not_exist),
                                             style = MaterialTheme.typography.bodyMedium,
                                             color = MaterialTheme.colorScheme.error
                                         )
@@ -1127,7 +1138,7 @@ private fun RecordDetailDialog(
                     // Processing time
                     record.elapsedTimeMs?.let { time ->
                         item {
-                            DetailRow("处理耗时", "${time}ms")
+                            DetailRow(stringResource(R.string.record_processing_time), "${time}ms")
                         }
                     }
                 }
@@ -1139,8 +1150,8 @@ private fun RecordDetailDialog(
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("确认删除") },
-            text = { Text("确定要删除这条记录吗？此操作无法撤销。") },
+            title = { Text(stringResource(R.string.record_confirm_delete)) },
+            text = { Text(stringResource(R.string.record_confirm_delete_message)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -1151,12 +1162,12 @@ private fun RecordDetailDialog(
                         }
                     }
                 ) {
-                    Text("删除", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.record_delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) {
-                    Text("取消")
+                    Text(stringResource(R.string.record_cancel))
                 }
             }
         )
@@ -1184,7 +1195,7 @@ private fun MultiSelectActionBar(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "已选择 $selectedCount 项",
+                text = stringResource(R.string.record_items_selected, selectedCount),
                 style = MaterialTheme.typography.titleMedium,
                 color = MaterialTheme.colorScheme.onPrimaryContainer
             )
@@ -1193,21 +1204,21 @@ private fun MultiSelectActionBar(
                 IconButton(onClick = onExport) {
                     Icon(
                         Icons.Filled.Share,
-                        contentDescription = "导出",
+                        contentDescription = stringResource(R.string.record_export_action),
                         tint = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
                 IconButton(onClick = onDelete) {
                     Icon(
                         Icons.Filled.Delete,
-                        contentDescription = "删除",
+                        contentDescription = stringResource(R.string.record_delete_action),
                         tint = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
                 IconButton(onClick = onCancel) {
                     Icon(
                         Icons.Filled.Close,
-                        contentDescription = "取消",
+                        contentDescription = stringResource(R.string.record_cancel_action),
                         tint = MaterialTheme.colorScheme.onPrimaryContainer
                     )
                 }
@@ -1262,12 +1273,12 @@ private fun RuleRecordsDatePickerDialog(
                     }
                 }
             ) {
-                Text("确定")
+                Text(stringResource(R.string.record_confirm))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消")
+                Text(stringResource(R.string.record_cancel))
             }
         }
     ) {
@@ -1303,7 +1314,7 @@ private fun ExportRecordsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("导出记录") },
+        title = { Text(stringResource(R.string.record_export_title)) },
         text = {
             Column(
                 modifier = Modifier.fillMaxWidth(),
@@ -1322,9 +1333,9 @@ private fun ExportRecordsDialog(
                 } else {
                     Text(
                         text = if (exportFromSelection) {
-                            "将选中的 ${records.size} 条记录导出为 ZIP 文件，可包含截图。"
+                            stringResource(R.string.record_export_selected, records.size)
                         } else {
-                            "将符合条件的 ${filteredRecords.size} 条记录导出为 ZIP 文件，可包含截图。"
+                            stringResource(R.string.record_export_filtered, filteredRecords.size)
                         },
                         style = MaterialTheme.typography.bodyMedium
                     )
@@ -1335,10 +1346,10 @@ private fun ExportRecordsDialog(
                             onExpandedChange = { appDropdownExpanded = it }
                         ) {
                             OutlinedTextField(
-                                value = selectedApp ?: "全部应用",
+                                value = selectedApp ?: stringResource(R.string.record_all_apps),
                                 onValueChange = {},
                                 readOnly = true,
-                                label = { Text("选择应用") },
+                                label = { Text(stringResource(R.string.record_select_app)) },
                                 trailingIcon = {
                                     ExposedDropdownMenuDefaults.TrailingIcon(expanded = appDropdownExpanded)
                                 },
@@ -1351,7 +1362,7 @@ private fun ExportRecordsDialog(
                                 onDismissRequest = { appDropdownExpanded = false }
                             ) {
                                 DropdownMenuItem(
-                                    text = { Text("全部应用") },
+                                    text = { Text(stringResource(R.string.record_all_apps)) },
                                     onClick = {
                                         selectedApp = null
                                         appDropdownExpanded = false
@@ -1380,7 +1391,7 @@ private fun ExportRecordsDialog(
                                 enabled = filteredRecords.any { it.isMarked }
                             )
                             Text(
-                                text = "仅导出已标记的记录 (${filteredRecords.count { it.isMarked }} 条)",
+                                text = stringResource(R.string.record_export_only_marked, filteredRecords.count { it.isMarked }),
                                 style = MaterialTheme.typography.bodyMedium
                             )
                         }
@@ -1394,14 +1405,14 @@ private fun ExportRecordsDialog(
                     onClick = { onExport(filteredRecords) },
                     enabled = filteredRecords.isNotEmpty()
                 ) {
-                    Text("导出")
+                    Text(stringResource(R.string.record_export_action))
                 }
             }
         },
         dismissButton = {
             if (!isExporting) {
                 TextButton(onClick = onDismiss) {
-                    Text("取消")
+                    Text(stringResource(R.string.record_cancel))
                 }
             }
         }

@@ -58,7 +58,7 @@ class FalsePositiveRuleGenerator(private val context: Context) {
         val targetConstraint = resolveTargetConstraint(record, constraints) ?: constraints.firstOrNull()
             ?: return@withContext FalsePositiveRulePreview()
         val targetIntentId = buildIntentScopedHintId(targetConstraint)
-        val targetIntentLabel = buildIntentScopedHintLabel(targetConstraint)
+        val targetIntentLabel = buildIntentScopedHintLabel(null, targetConstraint)
         val appGeneralHints = appHintRepository.getHintsForAppGeneral(packageName)
         val intentSpecificHints = appHintRepository.getHintsForIntent(packageName, targetIntentId)
         val trimmedNote = userNote?.trim().orEmpty()
@@ -87,7 +87,7 @@ class FalsePositiveRuleGenerator(private val context: Context) {
             AppHintScopeType.INTENT_SPECIFIC -> targetIntentId
         }
         val label = when (resolvedScopeType) {
-            AppHintScopeType.APP_GENERAL -> buildAppGeneralScopeLabel()
+            AppHintScopeType.APP_GENERAL -> buildAppGeneralScopeLabel(null)
             AppHintScopeType.INTENT_SPECIFIC -> targetIntentLabel
         }
 
@@ -167,8 +167,8 @@ class FalsePositiveRuleGenerator(private val context: Context) {
             AppHintScopeType.INTENT_SPECIFIC -> buildIntentScopedHintId(targetConstraint)
         }
         val label = when (scopeType) {
-            AppHintScopeType.APP_GENERAL -> buildAppGeneralScopeLabel()
-            AppHintScopeType.INTENT_SPECIFIC -> buildIntentScopedHintLabel(targetConstraint)
+            AppHintScopeType.APP_GENERAL -> buildAppGeneralScopeLabel(null)
+            AppHintScopeType.INTENT_SPECIFIC -> buildIntentScopedHintLabel(null, targetConstraint)
         }
 
         val saveResult = appHintRepository.saveHintIfNew(
@@ -212,7 +212,7 @@ class FalsePositiveRuleGenerator(private val context: Context) {
         if (!ApiConfig.isConfigured()) return@withContext emptyList()
 
         val targetIntentId = buildIntentScopedHintId(targetConstraint)
-        val targetIntentLabel = buildIntentScopedHintLabel(targetConstraint)
+        val targetIntentLabel = buildIntentScopedHintLabel(null, targetConstraint)
         if (appHintRepository.getHintsForIntent(packageName, targetIntentId).isNotEmpty()) {
             return@withContext emptyList()
         }
@@ -524,7 +524,7 @@ ${userNote ?: "无"}
 - 包名：$packageName
 
 当前新 intent：
-- ${buildIntentScopedHintLabel(targetConstraint)}
+- ${buildIntentScopedHintLabel(null, targetConstraint)}
 
 候选旧规则：
 ${candidates.joinToString("\n") { "- id=${it.id} | 来自=${it.intentLabel} | 规则=${it.hintText}" }}

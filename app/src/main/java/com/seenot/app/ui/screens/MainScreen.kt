@@ -1,5 +1,6 @@
 package com.seenot.app.ui.screens
 
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
@@ -27,8 +28,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import androidx.annotation.StringRes
 import androidx.compose.ui.window.Dialog
 import com.seenot.app.BuildConfig
+import com.seenot.app.R
 import com.seenot.app.config.ApiConfig
 import com.seenot.app.config.AiProvider
 import com.seenot.app.config.ApiSettings
@@ -176,19 +180,19 @@ fun MainScreen(
                 NavigationBar {
                     NavigationBarItem(
                         icon = { Icon(Icons.Default.Home, contentDescription = "Home") },
-                        label = { Text("首页") },
+                        label = { Text(stringResource(R.string.tab_home)) },
                         selected = selectedTab == 0,
                         onClick = { selectedTab = 0 }
                     )
                     NavigationBarItem(
                         icon = { Icon(Icons.Default.Apps, contentDescription = "Apps") },
-                        label = { Text("应用") },
+                        label = { Text(stringResource(R.string.tab_apps)) },
                         selected = selectedTab == 1,
                         onClick = { selectedTab = 1 }
                     )
                     NavigationBarItem(
                         icon = { Icon(Icons.Default.Settings, contentDescription = "Settings") },
-                        label = { Text("设置") },
+                        label = { Text(stringResource(R.string.tab_settings)) },
                         selected = selectedTab == 2,
                         onClick = { selectedTab = 2 }
                     )
@@ -310,7 +314,7 @@ fun HomeTab(
             .padding(16.dp)
     ) {
         Text(
-            text = "欢迎使用 SeeNot",
+            text = stringResource(R.string.welcome_title),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold
         )
@@ -318,7 +322,7 @@ fun HomeTab(
         Spacer(modifier = Modifier.height(8.dp))
 
         Text(
-            text = "AI 注意力管理助手",
+            text = stringResource(R.string.app_tagline),
             style = MaterialTheme.typography.bodyLarge,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -328,7 +332,7 @@ fun HomeTab(
         // Permission section - always reachable; expanded by default until required setup is complete.
         if (!isHomeReady || showCompletedConfigDetails) {
             Text(
-                text = "权限状态",
+                text = stringResource(R.string.permission_status),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -337,8 +341,8 @@ fun HomeTab(
 
             // Accessibility Permission
             PermissionCard(
-                title = "无障碍服务",
-                description = "用于检测应用切换、截图和执行手势",
+                title = stringResource(R.string.permission_accessibility),
+                description = stringResource(R.string.permission_accessibility_desc),
                 isEnabled = isAccessibilityEnabled,
                 onClick = onEnableAccessibility
             )
@@ -347,8 +351,8 @@ fun HomeTab(
 
             // Overlay Permission
             PermissionCard(
-                title = "悬浮窗权限",
-                description = "用于显示语音输入和会话状态悬浮窗",
+                title = stringResource(R.string.permission_overlay),
+                description = stringResource(R.string.permission_overlay_desc),
                 isEnabled = isOverlayEnabled,
                 onClick = onEnableOverlay
             )
@@ -357,8 +361,8 @@ fun HomeTab(
 
             // Notification Permission
             PermissionCard(
-                title = "通知权限",
-                description = "用于显示提醒通知和前台服务",
+                title = stringResource(R.string.permission_notification),
+                description = stringResource(R.string.permission_notification_desc),
                 isEnabled = isNotificationEnabled,
                 onClick = { /* Notification permission handled automatically */ }
             )
@@ -366,8 +370,8 @@ fun HomeTab(
             Spacer(modifier = Modifier.height(8.dp))
 
             PermissionCard(
-                title = "麦克风权限（可选）",
-                description = "用于语音输入声明意图",
+                title = stringResource(R.string.permission_microphone_optional),
+                description = stringResource(R.string.permission_microphone_desc),
                 isEnabled = isMicrophoneEnabled,
                 onClick = onRequestMicrophone
             )
@@ -379,7 +383,7 @@ fun HomeTab(
 
         if (!isHomeReady || showCompletedConfigDetails) {
             Text(
-                text = "AI 设置",
+                text = stringResource(R.string.ai_settings),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
@@ -409,15 +413,15 @@ fun HomeTab(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "AI 设置",
+                            text = stringResource(R.string.ai_settings),
                             style = MaterialTheme.typography.bodyLarge,
                             fontWeight = FontWeight.Medium
                         )
                         Text(
                             text = if (isAiConfigured) {
-                                "已完成配置，点按修改 provider、模型或 API Key"
+                                stringResource(R.string.ai_configured_tap_to_modify)
                             } else {
-                                "尚未配置，点按完成 AI 设置"
+                                stringResource(R.string.ai_not_configured_tap_to_setup)
                             },
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -459,11 +463,11 @@ fun HomeTab(
                     Spacer(modifier = Modifier.width(12.dp))
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = "基础配置已完成，可以正常使用",
+                            text = stringResource(R.string.basic_config_complete),
                             style = MaterialTheme.typography.bodyLarge
                         )
                         Text(
-                            text = if (showCompletedConfigDetails) "点按收起权限与配置入口" else "点按展开权限与配置入口",
+                            text = if (showCompletedConfigDetails) stringResource(R.string.tap_to_collapse) else stringResource(R.string.tap_to_expand),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onPrimaryContainer
                         )
@@ -495,7 +499,7 @@ fun HomeTab(
                     )
                     Spacer(modifier = Modifier.width(12.dp))
                     Text(
-                        text = "请先完成必要权限和 AI 配置",
+                        text = stringResource(R.string.please_complete_permissions_and_ai_config),
                         style = MaterialTheme.typography.bodyLarge
                     )
                 }
@@ -506,7 +510,7 @@ fun HomeTab(
 
         // Quick Start Guide
         Text(
-            text = "使用说明",
+            text = stringResource(R.string.usage_instructions),
             style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold
         )
@@ -515,19 +519,19 @@ fun HomeTab(
 
         Card {
             Column(modifier = Modifier.padding(16.dp)) {
-                StepItem(number = 1, text = "在「应用」页面选择要管理的 App")
+                StepItem(number = 1, text = stringResource(R.string.step_1_select_apps))
                 Spacer(modifier = Modifier.height(8.dp))
-                StepItem(number = 2, text = "打开受控 App 时，声明你的意图")
+                StepItem(number = 2, text = stringResource(R.string.step_2_declare_intent))
                 Spacer(modifier = Modifier.height(8.dp))
                 Text(
-                    text = "例如：「只看工作消息，10分钟」。你可以用语音，也可以直接输入。",
+                    text = stringResource(R.string.step_2_intent_example),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Spacer(modifier = Modifier.height(8.dp))
-                StepItem(number = 3, text = "AI 会实时守护你的意图，并适时提醒或干预")
+                StepItem(number = 3, text = stringResource(R.string.step_3_ai_guards))
                 Spacer(modifier = Modifier.height(8.dp))
-                StepItem(number = 4, text = "若系统理解错了，可随时报误报让 AI 修正")
+                StepItem(number = 4, text = stringResource(R.string.step_4_report_misreport))
             }
         }
 
@@ -660,7 +664,7 @@ fun AppsTab(modifier: Modifier = Modifier) {
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "受控应用",
+                text = stringResource(R.string.controlled_apps),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold
             )
@@ -671,7 +675,7 @@ fun AppsTab(modifier: Modifier = Modifier) {
                     modifier = Modifier.size(18.dp)
                 )
                 Spacer(modifier = Modifier.width(4.dp))
-                Text("添加应用")
+                Text(stringResource(R.string.add_app))
             }
         }
 
@@ -692,13 +696,13 @@ fun AppsTab(modifier: Modifier = Modifier) {
                     )
                     Spacer(modifier = Modifier.height(16.dp))
                     Text(
-                        text = "尚未添加受控应用",
+                        text = stringResource(R.string.no_controlled_apps_yet),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "点击「添加应用」按钮选择要管理的应用",
+                        text = stringResource(R.string.tap_add_app_to_select),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -797,8 +801,10 @@ fun AppRulesDialog(
         reloadHints()
     }
 
+    val intentOptionsContext = LocalContext.current
     val intentOptions = remember(presetRules, historyRules, lastIntentRules, hints) {
         buildHintIntentOptions(
+            context = intentOptionsContext,
             presetRules = presetRules,
             historyRules = historyRules,
             lastIntentRules = lastIntentRules,
@@ -807,6 +813,7 @@ fun AppRulesDialog(
     }
 
     if (showAddHintDialog) {
+        val dialogContext = LocalContext.current
         AlertDialog(
             onDismissRequest = {
                 showAddHintDialog = false
@@ -815,11 +822,11 @@ fun AppRulesDialog(
                 selectedHintIntentId = null
                 selectedHintIntentLabel = null
             },
-            title = { Text("添加 AI 补充规则") },
+            title = { Text(stringResource(R.string.add_ai_supplement_rule)) },
             text = {
                 Column {
                     Text(
-                        text = "可选择让这条规则对整个 app 生效，或只放在某一条具体意图下面。",
+                        text = stringResource(R.string.rule_scope_description),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -844,7 +851,7 @@ fun AppRulesDialog(
                         value = newHintText,
                         onValueChange = { newHintText = it },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("例如：不要仅因详情页露出商品卡片，就识别成推荐列表") },
+                        placeholder = { Text(stringResource(R.string.rule_example_dont_identify_as_recommend)) },
                         minLines = 2,
                         maxLines = 4
                     )
@@ -858,7 +865,7 @@ fun AppRulesDialog(
                             AppHintScopeType.APP_GENERAL -> Triple(
                                 buildAppGeneralScopeKey(app.packageName),
                                 buildAppGeneralScopeKey(app.packageName),
-                                buildAppGeneralScopeLabel()
+                                buildAppGeneralScopeLabel(dialogContext)
                             )
                             AppHintScopeType.INTENT_SPECIFIC -> Triple(
                                 selectedHintIntentId,
@@ -888,7 +895,7 @@ fun AppRulesDialog(
                     },
                     enabled = selectedHintScopeType == AppHintScopeType.APP_GENERAL || selectedHintIntentId != null
                 ) {
-                    Text("添加")
+                    Text(stringResource(R.string.add))
                 }
             },
             dismissButton = {
@@ -901,7 +908,7 @@ fun AppRulesDialog(
                         selectedHintIntentLabel = null
                     }
                 ) {
-                    Text("取消")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -909,6 +916,7 @@ fun AppRulesDialog(
 
     if (editingHint != null) {
         val hint = editingHint!!
+        val editHintContext = LocalContext.current
         AlertDialog(
             onDismissRequest = {
                 editingHint = null
@@ -917,11 +925,11 @@ fun AppRulesDialog(
                 selectedHintIntentId = null
                 selectedHintIntentLabel = null
             },
-            title = { Text("编辑 AI 补充规则") },
+            title = { Text(stringResource(R.string.edit_ai_supplement_rule)) },
             text = {
                 Column {
                     Text(
-                        text = "可同时修改规则内容，以及它更适合放在哪一类里。",
+                        text = stringResource(R.string.rule_scope_description),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -946,7 +954,7 @@ fun AppRulesDialog(
                         value = editingHintText,
                         onValueChange = { editingHintText = it },
                         modifier = Modifier.fillMaxWidth(),
-                        placeholder = { Text("例如：不要仅因详情页露出商品卡片，就识别成推荐列表") },
+                        placeholder = { Text(stringResource(R.string.rule_example_dont_identify_as_recommend)) },
                         minLines = 2,
                         maxLines = 4
                     )
@@ -960,7 +968,7 @@ fun AppRulesDialog(
                             AppHintScopeType.APP_GENERAL -> Triple(
                                 buildAppGeneralScopeKey(app.packageName),
                                 buildAppGeneralScopeKey(app.packageName),
-                                buildAppGeneralScopeLabel()
+                                buildAppGeneralScopeLabel(editHintContext)
                             )
                             AppHintScopeType.INTENT_SPECIFIC -> Triple(
                                 selectedHintIntentId ?: hint.intentId,
@@ -989,7 +997,7 @@ fun AppRulesDialog(
                         selectedHintIntentLabel = null
                     }
                 ) {
-                    Text("保存")
+                    Text(stringResource(R.string.save))
                 }
             },
             dismissButton = {
@@ -1002,7 +1010,7 @@ fun AppRulesDialog(
                         selectedHintIntentLabel = null
                     }
                 ) {
-                    Text("取消")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -1010,7 +1018,7 @@ fun AppRulesDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("${app.name} 的意图") },
+        title = { Text(stringResource(R.string.app_intents_title, app.name)) },
         text = {
             LazyColumn(
                 modifier = Modifier
@@ -1025,14 +1033,14 @@ fun AppRulesDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "预设意图",
+                            text = stringResource(R.string.preset_intents),
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.primary
                         )
                         TextButton(onClick = { showAddPresetDialog = true }) {
                             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("添加")
+                            Text(stringResource(R.string.add_preset_intent))
                         }
                     }
                 }
@@ -1040,7 +1048,7 @@ fun AppRulesDialog(
                 item {
                     if (presetRules.isEmpty()) {
                         Text(
-                            text = "暂无预设意图，点击添加按钮创建",
+                            text = stringResource(R.string.no_preset_intents_yet),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1090,7 +1098,7 @@ fun AppRulesDialog(
                                 ) {
                                     Icon(
                                         imageVector = if (constraint.isDefault) Icons.Filled.Star else Icons.Outlined.StarBorder,
-                                        contentDescription = if (constraint.isDefault) "取消默认" else "设为默认",
+                                        contentDescription = if (constraint.isDefault) stringResource(R.string.unset_as_default) else stringResource(R.string.set_as_default),
                                         tint = if (constraint.isDefault) Color(0xFFFFB300) else MaterialTheme.colorScheme.onSurfaceVariant,
                                         modifier = Modifier.size(18.dp)
                                     )
@@ -1105,7 +1113,7 @@ fun AppRulesDialog(
                                 ) {
                                     Icon(
                                         Icons.Default.Delete,
-                                        contentDescription = "删除",
+                                        contentDescription = stringResource(R.string.delete),
                                         tint = MaterialTheme.colorScheme.error,
                                         modifier = Modifier.size(18.dp)
                                     )
@@ -1118,7 +1126,7 @@ fun AppRulesDialog(
                 item {
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = "历史意图",
+                        text = stringResource(R.string.history_intents),
                         style = MaterialTheme.typography.titleSmall,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -1127,7 +1135,7 @@ fun AppRulesDialog(
                 item {
                     if (historyRules.isEmpty()) {
                         Text(
-                            text = "暂无历史意图",
+                            text = stringResource(R.string.no_history_intents_yet),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1165,7 +1173,7 @@ fun AppRulesDialog(
                             ) {
                                 Icon(
                                     Icons.Default.Delete,
-                                    contentDescription = "删除",
+                                    contentDescription = stringResource(R.string.delete),
                                     tint = MaterialTheme.colorScheme.error,
                                     modifier = Modifier.size(18.dp)
                                 )
@@ -1182,7 +1190,7 @@ fun AppRulesDialog(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Text(
-                            text = "AI 补充规则",
+                            text = stringResource(R.string.ai_supplement_rules),
                             style = MaterialTheme.typography.titleSmall,
                             color = MaterialTheme.colorScheme.primary
                         )
@@ -1196,14 +1204,14 @@ fun AppRulesDialog(
                         ) {
                             Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                             Spacer(modifier = Modifier.width(4.dp))
-                            Text("添加")
+                            Text(stringResource(R.string.add))
                         }
                     }
                 }
 
                 item {
                     Text(
-                        text = "补充规则分成两类：一类对整个 app 都生效，一类只用来细化某条具体意图。",
+                        text = stringResource(R.string.supplement_rules_description),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1212,7 +1220,7 @@ fun AppRulesDialog(
                 item {
                     if (hints.isEmpty()) {
                         Text(
-                            text = "暂无补充规则",
+                            text = stringResource(R.string.no_supplement_rules_yet),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1233,7 +1241,7 @@ fun AppRulesDialog(
                     item {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "整个 app 都适用",
+                            text = stringResource(R.string.app_general_scope),
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.secondary
                         )
@@ -1263,7 +1271,7 @@ fun AppRulesDialog(
                     item {
                         Spacer(modifier = Modifier.height(12.dp))
                         Text(
-                            text = "只对某条意图生效",
+                            text = stringResource(R.string.specific_intent_scope),
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.secondary
                         )
@@ -1304,7 +1312,7 @@ fun AppRulesDialog(
         },
         confirmButton = {
             TextButton(onClick = onDismiss) {
-                Text("关闭")
+                Text(stringResource(R.string.close))
             }
         }
     )
@@ -1407,7 +1415,7 @@ private fun HintScopeSelector(
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
-            text = "适用范围",
+            text = stringResource(R.string.scope_label),
             style = MaterialTheme.typography.labelMedium
         )
         Row(
@@ -1417,12 +1425,12 @@ private fun HintScopeSelector(
             FilterChip(
                 selected = selectedScopeType == AppHintScopeType.APP_GENERAL,
                 onClick = { onScopeTypeSelected(AppHintScopeType.APP_GENERAL) },
-                label = { Text("整个 app 都适用") }
+                label = { Text(stringResource(R.string.app_general_scope)) }
             )
             FilterChip(
                 selected = selectedScopeType == AppHintScopeType.INTENT_SPECIFIC,
                 onClick = { onScopeTypeSelected(AppHintScopeType.INTENT_SPECIFIC) },
-                label = { Text("只对这条意图生效") }
+                label = { Text(stringResource(R.string.intent_specific_scope)) }
             )
         }
     }
@@ -1451,7 +1459,7 @@ private fun HintCard(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = "来源：${sourceLabelForHint(hint.source)}",
+                    text = stringResource(R.string.intent_source_label, sourceLabelForHint(hint.source)),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1
@@ -1474,7 +1482,7 @@ private fun HintCard(
                 ) {
                     Icon(
                         Icons.Default.Edit,
-                        contentDescription = "编辑",
+                        contentDescription = stringResource(R.string.edit),
                         tint = MaterialTheme.colorScheme.primary,
                         modifier = Modifier.size(18.dp)
                     )
@@ -1485,7 +1493,7 @@ private fun HintCard(
                 ) {
                     Icon(
                         Icons.Default.Delete,
-                        contentDescription = "删除",
+                        contentDescription = stringResource(R.string.delete),
                         tint = MaterialTheme.colorScheme.error,
                         modifier = Modifier.size(18.dp)
                     )
@@ -1506,8 +1514,8 @@ private suspend fun rebindHintsForEditedConstraints(
         val updated = updatedById[original.id] ?: return@forEach
         val oldIntentId = buildIntentScopedHintId(original)
         val newIntentId = buildIntentScopedHintId(updated)
-        val newIntentLabel = buildIntentScopedHintLabel(updated)
-        if (oldIntentId != newIntentId || buildIntentScopedHintLabel(original) != newIntentLabel) {
+        val newIntentLabel = buildIntentScopedHintLabel(null, updated)
+        if (oldIntentId != newIntentId || buildIntentScopedHintLabel(null, original) != newIntentLabel) {
             appHintRepo.moveHintsToScope(
                 packageName = packageName,
                 fromScopeType = AppHintScopeType.INTENT_SPECIFIC,
@@ -1546,6 +1554,7 @@ private fun displayHintIntentLabel(rawLabel: String): String {
 }
 
 private fun buildHintIntentOptions(
+    context: Context,
     presetRules: List<SessionConstraint>,
     historyRules: List<List<SessionConstraint>>,
     lastIntentRules: List<SessionConstraint>,
@@ -1559,7 +1568,7 @@ private fun buildHintIntentOptions(
             intentId,
             HintIntentOption(
                 intentId = intentId,
-                intentLabel = displayHintIntentLabel(buildIntentScopedHintLabel(constraint))
+                intentLabel = displayHintIntentLabel(buildIntentScopedHintLabel(context, constraint))
             )
         )
     }
@@ -1598,7 +1607,7 @@ private fun HintIntentSelector(
 
     if (options.isEmpty()) {
         Text(
-            text = "当前还没有可绑定的意图，请先保留至少一个意图记录。",
+            text = stringResource(R.string.no_bindable_intent_yet),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -1616,7 +1625,7 @@ private fun HintIntentSelector(
             modifier = Modifier
                 .fillMaxWidth()
                 .menuAnchor(),
-            label = { Text("关联意图") },
+            label = { Text(stringResource(R.string.bind_intent)) },
             trailingIcon = {
                 ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded)
             }
@@ -1638,12 +1647,13 @@ private fun HintIntentSelector(
     }
 }
 
-private fun sourceLabelForHint(source: String): String {
+@StringRes
+private fun sourceLabelForHint(source: String): Int {
     return when (source) {
-        APP_HINT_SOURCE_MANUAL -> "手动添加"
-        APP_HINT_SOURCE_FEEDBACK_GENERATED -> "纠错生成"
-        APP_HINT_SOURCE_INTENT_CARRY_OVER -> "自动带入"
-        else -> source
+        APP_HINT_SOURCE_MANUAL -> R.string.source_manual
+        APP_HINT_SOURCE_FEEDBACK_GENERATED -> R.string.source_feedback_generated
+        APP_HINT_SOURCE_INTENT_CARRY_OVER -> R.string.source_intent_carry_over
+        else -> R.string.source_manual
     }
 }
 
@@ -1656,14 +1666,14 @@ fun AddPresetRuleDialog(
     onConfirm: (SessionConstraint) -> Unit
 ) {
     RuleEditorDialog(
-        title = "添加预设意图",
+        title = stringResource(R.string.add_preset_intent_title),
         initialConstraint = SessionConstraint(
             id = java.util.UUID.randomUUID().toString(),
             type = ConstraintType.DENY,
             description = "",
             interventionLevel = InterventionLevel.MODERATE
         ),
-        confirmText = "添加",
+        confirmText = stringResource(R.string.add),
         onDismiss = onDismiss,
         onConfirm = onConfirm
     )
@@ -1679,9 +1689,9 @@ fun EditPresetRuleDialog(
     onSave: (SessionConstraint) -> Unit
 ) {
     RuleEditorDialog(
-        title = "编辑预设意图",
+        title = stringResource(R.string.edit_preset_intent_title),
         initialConstraint = constraint,
-        confirmText = "保存",
+        confirmText = stringResource(R.string.save),
         onDismiss = onDismiss,
         onConfirm = onSave
     )
@@ -1704,7 +1714,7 @@ fun EditHistoryRuleDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("编辑意图") },
+        title = { Text(stringResource(R.string.edit_intent_title)) },
         text = {
             LazyColumn(
                 modifier = Modifier.fillMaxWidth(),
@@ -1721,20 +1731,23 @@ fun EditHistoryRuleDialog(
                             ) {
                                 Text(
                                     text = when (constraint.type) {
-                                        ConstraintType.DENY -> "禁止"
-                                        ConstraintType.TIME_CAP -> "时间限制"
+                                        ConstraintType.DENY -> stringResource(R.string.constraint_type_deny)
+                                        ConstraintType.TIME_CAP -> stringResource(R.string.constraint_type_time_cap)
                                     },
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.primary
                                 )
-                                Row {
+                                Row(
+                                    horizontalArrangement = Arrangement.spacedBy(4.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
                                     IconButton(
                                         onClick = { editingIndex = index },
                                         modifier = Modifier.size(24.dp)
                                     ) {
                                         Icon(
                                             Icons.Default.Edit,
-                                            contentDescription = "编辑",
+                                            contentDescription = stringResource(R.string.edit),
                                             tint = MaterialTheme.colorScheme.primary,
                                             modifier = Modifier.size(18.dp)
                                         )
@@ -1747,7 +1760,7 @@ fun EditHistoryRuleDialog(
                                     ) {
                                         Icon(
                                             Icons.Default.Delete,
-                                            contentDescription = "删除",
+                                            contentDescription = stringResource(R.string.delete),
                                             tint = MaterialTheme.colorScheme.error,
                                             modifier = Modifier.size(18.dp)
                                         )
@@ -1763,9 +1776,9 @@ fun EditHistoryRuleDialog(
                             if (constraint.timeLimitMs != null) {
                                 val minutes = constraint.timeLimitMs / 60000.0
                                 val timeText = if (minutes % 1.0 == 0.0) {
-                                    "时间限制: ${minutes.toInt()} 分钟"
+                                    stringResource(R.string.time_cap_format, minutes.toInt())
                                 } else {
-                                    "时间限制: $minutes 分钟"
+                                    stringResource(R.string.time_cap_format_decimal, minutes.toString())
                                 }
                                 Text(
                                     text = timeText,
@@ -1775,13 +1788,13 @@ fun EditHistoryRuleDialog(
                             }
 
                             Text(
-                                text = "干预级别: ${
+                                text = stringResource(R.string.intervention_level_label,
                                     when (constraint.interventionLevel) {
-                                        InterventionLevel.GENTLE -> "温柔"
-                                        InterventionLevel.MODERATE -> "中等"
-                                        InterventionLevel.STRICT -> "严格"
+                                        InterventionLevel.GENTLE -> stringResource(R.string.intervention_gentle)
+                                        InterventionLevel.MODERATE -> stringResource(R.string.intervention_moderate)
+                                        InterventionLevel.STRICT -> stringResource(R.string.intervention_strict)
                                     }
-                                }",
+                                ),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -1795,12 +1808,12 @@ fun EditHistoryRuleDialog(
                 onClick = { onSaveAsPreset(editedConstraints) },
                 enabled = editedConstraints.isNotEmpty()
             ) {
-                Text("保存为预设")
+                Text(stringResource(R.string.save_as_preset))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消")
+                Text(stringResource(R.string.cancel))
             }
         }
     )
@@ -1831,9 +1844,9 @@ fun EditConstraintDialog(
     onSave: (SessionConstraint) -> Unit
 ) {
     RuleEditorDialog(
-        title = "编辑意图项",
+        title = stringResource(R.string.edit_intent_item_title),
         initialConstraint = constraint,
-        confirmText = "保存",
+        confirmText = stringResource(R.string.save),
         onDismiss = onDismiss,
         onConfirm = onSave
     )
@@ -1895,7 +1908,7 @@ private fun RuleEditorDialog(
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("取消")
+                Text(stringResource(R.string.cancel))
             }
         }
     )
@@ -1920,7 +1933,7 @@ private fun RuleEditorForm(
             .heightIn(max = 430.dp)
             .verticalScroll(rememberScrollState())
     ) {
-        Text(text = "意图类型", style = MaterialTheme.typography.labelMedium)
+        Text(text = stringResource(R.string.intent_type), style = MaterialTheme.typography.labelMedium)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1929,7 +1942,7 @@ private fun RuleEditorForm(
                 FilterChip(
                     selected = ruleType == type,
                     onClick = { onRuleTypeChange(type) },
-                    label = { Text(constraintTypeLabel(type)) }
+                    label = { Text(stringResource(constraintTypeLabel(type))) }
                 )
             }
         }
@@ -1939,12 +1952,12 @@ private fun RuleEditorForm(
         OutlinedTextField(
             value = description,
             onValueChange = onDescriptionChange,
-            label = { Text("描述") },
-            placeholder = { Text("例如：短视频、朋友圈和视频号") },
+            label = { Text(stringResource(R.string.description_label)) },
+            placeholder = { Text(stringResource(R.string.description_hint)) },
             modifier = Modifier.fillMaxWidth(),
             supportingText = {
                 Text(
-                    "💡 可以输入多个条件，如：朋友圈和视频号",
+                    stringResource(R.string.description_hint_tip),
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary
                 )
@@ -1960,15 +1973,15 @@ private fun RuleEditorForm(
                 onValueChange = { value ->
                     onTimeLimitMinutesChange(value.filter { c -> c.isDigit() || c == '.' })
                 },
-                label = { Text("时间限制（分钟，可选）") },
-                placeholder = { Text("例如：30 或 0.5") },
+                label = { Text(stringResource(R.string.time_limit_minutes_hint)) },
+                placeholder = { Text(stringResource(R.string.time_limit_placeholder)) },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true
             )
 
             if (ruleType == ConstraintType.TIME_CAP && timeLimitMinutes.isNotBlank()) {
                 Spacer(modifier = Modifier.height(12.dp))
-                Text(text = "时间范围", style = MaterialTheme.typography.labelMedium)
+                Text(text = stringResource(R.string.time_scope_label), style = MaterialTheme.typography.labelMedium)
                 Column(
                     modifier = Modifier.fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(4.dp)
@@ -1977,7 +1990,7 @@ private fun RuleEditorForm(
                         FilterChip(
                             selected = timeScope == scope,
                             onClick = { onTimeScopeChange(scope) },
-                            label = { Text(timeScopeLabel(scope)) },
+                            label = { Text(stringResource(timeScopeLabel(scope))) },
                             modifier = Modifier.fillMaxWidth()
                         )
                     }
@@ -1987,7 +2000,7 @@ private fun RuleEditorForm(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        Text(text = "干预级别", style = MaterialTheme.typography.labelMedium)
+        Text(text = stringResource(R.string.intervention_level_title), style = MaterialTheme.typography.labelMedium)
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -1996,7 +2009,7 @@ private fun RuleEditorForm(
                 FilterChip(
                     selected = interventionLevel == level,
                     onClick = { onInterventionLevelChange(level) },
-                    label = { Text(interventionLevelLabel(level)) }
+                    label = { Text(stringResource(interventionLevelLabel(level))) }
                 )
             }
         }
@@ -2010,7 +2023,7 @@ private fun RuleEditorForm(
             )
         ) {
             Text(
-                text = interventionLevelDescription(interventionLevel),
+                text = stringResource(interventionLevelDescription(interventionLevel)),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.padding(12.dp)
@@ -2049,28 +2062,32 @@ private fun formatTimeLimitMinutes(timeLimitMs: Long): String {
     return if (minutes % 1.0 == 0.0) minutes.toInt().toString() else minutes.toString()
 }
 
-private fun constraintTypeLabel(type: ConstraintType): String = when (type) {
-    ConstraintType.DENY -> "禁止"
-    ConstraintType.TIME_CAP -> "时间限制"
+@StringRes
+private fun constraintTypeLabel(type: ConstraintType): Int = when (type) {
+    ConstraintType.DENY -> R.string.constraint_type_deny
+    ConstraintType.TIME_CAP -> R.string.constraint_type_time_cap
 }
 
-private fun timeScopeLabel(scope: TimeScope): String = when (scope) {
-    TimeScope.SESSION -> "会话级（整个会话计时）"
-    TimeScope.PER_CONTENT -> "内容级（只在目标内容时计时）"
-    TimeScope.CONTINUOUS -> "连续（不间断计时）"
-    TimeScope.DAILY_TOTAL -> "每日累计（跨会话持久化）"
+@StringRes
+private fun timeScopeLabel(scope: TimeScope): Int = when (scope) {
+    TimeScope.SESSION -> R.string.time_scope_session
+    TimeScope.PER_CONTENT -> R.string.time_scope_per_content
+    TimeScope.CONTINUOUS -> R.string.time_scope_continuous
+    TimeScope.DAILY_TOTAL -> R.string.time_scope_daily_total
 }
 
-private fun interventionLevelLabel(level: InterventionLevel): String = when (level) {
-    InterventionLevel.GENTLE -> "温柔"
-    InterventionLevel.MODERATE -> "中等"
-    InterventionLevel.STRICT -> "严格"
+@StringRes
+private fun interventionLevelLabel(level: InterventionLevel): Int = when (level) {
+    InterventionLevel.GENTLE -> R.string.intervention_gentle
+    InterventionLevel.MODERATE -> R.string.intervention_moderate
+    InterventionLevel.STRICT -> R.string.intervention_strict
 }
 
-private fun interventionLevelDescription(level: InterventionLevel): String = when (level) {
-    InterventionLevel.GENTLE -> "仅提醒：弹出提示框提醒用户，但不阻止操作。用户可以继续当前行为。"
-    InterventionLevel.MODERATE -> "提醒+返回：弹出提示框，并自动返回上一个界面。适合想要中断但不需要强制禁止的场景。"
-    InterventionLevel.STRICT -> "强制返回：直接返回主屏幕，强制中断当前行为。适合需要强力遏制的场景。"
+@StringRes
+private fun interventionLevelDescription(level: InterventionLevel): Int = when (level) {
+    InterventionLevel.GENTLE -> R.string.intervention_gentle_desc
+    InterventionLevel.MODERATE -> R.string.intervention_moderate_desc
+    InterventionLevel.STRICT -> R.string.intervention_strict_desc
 }
 
 /**
@@ -2123,7 +2140,7 @@ fun AppItem(
             IconButton(onClick = onEditRules) {
                 Icon(
                     Icons.Default.Edit,
-                    contentDescription = "编辑意图",
+                    contentDescription = stringResource(R.string.edit_intent),
                     tint = MaterialTheme.colorScheme.primary
                 )
             }
@@ -2131,7 +2148,7 @@ fun AppItem(
             IconButton(onClick = onDelete) {
                 Icon(
                     Icons.Default.Delete,
-                    contentDescription = "删除",
+                    contentDescription = stringResource(R.string.delete),
                     tint = MaterialTheme.colorScheme.error
                 )
             }
@@ -2171,26 +2188,26 @@ fun SettingsTab(
             ?: aiSettings.model
     }
     val screenshotModeOptions = listOf(
-        RuleRecordingPrefs.ScreenshotMode.ALL to "保存所有截图",
-        RuleRecordingPrefs.ScreenshotMode.MATCHED_ONLY to "只在有相关判断时保存截图",
-        RuleRecordingPrefs.ScreenshotMode.NONE to "不保存截图"
+        RuleRecordingPrefs.ScreenshotMode.ALL to R.string.screenshot_mode_all,
+        RuleRecordingPrefs.ScreenshotMode.MATCHED_ONLY to R.string.screenshot_mode_matched_only,
+        RuleRecordingPrefs.ScreenshotMode.NONE to R.string.screenshot_mode_none
     )
-    val selectedScreenshotLabel = screenshotModeOptions.find { it.first == screenshotMode }?.second
-        ?: screenshotModeOptions.first().second
+    val selectedScreenshotLabel = screenshotModeOptions.find { it.first == screenshotMode }?.second?.let { context.getString(it) }
+        ?: context.getString(screenshotModeOptions.first().second)
     val aiButtonLabel = remember(aiSettings) {
         when {
-            aiSettings.model.isBlank() -> "设置模型"
+            aiSettings.model.isBlank() -> context.getString(R.string.model_not_set)
             aiSettings.provider == AiProvider.DASHSCOPE ->
                 "Qwen · $aiPresetLabel"
-            else -> "${aiSettings.provider.displayName} · $aiPresetLabel"
+            else -> "${context.getString(aiSettings.provider.displayNameResId)} · $aiPresetLabel"
         }
     }
 
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
-            title = { Text("清空记录") },
-            text = { Text("确定要删除所有判断记录吗？此操作无法撤销。") },
+            title = { Text(stringResource(R.string.clear_records_title)) },
+            text = { Text(stringResource(R.string.clear_records_confirm)) },
             confirmButton = {
                 TextButton(
                     onClick = {
@@ -2200,12 +2217,12 @@ fun SettingsTab(
                         showDeleteConfirm = false
                     }
                 ) {
-                    Text("删除", color = MaterialTheme.colorScheme.error)
+                    Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error)
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showDeleteConfirm = false }) {
-                    Text("取消")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -2218,7 +2235,7 @@ fun SettingsTab(
             .padding(16.dp)
     ) {
         Text(
-            text = "设置",
+            text = stringResource(R.string.settings_title),
             style = MaterialTheme.typography.headlineMedium,
             fontWeight = FontWeight.Bold
         )
@@ -2226,8 +2243,8 @@ fun SettingsTab(
         Spacer(modifier = Modifier.height(24.dp))
 
         SettingsSectionCard(
-            title = "AI",
-            description = "模型、语音输入和服务商设置"
+            title = stringResource(R.string.settings_ai_title),
+            description = stringResource(R.string.settings_model_desc)
         ) {
             OutlinedButton(
                 onClick = onOpenAiSettings,
@@ -2242,12 +2259,12 @@ fun SettingsTab(
         Spacer(modifier = Modifier.height(24.dp))
 
         SettingsSectionCard(
-            title = "使用体验",
-            description = "影响首页展示和启动方式"
+            title = stringResource(R.string.experience_settings),
+            description = stringResource(R.string.experience_settings_desc)
         ) {
             SettingsSwitchRow(
-                title = "首页显示今日时间轴",
-                summary = "关闭后，首页不再显示今日时间轴",
+                title = stringResource(R.string.show_today_timeline),
+                summary = stringResource(R.string.show_today_timeline_desc),
                 checked = showHomeTimeline,
                 onCheckedChange = {
                     showHomeTimeline = it
@@ -2257,8 +2274,8 @@ fun SettingsTab(
             )
             HorizontalDivider()
             SettingsSwitchRow(
-                title = "开机时自动启动",
-                summary = "系统启动后自动运行 SeeNot",
+                title = stringResource(R.string.auto_start_on_boot),
+                summary = stringResource(R.string.auto_start_on_boot_desc),
                 checked = autoStart,
                 onCheckedChange = {
                     autoStart = it
@@ -2270,12 +2287,12 @@ fun SettingsTab(
         Spacer(modifier = Modifier.height(24.dp))
 
         SettingsSectionCard(
-            title = "判断记录",
-            description = "决定要不要保存判断历史，以及是否即时提醒"
+            title = stringResource(R.string.judgment_records),
+            description = stringResource(R.string.judgment_records_desc)
         ) {
             SettingsSwitchRow(
-                title = "保存判断记录",
-                summary = "把每次判断结果保存下来，方便之后查看",
+                title = stringResource(R.string.save_judgment_records),
+                summary = stringResource(R.string.save_judgment_records_desc),
                 checked = saveRuleRecords,
                 onCheckedChange = {
                     saveRuleRecords = it
@@ -2286,8 +2303,8 @@ fun SettingsTab(
                 HorizontalDivider()
                 Box {
                     SettingsDropdownRow(
-                        title = "截图保存方式",
-                        summary = "截图只保存在应用内部，不会出现在系统相册里",
+                        title = stringResource(R.string.screenshot_mode_label),
+                        summary = stringResource(R.string.screenshot_mode_desc),
                         value = selectedScreenshotLabel,
                         expanded = screenshotDropdownExpanded,
                         onClick = { screenshotDropdownExpanded = !screenshotDropdownExpanded }
@@ -2297,9 +2314,9 @@ fun SettingsTab(
                         onDismissRequest = { screenshotDropdownExpanded = false },
                         modifier = Modifier.fillMaxWidth()
                     ) {
-                        screenshotModeOptions.forEach { (mode, label) ->
+                        screenshotModeOptions.forEach { (mode, labelResId) ->
                             DropdownMenuItem(
-                                text = { Text(label) },
+                                text = { Text(stringResource(labelResId)) },
                                 onClick = {
                                     screenshotMode = mode
                                     RuleRecordingPrefs.setScreenshotMode(context, mode)
@@ -2312,8 +2329,8 @@ fun SettingsTab(
             }
             HorizontalDivider()
             SettingsSwitchRow(
-                title = "每次判断都提醒我",
-                summary = "判断后立刻弹出提示；关闭后不再弹这类提示",
+                title = stringResource(R.string.notify_each_judgment),
+                summary = stringResource(R.string.notify_each_judgment_desc),
                 checked = showAnalysisResultToast,
                 onCheckedChange = {
                     showAnalysisResultToast = it
@@ -2331,7 +2348,7 @@ fun SettingsTab(
                 ) {
                     Icon(Icons.Filled.History, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("查看记录")
+                    Text(stringResource(R.string.view_records))
                 }
                 OutlinedButton(
                     onClick = { showDeleteConfirm = true },
@@ -2342,7 +2359,7 @@ fun SettingsTab(
                 ) {
                     Icon(Icons.Filled.Delete, contentDescription = null)
                     Spacer(modifier = Modifier.width(8.dp))
-                    Text("清空记录")
+                    Text(stringResource(R.string.clear_records))
                 }
             }
         }
@@ -2350,8 +2367,8 @@ fun SettingsTab(
         Spacer(modifier = Modifier.height(24.dp))
 
         SettingsSectionCard(
-            title = "导出",
-            description = "导出日志和数据，方便排查问题或备份"
+            title = stringResource(R.string.export_section),
+            description = stringResource(R.string.export_section_desc)
         ) {
             OutlinedButton(
                 onClick = { showLogExportDialog = true },
@@ -2359,7 +2376,7 @@ fun SettingsTab(
             ) {
                 Icon(Icons.Default.Download, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("导出数据")
+                Text(stringResource(R.string.export_data))
             }
         }
 
@@ -2372,7 +2389,7 @@ fun SettingsTab(
         Spacer(modifier = Modifier.height(24.dp))
 
         SettingsSectionCard(
-            title = "关于",
+            title = stringResource(R.string.about_section),
             description = null
         ) {
             Text(
@@ -2566,13 +2583,13 @@ private fun AiModelSettingsDialog(
         )
     }
 
-    fun baseUrlSuggestionsFor(target: AiProvider): List<Pair<String, String>> {
+    fun baseUrlSuggestionsFor(target: AiProvider): List<Pair<Int, String>> {
         return when (target) {
-            AiProvider.DASHSCOPE -> QwenRegion.entries.map { it.displayName to it.baseUrl }
-            AiProvider.OPENAI -> listOf("OpenAI" to AiProvider.OPENAI.defaultBaseUrl)
-            AiProvider.GEMINI -> listOf("Gemini" to AiProvider.GEMINI.defaultBaseUrl)
-            AiProvider.GLM -> listOf("GLM" to AiProvider.GLM.defaultBaseUrl)
-            AiProvider.ANTHROPIC -> listOf("Anthropic (Legacy)" to AiProvider.ANTHROPIC.defaultBaseUrl)
+            AiProvider.DASHSCOPE -> QwenRegion.entries.map { it.displayNameResId to it.baseUrl }
+            AiProvider.OPENAI -> listOf(R.string.provider_openai to AiProvider.OPENAI.defaultBaseUrl)
+            AiProvider.GEMINI -> listOf(R.string.provider_gemini to AiProvider.GEMINI.defaultBaseUrl)
+            AiProvider.GLM -> listOf(R.string.provider_glm to AiProvider.GLM.defaultBaseUrl)
+            AiProvider.ANTHROPIC -> listOf(R.string.provider_anthropic to AiProvider.ANTHROPIC.defaultBaseUrl)
             AiProvider.CUSTOM -> emptyList()
         }
     }
@@ -2641,7 +2658,7 @@ private fun AiModelSettingsDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("AI 模型设置") },
+        title = { Text(stringResource(R.string.ai_model_settings_title)) },
         text = {
             Column(
                 modifier = Modifier
@@ -2653,12 +2670,12 @@ private fun AiModelSettingsDialog(
                     Tab(
                         selected = selectedConfigTab == 0,
                         onClick = { selectedConfigTab = 0 },
-                        text = { Text("视觉") }
+                        text = { Text(stringResource(R.string.vision_tab)) }
                     )
                     Tab(
                         selected = selectedConfigTab == 1,
                         onClick = { selectedConfigTab = 1 },
-                        text = { Text("语音") }
+                        text = { Text(stringResource(R.string.voice_tab)) }
                     )
                 }
 
@@ -2667,7 +2684,7 @@ private fun AiModelSettingsDialog(
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                     if (isDevDashscopeKeyActive) {
                         Text(
-                            text = "当前为开发模式，已临时提供 DashScope API Key，可用至 $devDashscopeKeyExpiryText。到期后会自动停用，你仍可在这里手动填写自己的 Key。",
+                            text = stringResource(R.string.dev_mode_dashscope_temp_key, devDashscopeKeyExpiryText),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.tertiary
                         )
@@ -2679,10 +2696,10 @@ private fun AiModelSettingsDialog(
                             onExpandedChange = { providerExpanded = !providerExpanded }
                         ) {
                             OutlinedTextField(
-                                value = provider.displayName,
+                                value = LocalContext.current.getString(provider.displayNameResId),
                                 onValueChange = {},
                                 readOnly = true,
-                                label = { Text("视觉 Provider") },
+                                label = { Text(stringResource(R.string.vision_provider)) },
                                 trailingIcon = {
                                     ExposedDropdownMenuDefaults.TrailingIcon(expanded = providerExpanded)
                                 },
@@ -2696,7 +2713,7 @@ private fun AiModelSettingsDialog(
                             ) {
                                 providerOptions.forEach { candidate ->
                                     DropdownMenuItem(
-                                        text = { Text(candidate.displayName) },
+                                        text = { Text(LocalContext.current.getString(candidate.displayNameResId)) },
                                         onClick = {
                                             providerExpanded = false
                                             applyProviderDefaults(candidate)
@@ -2714,7 +2731,7 @@ private fun AiModelSettingsDialog(
                                     sttApiKey = it
                                 }
                             },
-                            label = { Text("API Key") },
+                            label = { Text(stringResource(R.string.api_key)) },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
                             visualTransformation = PasswordVisualTransformation()
@@ -2734,8 +2751,8 @@ private fun AiModelSettingsDialog(
                                         sttBaseUrl = it
                                     }
                                 },
-                                label = { Text("Base URL") },
-                                placeholder = { Text("https://.../v1") },
+                                label = { Text(stringResource(R.string.base_url)) },
+                                placeholder = { Text(stringResource(R.string.base_url_placeholder)) },
                                 trailingIcon = {
                                     if (baseUrlSuggestions.isNotEmpty()) {
                                         ExposedDropdownMenuDefaults.TrailingIcon(expanded = baseUrlExpanded)
@@ -2751,9 +2768,9 @@ private fun AiModelSettingsDialog(
                                     expanded = baseUrlExpanded,
                                     onDismissRequest = { baseUrlExpanded = false }
                                 ) {
-                                    baseUrlSuggestions.forEach { (label, value) ->
+                                    baseUrlSuggestions.forEach { (labelResId, value) ->
                                         DropdownMenuItem(
-                                            text = { Text(label) },
+                                            text = { Text(stringResource(labelResId)) },
                                             onClick = {
                                                 baseUrlExpanded = false
                                                 baseUrl = value
@@ -2783,8 +2800,8 @@ private fun AiModelSettingsDialog(
                                     modelInput = it
                                     model = it
                                 },
-                                label = { Text("视觉模型") },
-                                placeholder = { Text("例如：qwen3.6-plus / glm-4.6v-flashx / gpt-4o-mini") },
+                                label = { Text(stringResource(R.string.vision_model)) },
+                                placeholder = { Text(stringResource(R.string.vision_model_hint)) },
                                 trailingIcon = {
                                     if (recommendedPresets.isNotEmpty()) {
                                         ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded)
@@ -2804,8 +2821,11 @@ private fun AiModelSettingsDialog(
                                         DropdownMenuItem(
                                             text = {
                                                 Text(
-                                                    if (preset.note.isBlank()) preset.model
-                                                    else "${preset.model}  ${preset.note}"
+                                                    when {
+                                                        preset.noteResId != null -> "${preset.model}  ${stringResource(preset.noteResId)}"
+                                                        preset.note.isNotBlank() -> "${preset.model}  ${preset.note}"
+                                                        else -> preset.model
+                                                    }
                                                 )
                                             },
                                             onClick = {
@@ -2833,8 +2853,8 @@ private fun AiModelSettingsDialog(
                                     feedbackModelInput = it
                                     feedbackModel = it
                                 },
-                                label = { Text("纠偏模型") },
-                                placeholder = { Text("报错后生成补充规则时使用") },
+                                label = { Text(stringResource(R.string.bias_model)) },
+                                placeholder = { Text(stringResource(R.string.bias_model_hint)) },
                                 trailingIcon = {
                                     if (recommendedPresets.isNotEmpty()) {
                                         ExposedDropdownMenuDefaults.TrailingIcon(expanded = feedbackModelExpanded)
@@ -2854,8 +2874,11 @@ private fun AiModelSettingsDialog(
                                         DropdownMenuItem(
                                             text = {
                                                 Text(
-                                                    if (preset.note.isBlank()) preset.model
-                                                    else "${preset.model}  ${preset.note}"
+                                                    when {
+                                                        preset.noteResId != null -> "${preset.model}  ${stringResource(preset.noteResId)}"
+                                                        preset.note.isNotBlank() -> "${preset.model}  ${preset.note}"
+                                                        else -> preset.model
+                                                    }
                                                 )
                                             },
                                             onClick = {
@@ -2870,14 +2893,14 @@ private fun AiModelSettingsDialog(
                         }
 
                         Text(
-                            text = "纠偏模型不会高频使用，只在你报错后生成补充规则时参与分析。",
+                            text = stringResource(R.string.bias_model_not_highfreq_usage),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
                         if (provider == AiProvider.DASHSCOPE) {
                             Text(
-                                text = "Qwen 当前区域：${qwenRegion.displayName}",
+                                text = stringResource(R.string.qwen_region_label, LocalContext.current.getString(qwenRegion.displayNameResId)),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -2888,10 +2911,10 @@ private fun AiModelSettingsDialog(
                             onExpandedChange = { sttProviderExpanded = !sttProviderExpanded }
                         ) {
                             OutlinedTextField(
-                                value = sttProvider.displayName,
+                                value = LocalContext.current.getString(sttProvider.displayNameResId),
                                 onValueChange = {},
                                 readOnly = true,
-                                label = { Text("语音 Provider") },
+                                label = { Text(stringResource(R.string.voice_provider)) },
                                 trailingIcon = {
                                     ExposedDropdownMenuDefaults.TrailingIcon(expanded = sttProviderExpanded)
                                 },
@@ -2905,7 +2928,7 @@ private fun AiModelSettingsDialog(
                             ) {
                                 sttProviderOptions.forEach { candidate ->
                                     DropdownMenuItem(
-                                        text = { Text(candidate.displayName) },
+                                        text = { Text(LocalContext.current.getString(candidate.displayNameResId)) },
                                         onClick = {
                                             sttProviderExpanded = false
                                             applySttDefaults(candidate)
@@ -2924,7 +2947,7 @@ private fun AiModelSettingsDialog(
                                 }
                             },
                             label = {
-                                Text(if (sttUsesSharedProviderConfig) "API Key（共享）" else "API Key（独立）")
+                                Text(if (sttUsesSharedProviderConfig) stringResource(R.string.api_key_shared) else stringResource(R.string.api_key_independent))
                             },
                             modifier = Modifier.fillMaxWidth(),
                             singleLine = true,
@@ -2946,7 +2969,7 @@ private fun AiModelSettingsDialog(
                                     }
                                 },
                                 label = {
-                                    Text(if (sttUsesSharedProviderConfig) "Base URL（共享）" else "Base URL（独立）")
+                                    Text(if (sttUsesSharedProviderConfig) stringResource(R.string.base_url_shared) else stringResource(R.string.base_url_independent))
                                 },
                                 placeholder = { Text("https://.../v1") },
                                 trailingIcon = {
@@ -2964,9 +2987,9 @@ private fun AiModelSettingsDialog(
                                     expanded = sttBaseUrlExpanded,
                                     onDismissRequest = { sttBaseUrlExpanded = false }
                                 ) {
-                                    sttBaseUrlSuggestions.forEach { (label, value) ->
+                                    sttBaseUrlSuggestions.forEach { (labelResId, value) ->
                                         DropdownMenuItem(
-                                            text = { Text(label) },
+                                            text = { Text(stringResource(labelResId)) },
                                             onClick = {
                                                 sttBaseUrlExpanded = false
                                                 sttBaseUrl = value
@@ -2997,8 +3020,8 @@ private fun AiModelSettingsDialog(
                                         sttModelInput = it
                                         sttModel = it
                                     },
-                                    label = { Text("语音模型") },
-                                    placeholder = { Text("例如：gpt-4o-mini-transcribe / glm-asr-2512") },
+                                    label = { Text(stringResource(R.string.voice_model)) },
+                                    placeholder = { Text(stringResource(R.string.voice_model_hint)) },
                                     trailingIcon = {
                                         if (sttRecommendedPresets.isNotEmpty()) {
                                             ExposedDropdownMenuDefaults.TrailingIcon(expanded = sttModelExpanded)
@@ -3036,7 +3059,7 @@ private fun AiModelSettingsDialog(
 
                         if (sttProvider == AiProvider.DASHSCOPE || sttProvider == AiProvider.GEMINI) {
                             Text(
-                                text = "语音输入会自动配置，无需再填语音模型。",
+                                text = stringResource(R.string.voice_input_auto_config_hint),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -3100,7 +3123,7 @@ private fun AiModelSettingsDialog(
                     sttBaseUrl.isNotBlank() &&
                     (sttModelIsFixed || sttModel.isNotBlank())
             ) {
-                Text("保存")
+                Text(stringResource(R.string.save))
             }
         },
         dismissButton = {
@@ -3114,10 +3137,10 @@ private fun AiModelSettingsDialog(
                         }
                     }
                 ) {
-                    Text("恢复默认")
+                    Text(stringResource(R.string.restore_defaults))
                 }
                 TextButton(onClick = onDismiss) {
-                    Text("关闭")
+                    Text(stringResource(R.string.close))
                 }
             }
         }
@@ -3198,7 +3221,7 @@ fun AddAppDialog(
                 modifier = Modifier.padding(16.dp)
             ) {
                 Text(
-                    text = "添加应用",
+                    text = stringResource(R.string.add_app_title),
                     style = MaterialTheme.typography.titleLarge,
                     fontWeight = FontWeight.Bold
                 )
@@ -3207,7 +3230,7 @@ fun AddAppDialog(
 
                 if (installedApps.isEmpty()) {
                     Text(
-                        text = "没有可添加的应用",
+                        text = stringResource(R.string.no_apps_available),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -3218,7 +3241,7 @@ fun AddAppDialog(
                         modifier = Modifier.fillMaxWidth()
                     ) {
                         Text(
-                            text = selectedApp?.name ?: "选择应用",
+                            text = selectedApp?.name ?: stringResource(R.string.select_app),
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis,
                             modifier = Modifier.weight(1f)
@@ -3238,7 +3261,7 @@ fun AddAppDialog(
                             value = searchQuery,
                             onValueChange = { searchQuery = it },
                             modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text("搜索...") },
+                            placeholder = { Text(stringResource(R.string.search_placeholder)) },
                             leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                             singleLine = true
                         )
@@ -3306,7 +3329,7 @@ fun AddAppDialog(
                     horizontalArrangement = Arrangement.End
                 ) {
                     TextButton(onClick = onDismiss) {
-                        Text("取消")
+                        Text(stringResource(R.string.cancel))
                     }
                     Spacer(modifier = Modifier.width(8.dp))
                     Button(
@@ -3317,7 +3340,7 @@ fun AddAppDialog(
                         },
                         enabled = selectedApp != null
                     ) {
-                        Text("添加")
+                        Text(stringResource(R.string.add))
                     }
                 }
             }
@@ -3385,12 +3408,12 @@ fun VoiceInputDialog(
                 // Header
                 Text(
                     text = when (recordingState) {
-                        VoiceRecordingState.RECORDING -> "正在录音..."
-                        VoiceRecordingState.PROCESSING -> "正在处理..."
-                        VoiceRecordingState.TRANSCRIBED -> "识别结果"
-                        VoiceRecordingState.PARSED -> "解析完成"
-                        VoiceRecordingState.ERROR -> "出现错误"
-                        else -> "声明你的意图"
+                        VoiceRecordingState.RECORDING -> stringResource(R.string.state_recording)
+                        VoiceRecordingState.PROCESSING -> stringResource(R.string.state_processing)
+                        VoiceRecordingState.TRANSCRIBED -> stringResource(R.string.state_transcribed)
+                        VoiceRecordingState.PARSED -> stringResource(R.string.state_parsed)
+                        VoiceRecordingState.ERROR -> stringResource(R.string.state_error)
+                        else -> stringResource(R.string.declare_intent_default)
                     },
                     style = MaterialTheme.typography.headlineSmall,
                     fontWeight = FontWeight.Bold
@@ -3399,7 +3422,7 @@ fun VoiceInputDialog(
                 Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "当前应用: $appDisplayName",
+                    text = stringResource(R.string.current_app_label, appDisplayName),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -3420,7 +3443,7 @@ fun VoiceInputDialog(
                     ) {
                         Icon(Icons.Default.History, contentDescription = null)
                         Spacer(modifier = Modifier.width(8.dp))
-                        Text("继续使用上次意图")
+                        Text(stringResource(R.string.continue_last_intent_button))
                     }
                 }
 
@@ -3471,14 +3494,14 @@ fun VoiceInputDialog(
                         ) {
                             Icon(Icons.Default.Stop, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("停止录音")
+                            Text(stringResource(R.string.stop_recording_button))
                         }
                     }
                     recordingState == VoiceRecordingState.PROCESSING -> {
                         CircularProgressIndicator()
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
-                            text = "正在识别语音...",
+                            text = stringResource(R.string.recognizing_voice),
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
@@ -3492,7 +3515,7 @@ fun VoiceInputDialog(
                         ) {
                             Column(modifier = Modifier.padding(16.dp)) {
                                 Text(
-                                    text = "识别内容:",
+                                    text = stringResource(R.string.recognized_content_label),
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                                 )
@@ -3502,13 +3525,13 @@ fun VoiceInputDialog(
                                 )
                                 Spacer(modifier = Modifier.height(12.dp))
                                 Text(
-                                    text = "解析结果:",
+                                    text = stringResource(R.string.parsed_result_label),
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.onPrimaryContainer.copy(alpha = 0.7f)
                                 )
                                 parsedIntent!!.constraints.forEach { constraint ->
                                     Text(
-                                        text = "• ${constraintTypeLabel(constraint.type)}: ${constraint.description}",
+                                        text = "• ${stringResource(constraintTypeLabel(constraint.type))}: ${constraint.description}",
                                         style = MaterialTheme.typography.bodyMedium
                                     )
                                 }
@@ -3527,7 +3550,7 @@ fun VoiceInputDialog(
                                 strokeWidth = 2.dp
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("意图已确定")
+                            Text(stringResource(R.string.intent_confirmed))
                         }
                     }
                     recognizedText != null && (recordingState == VoiceRecordingState.TRANSCRIBED || recordingState == VoiceRecordingState.PROCESSING) -> {
@@ -3559,7 +3582,7 @@ fun VoiceInputDialog(
                                 strokeWidth = 2.dp
                             )
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("正在解析意图...")
+                            Text(stringResource(R.string.parsing_intent))
                         }
                     }
                     showTextInput -> {
@@ -3567,8 +3590,8 @@ fun VoiceInputDialog(
                         OutlinedTextField(
                             value = textInput,
                             onValueChange = { textInput = it },
-                            label = { Text("输入你的意图") },
-                            placeholder = { Text("例如：只看工作消息，10分钟") },
+                            label = { Text(stringResource(R.string.input_intent_label)) },
+                            placeholder = { Text(stringResource(R.string.input_intent_hint)) },
                             modifier = Modifier.fillMaxWidth(),
                             minLines = 2,
                             enabled = recordingState != VoiceRecordingState.PROCESSING
@@ -3592,7 +3615,7 @@ fun VoiceInputDialog(
                                 Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null)
                             }
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(if (recordingState == VoiceRecordingState.PROCESSING) "处理中..." else "确认")
+                            Text(if (recordingState == VoiceRecordingState.PROCESSING) stringResource(R.string.processing_label) else stringResource(R.string.confirm_button))
                         }
                     }
                     else -> {
@@ -3604,7 +3627,7 @@ fun VoiceInputDialog(
                         ) {
                             Icon(Icons.Default.Mic, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("开始语音输入")
+                            Text(stringResource(R.string.start_voice_input_button))
                         }
 
                         Spacer(modifier = Modifier.height(16.dp))
@@ -3617,7 +3640,7 @@ fun VoiceInputDialog(
                         ) {
                             Icon(Icons.Default.Keyboard, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text("使用文本输入")
+                            Text(stringResource(R.string.use_text_input_button))
                         }
                     }
                 }
@@ -3629,7 +3652,7 @@ fun VoiceInputDialog(
                     onClick = onDismiss,
                     enabled = recordingState != VoiceRecordingState.PROCESSING
                 ) {
-                    Text("跳过")
+                    Text(stringResource(R.string.skip_button))
                 }
             }
         }
@@ -3657,14 +3680,14 @@ fun ExportDialog(
         if (uri != null) {
             scope.launch {
                 isExporting = true
-                exportMessage = "正在导入应用配置..."
+                exportMessage = context.getString(R.string.exporting_app_config)
                 try {
                     val importedCount = configurationExporter.importConfiguration(uri) { progress ->
                         exportMessage = progress
                     }.getOrThrow()
-                    exportMessage = "导入成功！共导入 $importedCount 个应用配置"
+                    exportMessage = context.getString(R.string.import_success, importedCount)
                 } catch (e: Exception) {
-                    exportMessage = "导入失败: ${e.message}"
+                    exportMessage = context.getString(R.string.import_failed, e.message ?: "")
                 } finally {
                     isExporting = false
                 }
@@ -3687,7 +3710,7 @@ fun ExportDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("导出") },
+        title = { Text(stringResource(R.string.export_title)) },
         text = {
             Column(
                 modifier = Modifier
@@ -3697,10 +3720,10 @@ fun ExportDialog(
                 verticalArrangement = Arrangement.spacedBy(16.dp)
             ) {
                 val availableTabs = buildList {
-                    add("应用配置")
-                    add("日志")
+                    add(context.getString(R.string.app_config))
+                    add(context.getString(R.string.logs))
                     if (runtimeEventEnabled) {
-                        add("运行事件")
+                        add(context.getString(R.string.runtime_events))
                     }
                 }
                 val safeSelectedTab = selectedExportTab.coerceIn(0, availableTabs.lastIndex)
@@ -3716,7 +3739,7 @@ fun ExportDialog(
                             selectedExportTab = 0
                             exportMessage = ""
                         },
-                        text = { Text("应用配置") }
+                        text = { Text(stringResource(R.string.app_config)) }
                     )
                     Tab(
                         selected = safeSelectedTab == 1,
@@ -3724,7 +3747,7 @@ fun ExportDialog(
                             selectedExportTab = 1
                             exportMessage = ""
                         },
-                        text = { Text("日志") }
+                        text = { Text(stringResource(R.string.logs)) }
                     )
                     if (runtimeEventEnabled) {
                         Tab(
@@ -3733,14 +3756,14 @@ fun ExportDialog(
                                 selectedExportTab = 2
                                 exportMessage = ""
                             },
-                            text = { Text("运行事件") }
+                            text = { Text(stringResource(R.string.runtime_events)) }
                         )
                     }
                 }
 
                 if (safeSelectedTab == 0) {
                     Text(
-                        text = "导出当前监控应用、预设意图、默认意图、最近意图历史和 AI 补充说明。",
+                        text = stringResource(R.string.export_app_config_desc),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -3753,7 +3776,7 @@ fun ExportDialog(
                             onClick = {
                                 scope.launch {
                                     isExporting = true
-                                    exportMessage = "正在导出应用配置..."
+                                    exportMessage = context.getString(R.string.exporting_app_config_ellipsis)
                                     try {
                                         val uri = configurationExporter.exportConfiguration { progress ->
                                             exportMessage = progress
@@ -3762,14 +3785,14 @@ fun ExportDialog(
                                             configurationExporter.shareExportedFile(uri) { error ->
                                                 exportMessage = error
                                             }
-                                            if (!exportMessage.contains("失败")) {
-                                                exportMessage = "配置导出成功！"
+                                            if (!exportMessage.contains(context.getString(R.string.fail))) {
+                                                exportMessage = context.getString(R.string.export_app_config_success)
                                             }
                                         } else if (exportMessage.isBlank()) {
-                                            exportMessage = "配置导出失败"
+                                            exportMessage = context.getString(R.string.export_app_config_failed)
                                         }
                                     } catch (e: Exception) {
-                                        exportMessage = "配置导出失败: ${e.message}"
+                                        exportMessage = context.getString(R.string.export_app_config_failed_reason, e.message ?: "")
                                     } finally {
                                         isExporting = false
                                     }
@@ -3784,7 +3807,7 @@ fun ExportDialog(
                                     strokeWidth = 2.dp
                                 )
                             } else {
-                                Text("导出")
+                                Text(stringResource(R.string.export_button))
                             }
                         }
 
@@ -3796,12 +3819,12 @@ fun ExportDialog(
                             enabled = !isExporting,
                             modifier = Modifier.weight(1f)
                         ) {
-                            Text("导入")
+                            Text(stringResource(R.string.import_button))
                         }
                     }
                 } else if (safeSelectedTab == 1) {
                     Text(
-                        text = "分享全部日志，或按日期范围分享日志。",
+                        text = stringResource(R.string.export_logs_desc),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -3809,7 +3832,7 @@ fun ExportDialog(
                     OutlinedTextField(
                         value = startDate,
                         onValueChange = { startDate = it },
-                        label = { Text("开始日期 (yyyy-MM-dd)") },
+                        label = { Text(stringResource(R.string.start_date_label)) },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !isExporting
                     )
@@ -3817,7 +3840,7 @@ fun ExportDialog(
                     OutlinedTextField(
                         value = endDate,
                         onValueChange = { endDate = it },
-                        label = { Text("结束日期 (yyyy-MM-dd)") },
+                        label = { Text(stringResource(R.string.end_date_label)) },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !isExporting
                     )
@@ -3830,16 +3853,16 @@ fun ExportDialog(
                             onClick = {
                                 scope.launch {
                                     isExporting = true
-                                    exportMessage = "正在分享所有日志..."
+                                    exportMessage = context.getString(R.string.sharing_all_logs)
                                     try {
                                         val success = com.seenot.app.utils.Logger.shareAllLogs(context)
-                                        exportMessage = if (success) "分享成功！" else "分享失败，请检查日志"
+                                        exportMessage = if (success) context.getString(R.string.share_success) else context.getString(R.string.share_failed_check_logs)
                                         if (success) {
                                             kotlinx.coroutines.delay(1000)
                                             onDismiss()
                                         }
                                     } catch (e: Exception) {
-                                        exportMessage = "分享失败: ${e.message}"
+                                        exportMessage = context.getString(R.string.share_failed_reason, e.message ?: "")
                                     } finally {
                                         isExporting = false
                                     }
@@ -3854,7 +3877,7 @@ fun ExportDialog(
                                     strokeWidth = 2.dp
                                 )
                             } else {
-                                Text("分享全部")
+                                Text(stringResource(R.string.share_all_button))
                             }
                         }
 
@@ -3862,7 +3885,7 @@ fun ExportDialog(
                             onClick = {
                                 scope.launch {
                                     isExporting = true
-                                    exportMessage = "正在分享日志..."
+                                    exportMessage = context.getString(R.string.sharing_logs)
                                     try {
                                         val dateFormat = java.text.SimpleDateFormat(
                                             "yyyy-MM-dd",
@@ -3874,19 +3897,19 @@ fun ExportDialog(
                                         if (start != null && end != null) {
                                             val success = com.seenot.app.utils.Logger.shareLogs(context, start, end)
                                             exportMessage = if (success) {
-                                                "分享成功！"
+                                                context.getString(R.string.share_success)
                                             } else {
-                                                "分享失败，请检查日期格式和日志"
+                                                context.getString(R.string.share_failed_check_date_and_logs)
                                             }
                                             if (success) {
                                                 kotlinx.coroutines.delay(1000)
                                                 onDismiss()
                                             }
                                         } else {
-                                            exportMessage = "日期格式错误"
+                                            exportMessage = context.getString(R.string.date_format_error)
                                         }
                                     } catch (e: Exception) {
-                                        exportMessage = "分享失败: ${e.message}"
+                                        exportMessage = context.getString(R.string.share_failed_reason, e.message ?: "")
                                     } finally {
                                         isExporting = false
                                     }
@@ -3902,13 +3925,13 @@ fun ExportDialog(
                                     color = MaterialTheme.colorScheme.onPrimary
                                 )
                             } else {
-                                Text("分享范围")
+                                Text(stringResource(R.string.share_date_range_button))
                             }
                         }
                     }
                 } else {
                     Text(
-                        text = "导出结构化运行事件 JSONL，可按时间范围筛选。",
+                        text = stringResource(R.string.export_runtime_events_desc),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -3916,7 +3939,7 @@ fun ExportDialog(
                     OutlinedTextField(
                         value = startDate,
                         onValueChange = { startDate = it },
-                        label = { Text("开始日期 (yyyy-MM-dd)") },
+                        label = { Text(stringResource(R.string.start_date_label)) },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !isExporting
                     )
@@ -3924,7 +3947,7 @@ fun ExportDialog(
                     OutlinedTextField(
                         value = endDate,
                         onValueChange = { endDate = it },
-                        label = { Text("结束日期 (yyyy-MM-dd)") },
+                        label = { Text(stringResource(R.string.end_date_label)) },
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !isExporting
                     )
@@ -3937,7 +3960,7 @@ fun ExportDialog(
                             onClick = {
                                 scope.launch {
                                     isExporting = true
-                                    exportMessage = "正在导出运行事件..."
+                                    exportMessage = context.getString(R.string.exporting_runtime_events)
                                     try {
                                         val uri = runtimeEventLogger.exportAll { progress ->
                                             exportMessage = progress
@@ -3946,12 +3969,12 @@ fun ExportDialog(
                                             runtimeEventLogger.shareExportedFile(uri) { error ->
                                                 exportMessage = error
                                             }
-                                            if (!exportMessage.contains("失败")) {
-                                                exportMessage = "运行事件导出成功！"
+                                            if (!exportMessage.contains(context.getString(R.string.fail))) {
+                                                exportMessage = context.getString(R.string.export_runtime_events_success)
                                             }
                                         }
                                     } catch (e: Exception) {
-                                        exportMessage = "运行事件导出失败: ${e.message}"
+                                        exportMessage = context.getString(R.string.export_runtime_events_failed_reason, e.message ?: "")
                                     } finally {
                                         isExporting = false
                                     }
@@ -3966,7 +3989,7 @@ fun ExportDialog(
                                     strokeWidth = 2.dp
                                 )
                             } else {
-                                Text("导出全部")
+                                Text(stringResource(R.string.export_all_button))
                             }
                         }
 
@@ -3974,7 +3997,7 @@ fun ExportDialog(
                             onClick = {
                                 scope.launch {
                                     isExporting = true
-                                    exportMessage = "正在导出运行事件..."
+                                    exportMessage = context.getString(R.string.exporting_runtime_events)
                                     try {
                                         val dateFormat = java.text.SimpleDateFormat(
                                             "yyyy-MM-dd",
@@ -3990,15 +4013,15 @@ fun ExportDialog(
                                                 runtimeEventLogger.shareExportedFile(uri) { error ->
                                                     exportMessage = error
                                                 }
-                                                if (!exportMessage.contains("失败")) {
-                                                    exportMessage = "运行事件导出成功！"
+                                                if (!exportMessage.contains(context.getString(R.string.fail))) {
+                                                    exportMessage = context.getString(R.string.export_runtime_events_success)
                                                 }
                                             }
                                         } else {
-                                            exportMessage = "日期格式错误"
+                                            exportMessage = context.getString(R.string.date_format_error)
                                         }
                                     } catch (e: Exception) {
-                                        exportMessage = "运行事件导出失败: ${e.message}"
+                                        exportMessage = context.getString(R.string.export_runtime_events_failed_reason, e.message ?: "")
                                     } finally {
                                         isExporting = false
                                     }
@@ -4014,7 +4037,7 @@ fun ExportDialog(
                                     color = MaterialTheme.colorScheme.onPrimary
                                 )
                             } else {
-                                Text("导出范围")
+                                Text(stringResource(R.string.export_range_button))
                             }
                         }
                     }
@@ -4024,7 +4047,7 @@ fun ExportDialog(
                     Text(
                         text = exportMessage,
                         style = MaterialTheme.typography.bodyMedium,
-                        color = if (exportMessage.contains("成功")) {
+                        color = if (exportMessage.contains(context.getString(R.string.success))) {
                             MaterialTheme.colorScheme.primary
                         } else {
                             MaterialTheme.colorScheme.error
@@ -4036,7 +4059,7 @@ fun ExportDialog(
         confirmButton = {},
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("关闭")
+                Text(stringResource(R.string.close))
             }
         }
     )

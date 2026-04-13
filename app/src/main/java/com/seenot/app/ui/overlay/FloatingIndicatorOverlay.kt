@@ -18,7 +18,9 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.seenot.app.R
 import com.seenot.app.data.model.ConstraintType
+import com.seenot.app.data.model.TimeScope
 import com.seenot.app.domain.ActiveSession
 import com.seenot.app.domain.SessionConstraint
 import com.seenot.app.domain.SessionManager
@@ -370,7 +372,7 @@ class FloatingIndicatorOverlay(
                 )
 
                 addView(
-                    buildHeaderButton("改意图") {
+                    buildHeaderButton(context.getString(R.string.hud_btn_change_intent)) {
                         state = state.copy(isExpanded = false)
                         render()
                         onTapToReopen()
@@ -378,7 +380,7 @@ class FloatingIndicatorOverlay(
                 )
 
                 addView(
-                    buildHeaderButton("收起") {
+                    buildHeaderButton(context.getString(R.string.hud_btn_collapse)) {
                         state = state.copy(isExpanded = false)
                         render()
                     }.apply {
@@ -414,7 +416,7 @@ class FloatingIndicatorOverlay(
         if (statuses.isEmpty()) {
             rootContainer?.addView(
                 TextView(context).apply {
-                    text = "还没有意图"
+                    text = context.getString(R.string.hud_no_intent_yet)
                     textSize = 13f
                     setTextColor(subtleTextColor)
                 }
@@ -476,8 +478,16 @@ class FloatingIndicatorOverlay(
             addView(
                 TextView(context).apply {
                     text = when (status.type) {
-                        ConstraintType.DENY -> "当前系统判断：${if (status.isConditionMatched) "不在风险内容里" else "正在风险内容里"}"
-                        ConstraintType.TIME_CAP -> "当前系统判断：${if (status.isConditionMatched) "正在计时" else "当前不计时"}"
+                        ConstraintType.DENY -> context.getString(
+                            R.string.hud_judgment_deny_format,
+                            if (status.isConditionMatched) context.getString(R.string.hud_judgment_deny_safe)
+                            else context.getString(R.string.hud_judgment_deny_at_risk)
+                        )
+                        ConstraintType.TIME_CAP -> context.getString(
+                            R.string.hud_judgment_deny_format,
+                            if (status.isConditionMatched) context.getString(R.string.hud_judgment_time_cap_timing)
+                            else context.getString(R.string.hud_judgment_time_cap_not_timing)
+                        )
                     }
                     textSize = 12f
                     setTextColor(subtleTextColor)
@@ -509,7 +519,7 @@ class FloatingIndicatorOverlay(
 
             addView(
                 Button(context).apply {
-                    text = "判断错了"
+                    text = context.getString(R.string.hud_wrong_judgment)
                     textSize = 14f
                     setTextColor(strongTextColor)
                     typeface = Typeface.DEFAULT_BOLD
@@ -520,8 +530,8 @@ class FloatingIndicatorOverlay(
                     setOnClickListener {
                         FalsePositiveRuleReviewOverlay.show(
                             context = context,
-                            titleText = "判断有误？",
-                            subtitleText = "会先生成一条补充规则草稿，并判断它更适合放在整个 app 通用，还是只对当前这条意图生效",
+                            titleText = context.getString(R.string.hud_judgment_wrong_title),
+                            subtitleText = context.getString(R.string.hud_false_positive_review_subtitle),
                             onGenerate = { callback ->
                                 sessionManager.previewCurrentJudgmentFalsePositiveRule(
                                     constraintType = status.type,
@@ -605,20 +615,22 @@ class FloatingIndicatorOverlay(
     private fun buildCompactStatusText(): String {
         val constraints = currentConstraints()
         return if (constraints.isEmpty()) {
-            "点击设置意图"
+            context.getString(R.string.hud_tap_to_set_intent)
         } else {
             constraints.take(2).joinToString(" | ") { constraint ->
                 when (constraint.type) {
                     ConstraintType.DENY -> {
-                        val status = if (state.matchStates[constraint.id] == true) "风险内容" else "正常"
-                        "${formatConstraintDetail(constraint)}·$status"
+                        val status = if (state.matchStates[constraint.id] == true)
+                            context.getString(R.string.hud_status_risk) else context.getString(R.string.hud_status_normal)
+                        "${formatConstraintDetail(constraint)}${context.getString(R.string.hud_compact_separator)}$status"
                     }
                     ConstraintType.TIME_CAP -> {
-                        val status = if (state.matchStates[constraint.id] == true) "计时中" else "未计时"
-                        "${formatConstraintDetail(constraint)}·$status"
+                        val status = if (state.matchStates[constraint.id] == true)
+                            context.getString(R.string.hud_status_timing) else context.getString(R.string.hud_status_not_timing)
+                        "${formatConstraintDetail(constraint)}${context.getString(R.string.hud_compact_separator)}$status"
                     }
                 }
-            } + if (constraints.size > 2) " +${constraints.size - 2}" else ""
+            } + if (constraints.size > 2) context.getString(R.string.hud_more_count, constraints.size - 2) else ""
         }
     }
 
@@ -633,8 +645,8 @@ class FloatingIndicatorOverlay(
             val isRisk = denyConstraints.any { state.matchStates[it.id] == true }
             statuses += RuleTypeStatus(
                 type = ConstraintType.DENY,
-                title = "禁止",
-                label = if (isRisk) "风险内容" else "正常",
+                title = context.getString(R.string.constraint_type_deny),
+                label = if (isRisk) context.getString(R.string.hud_status_risk) else context.getString(R.string.hud_status_normal),
                 isConditionMatched = !isRisk,
                 color = if (isRisk) riskColor else safeColor,
                 details = denyConstraints.map { formatConstraintDetail(it) }
@@ -646,8 +658,8 @@ class FloatingIndicatorOverlay(
             val isInScope = timeCapConstraints.any { state.matchStates[it.id] == true }
             statuses += RuleTypeStatus(
                 type = ConstraintType.TIME_CAP,
-                title = "限时",
-                label = if (isInScope) "计时中" else "未计时",
+                title = context.getString(R.string.hud_rule_type_time_cap),
+                label = if (isInScope) context.getString(R.string.hud_status_timing) else context.getString(R.string.hud_status_not_timing),
                 isConditionMatched = isInScope,
                 color = if (isInScope) safeColor else warningColor,
                 details = timeCapConstraints.map { formatConstraintDetail(it) }
@@ -667,35 +679,25 @@ class FloatingIndicatorOverlay(
         return when (constraint.type) {
             ConstraintType.DENY -> {
                 buildString {
-                    append("禁止 ${constraint.description.take(10)}")
+                    append(context.getString(R.string.hud_rule_detail_deny, constraint.description.take(10)))
                     constraint.timeLimitMs?.let { ms ->
                         val min = ms / 60000.0
                         val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
-                        val scopeStr = constraint.timeScope?.let { scope ->
-                            when (scope) {
-                                com.seenot.app.data.model.TimeScope.SESSION -> "本次"
-                                com.seenot.app.data.model.TimeScope.CONTINUOUS -> "连续"
-                                com.seenot.app.data.model.TimeScope.PER_CONTENT -> "计入时"
-                                com.seenot.app.data.model.TimeScope.DAILY_TOTAL -> "今日"
-                            }
-                        } ?: ""
-                        append(" ${scopeStr}${minText}分")
+                        val scopeStr = constraint.timeScope?.let { context.getString(it.displayLabelResId()) } ?: ""
+                        append(" $scopeStr$minText${context.getString(R.string.unit_minute)}")
                     }
                 }
             }
             ConstraintType.TIME_CAP -> {
                 val min = constraint.timeLimitMs?.let { it / 60000.0 } ?: 0.0
                 val minText = if (min % 1.0 == 0.0) min.toInt().toString() else min.toString()
-                val scopeStr = constraint.timeScope?.let { scope ->
-                    when (scope) {
-                        com.seenot.app.data.model.TimeScope.SESSION -> "本次"
-                        com.seenot.app.data.model.TimeScope.CONTINUOUS -> "连续"
-                        com.seenot.app.data.model.TimeScope.PER_CONTENT -> "计入时"
-                        com.seenot.app.data.model.TimeScope.DAILY_TOTAL -> "今日"
-                    }
-                } ?: ""
+                val scopeStr = constraint.timeScope?.let { context.getString(it.displayLabelResId()) } ?: ""
                 val desc = constraint.description.take(10)
-                if (desc.isNotEmpty()) "限时 $desc ${scopeStr}${minText}分" else "限时 ${scopeStr}${minText}分"
+                if (desc.isNotEmpty()) {
+                    context.getString(R.string.hud_rule_detail_time_cap, desc, scopeStr, minText)
+                } else {
+                    context.getString(R.string.hud_rule_detail_time_cap_no_desc, scopeStr, minText)
+                }
             }
         }
     }

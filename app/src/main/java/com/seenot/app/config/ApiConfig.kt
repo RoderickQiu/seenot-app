@@ -2,9 +2,11 @@ package com.seenot.app.config
 
 import android.content.Context
 import android.content.SharedPreferences
+import androidx.annotation.StringRes
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
 import com.google.gson.JsonObject
+import com.seenot.app.R
 
 /**
  * API Configuration for SeeNot
@@ -334,37 +336,44 @@ object ApiConfig {
 enum class AiProvider(
     val displayName: String,
     val defaultBaseUrl: String,
-    val defaultModel: String
+    val defaultModel: String,
+    @StringRes val displayNameResId: Int
 ) {
     DASHSCOPE(
         displayName = "DashScope / Qwen",
         defaultBaseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1",
-        defaultModel = "qwen3.6-plus"
+        defaultModel = "qwen3.6-plus",
+        displayNameResId = R.string.provider_dashscope
     ),
     OPENAI(
         displayName = "OpenAI",
         defaultBaseUrl = "https://api.openai.com/v1",
-        defaultModel = "gpt-5.4-mini"
+        defaultModel = "gpt-5.4-mini",
+        displayNameResId = R.string.provider_openai
     ),
     GEMINI(
         displayName = "Google Gemini",
         defaultBaseUrl = "https://generativelanguage.googleapis.com/v1beta/openai",
-        defaultModel = "gemini-3.1-flash-preview"
+        defaultModel = "gemini-3.1-flash-preview",
+        displayNameResId = R.string.provider_gemini
     ),
     ANTHROPIC(
         displayName = "Anthropic Claude",
         defaultBaseUrl = "https://api.anthropic.com/v1",
-        defaultModel = "claude-sonnet-4.6"
+        defaultModel = "claude-sonnet-4.6",
+        displayNameResId = R.string.provider_anthropic
     ),
     GLM(
         displayName = "Zhipu GLM",
         defaultBaseUrl = "https://open.bigmodel.cn/api/paas/v4",
-        defaultModel = "glm-5v-turbo"
+        defaultModel = "glm-5v-turbo",
+        displayNameResId = R.string.provider_glm
     ),
     CUSTOM(
-        displayName = "自定义 OpenAI 兼容",
+        displayName = "Custom OpenAI Compatible",
         defaultBaseUrl = "",
-        defaultModel = ""
+        defaultModel = "",
+        displayNameResId = R.string.provider_custom
     )
 }
 
@@ -415,19 +424,23 @@ data class ApiSettings(
 
 enum class QwenRegion(
     val displayName: String,
-    val baseUrl: String
+    val baseUrl: String,
+    @StringRes val displayNameResId: Int
 ) {
     BEIJING(
-        displayName = "中国大陆",
-        baseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+        displayName = "China",
+        baseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1",
+        displayNameResId = R.string.region_beijing
     ),
     SINGAPORE(
-        displayName = "国际",
-        baseUrl = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
+        displayName = "International",
+        baseUrl = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+        displayNameResId = R.string.region_singapore
     ),
     VIRGINIA(
-        displayName = "美东",
-        baseUrl = "https://dashscope-us.aliyuncs.com/compatible-mode/v1"
+        displayName = "US East",
+        baseUrl = "https://dashscope-us.aliyuncs.com/compatible-mode/v1",
+        displayNameResId = R.string.region_virginia
     )
 }
 
@@ -435,7 +448,8 @@ data class ModelPreset(
     val id: String,
     val label: String,
     val model: String,
-    val note: String = ""
+    val note: String = "",
+    @StringRes val noteResId: Int? = null
 )
 
 data class SttSettings(
@@ -452,13 +466,13 @@ fun recommendedModelPresets(
     return when (provider) {
         AiProvider.DASHSCOPE -> when (qwenRegion) {
             QwenRegion.BEIJING -> listOf(
-                ModelPreset("qwen36plus-cn", "Qwen 3.6 Plus", "qwen3.6-plus", note = "推荐"),
+                ModelPreset("qwen36plus-cn", "Qwen 3.6 Plus", "qwen3.6-plus", noteResId = R.string.model_note_recommended),
                 ModelPreset("qwen35plus-cn", "Qwen 3.5 Plus", "qwen3.5-plus"),
                 ModelPreset("qwen35flash-cn", "Qwen 3.5 Flash", "qwen3.5-flash"),
                 ModelPreset("qwenvlplus-cn", "Qwen VL Plus", "qwen-vl-plus")
             )
             QwenRegion.SINGAPORE -> listOf(
-                ModelPreset("qwen36plus-sg", "Qwen 3.6 Plus", "qwen3.6-plus", note = "推荐"),
+                ModelPreset("qwen36plus-sg", "Qwen 3.6 Plus", "qwen3.6-plus", noteResId = R.string.model_note_recommended),
                 ModelPreset("qwen35plus-sg", "Qwen 3.5 Plus", "qwen3.5-plus"),
                 ModelPreset("qwen35flash-sg", "Qwen 3.5 Flash", "qwen3.5-flash"),
                 ModelPreset("qwenvlplus-sg", "Qwen VL Plus", "qwen-vl-plus"),
@@ -470,20 +484,20 @@ fun recommendedModelPresets(
             )
         }
         AiProvider.OPENAI -> listOf(
-            ModelPreset("gpt54mini", "GPT 5.4 Mini", "gpt-5.4-mini", note = "推荐"),
+            ModelPreset("gpt54mini", "GPT 5.4 Mini", "gpt-5.4-mini", noteResId = R.string.model_note_recommended),
             ModelPreset("gpt5mini", "GPT 5 Mini", "gpt-5-mini")
         )
         AiProvider.GEMINI -> listOf(
-            ModelPreset("gem31flash", "Gemini 3 Flash", "gemini-3-flash-preview", note = "推荐"),
+            ModelPreset("gem31flash", "Gemini 3 Flash", "gemini-3-flash-preview", noteResId = R.string.model_note_recommended),
             ModelPreset("gem31flashlite", "Gemini 3.1 Flash Lite", "gemini-3.1-flash-lite-preview"),
             ModelPreset("gem25flash", "Gemini 2.5 Flash", "gemini-2.5-flash")
         )
         AiProvider.ANTHROPIC -> listOf(
-            ModelPreset("claudesonnet46", "Claude Sonnet 4.6", "claude-sonnet-4-6", note = "推荐"),
+            ModelPreset("claudesonnet46", "Claude Sonnet 4.6", "claude-sonnet-4-6", noteResId = R.string.model_note_recommended),
             ModelPreset("claudehaiku45", "Claude Haiku 4.5", "claude-haiku-4-5")
         )
         AiProvider.GLM -> listOf(
-            ModelPreset("glm5vturbo", "GLM 5V Turbo", "glm-5v-turbo", note = "推荐"),
+            ModelPreset("glm5vturbo", "GLM 5V Turbo", "glm-5v-turbo", noteResId = R.string.model_note_recommended),
             ModelPreset("glm5", "GLM 5", "glm-5"),
             ModelPreset("glm46vflashx", "GLM 4.6V Flash X", "glm-4.6v-flashx"),
             ModelPreset("glm46v", "GLM 4.6V", "glm-4.6v")

@@ -7,6 +7,7 @@ import androidx.core.content.FileProvider
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.seenot.app.BuildConfig
+import com.seenot.app.R
 import com.seenot.app.utils.Logger
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -89,19 +90,19 @@ class RuntimeEventLogger private constructor(context: Context) {
         onProgress: (String) -> Unit = {}
     ): Uri? = withContext(Dispatchers.IO) {
         if (!isEnabled()) {
-            onProgress("运行事件记录未启用，请先在 local.properties 中设置 SEENOT_DEVELOPMENT_MODE=true")
+            onProgress(appContext.getString(R.string.event_log_not_enabled))
             return@withContext null
         }
 
         runCatching {
-            onProgress("正在整理运行事件...")
+            onProgress(appContext.getString(R.string.event_log_organizing))
             val sourceFiles = eventsDir.listFiles()
                 ?.filter { it.isFile && it.name.endsWith(".jsonl") }
                 ?.sortedBy { it.name }
                 .orEmpty()
 
             if (sourceFiles.isEmpty()) {
-                onProgress("没有可导出的运行事件")
+                onProgress(appContext.getString(R.string.event_log_no_events))
                 return@runCatching null
             }
 
@@ -124,18 +125,18 @@ class RuntimeEventLogger private constructor(context: Context) {
 
             if (exportFile.length() == 0L) {
                 exportFile.delete()
-                onProgress("指定范围内没有运行事件")
+                onProgress(appContext.getString(R.string.event_log_no_events_in_range))
                 return@runCatching null
             }
 
-            onProgress("运行事件导出完成！")
+            onProgress(appContext.getString(R.string.event_log_export_complete))
             FileProvider.getUriForFile(
                 appContext,
                 "${appContext.packageName}.fileprovider",
                 exportFile
             )
         }.onFailure { e ->
-            onProgress("运行事件导出失败: ${e.message}")
+            onProgress(appContext.getString(R.string.event_log_export_failed, e.message ?: "unknown"))
         }.getOrNull()
     }
 
@@ -147,11 +148,11 @@ class RuntimeEventLogger private constructor(context: Context) {
                 putExtra(Intent.EXTRA_STREAM, uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            val chooserIntent = Intent.createChooser(shareIntent, "分享 SeeNot 运行事件")
+            val chooserIntent = Intent.createChooser(shareIntent, appContext.getString(R.string.event_log_share_title))
             chooserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             appContext.startActivity(chooserIntent)
         } catch (e: Exception) {
-            onError("分享失败: ${e.message}")
+            onError(appContext.getString(R.string.share_failed, e.message ?: "unknown"))
         }
     }
 

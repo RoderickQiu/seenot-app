@@ -1,5 +1,8 @@
 package com.seenot.app.data.model
 
+import androidx.annotation.StringRes
+import com.seenot.app.R
+
 /**
  * Constraint type as defined in PRD section 3.2.1
  */
@@ -15,14 +18,15 @@ enum class TimeScope {
     SESSION,
     PER_CONTENT,
     CONTINUOUS,
-    DAILY_TOTAL
-}
+    DAILY_TOTAL;
 
-val TimeScope.displayLabel: String get() = when (this) {
-    TimeScope.SESSION    -> "本次"
-    TimeScope.CONTINUOUS -> "连续"
-    TimeScope.PER_CONTENT -> "计入时"
-    TimeScope.DAILY_TOTAL -> "今日"
+    @StringRes
+    fun displayLabelResId(): Int = when (this) {
+        SESSION -> R.string.time_scope_session
+        PER_CONTENT -> R.string.time_scope_per_content
+        CONTINUOUS -> R.string.time_scope_continuous
+        DAILY_TOTAL -> R.string.time_scope_daily_total
+    }
 }
 
 /**

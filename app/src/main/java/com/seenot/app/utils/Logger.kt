@@ -6,6 +6,7 @@ import android.net.Uri
 import android.os.Environment
 import android.util.Log
 import androidx.core.content.FileProvider
+import com.seenot.app.R
 import java.io.File
 import java.io.FileOutputStream
 import java.io.FileWriter
@@ -744,12 +745,12 @@ object Logger {
         val intent = Intent(Intent.ACTION_SEND).apply {
             type = "text/plain"
             putExtra(Intent.EXTRA_STREAM, uri)
-            putExtra(Intent.EXTRA_SUBJECT, "SeeNot 日志")
+            putExtra(Intent.EXTRA_SUBJECT, context.getString(R.string.log_share_subject))
             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         }
 
-        context.startActivity(Intent.createChooser(intent, "分享日志").apply {
+        context.startActivity(Intent.createChooser(intent, context.getString(R.string.log_share_title)).apply {
             addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
         })
     }

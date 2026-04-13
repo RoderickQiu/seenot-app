@@ -16,6 +16,7 @@ import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
 import android.widget.TextView
+import com.seenot.app.R
 import com.seenot.app.utils.Logger
 
 /**
@@ -44,22 +45,25 @@ class InterventionFeedbackDialogOverlay(
             context: Context,
             appName: String,
             constraintDescription: String,
-            titleText: String = "先停一下？",
-            subtitleText: String = "看起来你正在偏离刚才的目标",
-            primaryButtonText: String = "退出",
+            titleText: String? = null,
+            subtitleText: String? = null,
+            primaryButtonText: String? = null,
             secondaryButtonText: String? = null,
             onFalsePositive: () -> Unit,
             onPrimaryAction: () -> Unit,
             onSecondaryAction: (() -> Unit)? = null
         ) {
             dismiss()
+            val resolvedTitle = titleText ?: context.getString(R.string.intervention_dialog_title)
+            val resolvedSubtitle = subtitleText ?: context.getString(R.string.intervention_dialog_subtitle)
+            val resolvedPrimary = primaryButtonText ?: context.getString(R.string.intervention_dialog_exit)
             val dialog = InterventionFeedbackDialogOverlay(
                 context = context,
                 appName = appName,
                 constraintDescription = constraintDescription,
-                titleText = titleText,
-                subtitleText = subtitleText,
-                primaryButtonText = primaryButtonText,
+                titleText = resolvedTitle,
+                subtitleText = resolvedSubtitle,
+                primaryButtonText = resolvedPrimary,
                 secondaryButtonText = secondaryButtonText,
                 onFalsePositive = onFalsePositive,
                 onPrimaryAction = onPrimaryAction,
@@ -180,7 +184,7 @@ class InterventionFeedbackDialogOverlay(
         card.addView(detail)
 
         val falsePositiveButton = buildButton(
-            text = "误报",
+            text = context.getString(R.string.judgment_false_positive),
             backgroundColor = falsePositiveColor,
             textColor = primaryTextColor
         ) {

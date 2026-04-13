@@ -1,5 +1,7 @@
 package com.seenot.app.ai.parser
 
+import android.content.Context
+import com.seenot.app.R
 import com.seenot.app.ai.OpenAiCompatibleClient
 import com.seenot.app.utils.Logger
 import com.google.gson.JsonParser
@@ -10,7 +12,7 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.UUID
 
-class IntentParser {
+class IntentParser(private val contextRef: () -> Context) {
     companion object { private const val TAG = "IntentParser" }
     private val llmClient = OpenAiCompatibleClient()
 
@@ -123,7 +125,11 @@ class IntentParser {
                 )
             } catch (e: Exception) {
                 Logger.e(TAG, "parseIntent failed", e)
-                ParsedIntentResult.Error(e.message ?: "解析失败")
+                val errorMsg = when (e) {
+                    is LlmException -> contextRef().getString(R.string.voice_err_parse_failed)
+                    else -> e.message ?: contextRef().getString(R.string.voice_err_parse_failed_simple)
+                }
+                ParsedIntentResult.Error(errorMsg)
             }
         }
     }
@@ -191,9 +197,11 @@ class IntentParser {
             Logger.w(TAG, "LLM error: ${e.message}")
             if (attempt < 3) Thread.sleep(1000L * attempt)
         }
-        throw Exception("LLM call failed")
+        throw LlmException("LLM call failed")
     }
 }
+
+class LlmException(message: String) : Exception(message)
 
 sealed class ParsedIntentResult {
     data class Success(val constraints: List<ParsedConstraint>, val rawUtterance: String, val source: UtteranceSource) : ParsedIntentResult()

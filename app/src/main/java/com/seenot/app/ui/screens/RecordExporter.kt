@@ -6,6 +6,7 @@ import android.widget.Toast
 import androidx.core.content.FileProvider
 import com.google.gson.Gson
 import com.google.gson.GsonBuilder
+import com.seenot.app.R
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.RecordStats
 import com.seenot.app.data.model.RuleRecord
@@ -71,13 +72,13 @@ class RecordExporter(private val context: Context) {
                 val zipFileName = "seenot_records_$timestamp.zip"
                 val zipFile = File(exportDir, zipFileName)
 
-                onProgress("正在创建ZIP文件...")
+                onProgress(context.getString(R.string.export_creating_zip))
 
                 FileOutputStream(zipFile).use { fos ->
                     ZipOutputStream(BufferedOutputStream(fos)).use { zos ->
 
                         // Add records JSON
-                        onProgress("正在添加记录数据...")
+                        onProgress(context.getString(R.string.export_adding_records))
                         val recordsJson = gson.toJson(records)
                         val jsonEntry = ZipEntry("records.json")
                         zos.putNextEntry(jsonEntry)
@@ -85,7 +86,7 @@ class RecordExporter(private val context: Context) {
                         zos.closeEntry()
 
                         // Add metadata
-                        onProgress("正在添加元数据...")
+                        onProgress(context.getString(R.string.export_adding_metadata))
                         val metadata = createMetadata(records)
                         val metadataEntry = ZipEntry("metadata.json")
                         zos.putNextEntry(metadataEntry)
@@ -99,7 +100,7 @@ class RecordExporter(private val context: Context) {
                             record.imagePath?.let { imagePath ->
                                 val imageFile = File(imagePath)
                                 if (imageFile.exists()) {
-                                    onProgress("正在添加截图 ${++imageCount}/${recordsWithImages.size}...")
+                                    onProgress(context.getString(R.string.export_adding_screenshot, ++imageCount, recordsWithImages.size))
                                     val imageEntry = ZipEntry("images/${record.id}.png")
                                     zos.putNextEntry(imageEntry)
                                     imageFile.inputStream().use { input ->
@@ -111,7 +112,7 @@ class RecordExporter(private val context: Context) {
                         }
 
                         // Add README
-                        onProgress("正在添加说明文件...")
+                        onProgress(context.getString(R.string.export_adding_readme))
                         val readmeEntry = ZipEntry("README.txt")
                         zos.putNextEntry(readmeEntry)
                         zos.write(createReadme().toByteArray(Charsets.UTF_8))
@@ -119,7 +120,7 @@ class RecordExporter(private val context: Context) {
                     }
                 }
 
-                onProgress("导出完成！")
+                onProgress(context.getString(R.string.export_complete))
 
                 // Return URI for sharing using FileProvider
                 FileProvider.getUriForFile(
@@ -129,7 +130,7 @@ class RecordExporter(private val context: Context) {
                 )
 
             } catch (e: Exception) {
-                onProgress("导出失败: ${e.message}")
+                onProgress(context.getString(R.string.export_failed) + ": ${e.message}")
                 null
             }
         }
@@ -149,14 +150,14 @@ class RecordExporter(private val context: Context) {
 
             val chooserIntent = android.content.Intent.createChooser(
                 shareIntent,
-                "分享 SeeNot 记录导出"
+                context.getString(R.string.share_title)
             )
 
             chooserIntent.addFlags(android.content.Intent.FLAG_ACTIVITY_NEW_TASK)
 
             context.startActivity(chooserIntent)
         } catch (e: Exception) {
-            onError("分享失败: ${e.message}")
+            onError(context.getString(R.string.share_failed) + ": ${e.message}")
         }
     }
 
@@ -172,9 +173,9 @@ class RecordExporter(private val context: Context) {
         val apps = records.map { it.appName }.distinct()
         val dateRange = records.minByOrNull { it.timestamp }?.let { min ->
             records.maxByOrNull { it.timestamp }?.let { max ->
-                "${formatDate(min.timestamp)} 至 ${formatDate(max.timestamp)}"
+                "${formatDate(min.timestamp)} ${context.getString(R.string.date_range_separator)} ${formatDate(max.timestamp)}"
             }
-        } ?: "未知"
+        } ?: context.getString(R.string.unknown)
 
         return mapOf(
             "exportDate" to System.currentTimeMillis(),
@@ -197,39 +198,40 @@ class RecordExporter(private val context: Context) {
      * Create README file content
      */
     private fun createReadme(): String {
-        return """
-            SeeNot 规则记录导出
-            =========================
-
-            此归档包含 SeeNot 应用的规则评估记录导出。
-
-            内容：
-            - records.json: 所有规则评估记录的 JSON 格式数据
-            - metadata.json: 汇总统计和导出信息
-            - images/: 规则评估期间拍摄的截图（PNG 格式）
-            - README.txt: 本文件
-
-            记录字段说明：
-            - id: 唯一记录标识符
-            - timestamp: 评估时间戳（毫秒）
-            - appName: 被监控应用的名称
-            - packageName: 应用的包名（可选）
-            - screenshotHash: 截图哈希值，用于去重（可选）
-            - constraintId: 被评估的约束 ID
-            - constraintType: 约束类型 (DENY/TIME_CAP)
-            - constraintContent: 约束内容描述
-            - isConditionMatched: 条件判断结果，含义依赖约束类型
-              - DENY: true = 正常 / false = 违规
-              - TIME_CAP: true = in_scope（正在计时） / false = out_of_scope（当前不计时）
-            - confidence: AI 置信度分数 (0-100)
-            - aiResult: AI 原始响应文本（可选）
-            - imagePath: 截图路径（在归档中）
-            - elapsedTimeMs: AI 处理耗时（毫秒，可选）
-            - isMarked: 是否被用户标记
-
-            导出时间: ${formatDate(System.currentTimeMillis())}
-
-            注意：截图保存在应用内部存储中，不会显示在系统图库中。
-        """.trimIndent()
+        val separator = "========================="
+        return listOf(
+            context.getString(R.string.readme_title),
+            separator,
+            "",
+            context.getString(R.string.readme_description),
+            "",
+            context.getString(R.string.readme_contents),
+            context.getString(R.string.readme_content_records),
+            context.getString(R.string.readme_content_metadata),
+            context.getString(R.string.readme_content_images),
+            context.getString(R.string.readme_content_readme),
+            "",
+            context.getString(R.string.readme_field_title),
+            context.getString(R.string.readme_field_id),
+            context.getString(R.string.readme_field_timestamp),
+            context.getString(R.string.readme_field_appname),
+            context.getString(R.string.readme_field_packagename),
+            context.getString(R.string.readme_field_hash),
+            context.getString(R.string.readme_field_constraintid),
+            context.getString(R.string.readme_field_type),
+            context.getString(R.string.readme_field_content),
+            context.getString(R.string.readme_field_matched),
+            context.getString(R.string.readme_field_matched_deny),
+            context.getString(R.string.readme_field_matched_timecap),
+            context.getString(R.string.readme_field_confidence),
+            context.getString(R.string.readme_field_airesult),
+            context.getString(R.string.readme_field_imagepath),
+            context.getString(R.string.readme_field_elapsed),
+            context.getString(R.string.readme_field_marked),
+            "",
+            context.getString(R.string.readme_export_time, formatDate(System.currentTimeMillis())),
+            "",
+            context.getString(R.string.readme_note)
+        ).joinToString("\n")
     }
 }

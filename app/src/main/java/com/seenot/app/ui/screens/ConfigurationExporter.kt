@@ -8,6 +8,7 @@ import com.google.gson.Gson
 import com.google.gson.GsonBuilder
 import com.google.gson.JsonParser
 import com.google.gson.reflect.TypeToken
+import com.seenot.app.R
 import com.seenot.app.data.model.AppHint
 import com.seenot.app.data.model.AppHintScopeType
 import com.seenot.app.data.model.buildAppGeneralScopeKey
@@ -41,7 +42,7 @@ class ConfigurationExporter(private val context: Context) {
     suspend fun exportConfiguration(onProgress: (String) -> Unit = {}): Uri? {
         return withContext(Dispatchers.IO) {
             try {
-                onProgress("正在整理配置...")
+                onProgress(context.getString(R.string.configuration_organizing))
 
                 val sessionManager = SessionManager.getInstance(context)
                 val appHintRepository = AppHintRepository(context)
@@ -88,7 +89,7 @@ class ConfigurationExporter(private val context: Context) {
                 val exportFile = File(exportDir, "seenot_configuration_$timestamp.json")
                 exportFile.writeText(gson.toJson(payload), Charsets.UTF_8)
 
-                onProgress("配置导出完成！")
+                onProgress(context.getString(R.string.configuration_export_complete))
 
                 FileProvider.getUriForFile(
                     context,
@@ -96,7 +97,7 @@ class ConfigurationExporter(private val context: Context) {
                     exportFile
                 )
             } catch (e: Exception) {
-                onProgress("配置导出失败: ${e.message}")
+                onProgress(context.getString(R.string.configuration_export_failed) + ": ${e.message}")
                 null
             }
         }
@@ -110,11 +111,11 @@ class ConfigurationExporter(private val context: Context) {
                 putExtra(Intent.EXTRA_STREAM, uri)
                 addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
             }
-            val chooserIntent = Intent.createChooser(shareIntent, "分享 SeeNot 导出")
+            val chooserIntent = Intent.createChooser(shareIntent, context.getString(R.string.share_title))
             chooserIntent.addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
             context.startActivity(chooserIntent)
         } catch (e: Exception) {
-            onError("分享失败: ${e.message}")
+            onError(context.getString(R.string.share_failed) + ": ${e.message}")
         }
     }
 
@@ -124,17 +125,17 @@ class ConfigurationExporter(private val context: Context) {
     ): Result<Int> {
         return withContext(Dispatchers.IO) {
             runCatching {
-                onProgress("正在读取导入文件...")
+                onProgress(context.getString(R.string.configuration_reading_file))
                 val jsonText = context.contentResolver.openInputStream(uri)?.use { input ->
                     input.bufferedReader().readText()
-                } ?: error("无法读取导入文件")
+                } ?: error(context.getString(R.string.configuration_cannot_read_file))
 
                 val root = JsonParser.parseString(jsonText).asJsonObject
                 val exportType = root.get("exportType")?.asString
-                require(exportType == "seenot_configuration") { "不是 SeeNot 配置导出文件" }
+                require(exportType == "seenot_configuration") { context.getString(R.string.configuration_not_valid) }
 
                 val appsElement = root.get("monitoredApps")
-                    ?: error("导入文件缺少 monitoredApps")
+                    ?: error(context.getString(R.string.configuration_missing_apps))
                 val listType = object : TypeToken<List<ImportedAppConfig>>() {}.type
                 val importedApps: List<ImportedAppConfig> = gson.fromJson(appsElement, listType)
 
@@ -146,7 +147,7 @@ class ConfigurationExporter(private val context: Context) {
                     val packageName = appConfig.packageName.trim()
                     if (packageName.isBlank()) return@forEachIndexed
 
-                    onProgress("正在导入 ${index + 1}/${importedApps.size}: $packageName")
+                    onProgress(context.getString(R.string.configuration_importing, index + 1, importedApps.size, packageName))
                     mergedControlledApps += packageName
                     sessionManager.savePresetRules(packageName, appConfig.presetRules)
                     sessionManager.replaceLastIntent(packageName, appConfig.lastIntent)
@@ -167,7 +168,7 @@ class ConfigurationExporter(private val context: Context) {
                         }
                         val resolvedIntentLabel = hint.intentLabel.ifBlank {
                             when (hint.scopeType) {
-                                AppHintScopeType.APP_GENERAL -> buildAppGeneralScopeLabel()
+                                AppHintScopeType.APP_GENERAL -> buildAppGeneralScopeLabel(context)
                                 AppHintScopeType.INTENT_SPECIFIC -> hint.intentLabel
                             }
                         }
@@ -184,7 +185,7 @@ class ConfigurationExporter(private val context: Context) {
                 }
 
                 sessionManager.setControlledApps(mergedControlledApps)
-                onProgress("导入完成！")
+                onProgress(context.getString(R.string.configuration_import_complete))
                 importedApps.count { it.packageName.isNotBlank() }
             }
         }

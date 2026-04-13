@@ -117,7 +117,7 @@ class VoiceInputOverlay(
         }
 
         if (!canDrawOverlays(ctx)) {
-            ToastOverlay.show(ctx, "需要悬浮窗权限")
+            ToastOverlay.show(ctx, ctx.getString(R.string.overlay_need_permission))
             try { onDismissCallback() } catch (e: Exception) {}
             return
         }
@@ -181,7 +181,7 @@ class VoiceInputOverlay(
         // Permission warning or subtitle
         if (!hasAudioPermission) {
             val permissionWarning = TextView(ctx).apply {
-                text = "需要麦克风权限才能使用语音输入。请在设置中开启权限。"
+                text = ctx.getString(R.string.mic_permission_required_message)
                 textSize = 14f
                 setTextColor(Color.parseColor(destructiveColor))
                 setPadding(0, 0, 0, 20.dp())
@@ -297,7 +297,7 @@ class VoiceInputOverlay(
 
             // "Or" text
             val orText = TextView(ctx).apply {
-                text = "或"
+                text = ctx.getString(R.string.common_or)
                 textSize = 14f
                 setTextColor(Color.parseColor(subtleTextColor))
                 gravity = android.view.Gravity.CENTER
@@ -337,12 +337,12 @@ class VoiceInputOverlay(
                             val started = voiceInputManager?.startRecording()
                             android.util.Log.d("VoiceInputOverlay", "Start result: $started")
                             if (started == false) {
-                                statusText?.text = "启动录音失败，请重试"
+                                statusText?.text = ctx.getString(R.string.voice_recording_start_failed)
                                 statusText?.visibility = View.VISIBLE
                             }
                         } catch (e: Exception) {
                             android.util.Log.e("VoiceInputOverlay", "Exception in startRecording", e)
-                            statusText?.text = "录音出错: ${e.message}"
+                            statusText?.text = ctx.getString(R.string.voice_err_recording_failed_with_msg, e.message ?: "")
                             statusText?.visibility = View.VISIBLE
                         }
                     }
@@ -361,7 +361,7 @@ class VoiceInputOverlay(
                     VoiceRecordingState.PROCESSING, VoiceRecordingState.TRANSCRIBED -> {
                         // Do nothing - wait for processing to complete
                         android.util.Log.d("VoiceInputOverlay", "Processing in progress, ignoring click")
-                        statusText?.text = "处理中，请稍候..."
+                        statusText?.text = ctx.getString(R.string.voice_processing)
                         statusText?.visibility = View.VISIBLE
                     }
                     else -> {
@@ -508,27 +508,27 @@ class VoiceInputOverlay(
                         // Show real-time recognized text during recording
                         val recognizedText = manager.recognizedText.value
                         if (!recognizedText.isNullOrBlank()) {
-                            statusText?.text = "识别: $recognizedText"
+                            statusText?.text = ctx.getString(R.string.voice_recognizing_text, recognizedText)
                         } else {
-                            statusText?.text = "正在录音..."
+                            statusText?.text = ctx.getString(R.string.voice_recording)
                         }
                         statusText?.visibility = View.VISIBLE
                     }
                     VoiceRecordingState.PROCESSING -> {
                         btn.text = ctx.getString(R.string.processing)
                         btn.isEnabled = false
-                        statusText?.text = "正在识别..."
+                        statusText?.text = ctx.getString(R.string.voice_recognizing)
                         statusText?.visibility = View.VISIBLE
                     }
                     VoiceRecordingState.TRANSCRIBED -> {
                         val text = manager.recognizedText.value
-                        statusText?.text = "识别: $text"
+                        statusText?.text = ctx.getString(R.string.voice_recognizing_text, text)
                     }
                     VoiceRecordingState.PARSED -> {
                         // Success! Get parsed constraints and create session
                         val parsed = manager.parsedIntent.value
                         if (parsed != null && parsed.constraints.isNotEmpty()) {
-                            statusText?.text = "解析成功！"
+                            statusText?.text = ctx.getString(R.string.voice_parse_success)
                             statusText?.setTextColor(Color.parseColor(successColor))
 
                             // Save last intent
@@ -542,7 +542,7 @@ class VoiceInputOverlay(
                     }
                     VoiceRecordingState.ERROR -> {
                         val error = manager.error.value
-                        statusText?.text = error ?: "出错"
+                        statusText?.text = error ?: ctx.getString(R.string.common_error)
                         statusText?.setTextColor(Color.parseColor(destructiveColor))
                         voiceBtn?.text = ctx.getString(R.string.start_recording)
                         stylePrimaryButton(voiceBtn!!)
@@ -598,7 +598,7 @@ class VoiceInputOverlay(
                     // Parse the text input
                     voiceInputManager?.parseTextInput(text, packageName, appName)
                     // Show processing
-                    statusText?.text = "正在解析..."
+                    statusText?.text = ctx.getString(R.string.voice_parsing)
                     statusText?.visibility = View.VISIBLE
                     textSubmitBtn?.isEnabled = false
 
@@ -630,6 +630,7 @@ class VoiceInputOverlay(
     }
 
     private fun observeTextInputResult() {
+        val ctx = contextRef.get() ?: return
         val manager = voiceInputManager ?: return
 
         val handler = Handler(Looper.getMainLooper())
@@ -641,7 +642,7 @@ class VoiceInputOverlay(
                     VoiceRecordingState.PARSED -> {
                         val parsed = manager.parsedIntent.value
                         if (parsed != null && parsed.constraints.isNotEmpty()) {
-                            statusText?.text = "解析成功！"
+                            statusText?.text = ctx.getString(R.string.voice_parse_success)
 
                             // Save last intent
                             sessionManager.saveLastIntent(packageName, parsed.constraints)
@@ -654,7 +655,7 @@ class VoiceInputOverlay(
                     }
                     VoiceRecordingState.ERROR -> {
                         val error = manager.error.value
-                        statusText?.text = error ?: "解析失败"
+                        statusText?.text = error ?: ctx.getString(R.string.voice_err_parse_failed_simple)
                         statusText?.setTextColor(Color.parseColor(destructiveColor))
                         textSubmitBtn?.isEnabled = true
                     }
@@ -782,7 +783,7 @@ class VoiceInputOverlay(
         autoDismissHandler = Handler(Looper.getMainLooper())
         autoDismissRunnable = Runnable {
             contextRef.get()?.let { ctx ->
-                ToastOverlay.show(ctx, "语音输入超时")
+                ToastOverlay.show(ctx, ctx.getString(R.string.voice_err_timeout))
             }
             dismiss()
         }
