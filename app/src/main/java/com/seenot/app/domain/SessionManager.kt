@@ -108,6 +108,7 @@ class SessionManager(private val context: Context) {
 
     // Timer job
     private var timerJob: Job? = null
+    private var pauseTimeoutJob: Job? = null
 
     // Screen analyzer for AI vision
     private var screenAnalyzer: ScreenAnalyzer? = null
@@ -209,6 +210,51 @@ class SessionManager(private val context: Context) {
         }
     }
 
+    private fun schedulePauseTimeout(session: ActiveSession, pauseReason: String) {
+        cancelPauseTimeout()
+
+        val pausedAt = sessionPausedAt ?: return
+        pauseTimeoutJob = scope.launch {
+            delay(SHORT_PAUSE_THRESHOLD)
+
+            val currentSession = _activeSession.value
+            if (
+                currentSession?.sessionId != session.sessionId ||
+                currentSession.appPackageName != session.appPackageName ||
+                !currentSession.isPaused
+            ) {
+                return@launch
+            }
+
+            val pausedFor = System.currentTimeMillis() - pausedAt
+            if (pausedFor < SHORT_PAUSE_THRESHOLD) {
+                delay(SHORT_PAUSE_THRESHOLD - pausedFor)
+            }
+
+            val stillPausedSession = _activeSession.value
+            if (
+                stillPausedSession?.sessionId != session.sessionId ||
+                stillPausedSession.appPackageName != session.appPackageName ||
+                !stillPausedSession.isPaused
+            ) {
+                return@launch
+            }
+
+            Logger.d(
+                TAG,
+                "Pause timeout reached for ${session.appPackageName} after $pauseReason; ending stale paused session"
+            )
+            endSession(SessionEndReason.USER_LEFT)
+            sessionPausedAt = null
+            pauseTimeoutJob = null
+        }
+    }
+
+    private fun cancelPauseTimeout() {
+        pauseTimeoutJob?.cancel()
+        pauseTimeoutJob = null
+    }
+
     private suspend fun handleDeviceStateChange(state: com.seenot.app.service.AccessibilityDeviceState) {
         val currentSession = _activeSession.value ?: return
 
@@ -224,11 +270,37 @@ class SessionManager(private val context: Context) {
                 )
                 pauseSession()
                 sessionPausedAt = System.currentTimeMillis()
+                schedulePauseTimeout(currentSession, "device_state_change")
             }
             return
         }
 
         if (!currentSession.isPaused) {
+            return
+        }
+
+        val pausedAt = sessionPausedAt
+        val timeDiff = if (pausedAt != null) System.currentTimeMillis() - pausedAt else -1
+        if (pausedAt != null && timeDiff > SHORT_PAUSE_THRESHOLD) {
+            Logger.d(
+                TAG,
+                "Paused session for ${currentSession.appPackageName} exceeded timeout (${timeDiff}ms), ending session"
+            )
+            endSession(SessionEndReason.USER_LEFT)
+            sessionPausedAt = null
+
+            val currentPackage = SeenotAccessibilityService.currentPackage.value
+            if (currentPackage == currentSession.appPackageName) {
+                setPendingSessionStartContext(
+                    triggerSource = "device_recovery_after_pause_timeout",
+                    switchToPackage = currentSession.appPackageName
+                )
+                SeenotAccessibilityService.instance?.forceRestartOverlayForCurrentApp(currentSession.appPackageName)
+                    ?: requestNewSession(
+                        packageName = currentSession.appPackageName,
+                        triggerSource = "device_recovery_after_pause_timeout"
+                    )
+            }
             return
         }
 
@@ -242,8 +314,6 @@ class SessionManager(private val context: Context) {
             return
         }
 
-        val pausedAt = sessionPausedAt
-        val timeDiff = if (pausedAt != null) System.currentTimeMillis() - pausedAt else -1
         if (pausedAt != null && timeDiff <= SHORT_PAUSE_THRESHOLD) {
             Logger.d(TAG, "Resuming session after device state recovery for ${currentSession.appPackageName}")
             resumeSession()
@@ -349,6 +419,7 @@ class SessionManager(private val context: Context) {
 
     private fun suspendCurrentSession(session: ActiveSession, switchToPackage: String? = null) {
         timerJob?.cancel()
+        cancelPauseTimeout()
         stopScreenAnalysis()
         _activeSession.value = session.copy(isPaused = true)
         suspendedSessions[session.appPackageName] = Pair(session.copy(isPaused = true), System.currentTimeMillis())
@@ -402,6 +473,7 @@ class SessionManager(private val context: Context) {
         stopScreenAnalysis()
         
         if (_activeSession.value == null) {
+            cancelPauseTimeout()
             Logger.d(TAG, "onControlledAppExited: no active session, emitting sessionCleared")
             scope.launch {
                 _sessionEvents.emit(SessionEvent.SessionCleared)
@@ -409,9 +481,11 @@ class SessionManager(private val context: Context) {
             return
         }
 
+        val session = _activeSession.value ?: return
         pauseSession()
         sessionPausedAt = System.currentTimeMillis()
         Logger.d(TAG, ">>> Session paused at ${sessionPausedAt}, will auto-end if not resumed within ${SHORT_PAUSE_THRESHOLD}ms")
+        schedulePauseTimeout(session, "left_controlled_app")
     }
 
     private suspend fun requestNewSession(
@@ -442,7 +516,17 @@ class SessionManager(private val context: Context) {
         packageName: String,
         displayName: String,
         constraints: List<SessionConstraint>
-    ): Long {
+    ): Long? {
+        val currentPackage = SeenotAccessibilityService.currentPackage.value
+        if (currentPackage != packageName) {
+            Logger.w(
+                TAG,
+                "Skip createSession for $packageName because foreground changed to $currentPackage"
+            )
+            return null
+        }
+
+        cancelPauseTimeout()
         val startContext = consumePendingSessionStartContext()
         val sessionId = repository.createSession(
             appPackageName = packageName,
@@ -1408,6 +1492,7 @@ class SessionManager(private val context: Context) {
     fun resumeSession() {
         val session = _activeSession.value ?: return
 
+        cancelPauseTimeout()
         _activeSession.value = session.copy(isPaused = false)
         startTimer()
 
@@ -1462,6 +1547,7 @@ class SessionManager(private val context: Context) {
         Logger.d(TAG, "!!! Stack trace: ${Exception("endSession trace").stackTraceToString()}")
 
         timerJob?.cancel()
+        cancelPauseTimeout()
 
         // Stop screen analysis
         stopScreenAnalysis()

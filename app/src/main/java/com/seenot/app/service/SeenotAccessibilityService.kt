@@ -535,12 +535,19 @@ class SeenotAccessibilityService : AccessibilityService() {
 
                 serviceScope.launch {
                     try {
-                        sessionManager.createSession(
+                        val sessionId = sessionManager.createSession(
                             packageName = packageName,
                             displayName = appName,
                             constraints = constraints
                         )
-                        Logger.d(TAG, "<<< Session created successfully for $packageName")
+                        if (sessionId != null) {
+                            Logger.d(TAG, "<<< Session created successfully for $packageName")
+                        } else {
+                            Logger.d(
+                                TAG,
+                                "Session creation skipped for $packageName because foreground changed before commit"
+                            )
+                        }
                     } catch (e: Exception) {
                         Logger.e(TAG, "!!! Failed to create session: ${e.message}", e)
                     } finally {

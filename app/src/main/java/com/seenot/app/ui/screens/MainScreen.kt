@@ -260,12 +260,16 @@ fun MainScreen(
                             MainScope().launch {
                                 try {
                                     android.util.Log.d("MainScreen", ">>> Calling createSession for $appName")
-                                    sessionManager.createSession(
+                                    val sessionId = sessionManager.createSession(
                                         packageName = pkgName,
                                         displayName = appName,
                                         constraints = constraints
                                     )
-                                    android.util.Log.d("MainScreen", "<<< Session created for $appName with ${constraints.size} constraints")
+                                    if (sessionId != null) {
+                                        android.util.Log.d("MainScreen", "<<< Session created for $appName with ${constraints.size} constraints")
+                                    } else {
+                                        android.util.Log.w("MainScreen", "Session creation skipped for $appName due to foreground mismatch")
+                                    }
                                 } catch (e: Exception) {
                                     android.util.Log.e("MainScreen", "!!! Failed to create session", e)
                                 }
