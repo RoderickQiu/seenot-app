@@ -216,8 +216,6 @@
     <string name="intent_parsing">Parsing…</string>
     <string name="intent_parsed_confirm_voice">Intent recognized. Please confirm manually, or speak again if incorrect.</string>
     <string name="intent_parsed">Intent recognized</string>
-    <string name="intent_constraint_deny">Deny</string>
-    <string name="intent_constraint_time_cap">Time limit</string>
     <string name="intent_constraint_deny_format">Deny %s</string>
     <string name="intent_constraint_time_cap_format">Limit %s %smin</string>
     <string name="intent_constraint_deny_full">Deny: %s</string>
@@ -248,7 +246,6 @@
     <string name="hud_compact_separator"> / </string>
     <string name="hud_more_count">+%d</string>
     <string name="unit_minute">min</string>
-    <string name="hud_rule_type_deny">Deny</string>
     <string name="hud_rule_type_time_cap">Time limit</string>
     <string name="hud_rule_detail_deny">Deny %1$s</string>
     <string name="hud_rule_detail_time_cap">Limit %1$s %2$s%3$smin</string>

@@ -220,8 +220,6 @@
     <string name="intent_parsing">正在解析...</string>
     <string name="intent_parsed_confirm_voice">意图已识别，请手动确认；不对的话可以再说一次</string>
     <string name="intent_parsed">意图已识别</string>
-    <string name="intent_constraint_deny">禁止</string>
-    <string name="intent_constraint_time_cap">限时</string>
     <string name="intent_constraint_deny_format">禁止 %s</string>
     <string name="intent_constraint_time_cap_format">限时 %s %s分</string>
     <string name="intent_constraint_deny_full">禁止: %s</string>
@@ -252,7 +250,6 @@
     <string name="hud_compact_separator"> / </string>
     <string name="hud_more_count">+%d</string>
     <string name="unit_minute">分钟</string>
-    <string name="hud_rule_type_deny">禁止</string>
     <string name="hud_rule_type_time_cap">限时</string>
     <string name="hud_rule_detail_deny">禁止 %1$s</string>
     <string name="hud_rule_detail_time_cap">限时 %1$s %2$s%3$s分</string>
