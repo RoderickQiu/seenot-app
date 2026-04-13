@@ -75,4 +75,594 @@
     <string name="violation_detected">Violation Detected</string>
     <string name="allow_once">Allow This Once</string>
     <string name="attention">Attention</string>
+
+    <!-- Foreground Service -->
+    <string name="fg_channel_name">SeeNot Running</string>
+    <string name="fg_channel_desc">Keeps SeeNot accessibility service running in background</string>
+    <string name="fg_notification_title">SeeNot is running</string>
+    <string name="fg_notification_text">AI attention management enabled</string>
+
+    <!-- TimeScope labels -->
+    <string name="time_scope_session">This session</string>
+    <string name="time_scope_per_content">Per content</string>
+    <string name="time_scope_continuous">Continuous</string>
+    <string name="time_scope_daily_total">Today</string>
+    <string name="time_scope_session_short">Session</string>
+    <string name="time_scope_per_content_short">Content</string>
+    <string name="time_scope_daily_total_short">Daily</string>
+
+    <!-- ConstraintType labels -->
+    <string name="constraint_type_deny">Deny</string>
+    <string name="constraint_type_time_cap">Time limit</string>
+
+    <!-- ActionExecutor toast messages -->
+    <string name="duration_minutes_seconds">%1$d min %2$d sec</string>
+    <string name="duration_minutes">%d minutes</string>
+    <string name="duration_seconds">%d seconds</string>
+    <string name="toast_time_limit_reached">⏰ %1$s reached %2$s</string>
+    <string name="toast_violation_warning">⚠️ Attention: %s</string>
+    <string name="toast_return_to_task">Returned to your previous goal</string>
+    <string name="toast_time_up_auto_return">⏰ Time up, auto returning</string>
+    <string name="toast_violation_auto_return">⚠️ Violation, auto returning</string>
+    <string name="toast_distraction_ended">Ended current distraction</string>
+    <string name="toast_time_up_return_home">⏰ Time up, returning home</string>
+    <string name="toast_severe_violation_return">⚠️ Severe violation, returning home</string>
+    <string name="label_time">Time</string>
+
+    <!-- STT error messages -->
+    <string name="stt_gemini_not_supported">Gemini does not use UnifiedTranscriber</string>
+    <string name="stt_dashscope_not_supported">DashScope does not use UnifiedTranscriber</string>
+    <string name="stt_anthropic_not_supported">Anthropic does not support speech-to-text</string>
+    <string name="stt_config_incomplete">Speech-to-text configuration incomplete</string>
+    <string name="stt_failed">Speech-to-text failed (%s)</string>
+    <string name="stt_result_empty">Speech-to-text result is empty</string>
+
+    <!-- RuntimeEventLogger -->
+    <string name="event_log_not_enabled">Runtime event logging not enabled. Set SEENOT_DEVELOPMENT_MODE=true in local.properties first.</string>
+    <string name="event_log_organizing">Organizing runtime events…</string>
+    <string name="event_log_no_events">No events to export</string>
+    <string name="event_log_no_events_in_range">No events in specified range</string>
+    <string name="event_log_export_complete">Runtime events exported!</string>
+    <string name="event_log_export_failed">Runtime events export failed: %s</string>
+    <string name="event_log_share_title">Share SeeNot Runtime Events</string>
+    <string name="share_failed">Share failed: %s</string>
+
+    <!-- Provider/Region labels -->
+    <string name="provider_dashscope">Alibaba DashScope</string>
+    <string name="provider_openai">OpenAI</string>
+    <string name="provider_gemini">Google Gemini</string>
+    <string name="provider_anthropic">Anthropic Claude</string>
+    <string name="provider_glm">Zhipu GLM</string>
+    <string name="provider_custom">Custom OpenAI Compatible</string>
+    <string name="region_beijing">China</string>
+    <string name="region_singapore">International</string>
+    <string name="region_virginia">US East</string>
+    <string name="model_note_recommended">Recommended</string>
+    <string name="stt_dashscope_realtime">DashScope Realtime ASR</string>
+
+    <!-- IntentScopedHintSupport -->
+    <string name="scope_app_general">Entire app</string>
+    <string name="scope_intent_specific">This intent only</string>
+    <string name="rule_label_deny">Deny</string>
+    <string name="rule_label_time_cap">Time limit</string>
+    <string name="rule_label_with_duration">%d minutes</string>
+
+    <!-- SessionManager intervention dialog -->
+    <string name="dialog_title_pause">Hold on</string>
+    <string name="dialog_title_pause_confirm">Hold on?</string>
+    <string name="dialog_subtitle_gentle_deviation">You are deviating from what you intended to do</string>
+    <string name="dialog_subtitle_moderate_deviation">You seem to be drifting from your goal</string>
+    <string name="dialog_btn_back_to_task">Back to task</string>
+    <string name="dialog_btn_exit">Exit</string>
+    <string name="dialog_btn_continue">I know, continue anyway</string>
+
+    <!-- False positive review -->
+    <string name="false_positive_review_title">False Positive Correction</string>
+    <string name="false_positive_review_subtitle">Will generate a supplementary rule draft and determine if it should apply to the entire app or just this intent</string>
+    <string name="error_no_fp_record">False positive record not found</string>
+    <string name="error_record_fp_failed">Failed to record false positive</string>
+    <string name="error_generate_rule_failed">Failed to generate supplementary rule</string>
+    <string name="error_no_judgment_record">Judgment record not found</string>
+    <string name="fp_draft_generated_poor">Generated a less ideal draft. You can edit it directly or try again.</string>
+    <string name="fp_rule_generated">Supplementary rule generated. You can edit and save.</string>
+    <string name="fp_generating_pause">Judgment paused, generating supplementary rule…</string>
+    <string name="fp_similar_rule_exists_resumed">Similar rule exists. Judgment resumed and effective immediately.</string>
+    <string name="fp_rule_saved_resumed">Rule saved. Judgment resumed and effective immediately.</string>
+    <string name="fp_rule_generated_resumed">Rule generated. Judgment resumed and effective immediately.</string>
+    <string name="fp_recorded_resumed">Recorded. Judgment resumed.</string>
+    <string name="fp_recorded">False positive recorded</string>
+    <string name="fp_recorded_has_similar_rule">Recorded. Similar supplementary rule exists.</string>
+    <string name="fp_recorded_saved_rule">Recorded and supplementary rule saved</string>
+    <string name="fp_recorded_generated_rule">Recorded and supplementary rule generated</string>
+    <string name="fp_recorded_this_resumed">Recorded. Judgment resumed.</string>
+
+    <!-- Logger -->
+    <string name="log_share_subject">SeeNot Logs</string>
+    <string name="log_share_title">Share Logs</string>
+
+    <!-- VoiceInputManager errors -->
+    <string name="voice_err_start_failed">Failed to start recording</string>
+    <string name="voice_err_not_recognized">Speech not recognized</string>
+    <string name="voice_err_record_failed">Recording failed</string>
+    <string name="voice_err_transcriber_not_init">Transcriber not initialized</string>
+    <string name="voice_err_parser_not_init">Parser not initialized</string>
+    <string name="voice_err_parse_failed">Parse failed: %s</string>
+    <string name="voice_err_no_intent_input">Please input intent description</string>
+    <string name="voice_err_timeout">Voice input timeout</string>
+    <string name="voice_err_parse_intent_failed">Intent not recognized</string>
+    <string name="voice_err_recording_failed_with_msg">Recording error: %s</string>
+    <string name="voice_err_parse_failed_simple">Parse failed</string>
+
+    <!-- VoiceInputOverlay -->
+    <string name="voice_tap_to_speak">Tap to speak</string>
+    <string name="voice_or_use_text_input">Or use text input</string>
+    <string name="voice_tap_to_stop">Tap to stop</string>
+
+    <!-- IntentInputDialogOverlay -->
+    <string name="intent_can_speak_or_type">Speak or type your intent</string>
+    <string name="intent_type_to_declare">Type to declare intent</string>
+    <string name="intent_tap_to_start_recording">Tap to start recording</string>
+    <string name="intent_no_mic_permission_type">Mic permission not granted. You can type instead.</string>
+    <string name="intent_enter_to_confirm">Press enter to confirm and apply intent</string>
+    <string name="intent_confirm_title">Confirm Intent</string>
+    <string name="intent_preset_tab">Preset Intents</string>
+    <string name="intent_history_tab">History</string>
+    <string name="intent_no_preset_yet">No preset intents yet</string>
+    <string name="intent_no_history_yet">No history yet</string>
+    <string name="intent_last_used">Last used</string>
+    <string name="intent_tap_mic_or_type">Tap mic to record, or type directly</string>
+    <string name="intent_no_voice_type">No voice input configured. You can type directly.</string>
+    <string name="intent_recording_stop_hint">Recording… tap again to stop</string>
+    <string name="intent_parsing">Parsing…</string>
+    <string name="intent_parsed_confirm_voice">Intent recognized. Please confirm manually, or speak again if incorrect.</string>
+    <string name="intent_parsed">Intent recognized</string>
+    <string name="intent_constraint_deny">Deny</string>
+    <string name="intent_constraint_time_cap">Time limit</string>
+    <string name="intent_constraint_deny_format">Deny %s</string>
+    <string name="intent_constraint_time_cap_format">Limit %s %smin</string>
+    <string name="intent_constraint_deny_full">Deny: %s</string>
+    <string name="intent_constraint_time_cap_full">Time limit: %s %s minutes</string>
+    <string name="intent_time_scope_suffix"> %s%smin</string>
+    <string name="intent_retry">Try again</string>
+    <string name="intent_skip">Skip</string>
+    <string name="common_or">Or</string>
+    <string name="common_error">Error</string>
+
+    <!-- FloatingIndicatorOverlay / HUD -->
+    <string name="hud_btn_change_intent">Change intent</string>
+    <string name="hud_btn_collapse">Collapse</string>
+    <string name="hud_no_intent_yet">No intent yet</string>
+    <string name="hud_wrong_judgment">Wrong judgment</string>
+    <string name="hud_judgment_wrong_title">Judgment incorrect?</string>
+    <string name="hud_tap_to_set_intent">Tap to set intent</string>
+    <string name="hud_status_risk">Risky content</string>
+    <string name="hud_status_normal">Normal</string>
+    <string name="hud_status_timing">Timing</string>
+    <string name="hud_status_not_timing">Not timing</string>
+    <string name="hud_judgment_deny_format">%s</string>
+    <string name="hud_judgment_deny_safe">Safe</string>
+    <string name="hud_judgment_deny_at_risk">At risk</string>
+    <string name="hud_judgment_time_cap_timing">Timing</string>
+    <string name="hud_judgment_time_cap_not_timing">Not timing</string>
+    <string name="hud_false_positive_review_subtitle">Tell us the correct situation</string>
+    <string name="hud_compact_separator"> / </string>
+    <string name="hud_more_count">+%d</string>
+    <string name="unit_minute">min</string>
+    <string name="hud_rule_type_deny">Deny</string>
+    <string name="hud_rule_type_time_cap">Time limit</string>
+    <string name="hud_rule_detail_deny">Deny %1$s</string>
+    <string name="hud_rule_detail_time_cap">Limit %1$s %2$s%3$smin</string>
+    <string name="hud_rule_detail_time_cap_no_desc">Limit %1$s%2$smin</string>
+
+    <!-- JudgmentFeedbackConfirmOverlay -->
+    <string name="judgment_wrong_title">This judgment was not quite right?</string>
+    <string name="judgment_wrong_content_desc">We will record this content judgment correction for future optimization</string>
+    <string name="judgment_wrong_content_timing">We will record this timing judgment correction for future optimization</string>
+    <string name="judgment_false_positive">False positive</string>
+
+    <!-- FalsePositiveRuleReviewOverlay -->
+    <string name="fp_generating_draft">Generating supplementary rule draft…</string>
+    <string name="fp_hint_after_generation">You can edit the result after generation, or rewrite it yourself</string>
+    <string name="fp_regenerate">Regenerate</string>
+    <string name="fp_saving">Saving supplementary rule…</string>
+    <string name="fp_cancel">Cancel</string>
+    <string name="fp_save">Save</string>
+
+    <!-- VoiceInputWindowOverlay -->
+    <string name="overlay_need_permission">Overlay permission required</string>
+    <string name="mic_permission_required_message">Mic permission required for voice input. Please enable it in Settings.</string>
+    <string name="voice_recording_start_failed">Failed to start recording. Please try again.</string>
+    <string name="voice_processing">Processing, please wait…</string>
+    <string name="voice_recognizing">Recognizing…</string>
+    <string name="voice_recording">Recording…</string>
+    <string name="voice_recognizing_text">Recognized: %s</string>
+    <string name="voice_parsing">Parsing…</string>
+    <string name="voice_parse_success">Parse success!</string>
+
+    <!-- OpenAiCompatibleClient -->
+    <string name="err_model_response_missing_message">Model response missing message</string>
+    <string name="err_model_response_missing_content">Model response missing content</string>
+
+    <!-- ScreenAnalyzer -->
+    <string name="err_screenshot_failed">Screenshot failed</string>
+    <string name="err_analysis_failed">Analysis failed: %s</string>
+    <string name="label_unknown">Unknown</string>
+    <string name="label_unknown_screen">Unknown screen</string>
+    <string name="label_no_match">None</string>
+    <string name="err_model_request_failed">Model request failed</string>
+    <string name="err_model_service_unavailable">Model service temporarily unavailable</string>
+    <string name="err_model_auth_failed">Model authentication failed. Please check API Key.</string>
+    <string name="toast_violation_format">⚠️ Violation: %s</string>
+    <string name="toast_compliant_format">✅ Compliant: %s</string>
+    <string name="toast_timing_format">⏱️ %s timing</string>
+    <string name="toast_not_timing_format">⏱️ %s not timing</string>
+
+    <!-- RecordExporter / ConfigurationExporter -->
+    <string name="export_creating_zip">Creating ZIP file…</string>
+    <string name="configuration_organizing">Organizing configuration…</string>
+    <string name="configuration_export_complete">Configuration exported!</string>
+    <string name="configuration_export_failed">Configuration export failed</string>
+    <string name="configuration_reading_file">Reading import file…</string>
+    <string name="configuration_cannot_read_file">Cannot read import file</string>
+    <string name="configuration_not_valid">Not a SeeNot configuration export file</string>
+    <string name="configuration_missing_apps">Import file missing monitoredApps</string>
+    <string name="configuration_importing">Importing %1$d/%2$d: %3$s</string>
+    <string name="configuration_import_complete">Import complete!</string>
+    <string name="export_adding_records">Adding record data…</string>
+    <string name="export_adding_metadata">Adding metadata…</string>
+    <string name="export_adding_screenshot">Adding screenshot %1$d/%2$d…</string>
+    <string name="export_adding_readme">Adding readme…</string>
+    <string name="export_complete">Export complete!</string>
+    <string name="export_failed">Export failed</string>
+    <string name="share_title">Share SeeNot Record Export</string>
+    <string name="date_range_separator">to</string>
+    <string name="unknown">Unknown</string>
+    <string name="readme_title">SeeNot Rule Record Export</string>
+    <string name="readme_description">This archive contains SeeNot rule evaluation record export.</string>
+    <string name="readme_contents">Contents:</string>
+    <string name="readme_content_records">- records.json: All rule evaluation records in JSON format</string>
+    <string name="readme_content_metadata">- metadata.json: Summary statistics and export info</string>
+    <string name="readme_content_images">- images/: Screenshots taken during rule evaluation (PNG format)</string>
+    <string name="readme_content_readme">- README.txt: This file</string>
+    <string name="readme_field_title">Record field description:</string>
+    <string name="readme_field_id">- id: Unique record identifier</string>
+    <string name="readme_field_timestamp">- timestamp: Evaluation timestamp (milliseconds)</string>
+    <string name="readme_field_appname">- appName: Monitored app name</string>
+    <string name="readme_field_packagename">- packageName: App package name (optional)</string>
+    <string name="readme_field_hash">- screenshotHash: Screenshot hash for deduplication (optional)</string>
+    <string name="readme_field_constraintid">- constraintId: Evaluated constraint ID</string>
+    <string name="readme_field_type">- constraintType: Constraint type (DENY/TIME_CAP)</string>
+    <string name="readme_field_content">- constraintContent: Constraint content description</string>
+    <string name="readme_field_matched">- isConditionMatched: Condition match result, meaning depends on constraint type</string>
+    <string name="readme_field_matched_deny">  - DENY: true = normal / false = violation</string>
+    <string name="readme_field_matched_timecap">  - TIME_CAP: true = in_scope (timing) / false = out_of_scope (not timing)</string>
+    <string name="readme_field_confidence">- confidence: AI confidence score (0-100)</string>
+    <string name="readme_field_airesult">- aiResult: AI raw response text (optional)</string>
+    <string name="readme_field_imagepath">- imagePath: Screenshot path (in archive)</string>
+    <string name="readme_field_elapsed">- elapsedTimeMs: AI processing time (milliseconds, optional)</string>
+    <string name="readme_field_marked">- isMarked: Whether marked by user</string>
+    <string name="readme_export_time">Export time: %s</string>
+    <string name="readme_note">Note: Screenshots are stored in app internal storage, not in system gallery.</string>
+
+    <!-- HomeTimelineSection -->
+    <string name="timeline_no_records_today">No records today. The system will show violations and timing events here when you open controlled apps.</string>
+    <string name="timeline_no_records_day">No records for this day.</string>
+    <string name="timeline_prev_day">Previous day</string>
+    <string name="timeline_next_day">Next day</string>
+    <string name="timeline_today_label">Today\'s Timeline</string>
+    <string name="timeline_day_format">M月d日 Timeline</string>
+    <string name="timeline_unknown_app">Unknown app</string>
+    <string name="timeline_multi_app">Multiple apps</string>
+    <string name="timeline_violation_start">Violation start</string>
+    <string name="timeline_timing_interval">%1$s - %2$s timing</string>
+    <string name="timeline_meta_format">%1$s · %2$s · %3$d records</string>
+    <string name="timeline_event_count_format">%d records</string>
+    <string name="event_timeout_reminder">Time up reminder</string>
+    <string name="event_user_confirmed_return">User confirmed return</string>
+    <string name="event_violation_reminder">Violation reminder</string>
+    <string name="event_timeout_auto_return">Time up, auto return</string>
+    <string name="event_user_back_to_task">You chose to return to task</string>
+    <string name="event_violation_auto_return">Violation detected, auto return</string>
+    <string name="event_timeout_return_home">Time up, return home</string>
+    <string name="event_user_ended_content">You chose to end current content</string>
+    <string name="event_severe_violation_return">Severe violation, return home</string>
+    <string name="event_hud_highlight">Highlight warning</string>
+    <string name="event_vibrate">Vibration reminder</string>
+    <string name="event_timeout_action">Time up action</string>
+    <string name="event_user_confirm_action">User confirm action</string>
+    <string name="event_violation_action">Violation action</string>
+    <string name="event_system_action">System action</string>
+    <string name="timeline_more_hidden">%d more</string>
+
+    <!-- RuleRecordsPage -->
+    <string name="record_timing_status">Timing status</string>
+    <string name="record_timing_active">Timing</string>
+    <string name="record_timing_inactive">Not timing</string>
+    <string name="record_match_status">Match status</string>
+    <string name="record_match_normal">Normal (no rule violation)</string>
+    <string name="record_match_violated">Violated (rule broken)</string>
+    <string name="record_intent_scope_label">This intent only</string>
+    <string name="record_page_title">Rule Records</string>
+    <string name="record_back">Back</string>
+    <string name="record_select_date">Select date</string>
+    <string name="record_export">Export records</string>
+    <string name="record_no_records">No records yet. "Save judgment records" may not be enabled.</string>
+    <string name="record_export_preparing">Preparing export…</string>
+    <string name="record_export_fail">Export failed</string>
+    <string name="record_generate_title">Generate supplementary rule</string>
+    <string name="record_marked_false_positive">You marked \"%1$s\" as misjudgment.</string>
+    <string name="record_generate_hint">System will generate a supplementary rule based on the screenshot, current intent and app characteristics, and determine if it should apply to the entire app or just this intent.</string>
+    <string name="record_hint_placeholder_optional">Optional: e.g., I only use QQ for chat, not QQ空间</string>
+    <string name="record_generating_draft">Generating supplementary rule draft…</string>
+    <string name="record_scope_suggestion">Suggested scope: %s</string>
+    <string name="false_positive_status_format">%s · Suggested scope: %s</string>
+    <string name="record_hint_edit_placeholder">You can edit the generated result, or write a more accurate supplementary rule yourself</string>
+    <string name="record_generate">Generate</string>
+    <string name="record_save">Save</string>
+    <string name="record_regenerate">Regenerate</string>
+    <string name="record_cancel">Cancel</string>
+    <string name="record_filter_all">All</string>
+    <string name="record_filter_marked">Marked</string>
+    <string name="record_filter_need_attention">Needs attention</string>
+    <string name="record_filter_normal">Normal</string>
+    <string name="record_action_label">Intervention action</string>
+    <string name="record_action_detail">Action: %1$s (%2$s)</string>
+    <string name="record_confidence">Confidence: %d%%</string>
+    <string name="record_mark">Mark</string>
+    <string name="record_unmark">Unmark</string>
+    <string name="record_detail_title">Details</string>
+    <string name="record_close">Close</string>
+    <string name="record_prev">Previous</string>
+    <string name="record_next">Next</string>
+    <string name="record_intervention_action">⚡ Intervention action</string>
+    <string name="record_basic_info">Basic info</string>
+    <string name="record_app">App</string>
+    <string name="record_package">Package</string>
+    <string name="record_time">Time</string>
+    <string name="record_action_type">Action type</string>
+    <string name="record_trigger_reason">Trigger reason</string>
+    <string name="record_constraint_type">Constraint type</string>
+    <string name="record_constraint_content">Constraint content</string>
+    <string name="record_ai_result">AI analysis result</string>
+    <string name="record_ai_confidence">(Confidence: %d%%)</string>
+    <string name="record_mark_false_positive">Mark as false positive</string>
+    <string name="record_screenshot">Screenshot</string>
+    <string name="record_screenshot_not_exist">Screenshot file does not exist</string>
+    <string name="record_processing_time">Processing time</string>
+    <string name="record_confirm_delete">Confirm delete</string>
+    <string name="record_confirm_delete_message">Are you sure you want to delete this record? This cannot be undone.</string>
+    <string name="record_delete">Delete</string>
+    <string name="record_items_selected">%d items selected</string>
+    <string name="record_export_action">Export</string>
+    <string name="record_delete_action">Delete</string>
+    <string name="record_cancel_action">Cancel</string>
+    <string name="record_confirm">Confirm</string>
+    <string name="record_today">Today</string>
+    <string name="record_date_format">yyyy年MM月dd日 EEEE</string>
+    <string name="record_time_format">yyyy年MM月dd日 HH:mm:ss</string>
+    <string name="record_action">Action: %1$s (%2$s)</string>
+    <string name="record_export_title">Export Records</string>
+    <string name="record_export_selected">Export %d selected records as ZIP file, screenshots can be included.</string>
+    <string name="record_export_filtered">Export %d filtered records as ZIP file, screenshots can be included.</string>
+    <string name="record_select_app">Select app</string>
+    <string name="record_all_apps">All apps</string>
+    <string name="record_export_only_marked">Export marked records only (%d)</string>
+
+    <!-- Additional export strings -->
+    <string name="export_record_title">Export Records</string>
+    <string name="export_selected_records">Export %d selected records as ZIP file, screenshots can be included.</string>
+    <string name="export_filtered_records">Export %d filtered records as ZIP file, screenshots can be included.</string>
+    <string name="export_select_app">Select app</string>
+    <string name="export_all_apps">All apps</string>
+    <string name="export_only_marked">Export marked records only (%d)</string>
+    <string name="export_action">Export</string>
+    <string name="export_cancel">Cancel</string>
+
+    <!-- MainScreen.kt strings -->
+
+    <!-- HomeTab -->
+    <string name="permission_notification">Notification permission</string>
+    <string name="permission_notification_desc">Used to show reminder notifications and foreground service</string>
+    <string name="permission_microphone_optional">Microphone permission (optional)</string>
+    <string name="permission_microphone_desc">Used for voice input to declare intents</string>
+    <string name="ai_settings">AI Settings</string>
+    <string name="ai_configured_tap_to_modify">Configuration complete. Tap to modify provider, model or API Key.</string>
+    <string name="ai_not_configured_tap_to_setup">Not configured. Tap to complete AI setup.</string>
+    <string name="basic_config_complete">Basic configuration complete. Ready to use.</string>
+    <string name="tap_to_collapse">Tap to collapse permissions and config</string>
+    <string name="tap_to_expand">Tap to expand permissions and config</string>
+    <string name="please_complete_permissions_and_ai_config">Please complete required permissions and AI config first</string>
+    <string name="usage_instructions">Usage Instructions</string>
+    <string name="step_1_select_apps">Select apps to manage on the 「Apps」 page</string>
+    <string name="step_2_declare_intent">Declare your intent when opening a controlled app</string>
+    <string name="step_2_intent_example">e.g., "Only check work messages, 10 minutes". You can use voice or type directly.</string>
+    <string name="step_3_ai_guards">AI will guard your intent in real-time and remind or intervene when appropriate</string>
+    <string name="step_4_report_misreport">If the system misunderstood, you can report a misreport anytime to let AI correct it.</string>
+
+    <!-- AppsTab -->
+    <string name="add_app">Add App</string>
+    <string name="no_controlled_apps_yet">No controlled apps yet</string>
+    <string name="tap_add_app_to_select">Tap 「Add App」 to select apps to manage</string>
+
+    <!-- RuleRecordsPage -->
+    <string name="add_ai_supplement_rule">Add AI Supplementary Rule</string>
+    <string name="rule_scope_description">You can choose to make this rule apply to the entire app, or only to a specific intent.</string>
+    <string name="rule_example_dont_identify_as_recommend">e.g., Do not identify as recommendation list just because product cards are shown on detail page</string>
+    <string name="add">Add</string>
+    <string name="edit_ai_supplement_rule">Edit AI Supplementary Rule</string>
+    <string name="save">Save</string>
+    <string name="close">Close</string>
+    <string name="app_intents_title">%s Intents</string>
+    <string name="preset_intents">Preset Intents</string>
+    <string name="add_preset_intent">Add</string>
+    <string name="no_preset_intents_yet">No preset intents yet. Tap add to create.</string>
+    <string name="history_intents">History Intents</string>
+    <string name="no_history_intents_yet">No history intents yet</string>
+    <string name="ai_supplement_rules">AI Supplementary Rules</string>
+    <string name="supplement_rules_description">Supplementary rules are divided into two types: one applies to the entire app, one only refines a specific intent.</string>
+    <string name="no_supplement_rules_yet">No supplementary rules yet</string>
+    <string name="specific_intent_scope">Only for specific intent</string>
+    <string name="intent_source_label">Source: %s</string>
+    <string name="no_bindable_intent_yet">No bindable intents yet. Please keep at least one intent record.</string>
+    <string name="bind_intent">Bind Intent</string>
+    <string name="source_manual">Manually added</string>
+    <string name="source_feedback_generated">Feedback generated</string>
+    <string name="source_intent_carry_over">Auto carried over</string>
+
+    <!-- IntentDialog -->
+    <string name="add_preset_intent_title">Add Preset Intent</string>
+    <string name="edit_preset_intent_title">Edit Preset Intent</string>
+    <string name="edit_intent_title">Edit Intent</string>
+    <string name="time_cap_format">Time limit: %d minutes</string>
+    <string name="time_cap_format_decimal">Time limit: %s minutes</string>
+    <string name="intervention_level_label">Intervention level: %s</string>
+    <string name="intervention_gentle">Gentle</string>
+    <string name="intervention_moderate">Moderate</string>
+    <string name="intervention_strict">Strict</string>
+    <string name="save_as_preset">Save as Preset</string>
+    <string name="edit_intent_item_title">Edit Intent Item</string>
+    <string name="intent_type">Intent Type</string>
+    <string name="description_label">Description</string>
+    <string name="description_hint">e.g., Short videos, Moments, Video accounts</string>
+    <string name="description_hint_tip">💡 You can enter multiple conditions, e.g.: Moments and Video accounts</string>
+    <string name="time_limit_minutes_hint">Time limit in minutes (optional)</string>
+    <string name="time_limit_placeholder">e.g., 30 or 0.5</string>
+    <string name="time_scope_label">Time scope</string>
+    <string name="intervention_level_title">Intervention Level</string>
+    <string name="scope_label">Scope</string>
+    <string name="intent_specific_scope">Only for this intent</string>
+    <string name="set_as_default">Set as Default</string>
+    <string name="unset_as_default">Unset Default</string>
+    <string name="edit">Edit</string>
+    <string name="intervention_gentle_desc">Reminder only: Shows a prompt but does not block. User can continue.</string>
+    <string name="intervention_moderate_desc">Remind + Return: Shows a prompt and auto returns to previous screen. Suitable for interrupting without forcing a ban.</string>
+    <string name="intervention_strict_desc">Force return: Returns directly to home screen, forcefully interrupting current behavior. Suitable for strong suppression.</string>
+    <string name="intervention_dialog_title">Hold on?</string>
+    <string name="intervention_dialog_subtitle">You seem to be drifting from your goal</string>
+    <string name="intervention_dialog_exit">Exit</string>
+
+    <!-- SettingsTab -->
+    <string name="screenshot_mode_all">Save all screenshots</string>
+    <string name="screenshot_mode_matched_only">Only save screenshots when relevant judgment is made</string>
+    <string name="screenshot_mode_none">Do not save screenshots</string>
+    <string name="model_not_set">Set model</string>
+    <string name="clear_records_title">Clear Records</string>
+    <string name="clear_records_confirm">Are you sure you want to delete all judgment records? This cannot be undone.</string>
+    <string name="delete">Delete</string>
+    <string name="settings_ai_title">AI</string>
+    <string name="settings_model_desc">Model, voice input and provider settings</string>
+    <string name="experience_settings">Experience Settings</string>
+    <string name="experience_settings_desc">Affects home screen display and startup behavior</string>
+    <string name="show_today_timeline">Show today\'s timeline on home</string>
+    <string name="show_today_timeline_desc">When off, home screen will not show today\'s timeline</string>
+    <string name="auto_start_on_boot">Auto start on boot</string>
+    <string name="auto_start_on_boot_desc">Automatically run SeeNot when system starts</string>
+    <string name="judgment_records">Judgment Records</string>
+    <string name="judgment_records_desc">Decide whether to save judgment history and whether to remind immediately</string>
+    <string name="save_judgment_records">Save Judgment Records</string>
+    <string name="save_judgment_records_desc">Save each judgment result for later review</string>
+    <string name="screenshot_mode_label">Screenshot save mode</string>
+    <string name="screenshot_mode_desc">Screenshots are saved only in app internal storage, not in system gallery</string>
+    <string name="notify_each_judgment">Notify me on every judgment</string>
+    <string name="notify_each_judgment_desc">Pop up immediately after judgment; when off, these notifications will not appear</string>
+    <string name="view_records">View Records</string>
+    <string name="clear_records">Clear Records</string>
+    <string name="export_section">Export</string>
+    <string name="export_section_desc">Export logs and data for troubleshooting or backup</string>
+    <string name="export_data">Export Data</string>
+    <string name="about_section">About</string>
+    <string name="edit_intent">Edit Intent</string>
+
+    <!-- AiModelSettingsDialog -->
+    <string name="ai_model_settings_title">AI Model Settings</string>
+    <string name="vision_tab">Vision</string>
+    <string name="voice_tab">Voice</string>
+    <string name="dev_mode_dashscope_temp_key">Development mode active. DashScope API Key temporarily provided, valid until %s. Will auto deactivate after expiry. You can still manually enter your own key here.</string>
+    <string name="vision_provider">Vision Provider</string>
+    <string name="vision_model">Vision Model</string>
+    <string name="vision_model_hint">e.g., qwen3.6-plus / glm-4.6v-flashx / gpt-4o-mini</string>
+    <string name="bias_model">Bias Correction Model</string>
+    <string name="bias_model_hint">Used when generating supplementary rules after misreports</string>
+    <string name="bias_model_not_highfreq_usage">Bias correction model is not used frequently. It only participates in analysis when you report a misreport to generate supplementary rules.</string>
+    <string name="qwen_region_label">Qwen current region: %s</string>
+    <string name="voice_provider">Voice Provider</string>
+    <string name="api_key_shared">API Key (Shared)</string>
+    <string name="api_key_independent">API Key (Independent)</string>
+    <string name="base_url_shared">Base URL (Shared)</string>
+    <string name="base_url_independent">Base URL (Independent)</string>
+    <string name="voice_model">Voice Model</string>
+    <string name="voice_model_hint">e.g., gpt-4o-mini-transcribe / glm-asr-2512</string>
+    <string name="voice_input_auto_config_hint">Voice input is auto configured. No need to fill in voice model.</string>
+    <string name="restore_defaults">Restore Defaults</string>
+    <string name="base_url_placeholder">https://.../v1</string>
+    <string name="api_key">API Key</string>
+    <string name="base_url">Base URL</string>
+
+    <!-- AddAppDialog -->
+    <string name="add_app_title">Add App</string>
+    <string name="no_apps_available">No apps available</string>
+    <string name="select_app">Select App</string>
+    <string name="search_placeholder">Search…</string>
+
+    <!-- VoiceInputDialog -->
+    <string name="state_recording">Recording…</string>
+    <string name="state_processing">Processing…</string>
+    <string name="state_transcribed">Recognized</string>
+    <string name="state_parsed">Parse complete</string>
+    <string name="state_error">Error</string>
+    <string name="declare_intent_default">Declare your intent</string>
+    <string name="current_app_label">Current app: %s</string>
+    <string name="continue_last_intent_button">Continue using last intent</string>
+    <string name="stop_recording_button">Stop recording</string>
+    <string name="recognizing_voice">Recognizing voice…</string>
+    <string name="recognized_content_label">Recognized:</string>
+    <string name="parsed_result_label">Parsed:</string>
+    <string name="intent_confirmed">Intent confirmed</string>
+    <string name="parsing_intent">Parsing intent…</string>
+    <string name="input_intent_label">Input your intent</string>
+    <string name="processing_label">Processing…</string>
+    <string name="confirm_button">Confirm</string>
+    <string name="start_voice_input_button">Start voice input</string>
+    <string name="use_text_input_button">Use text input</string>
+    <string name="skip_button">Skip</string>
+
+    <!-- ExportDialog -->
+    <string name="exporting_app_config">Importing app configuration…</string>
+    <string name="import_success">Import successful! Imported %d app configurations</string>
+    <string name="import_failed">Import failed: %s</string>
+    <string name="export_title">Export</string>
+    <string name="app_config">App Configuration</string>
+    <string name="logs">Logs</string>
+    <string name="runtime_events">Runtime Events</string>
+    <string name="export_app_config_desc">Export current monitored apps, preset intents, default intent, recent intent history and AI supplementary notes.</string>
+    <string name="exporting_app_config_ellipsis">Exporting app configuration…</string>
+    <string name="export_app_config_success">App configuration exported!</string>
+    <string name="export_app_config_failed">App configuration export failed</string>
+    <string name="export_app_config_failed_reason">App configuration export failed: %s</string>
+    <string name="export_logs_desc">Share all logs, or share logs by date range.</string>
+    <string name="start_date_label">Start date (yyyy-MM-dd)</string>
+    <string name="end_date_label">End date (yyyy-MM-dd)</string>
+    <string name="sharing_all_logs">Sharing all logs…</string>
+    <string name="share_all_logs_success">Share successful!</string>
+    <string name="share_all_logs_failed">Share failed, please check logs</string>
+    <string name="share_logs_failed_reason">Share failed: %s</string>
+    <string name="share_all_button">Share All</string>
+    <string name="sharing_logs">Sharing logs…</string>
+    <string name="share_date_range_button">Share Range</string>
+    <string name="export_runtime_events_desc">Export structured runtime events JSONL, filterable by time range.</string>
+    <string name="exporting_runtime_events">Exporting runtime events…</string>
+    <string name="export_runtime_events_success">Runtime events exported!</string>
+    <string name="export_runtime_events_failed">Runtime events export failed</string>
+    <string name="export_runtime_events_failed_reason">Runtime events export failed: %s</string>
+    <string name="export_all_button">Export All</string>
+    <string name="export_range_button">Export Range</string>
+    <string name="success">Success</string>
+    <string name="fail">Fail</string>
+    <string name="share_success">Share successful!</string>
+    <string name="share_failed_check_logs">Share failed, please check logs</string>
+    <string name="share_failed_reason">Share failed: %s</string>
+    <string name="share_failed_check_date_and_logs">Share failed, please check date format and logs</string>
+    <string name="date_format_error">Date format error</string>
+    <string name="export_button">Export</string>
+    <string name="import_button">Import</string>
 </resources>

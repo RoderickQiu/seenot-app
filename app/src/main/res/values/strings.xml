@@ -301,9 +301,6 @@
     <string name="toast_timing_format">⏱️ %s 计时中</string>
     <string name="toast_not_timing_format">⏱️ %s 未计时</string>
 
-    <!-- App general -->
-    <string name="app_general_scope">整个 app 都适用</string>
-
     <!-- RecordExporter / ConfigurationExporter -->
     <string name="export_creating_zip">正在创建ZIP文件...</string>
     <string name="configuration_organizing">正在整理配置...</string>

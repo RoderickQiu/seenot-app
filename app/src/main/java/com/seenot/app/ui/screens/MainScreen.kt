@@ -1241,7 +1241,7 @@ fun AppRulesDialog(
                     item {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = stringResource(R.string.app_general_scope),
+                            text = stringResource(R.string.scope_app_general),
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.secondary
                         )
@@ -1425,7 +1425,7 @@ private fun HintScopeSelector(
             FilterChip(
                 selected = selectedScopeType == AppHintScopeType.APP_GENERAL,
                 onClick = { onScopeTypeSelected(AppHintScopeType.APP_GENERAL) },
-                label = { Text(stringResource(R.string.app_general_scope)) }
+                label = { Text(stringResource(R.string.scope_app_general)) }
             )
             FilterChip(
                 selected = selectedScopeType == AppHintScopeType.INTENT_SPECIFIC,
