@@ -29,7 +29,8 @@ class FalsePositiveRuleReviewOverlay(
     private val titleText: String,
     private val subtitleText: String,
     private val onGenerate: ((FalsePositiveRulePreviewResult) -> Unit) -> Unit,
-    private val onSave: (String, AppHintScopeType, (FalsePositiveFeedbackResult) -> Unit) -> Unit
+    private val onSave: (String, AppHintScopeType, (FalsePositiveFeedbackResult) -> Unit) -> Unit,
+    private val onCancel: (() -> Unit)? = null
 ) {
     companion object {
         private const val TAG = "FalsePositiveRuleOverlay"
@@ -42,7 +43,8 @@ class FalsePositiveRuleReviewOverlay(
             titleText: String,
             subtitleText: String,
             onGenerate: ((FalsePositiveRulePreviewResult) -> Unit) -> Unit,
-            onSave: (String, AppHintScopeType, (FalsePositiveFeedbackResult) -> Unit) -> Unit
+            onSave: (String, AppHintScopeType, (FalsePositiveFeedbackResult) -> Unit) -> Unit,
+            onCancel: (() -> Unit)? = null
         ) {
             dismiss()
             val localizedContext = AppLocalePrefs.createLocalizedContext(context)
@@ -51,7 +53,8 @@ class FalsePositiveRuleReviewOverlay(
                 titleText = titleText,
                 subtitleText = subtitleText,
                 onGenerate = onGenerate,
-                onSave = onSave
+                onSave = onSave,
+                onCancel = onCancel
             )
             dialog.show()
             currentDialog = dialog.takeIf { it.rootView != null }
@@ -211,6 +214,7 @@ class FalsePositiveRuleReviewOverlay(
             textColor = primaryTextColor
         ) {
             dismiss()
+            onCancel?.invoke()
         }.apply {
             layoutParams = LinearLayout.LayoutParams(0, 48.dp(), 1f).apply {
                 marginEnd = 6.dp()

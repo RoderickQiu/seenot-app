@@ -335,6 +335,18 @@ class FalsePositiveRuleGenerator(private val context: Context) {
             null -> "用户纠正后：未知"
         }
 
+        val systemDecisionValue = when (record.constraintType) {
+            ConstraintType.TIME_CAP -> if (record.isConditionMatched) "in_scope" else "out_of_scope"
+            ConstraintType.DENY -> if (record.isConditionMatched) "safe" else "violates"
+            null -> "unknown"
+        }
+
+        val correctedDecisionValue = when (record.constraintType) {
+            ConstraintType.TIME_CAP -> if (record.isConditionMatched) "out_of_scope" else "in_scope"
+            ConstraintType.DENY -> if (record.isConditionMatched) "violates" else "safe"
+            null -> "unknown"
+        }
+
         val correctionGoalText = when (record.constraintType) {
             ConstraintType.TIME_CAP -> if (record.isConditionMatched) {
                 "这条规则必须帮助系统以后把同类页面判断为 out_of_scope（不计时），而不是 in_scope（计时）。"
@@ -356,15 +368,16 @@ class FalsePositiveRuleGenerator(private val context: Context) {
         }
 
         return """
-你是 SeeNot 的误报纠偏引擎。用户已经明确确认：下面这条判断是误报。
+你是 SeeNot 的误判纠偏引擎。用户已经明确确认：下面这条判断是误判。
 
-你的任务：基于原始 intent、当前截图、应用特点、已有补充规则和用户补充说明，生成 1 条新的“补充判断规则”，用于后续减少同类误报。
+你的任务：基于原始 intent、当前截图、应用特点、已有补充规则和用户补充说明，先判断"当前截图与这个 intent 的归属关系为什么错了"，再生成 1 条新的"补充判断规则"，用于后续减少同类误判。
 
 但你必须先判断这条规则更适合沉淀在哪一层：
 1. APP_GENERAL：适用于这个 app 的通用页面边界，可被多个 intent 复用
 2. INTENT_SPECIFIC：只适用于当前这一条 intent / 约束
 
-注意：用户已经明确确认“系统这次判断反了”。你必须以“用户纠正后的正确判断”为准生成规则，不能顺着系统原判断继续加强。
+注意：用户已经明确确认"系统这次判断反了"。你必须以"用户纠正后的正确判断"为准生成规则，不能顺着系统原判断继续加强。
+其中"系统错误解释"是本次误判的反例材料，不是可信事实；尤其不能把其中的页面名、模块名、功能名直接当作截图真实所在位置。
 
 要求：
 1. 只输出 1 条规则，必须具体、窄、可执行。
@@ -372,15 +385,40 @@ class FalsePositiveRuleGenerator(private val context: Context) {
 3. 如果你选择 APP_GENERAL，规则必须描述这个 app 的通用页面机制或通用边界，不要把当前主题词当成核心锚点。
 4. 如果你选择 INTENT_SPECIFIC，规则可以围绕当前 intent 的具体目标边界来写。
 5. 只有当截图里有直接、明确的界面证据能确认当前就在某个具体模块时，才允许在规则里写这个模块名；不要因为页面里出现了相关内容、入口、卡片、推荐流、预览、话题词，就推断用户已经进入那个模块。
-6. 如果不能高把握确认具体模块，就不要硬写模块名；优先改写成更稳健的页面边界描述，例如“在非目标模块中出现相关内容卡片/入口/预览时，不算进入目标模块”。
-7. 规则应该优先描述“页面边界 / 场景边界 / 功能边界”，而不是直接给出全局放行结论。
-8. 如果截图更像是“别的页面里出现了目标相关内容”，要明确区分“看到相关内容”与“已经进入目标模块/目标页面”是两回事，不能混为一谈。
-9. 规则方向必须和“用户纠正后”的正确判断一致；如果这次应该算计时，就生成帮助未来判为计时的规则；如果这次应该不计时，就生成帮助未来判为不计时的规则。
-10. 如果信息不足以生成高质量规则，返回 no_rule。
-11. 输出必须是 JSON，对象格式如下：
+6. 如果不能高把握确认具体模块，就不要硬写模块名；优先改写成更稳健的页面边界描述，例如"在非目标模块中出现相关内容卡片/入口/预览时，不算进入目标模块"。
+7. 规则应该优先描述"页面边界 / 场景边界 / 功能边界"，而不是直接给出全局放行结论。
+8. 如果截图更像是"别的页面里出现了目标相关内容"，要明确区分"看到相关内容"与"已经进入目标模块/目标页面"是两回事，不能混为一谈。
+9. 规则方向必须和"用户纠正后"的正确判断一致；如果这次应该算计时，就生成帮助未来判为计时的规则；如果这次应该不计时，就生成帮助未来判为不计时的规则。
+10. 必须严格按两个阶段完成任务：
+   - 阶段 A：先只回答"当前截图相对于当前 intent，为什么应该判成 `$correctedDecisionValue` 而不是 `$systemDecisionValue`"。这一步只允许围绕当前 intent 本身做 membership 判断。
+   - 阶段 B：再把阶段 A 的结论压缩成 1 条可复用的规则。
+   - 阶段 B 不得引入阶段 A 没有用到的新对照类、新来源路径或新页面假设。
+11. 必须先判断本次误判主要属于哪个错误层级，并在 `error_type` 中输出：
+   - SURFACE_CONTAINER：页面、模块、内容容器识别错
+   - CONTENT_TOPIC：页面/容器对了，但正文主题、对象、语义边界判断错
+   - ACTION_ENGAGEMENT：页面和内容相关，但用户行为强度判断错，例如入口/预览/曝光 vs 主动打开/消费/发布/互动
+   - SOURCE_PROVENANCE：承载页面和内容来源混淆，例如动态中分享的文章、卡片、外链、小程序、视频等
+   - STATE_MODE：同一功能下状态判断错，例如编辑态、发布态、详情态、评论区、搜索结果、通知页、设置页
+   - EVIDENCE_UNCERTAINTY：截图证据不足，系统却高置信猜测模块、主题或行为
+   - MIXED_UNKNOWN：多个层级混合或无法可靠区分
+12. 阶段 A 只能讨论"当前 intent 的纳入条件 / 排除条件 / 边界条件"，不能把注意力转移到无关 intent 或无关对照类。
+13. 如果你发现自己在解释时主要在说"它更像别的什么"，而不是"它为什么不属于当前 intent / 为什么属于当前 intent"，说明推理跑偏了；此时返回 no_rule。
+14. 生成规则必须只修正被选中的错误层级，不能跨层级改写 intent；如果错误层级不清楚，返回 no_rule。
+15. 只有当截图有直接页面结构证据确认当前就在目标模块/目标页面时，才可以把目标模块/目标页面写成规则前提。
+16. 如果 `error_type` 是 SURFACE_CONTAINER 或 EVIDENCE_UNCERTAINTY，且本次纠正方向是 out_of_scope/safe，规则应围绕"非目标页面/非目标容器不应被算作目标"写；不要把系统错误解释里的目标页面名当作前提。
+17. 如果 `error_type` 是 CONTENT_TOPIC，且截图证据确认当前确实在目标模块内，可以用目标模块作为前提来细化内容主题边界。
+18. 如果 `error_type` 是 SOURCE_PROVENANCE，必须明确本 intent 应按"承载页面/用户所在容器"还是按"内容来源/被打开的原始内容"判断，不能把二者混用。
+19. 当用户纠正为 out_of_scope/safe 时，规则只能排除非目标页面、非目标内容、非目标行为或证据不足场景；不能把原 intent 明确包含的核心目标排除掉。例：intent 是"朋友圈内容"时，不能生成"普通朋友圈图文动态不算朋友圈内容"；但 intent 是"体育相关朋友圈内容"时，可以在确认确实位于朋友圈的前提下细化"非体育主题不算"。
+20. 如果原始 intent 包含多个可选目标（例如"X 或者 Y"、"X 或 Y"、"X/Y"），且用户纠正后的正确判断是 out_of_scope/safe，那么规则必须说明当前截图为什么不属于任何一个可选目标；严禁加强其中任意一个目标的正向判断。若不能同时排除所有可选目标，返回 no_rule。
+21. 当用户纠正为 in_scope/violates 时，规则必须说明当前截图中哪些可见证据足以把它纳入原 intent；不能编造截图中不可见的来源路径、入口路径或上一跳页面。
+22. 严禁生成截图中没有直接证据的上下文前提，例如"在聊天窗口中发送/接收""从群聊打开""从朋友圈分享进入""从推荐流点击进入"。如果截图只展示已打开的内容详情，只能基于当前可见的详情页结构和内容证据写规则。
+23. `supplemental_rule` 必须描述页面边界、内容边界、行为边界或来源边界本身，不要把系统 decision 标签直接写进规则文本。禁止在规则正文中出现 `in_scope`、`out_of_scope`、`safe`、`violates`、`应判定为`、`应计时`、`不计时`、`违规`、`正常` 这类结果词；这些只能体现在你的内部推理和 `reason` 中，不能写进规则本身。
+24. 如果信息不足以判断错误层级或生成高质量规则，返回 no_rule。
+25. 输出必须是 JSON，对象格式如下：
 {
   "decision": "create_rule" 或 "no_rule",
   "scope_type": "APP_GENERAL" 或 "INTENT_SPECIFIC",
+  "error_type": "SURFACE_CONTAINER / CONTENT_TOPIC / ACTION_ENGAGEMENT / SOURCE_PROVENANCE / STATE_MODE / EVIDENCE_UNCERTAINTY / MIXED_UNKNOWN",
   "supplemental_rule": "规则文本",
   "reason": "一句话解释"
 }
@@ -397,12 +435,13 @@ class FalsePositiveRuleGenerator(private val context: Context) {
 当前 intent / 约束：
 $constraintsText
 
-这条误报 record：
+这条误判 record：
 - 约束类型：$recordConstraintType
-- 约束内容：${record.constraintContent ?: "未知"}
 - $judgmentText
 - $correctedJudgmentText
-- AI 对截图的描述：${record.aiResult ?: "未知"}
+- 系统原 decision：$systemDecisionValue
+- 用户纠正后的目标 decision：$correctedDecisionValue
+- 系统错误解释（只作反例，不可当作事实）：${record.aiResult ?: "未知"}
 
 本次纠正目标：
 - $correctionGoalText
@@ -515,10 +554,10 @@ ${userNote ?: "无"}
         val prompt = """
 你在做 SeeNot 的补充规则复用筛选。
 
-目标：判断哪些“旧 intent 的专属补充规则”可以安全地自动带入到“当前新 intent”。
+目标：判断哪些"旧 intent 的专属补充规则"可以安全地自动带入到"当前新 intent"。
 
 原则：
-1. 只允许选“非常确定仍然适用”的规则。
+1. 只允许选"非常确定仍然适用"的规则。
 2. 如果规则会改写当前 intent 定义、过度收窄、或只对旧 intent 特别成立，就不要选。
 3. 宁可少选，也不要误带。
 4. 最多选择 2 条。

@@ -772,6 +772,19 @@ class SessionManager(private val context: Context) {
                                 source = "intervention_dialog",
                                 onComplete = callback
                             )
+                        },
+                        onCancel = {
+                            scope.launch {
+                                delay(180L)
+                                actionExecutor?.executeIntervention(
+                                    constraint,
+                                    confidence,
+                                    "violation",
+                                    session.appDisplayName,
+                                    session.appPackageName,
+                                    analysisId
+                                )
+                            }
                         }
                     )
                 },
@@ -1190,14 +1203,16 @@ class SessionManager(private val context: Context) {
         title: String,
         subtitle: String,
         onGenerate: ((FalsePositiveRulePreviewResult) -> Unit) -> Unit,
-        onSave: (String, AppHintScopeType, (FalsePositiveFeedbackResult) -> Unit) -> Unit
+        onSave: (String, AppHintScopeType, (FalsePositiveFeedbackResult) -> Unit) -> Unit,
+        onCancel: (() -> Unit)? = null
     ) {
         FalsePositiveRuleReviewOverlay.show(
             context = context,
             titleText = title,
             subtitleText = subtitle,
             onGenerate = onGenerate,
-            onSave = onSave
+            onSave = onSave,
+            onCancel = onCancel
         )
     }
 
