@@ -399,7 +399,7 @@
     <string name="record_generate_title">Generate supplementary rule</string>
     <string name="record_marked_false_positive">You marked \"%1$s\" as misjudgment.</string>
     <string name="record_generate_hint">System will generate a supplementary rule based on the screenshot, current intent and app characteristics, and determine if it should apply to the entire app or just this intent.</string>
-    <string name="record_hint_placeholder_optional">Optional: e.g., I only use QQ for chat, not QQ空间</string>
+    <string name="record_hint_placeholder_optional">Optional: e.g., This is only a recommendation card, not the actual target page</string>
     <string name="record_generating_draft">Generating supplementary rule draft…</string>
     <string name="record_scope_suggestion">Suggested scope: %s</string>
     <string name="false_positive_status_format">%s · Suggested scope: %s</string>

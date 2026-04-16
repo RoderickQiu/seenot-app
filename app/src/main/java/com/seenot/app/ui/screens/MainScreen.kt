@@ -1082,7 +1082,7 @@ fun AppRulesDialog(
                         ) {
                             Column(modifier = Modifier.weight(1f)) {
                                 Text(
-                                    text = "${constraintTypeLabel(constraint.type)}: ${constraint.description}",
+                                    text = "${stringResource(constraintTypeLabel(constraint.type))}: ${constraint.description}",
                                     style = MaterialTheme.typography.bodySmall
                                 )
                             }
@@ -1163,7 +1163,7 @@ fun AppRulesDialog(
                             Column(modifier = Modifier.weight(1f)) {
                                 constraints.forEach { constraint ->
                                     Text(
-                                        text = "${constraintTypeLabel(constraint.type)}: ${constraint.description}",
+                                        text = "${stringResource(constraintTypeLabel(constraint.type))}: ${constraint.description}",
                                         style = MaterialTheme.typography.bodySmall
                                     )
                                 }
@@ -1287,7 +1287,7 @@ fun AppRulesDialog(
                     item {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = displayHintIntentLabel(group.first().intentLabel),
+                            text = displayHintIntentLabel(LocalContext.current, group.first().intentLabel),
                             style = MaterialTheme.typography.labelMedium,
                             color = MaterialTheme.colorScheme.secondary
                         )
@@ -1447,6 +1447,7 @@ private fun HintCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
+    val context = LocalContext.current
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -1464,7 +1465,7 @@ private fun HintCard(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    text = stringResource(R.string.intent_source_label, sourceLabelForHint(hint.source)),
+                    text = stringResource(R.string.intent_source_label, sourceLabelForHint(context, hint.source)),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant,
                     maxLines = 1
@@ -1534,9 +1535,9 @@ private suspend fun rebindHintsForEditedConstraints(
     }
 }
 
-private fun displayHintIntentLabel(rawLabel: String): String {
+private fun displayHintIntentLabel(context: Context, rawLabel: String): String {
     val match = Regex("""^(.*?)(?:\s*\((.*)\))?$""").matchEntire(rawLabel.trim()) ?: return rawLabel
-    val base = match.groupValues[1].trim()
+    val base = localizeStoredIntentBaseLabel(context, match.groupValues[1].trim())
     val extrasRaw = match.groupValues.getOrNull(2)?.trim().orEmpty()
     if (extrasRaw.isBlank()) return base
 
@@ -1558,6 +1559,20 @@ private fun displayHintIntentLabel(rawLabel: String): String {
     }
 }
 
+private fun localizeStoredIntentBaseLabel(context: Context, base: String): String {
+    return when {
+        base.startsWith("[DENY] ") -> "[${context.getString(R.string.rule_label_deny)}] ${base.removePrefix("[DENY] ").trim()}"
+        base == "[DENY]" -> "[${context.getString(R.string.rule_label_deny)}]"
+        base.startsWith("[TIME_CAP] ") -> "[${context.getString(R.string.rule_label_time_cap)}] ${base.removePrefix("[TIME_CAP] ").trim()}"
+        base == "[TIME_CAP]" -> "[${context.getString(R.string.rule_label_time_cap)}]"
+        base.startsWith("[禁止] ") -> "[${context.getString(R.string.rule_label_deny)}] ${base.removePrefix("[禁止] ").trim()}"
+        base == "[禁止]" -> "[${context.getString(R.string.rule_label_deny)}]"
+        base.startsWith("[时间限制] ") -> "[${context.getString(R.string.rule_label_time_cap)}] ${base.removePrefix("[时间限制] ").trim()}"
+        base == "[时间限制]" -> "[${context.getString(R.string.rule_label_time_cap)}]"
+        else -> base
+    }
+}
+
 private fun buildHintIntentOptions(
     context: Context,
     presetRules: List<SessionConstraint>,
@@ -1573,7 +1588,7 @@ private fun buildHintIntentOptions(
             intentId,
             HintIntentOption(
                 intentId = intentId,
-                intentLabel = displayHintIntentLabel(buildIntentScopedHintLabel(context, constraint))
+                intentLabel = displayHintIntentLabel(context, buildIntentScopedHintLabel(context, constraint))
             )
         )
     }
@@ -1586,7 +1601,7 @@ private fun buildHintIntentOptions(
             hint.intentId,
             HintIntentOption(
                 intentId = hint.intentId,
-                intentLabel = displayHintIntentLabel(hint.intentLabel)
+                intentLabel = displayHintIntentLabel(context, hint.intentLabel)
             )
         )
     }
@@ -1652,14 +1667,14 @@ private fun HintIntentSelector(
     }
 }
 
-@StringRes
-private fun sourceLabelForHint(source: String): Int {
-    return when (source) {
+private fun sourceLabelForHint(context: Context, source: String): String {
+    val labelRes = when (source) {
         APP_HINT_SOURCE_MANUAL -> R.string.source_manual
         APP_HINT_SOURCE_FEEDBACK_GENERATED -> R.string.source_feedback_generated
         APP_HINT_SOURCE_INTENT_CARRY_OVER -> R.string.source_intent_carry_over
         else -> R.string.source_manual
     }
+    return context.getString(labelRes)
 }
 
 /**

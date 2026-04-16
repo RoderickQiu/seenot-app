@@ -12,6 +12,7 @@ import android.graphics.drawable.GradientDrawable
 import com.seenot.app.R
 import com.seenot.app.utils.Logger
 import android.text.InputType
+import android.text.TextUtils
 import android.view.Gravity
 import android.view.KeyEvent
 import android.view.MotionEvent
@@ -101,6 +102,7 @@ class IntentInputDialogOverlay(
 
     private val scope = CoroutineScope(Dispatchers.Main + Job())
     private val density = context.resources.displayMetrics.density
+    private val screenHeight = context.resources.displayMetrics.heightPixels
 
     // Theme colors
     private val isDarkMode: Boolean
@@ -125,6 +127,7 @@ class IntentInputDialogOverlay(
     private var statusText: TextView? = null
     private var presetContainer: LinearLayout? = null
     private var historyContainer: LinearLayout? = null
+    private var historyScrollView: ScrollView? = null
     private var confirmButton: LinearLayout? = null
     private var confirmText: TextView? = null
     private var retryVoiceButton: TextView? = null
@@ -472,18 +475,10 @@ class IntentInputDialogOverlay(
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                // Max height for the history list
-            }
+            )
             isVerticalScrollBarEnabled = false
         }
-        // Limit the scroll view height
-        scrollView.layoutParams = LinearLayout.LayoutParams(
-            LinearLayout.LayoutParams.MATCH_PARENT,
-            LinearLayout.LayoutParams.WRAP_CONTENT
-        ).apply {
-            // We'll set a max-height later via measure tricks, or just add a few items
-        }
+        historyScrollView = scrollView
 
         historyContainer = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -627,6 +622,7 @@ class IntentInputDialogOverlay(
         }
 
         if (history.isEmpty()) {
+            updateHistoryScrollHeight(0)
             val emptyText = TextView(context).apply {
                 text = context.getString(R.string.intent_no_history_yet)
                 textSize = 13f
@@ -638,6 +634,7 @@ class IntentInputDialogOverlay(
             return
         }
 
+        updateHistoryScrollHeight(history.size)
         for ((index, constraints) in history.withIndex()) {
             val row = buildHistoryRow(constraints, isLatest = index == 0)
             historyContainer?.addView(row)
@@ -681,6 +678,7 @@ class IntentInputDialogOverlay(
             textSize = 14f
             setTextColor(textColor)
             maxLines = 6
+            ellipsize = TextUtils.TruncateAt.END
         }
         row.addView(descText)
 
@@ -801,10 +799,28 @@ class IntentInputDialogOverlay(
         return context.getString(R.string.hud_duration_minutes_short, value)
     }
 
-    private fun truncateIntentDescription(description: String, maxChars: Int = 12): String {
+    private fun getHistoryMaxHeightPx(): Int {
+        return minOf(220.dp(), (screenHeight * 0.28f).roundToInt())
+    }
+
+    private fun updateHistoryScrollHeight(itemCount: Int) {
+        val targetHeight = when {
+            itemCount <= 0 -> LinearLayout.LayoutParams.WRAP_CONTENT
+            else -> minOf(itemCount * 72.dp(), getHistoryMaxHeightPx())
+        }
+        historyScrollView?.layoutParams = (historyScrollView?.layoutParams as? LinearLayout.LayoutParams)
+            ?.apply { height = targetHeight }
+    }
+
+    private fun truncateIntentDescription(description: String, maxChars: Int = defaultIntentDescriptionMaxChars()): String {
         val text = description.trim()
         if (text.length <= maxChars) return text
         return text.take(maxChars).trimEnd() + "…"
+    }
+
+    private fun defaultIntentDescriptionMaxChars(): Int {
+        val isChineseUi = AppLocalePrefs.getLanguage(context) == AppLocalePrefs.LANG_ZH
+        return if (isChineseUi) 12 else 28
     }
 
     private fun submitTextIntent() {

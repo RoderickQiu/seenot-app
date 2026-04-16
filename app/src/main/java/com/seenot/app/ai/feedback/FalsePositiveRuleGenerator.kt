@@ -361,6 +361,35 @@ class FalsePositiveRuleGenerator(private val context: Context) {
             null -> "这条规则必须服务于用户这次纠正后的正确判断。"
         }
 
+        val denyCorrectionSemanticsText = when (record.constraintType) {
+            ConstraintType.DENY -> if (record.isConditionMatched) {
+                """
+                对这条 DENY 约束，这次用户纠正的真实语义是：当前截图其实应该被纳入"会触发干预/被禁止"的集合，而不是被排除在该集合外。
+                - 如果当前 intent 是直接禁止型 blocklist，这意味着：当前截图已经足以算作 description 所描述的被禁对象。
+                - 如果当前 intent 是补集型 exclusive/allowlist（例如"除 X 外的其他内容"），这意味着：当前截图仍不能被确认属于例外集合 X，因此仍应落在补集侧并触发干预。
+                - 因而你生成的规则必须帮助系统未来更容易把同类截图纳入触发集合；不能写成"哪些情况不算违规"、"哪些情况应放过"、或任何把当前截图排除出去的规则。
+                """.trimIndent()
+            } else {
+                """
+                对这条 DENY 约束，这次用户纠正的真实语义是：当前截图其实不应该被纳入"会触发干预/被禁止"的集合。
+                - 如果当前 intent 是直接禁止型 blocklist，这意味着：当前截图还不足以算作 description 所描述的被禁对象。
+                - 如果当前 intent 是补集型 exclusive/allowlist（例如"除 X 外的其他内容"），这意味着：当前截图已经有足够证据属于例外集合 X，或至少不能继续把它算作补集侧。
+                - 因而你生成的规则必须帮助系统未来把同类截图排除出触发集合；不能反过来加强禁止侧 membership。
+                """.trimIndent()
+            }
+            else -> "无"
+        }
+
+        val denyCorrectionSemanticsSection = if (record.constraintType == ConstraintType.DENY) {
+            """
+
+补充说明（仅适用于本次 DENY 纠正）：
+- $denyCorrectionSemanticsText
+            """.trimIndent()
+        } else {
+            ""
+        }
+
         val recordConstraintType = when (record.constraintType) {
             ConstraintType.DENY -> "禁止"
             ConstraintType.TIME_CAP -> "时间限制"
@@ -389,6 +418,14 @@ class FalsePositiveRuleGenerator(private val context: Context) {
 7. 规则应该优先描述"页面边界 / 场景边界 / 功能边界"，而不是直接给出全局放行结论。
 8. 如果截图更像是"别的页面里出现了目标相关内容"，要明确区分"看到相关内容"与"已经进入目标模块/目标页面"是两回事，不能混为一谈。
 9. 规则方向必须和"用户纠正后"的正确判断一致；如果这次应该算计时，就生成帮助未来判为计时的规则；如果这次应该不计时，就生成帮助未来判为不计时的规则。
+9.5. 对于 DENY 约束，你必须先判断它属于哪一种语义：
+   - 直接禁止型 blocklist：description 直接写被禁止内容，例如"朋友圈"、"视频号"
+   - 补集型 exclusive/allowlist：description 写的是"除 X 外的其他内容"、"all other content except X" 或等价语义，表示真正被允许/保留的是例外集合 X，而不是 description 里字面提到的"其他内容"
+   - 如果是补集型 exclusive/allowlist，后续所有 membership 判断都必须围绕"当前截图是否明确落在被允许的例外集合 X 内"来做；严禁把它当成普通 blocklist 去加强某个被禁对象，也严禁把补充规则写成"X 相关都放行"这种正向 allow 规则
+9.6. 如果当前约束是 DENY，必须额外遵守：
+   - 当用户纠正后的目标 decision 是 `violates` 时，你的核心任务是加强"当前截图属于触发集合"的 membership 判断，而不是描述如何把它排除出去。
+   - 当用户纠正后的目标 decision 是 `safe` 时，你的核心任务是加强"当前截图不属于触发集合"的排除条件，而不是描述如何把它纳入进去。
+   - 换句话说：`safe -> wrong` 在 DENY 下不表示"系统太严了要放松"，而表示"系统太松了，这里其实应该拦"。
 10. 必须严格按两个阶段完成任务：
    - 阶段 A：先只回答"当前截图相对于当前 intent，为什么应该判成 `$correctedDecisionValue` 而不是 `$systemDecisionValue`"。这一步只允许围绕当前 intent 本身做 membership 判断。
    - 阶段 B：再把阶段 A 的结论压缩成 1 条可复用的规则。
@@ -411,8 +448,17 @@ class FalsePositiveRuleGenerator(private val context: Context) {
 19. 当用户纠正为 out_of_scope/safe 时，规则只能排除非目标页面、非目标内容、非目标行为或证据不足场景；不能把原 intent 明确包含的核心目标排除掉。例：intent 是"朋友圈内容"时，不能生成"普通朋友圈图文动态不算朋友圈内容"；但 intent 是"体育相关朋友圈内容"时，可以在确认确实位于朋友圈的前提下细化"非体育主题不算"。
 20. 如果原始 intent 包含多个可选目标（例如"X 或者 Y"、"X 或 Y"、"X/Y"），且用户纠正后的正确判断是 out_of_scope/safe，那么规则必须说明当前截图为什么不属于任何一个可选目标；严禁加强其中任意一个目标的正向判断。若不能同时排除所有可选目标，返回 no_rule。
 21. 当用户纠正为 in_scope/violates 时，规则必须说明当前截图中哪些可见证据足以把它纳入原 intent；不能编造截图中不可见的来源路径、入口路径或上一跳页面。
+21.5. 特别地，当约束类型是 DENY 且目标 decision 是 `violates`：
+   - 如果是 blocklist，规则必须回答"当前截图具备哪些可见证据，因此已经算作被禁止对象"。
+   - 如果是补集型 exclusive/allowlist，规则必须回答"当前截图缺少哪些必要证据，因此仍不能算作例外集合 X，仍应落在补集/触发侧"。
+   - 不允许输出任何本质上把当前截图解释为 safe 的规则。
 22. 严禁生成截图中没有直接证据的上下文前提，例如"在聊天窗口中发送/接收""从群聊打开""从朋友圈分享进入""从推荐流点击进入"。如果截图只展示已打开的内容详情，只能基于当前可见的详情页结构和内容证据写规则。
 23. `supplemental_rule` 必须描述页面边界、内容边界、行为边界或来源边界本身，不要把系统 decision 标签直接写进规则文本。禁止在规则正文中出现 `in_scope`、`out_of_scope`、`safe`、`violates`、`应判定为`、`应计时`、`不计时`、`违规`、`正常` 这类结果词；这些只能体现在你的内部推理和 `reason` 中，不能写进规则本身。
+23.5. 如果当前 intent 是补集型 exclusive/allowlist（例如"除 X 外的其他内容" / "all other content except X"）：
+   - `supplemental_rule` 只能细化"什么情况下仍然不能确认属于例外集合 X"、或"例外集合 X 的必要页面/内容/行为证据是什么"
+   - 当本次纠正目标是 safe/out_of_scope 时，优先写"仅因出现 X 相关词、卡片、入口、推荐、预览，不能视为已落入例外集合 X"
+   - 当本次纠正目标是 violates/in_scope 时，优先写"只有哪些当前可见证据足以确认已落入例外集合 X，缺少这些证据时仍按补集处理"
+   - 不得把规则写成对 X 的泛化放行、不得把补集型 intent 改写成普通"禁止 Y"、也不得只排除某一个 Y 而忽略"除 X 外的其他内容"这一整体语义
 24. 如果信息不足以判断错误层级或生成高质量规则，返回 no_rule。
 25. 输出必须是 JSON，对象格式如下：
 {
@@ -445,6 +491,8 @@ $constraintsText
 
 本次纠正目标：
 - $correctionGoalText
+
+$denyCorrectionSemanticsSection
 
 已有通用边界规则：
 $appGeneralHintsText

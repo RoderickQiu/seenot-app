@@ -403,7 +403,7 @@
     <string name="record_generate_title">生成补充规则</string>
     <string name="record_marked_false_positive">您标记了 \"%1$s\" 为误判。</string>
     <string name="record_generate_hint">系统会结合这条记录的截图、当前意图和应用特点生成补充规则，并判断它更适合放在整个 app 通用还是只对这条意图生效。</string>
-    <string name="record_hint_placeholder_optional">可选：例如 我只用QQ聊天，不看QQ空间</string>
+    <string name="record_hint_placeholder_optional">可选：例如 这里只是推荐卡片，不算真正进入目标页面</string>
     <string name="record_generating_draft">正在生成补充规则草稿…</string>
     <string name="record_scope_suggestion">建议放在：%s</string>
     <string name="false_positive_status_format">%s · 建议放在：%s</string>

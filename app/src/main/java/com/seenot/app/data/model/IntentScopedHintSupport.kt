@@ -46,11 +46,13 @@ fun buildAppGeneralScopeLabel(context: Context?): String =
  */
 fun buildIntentScopedHintLabel(context: Context?, constraint: SessionConstraint): String {
     val typeLabel = when (constraint.type) {
-        ConstraintType.DENY -> context?.getString(R.string.rule_label_deny) ?: "禁止"
-        ConstraintType.TIME_CAP -> context?.getString(R.string.rule_label_time_cap) ?: "时间限制"
+        ConstraintType.DENY -> context?.getString(R.string.rule_label_deny) ?: ConstraintType.DENY.name
+        ConstraintType.TIME_CAP -> context?.getString(R.string.rule_label_time_cap) ?: ConstraintType.TIME_CAP.name
     }
     val extras = buildList {
-        constraint.timeLimitMs?.let { add(context?.getString(R.string.duration_minutes, it / 60000) ?: "${it / 60000}分钟") }
+        constraint.timeLimitMs?.let {
+            add(context?.getString(R.string.duration_minutes, it / 60000) ?: "${it / 60000}m")
+        }
         constraint.timeScope?.let { add(it.name) }
     }.joinToString(" / ")
 

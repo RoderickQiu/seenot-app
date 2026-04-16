@@ -9,6 +9,7 @@ import com.seenot.app.ai.feedback.GeneratedFalsePositiveRuleResult
 import com.seenot.app.ai.feedback.FalsePositiveRulePreview
 import com.seenot.app.ai.screen.ScreenAnalyzer
 import com.seenot.app.config.ApiConfig
+import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.data.local.SeenotDatabase
 import com.seenot.app.data.local.entity.IntentConstraintEntity
 import com.seenot.app.data.local.entity.SessionEntity
@@ -75,6 +76,11 @@ class SessionManager(private val context: Context) {
     }
 
     private val database = SeenotDatabase.getInstance(context)
+
+    private fun l10n(resId: Int, vararg args: Any): String {
+        return AppLocalePrefs.createLocalizedContext(context).getString(resId, *args)
+    }
+
     private val repository = SessionRepository(
         database.sessionDao(),
         database.sessionIntentDao(),
@@ -860,7 +866,7 @@ class SessionManager(private val context: Context) {
                     onComplete?.invoke(
                         FalsePositiveFeedbackResult(
                             success = false,
-                            userMessage = context.getString(R.string.error_no_fp_record)
+                            userMessage = l10n(R.string.error_no_fp_record)
                         )
                     )
                     return@launch
@@ -879,7 +885,7 @@ class SessionManager(private val context: Context) {
                 onComplete?.invoke(
                     FalsePositiveFeedbackResult(
                         success = false,
-                        userMessage = context.getString(R.string.error_record_fp_failed)
+                        userMessage = l10n(R.string.error_record_fp_failed)
                     )
                 )
             }
@@ -905,7 +911,7 @@ class SessionManager(private val context: Context) {
                     callback(
                         FalsePositiveRulePreviewResult(
                             success = false,
-                            userMessage = context.getString(R.string.error_no_fp_record)
+                            userMessage = l10n(R.string.error_no_fp_record)
                         )
                     )
                     return@launch
@@ -914,14 +920,14 @@ class SessionManager(private val context: Context) {
                 previewFalsePositiveRule(latestRecord, onComplete = callback)
             } catch (e: Exception) {
                 Logger.e(TAG, "Failed to preview violation false positive", e)
-                callback(
-                    FalsePositiveRulePreviewResult(
-                        success = false,
-                        userMessage = context.getString(R.string.error_generate_rule_failed)
+                    callback(
+                        FalsePositiveRulePreviewResult(
+                            success = false,
+                            userMessage = l10n(R.string.error_generate_rule_failed)
+                        )
                     )
-                )
+                }
             }
-        }
     }
 
     private fun saveFalsePositiveForLatestViolation(
@@ -946,7 +952,7 @@ class SessionManager(private val context: Context) {
                     onComplete(
                         FalsePositiveFeedbackResult(
                             success = false,
-                            userMessage = context.getString(R.string.error_no_fp_record)
+                            userMessage = l10n(R.string.error_no_fp_record)
                         )
                     )
                     return@launch
@@ -966,7 +972,7 @@ class SessionManager(private val context: Context) {
                 onComplete(
                     FalsePositiveFeedbackResult(
                         success = false,
-                        userMessage = context.getString(R.string.error_record_fp_failed)
+                        userMessage = l10n(R.string.error_record_fp_failed)
                     )
                 )
             }
@@ -1010,7 +1016,7 @@ class SessionManager(private val context: Context) {
                     onComplete?.invoke(
                         FalsePositiveFeedbackResult(
                             success = false,
-                            userMessage = context.getString(R.string.error_no_judgment_record)
+                            userMessage = l10n(R.string.error_no_judgment_record)
                         )
                     )
                     return@launch
@@ -1029,7 +1035,7 @@ class SessionManager(private val context: Context) {
                 onComplete?.invoke(
                     FalsePositiveFeedbackResult(
                         success = false,
-                        userMessage = context.getString(R.string.error_record_fp_failed)
+                        userMessage = l10n(R.string.error_record_fp_failed)
                     )
                 )
             }
@@ -1057,7 +1063,7 @@ class SessionManager(private val context: Context) {
                     onComplete(
                         FalsePositiveRulePreviewResult(
                             success = false,
-                            userMessage = context.getString(R.string.error_no_judgment_record)
+                            userMessage = l10n(R.string.error_no_judgment_record)
                         )
                     )
                     return@launch
@@ -1069,7 +1075,7 @@ class SessionManager(private val context: Context) {
                 onComplete(
                     FalsePositiveRulePreviewResult(
                         success = false,
-                        userMessage = context.getString(R.string.error_generate_rule_failed)
+                        userMessage = l10n(R.string.error_generate_rule_failed)
                     )
                 )
             }
@@ -1100,7 +1106,7 @@ class SessionManager(private val context: Context) {
                     onComplete(
                         FalsePositiveFeedbackResult(
                             success = false,
-                            userMessage = context.getString(R.string.error_no_judgment_record)
+                            userMessage = l10n(R.string.error_no_judgment_record)
                         )
                     )
                     return@launch
@@ -1120,7 +1126,7 @@ class SessionManager(private val context: Context) {
                 onComplete(
                     FalsePositiveFeedbackResult(
                         success = false,
-                        userMessage = context.getString(R.string.error_record_fp_failed)
+                        userMessage = l10n(R.string.error_record_fp_failed)
                     )
                 )
             }
@@ -1176,13 +1182,13 @@ class SessionManager(private val context: Context) {
                         generatedRule = preview.ruleText,
                         generatedScopeType = preview.scopeType,
                         generatedScopeLabel = when (preview.scopeType) {
-                            AppHintScopeType.APP_GENERAL -> context.getString(R.string.scope_app_general)
-                            AppHintScopeType.INTENT_SPECIFIC -> context.getString(R.string.scope_intent_specific)
+                            AppHintScopeType.APP_GENERAL -> l10n(R.string.scope_app_general)
+                            AppHintScopeType.INTENT_SPECIFIC -> l10n(R.string.scope_intent_specific)
                         },
                         userMessage = if (preview.ruleText.isNullOrBlank())
-                            context.getString(R.string.fp_draft_generated_poor)
+                            l10n(R.string.fp_draft_generated_poor)
                         else
-                            context.getString(R.string.fp_rule_generated)
+                            l10n(R.string.fp_rule_generated)
                     )
                 )
             } catch (e: Exception) {
@@ -1191,8 +1197,8 @@ class SessionManager(private val context: Context) {
                     FalsePositiveRulePreviewResult(
                         success = false,
                         generatedScopeType = AppHintScopeType.INTENT_SPECIFIC,
-                        generatedScopeLabel = context.getString(R.string.scope_intent_specific),
-                        userMessage = context.getString(R.string.error_generate_rule_failed)
+                        generatedScopeLabel = l10n(R.string.scope_intent_specific),
+                        userMessage = l10n(R.string.error_generate_rule_failed)
                     )
                 )
             }
@@ -1236,7 +1242,7 @@ class SessionManager(private val context: Context) {
             if (shouldPauseJudgment) {
                 isFalsePositiveLearningInProgress = true
                 withContext(Dispatchers.Main) {
-                    ToastOverlay.show(context, context.getString(R.string.fp_generating_pause))
+                    ToastOverlay.show(context, l10n(R.string.fp_generating_pause))
                 }
                 screenAnalyzer?.pauseAnalysis()
             }
@@ -1327,7 +1333,7 @@ class SessionManager(private val context: Context) {
                 FalsePositiveFeedbackResult(
                     success = false,
                     recordId = record.id,
-                    userMessage = context.getString(R.string.error_record_fp_failed)
+                    userMessage = l10n(R.string.error_record_fp_failed)
                 )
             } finally {
                 if (shouldPauseJudgment) {
@@ -1455,13 +1461,13 @@ class SessionManager(private val context: Context) {
     ): FalsePositiveFeedbackResult {
         val message = when {
             generated.ruleText != null && generated.reusedExistingHint ->
-                if (resumedJudgment) context.getString(R.string.fp_similar_rule_exists_resumed) else context.getString(R.string.fp_recorded_has_similar_rule)
+                if (resumedJudgment) l10n(R.string.fp_similar_rule_exists_resumed) else l10n(R.string.fp_recorded_has_similar_rule)
             generated.ruleText != null && generated.usedUserNoteFallback ->
-                if (resumedJudgment) context.getString(R.string.fp_rule_saved_resumed) else context.getString(R.string.fp_recorded_saved_rule)
+                if (resumedJudgment) l10n(R.string.fp_rule_saved_resumed) else l10n(R.string.fp_recorded_saved_rule)
             generated.ruleText != null ->
-                if (resumedJudgment) context.getString(R.string.fp_rule_generated_resumed) else context.getString(R.string.fp_recorded_generated_rule)
+                if (resumedJudgment) l10n(R.string.fp_rule_generated_resumed) else l10n(R.string.fp_recorded_generated_rule)
             else ->
-                if (resumedJudgment) context.getString(R.string.fp_recorded_this_resumed) else context.getString(R.string.fp_recorded)
+                if (resumedJudgment) l10n(R.string.fp_recorded_this_resumed) else l10n(R.string.fp_recorded)
         }
 
         return FalsePositiveFeedbackResult(
