@@ -54,8 +54,6 @@ class SeenotAccessibilityService : AccessibilityService() {
         private const val TAG = "SeenotAccessibility"
         private const val CHANNEL_ID = "seenot_accessibility"
         private const val NOTIFICATION_ID = 1001
-
-        // Debounce threshold: ignore app switches within this time (ms)
         private const val APP_SWITCH_DEBOUNCE_MS = 500L
 
         var instance: SeenotAccessibilityService? = null
@@ -244,7 +242,6 @@ class SeenotAccessibilityService : AccessibilityService() {
                         return
                     }
 
-                    // Debounce: ignore rapid switches
                     val now = System.currentTimeMillis()
                     if (now - lastAppSwitchTime < APP_SWITCH_DEBOUNCE_MS) {
                         Logger.d(TAG, "Debouncing app switch: $packageName (${now - lastAppSwitchTime}ms)")
