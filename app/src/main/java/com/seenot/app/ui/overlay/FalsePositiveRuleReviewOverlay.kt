@@ -40,8 +40,8 @@ class FalsePositiveRuleReviewOverlay(
 
         fun show(
             context: Context,
-            titleText: String,
-            subtitleText: String,
+            titleResId: Int,
+            subtitleResId: Int,
             onGenerate: ((FalsePositiveRulePreviewResult) -> Unit) -> Unit,
             onSave: (String, AppHintScopeType, (FalsePositiveFeedbackResult) -> Unit) -> Unit,
             onCancel: (() -> Unit)? = null
@@ -50,8 +50,8 @@ class FalsePositiveRuleReviewOverlay(
             val localizedContext = AppLocalePrefs.createLocalizedContext(context)
             val dialog = FalsePositiveRuleReviewOverlay(
                 context = localizedContext,
-                titleText = titleText,
-                subtitleText = subtitleText,
+                titleText = localizedContext.getString(titleResId),
+                subtitleText = localizedContext.getString(subtitleResId),
                 onGenerate = onGenerate,
                 onSave = onSave,
                 onCancel = onCancel

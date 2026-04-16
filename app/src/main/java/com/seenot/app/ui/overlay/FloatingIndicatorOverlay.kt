@@ -538,8 +538,8 @@ class FloatingIndicatorOverlay(
                     setOnClickListener {
                         FalsePositiveRuleReviewOverlay.show(
                             context = context,
-                            titleText = context.getString(R.string.hud_judgment_wrong_title),
-                            subtitleText = context.getString(R.string.hud_false_positive_review_subtitle),
+                            titleResId = R.string.hud_judgment_wrong_title,
+                            subtitleResId = R.string.hud_false_positive_review_subtitle,
                             onGenerate = { callback ->
                                 sessionManager.previewCurrentJudgmentFalsePositiveRule(
                                     constraintType = status.type,

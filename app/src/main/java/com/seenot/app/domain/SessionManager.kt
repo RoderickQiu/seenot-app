@@ -754,8 +754,8 @@ class SessionManager(private val context: Context) {
                     falsePositiveDialogCooldownUntil =
                         System.currentTimeMillis() + FALSE_POSITIVE_DIALOG_COOLDOWN_MS
                     showFalsePositiveReviewOverlay(
-                        title = context.getString(R.string.false_positive_review_title),
-                        subtitle = context.getString(R.string.false_positive_review_subtitle),
+                        titleResId = R.string.false_positive_review_title,
+                        subtitleResId = R.string.false_positive_review_subtitle,
                         onGenerate = { callback ->
                             previewFalsePositiveForLatestViolation(
                                 session = session,
@@ -1200,16 +1200,16 @@ class SessionManager(private val context: Context) {
     }
 
     private fun showFalsePositiveReviewOverlay(
-        title: String,
-        subtitle: String,
+        titleResId: Int,
+        subtitleResId: Int,
         onGenerate: ((FalsePositiveRulePreviewResult) -> Unit) -> Unit,
         onSave: (String, AppHintScopeType, (FalsePositiveFeedbackResult) -> Unit) -> Unit,
         onCancel: (() -> Unit)? = null
     ) {
         FalsePositiveRuleReviewOverlay.show(
             context = context,
-            titleText = title,
-            subtitleText = subtitle,
+            titleResId = titleResId,
+            subtitleResId = subtitleResId,
             onGenerate = onGenerate,
             onSave = onSave,
             onCancel = onCancel
