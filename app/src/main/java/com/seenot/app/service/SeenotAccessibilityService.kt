@@ -55,6 +55,10 @@ class SeenotAccessibilityService : AccessibilityService() {
         private const val CHANNEL_ID = "seenot_accessibility"
         private const val NOTIFICATION_ID = 1001
         private const val APP_SWITCH_DEBOUNCE_MS = 500L
+        private const val OVERLAY_WATCHDOG_MISSING_MS = 1500L
+        private const val OVERLAY_WATCHDOG_STREAK_WINDOW_MS = 1200L
+        private const val OVERLAY_WATCHDOG_MIN_EVENTS = 3
+        private const val OVERLAY_WATCHDOG_RECOVERY_COOLDOWN_MS = 5000L
 
         var instance: SeenotAccessibilityService? = null
 
@@ -82,6 +86,11 @@ class SeenotAccessibilityService : AccessibilityService() {
 
     private val gestureExecutor: Executor = Executors.newSingleThreadExecutor()
     private var lastAppSwitchTime = 0L
+    private var overlayMissingCandidatePackage: String? = null
+    private var overlayMissingCandidateFirstAt: Long = 0L
+    private var overlayMissingCandidateLastAt: Long = 0L
+    private var overlayMissingCandidateEventCount: Int = 0
+    private var lastOverlayRecoveryAt: Long = 0L
     private lateinit var sessionManager: SessionManager
     private var deviceStateReceiverRegistered = false
     
@@ -229,11 +238,14 @@ class SeenotAccessibilityService : AccessibilityService() {
                 return
             }
 
+            // logAccessibilityEventForTest(event)
+            maybeRecoverPausedSessionFromEvent(event)
+            maybeRecoverMissingOverlayFromEvent(event)
+
             when (event.eventType) {
                 AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
                     val packageName = event.packageName?.toString()
                     val className = event.className?.toString()
-                    Logger.d(TAG, "TYPE_WINDOW_STATE_CHANGED: $packageName, class: $className, current: ${_currentPackage.value}")
 
                     if (packageName == null) return
 
@@ -260,13 +272,29 @@ class SeenotAccessibilityService : AccessibilityService() {
                         // can incorrectly resume sessions while the user is still on desktop.
                         val isLauncher = isLauncher(packageName)
                         val isCapable = isCapableClass(className)
-                        if (isCapable || isLauncher) {
+                        val controlledApps = SessionManager.getInstance(this).controlledApps.value
+                        val currentPackage = _currentPackage.value
+                        val isEnteringControlledApp = packageName in controlledApps
+                        val isLeavingControlledContext = currentPackage in controlledApps
+                        val shouldTrackForeground =
+                            isCapable ||
+                                isLauncher ||
+                                isEnteringControlledApp ||
+                                isLeavingControlledContext
+
+                        if (shouldTrackForeground) {
                             Logger.d(TAG, "App switched to: $packageName")
                             lastAppSwitchTime = now
                             _currentPackage.value = packageName
                             checkAndShowOverlay(packageName, className)
                         } else {
-                            Logger.d(TAG, "Not a capable class: $className, skipping package update for $packageName")
+                            Logger.d(
+                                TAG,
+                                "Not tracking package update for $packageName, class=$className, " +
+                                    "isCapable=$isCapable, isLauncher=$isLauncher, " +
+                                    "isEnteringControlledApp=$isEnteringControlledApp, " +
+                                    "isLeavingControlledContext=$isLeavingControlledContext"
+                            )
                         }
                     } else {
                         Logger.d(TAG, "Same package, skipping: $packageName")
@@ -279,6 +307,131 @@ class SeenotAccessibilityService : AccessibilityService() {
         } catch (e: Exception) {
             Logger.e(TAG, "Error in onAccessibilityEvent", e)
         }
+    }
+
+    private fun maybeRecoverPausedSessionFromEvent(event: AccessibilityEvent) {
+        val packageName = event.packageName?.toString() ?: return
+        if (packageName == this.packageName) return
+
+        val recoverableEvent =
+            event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+                event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
+                event.eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED
+        if (!recoverableEvent) return
+
+        if (isSystemApp(packageName) && !isLauncher(packageName)) {
+            return
+        }
+
+        val sessionManager = SessionManager.getInstance(this)
+        val resumed = sessionManager.resumePausedSessionFromAccessibilityEvent(
+            packageName = packageName,
+            eventType = event.eventType,
+            eventSourceClassName = event.className?.toString()
+        )
+        if (!resumed) return
+
+        Logger.d(
+            TAG,
+            "Recovered paused session from event stream: " +
+                "package=$packageName, event=${AccessibilityEvent.eventTypeToString(event.eventType)}"
+        )
+        _currentPackage.value = packageName
+        currentMonitoredPackage = packageName
+        lastExitedPackage = null
+        lastExitedTime = 0L
+    }
+
+    private fun maybeRecoverMissingOverlayFromEvent(event: AccessibilityEvent) {
+        val packageName = event.packageName?.toString() ?: return
+        if (packageName == this.packageName) return
+
+        val eventType = event.eventType
+        val recoverableEvent =
+            eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
+                eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
+                eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED
+        if (!recoverableEvent) return
+
+        if (isSystemApp(packageName) && !isLauncher(packageName)) return
+
+        val controlledApps = SessionManager.getInstance(this).controlledApps.value
+        if (packageName !in controlledApps) {
+            resetOverlayMissingCandidate(packageName)
+            return
+        }
+
+        if (isAnySessionOverlayShowing()) {
+            resetOverlayMissingCandidate(packageName)
+            return
+        }
+
+        val now = System.currentTimeMillis()
+        if (now - lastOverlayRecoveryAt < OVERLAY_WATCHDOG_RECOVERY_COOLDOWN_MS) {
+            return
+        }
+
+        if (
+            overlayMissingCandidatePackage != packageName ||
+                now - overlayMissingCandidateLastAt > OVERLAY_WATCHDOG_STREAK_WINDOW_MS
+        ) {
+            overlayMissingCandidatePackage = packageName
+            overlayMissingCandidateFirstAt = now
+            overlayMissingCandidateLastAt = now
+            overlayMissingCandidateEventCount = 1
+            return
+        }
+
+        overlayMissingCandidateLastAt = now
+        overlayMissingCandidateEventCount += 1
+
+        val missingDuration = now - overlayMissingCandidateFirstAt
+        if (
+            overlayMissingCandidateEventCount >= OVERLAY_WATCHDOG_MIN_EVENTS &&
+                missingDuration >= OVERLAY_WATCHDOG_MISSING_MS
+        ) {
+            Logger.w(
+                TAG,
+                "Overlay watchdog recovering missing overlay for $packageName " +
+                    "(events=$overlayMissingCandidateEventCount, missingMs=$missingDuration)"
+            )
+            lastOverlayRecoveryAt = now
+            forceRestartOverlayForCurrentApp(packageName)
+            resetOverlayMissingCandidate(packageName)
+        }
+    }
+
+    private fun isAnySessionOverlayShowing(): Boolean {
+        return FloatingIndicatorOverlay.isShowing() || IntentInputDialogOverlay.isShowing()
+    }
+
+    private fun resetOverlayMissingCandidate(packageName: String? = null) {
+        if (packageName != null && overlayMissingCandidatePackage != packageName) {
+            return
+        }
+        overlayMissingCandidatePackage = null
+        overlayMissingCandidateFirstAt = 0L
+        overlayMissingCandidateLastAt = 0L
+        overlayMissingCandidateEventCount = 0
+    }
+
+    private fun logAccessibilityEventForTest(event: AccessibilityEvent) {
+        val packageName = event.packageName?.toString()
+        val className = event.className?.toString()
+        val eventName = AccessibilityEvent.eventTypeToString(event.eventType)
+        val contentChangeTypes =
+            if (event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+                event.contentChangeTypes
+            } else {
+                0
+            }
+
+        Logger.d(
+            TAG,
+            "[TEST][A11Y] event=$eventName, package=$packageName, class=$className, " +
+                "current=${_currentPackage.value}, contentChangeTypes=$contentChangeTypes, " +
+                "windowId=${event.windowId}"
+        )
     }
 
     // Track last class name for capable class check
@@ -578,10 +731,11 @@ class SeenotAccessibilityService : AccessibilityService() {
     }
 
     fun forceRestartOverlayForCurrentApp(packageName: String) {
-        if (_currentPackage.value != packageName) {
+        val foregroundPackage = resolveForegroundPackage()
+        if (foregroundPackage != packageName) {
             Logger.d(
                 TAG,
-                "forceRestartOverlayForCurrentApp ignored: foreground=${_currentPackage.value}, requested=$packageName"
+                "forceRestartOverlayForCurrentApp ignored: foreground=$foregroundPackage, requested=$packageName"
             )
             return
         }
@@ -589,6 +743,7 @@ class SeenotAccessibilityService : AccessibilityService() {
         serviceScope.launch {
             try {
                 Logger.d(TAG, "Force restarting overlay flow for current app: $packageName")
+                _currentPackage.value = packageName
                 currentMonitoredPackage = null
                 lastExitedPackage = null
                 lastExitedTime = 0L
@@ -602,6 +757,14 @@ class SeenotAccessibilityService : AccessibilityService() {
                 Logger.e(TAG, "Failed to force restart overlay for $packageName", e)
             }
         }
+    }
+
+    private fun resolveForegroundPackage(): String? {
+        val activeWindowPackage = rootInActiveWindow?.packageName?.toString()
+        if (!activeWindowPackage.isNullOrBlank()) {
+            return activeWindowPackage
+        }
+        return _currentPackage.value
     }
 
     private fun dismissAllOverlays() {

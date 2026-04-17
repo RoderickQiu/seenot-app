@@ -475,6 +475,30 @@ class SessionManager(private val context: Context) {
         return System.currentTimeMillis() - pausedAt <= SHORT_PAUSE_THRESHOLD
     }
 
+    fun resumePausedSessionFromAccessibilityEvent(
+        packageName: String,
+        eventType: Int,
+        eventSourceClassName: String?
+    ): Boolean {
+        val active = _activeSession.value ?: return false
+        if (!active.isPaused || active.appPackageName != packageName) {
+            return false
+        }
+
+        if (!hasResumableSession(packageName)) {
+            return false
+        }
+
+        Logger.d(
+            TAG,
+            ">>> Resuming paused session from accessibility event: " +
+                "pkg=$packageName, eventType=$eventType, class=$eventSourceClassName"
+        )
+        resumeSession()
+        sessionPausedAt = null
+        return true
+    }
+
     private suspend fun onControlledAppExited(@Suppress("UNUSED_PARAMETER") packageName: String) {
         stopScreenAnalysis()
         
