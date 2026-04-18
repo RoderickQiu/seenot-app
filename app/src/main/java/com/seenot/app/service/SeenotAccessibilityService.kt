@@ -28,9 +28,13 @@ import androidx.core.content.ContextCompat
 import androidx.core.app.NotificationCompat
 import com.seenot.app.MainActivity
 import com.seenot.app.R
+import com.seenot.app.config.IntentReminderPrefs
 import com.seenot.app.domain.SessionManager
+import com.seenot.app.observability.RuntimeEventLogger
+import com.seenot.app.observability.RuntimeEventType
 import com.seenot.app.ui.overlay.FloatingIndicatorOverlay
 import com.seenot.app.ui.overlay.IntentInputDialogOverlay
+import com.seenot.app.ui.overlay.IntentReminderOverlay
 import com.seenot.app.ui.overlay.JudgmentFeedbackConfirmOverlay
 import com.seenot.app.ui.overlay.VoiceInputOverlay
 import kotlinx.coroutines.CoroutineScope
@@ -93,6 +97,60 @@ class SeenotAccessibilityService : AccessibilityService() {
     private var lastOverlayRecoveryAt: Long = 0L
     private lateinit var sessionManager: SessionManager
     private var deviceStateReceiverRegistered = false
+    private val runtimeEventLogger by lazy { RuntimeEventLogger.getInstance(this) }
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var pendingIntentReminderPackage: String? = null
+    private var pendingIntentReminderAppName: String? = null
+    private var pendingIntentReminderCount: Int = 0
+    private val pendingIntentReminderRunnable = Runnable {
+        val packageName = pendingIntentReminderPackage ?: return@Runnable
+        val appName = pendingIntentReminderAppName ?: packageName
+        val sessionManager = SessionManager.getInstance(this)
+        if (!shouldShowIntentReminder(packageName, sessionManager)) {
+            return@Runnable
+        }
+        pendingIntentReminderCount += 1
+        runtimeEventLogger.log(
+            eventType = RuntimeEventType.INTENT_REMINDER_SHOWN,
+            sessionId = null,
+            appPackage = packageName,
+            appDisplayName = appName,
+            payload = mapOf(
+                "delay_ms" to IntentReminderPrefs.getDelayMs(this),
+                "reminder_count" to pendingIntentReminderCount
+            )
+        )
+        IntentReminderOverlay.show(
+            context = this,
+            appName = appName,
+            onSetIntentNow = {
+                runtimeEventLogger.log(
+                    eventType = RuntimeEventType.INTENT_REMINDER_SET_NOW,
+                    sessionId = null,
+                    appPackage = packageName,
+                    appDisplayName = appName,
+                    payload = mapOf("reminder_count" to pendingIntentReminderCount)
+                )
+                cancelPendingIntentReminder()
+                showIntentInputDialog(
+                    packageName = packageName,
+                    appName = appName,
+                    sessionManager = sessionManager,
+                    allowDefaultRuleAutoApply = false
+                )
+            },
+            onLater = {
+                runtimeEventLogger.log(
+                    eventType = RuntimeEventType.INTENT_REMINDER_DEFERRED,
+                    sessionId = null,
+                    appPackage = packageName,
+                    appDisplayName = appName,
+                    payload = mapOf("reminder_count" to pendingIntentReminderCount)
+                )
+                scheduleIntentReminder(packageName, appName)
+            }
+        )
+    }
     
     // Service-level coroutine scope to prevent leaks
     private val serviceScope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -340,6 +398,7 @@ class SeenotAccessibilityService : AccessibilityService() {
         currentMonitoredPackage = packageName
         lastExitedPackage = null
         lastExitedTime = 0L
+        cancelPendingIntentReminder()
     }
 
     private fun maybeRecoverMissingOverlayFromEvent(event: AccessibilityEvent) {
@@ -357,6 +416,7 @@ class SeenotAccessibilityService : AccessibilityService() {
 
         val controlledApps = SessionManager.getInstance(this).controlledApps.value
         if (packageName !in controlledApps) {
+            cancelPendingIntentReminder(packageName)
             resetOverlayMissingCandidate(packageName)
             return
         }
@@ -501,6 +561,7 @@ class SeenotAccessibilityService : AccessibilityService() {
                 // Switch from one monitored app to another
                 isSwitchingToDifferentApp && isControlledApp -> {
                     Logger.d(TAG, "Case: Switching monitored app: $previousPackage -> $packageName")
+                    cancelPendingIntentReminder()
                     dismissAllOverlays()
                     showIndicatorAndOverlay(packageName)
                 }
@@ -510,6 +571,7 @@ class SeenotAccessibilityService : AccessibilityService() {
                     lastExitedPackage = previousPackage
                     lastExitedTime = System.currentTimeMillis()
                     currentMonitoredPackage = null
+                    cancelPendingIntentReminder()
                 }
                 // Enter monitored app from non-monitored
                 !wasInMonitoredApp && isControlledApp -> {
@@ -540,6 +602,7 @@ class SeenotAccessibilityService : AccessibilityService() {
                     dismissAllOverlays()
                     lastExitedPackage = null
                     lastExitedTime = 0L
+                    cancelPendingIntentReminder()
                     
                     showIndicatorAndOverlay(packageName, isQuickReturn = false)
                 }
@@ -554,6 +617,7 @@ class SeenotAccessibilityService : AccessibilityService() {
                         Logger.d(TAG, "Stale exit cleared")
                         lastExitedPackage = null
                         lastExitedTime = 0L
+                        cancelPendingIntentReminder()
                         dismissAllOverlays()
                     }
                 }
@@ -596,6 +660,7 @@ class SeenotAccessibilityService : AccessibilityService() {
         showLeadingIndicator: Boolean = true
     ) {
         currentMonitoredPackage = packageName
+        cancelPendingIntentReminder(packageName)
 
         Logger.d(
             TAG,
@@ -669,6 +734,7 @@ class SeenotAccessibilityService : AccessibilityService() {
             onIntentConfirmed = { constraints ->
                 Logger.d(TAG, ">>> Intent confirmed, creating session for $packageName")
                 isSessionBeingCreated = true
+                cancelPendingIntentReminder(packageName)
                 IntentInputDialogOverlay.dismiss()
                 FloatingIndicatorOverlay.dismiss()
 
@@ -708,7 +774,15 @@ class SeenotAccessibilityService : AccessibilityService() {
             onDismissed = {
                 Logger.d(TAG, "Dialog dismissed without confirming")
                 isSessionBeingCreated = false
+                runtimeEventLogger.log(
+                    eventType = RuntimeEventType.INTENT_INPUT_DISMISSED,
+                    sessionId = null,
+                    appPackage = packageName,
+                    appDisplayName = appName,
+                    payload = mapOf("trigger" to "intent_input_dialog")
+                )
                 showCompactIndicator(packageName, appName, sessionManager)
+                scheduleIntentReminder(packageName, appName)
             },
             allowDefaultRuleAutoApply = allowDefaultRuleAutoApply
         )
@@ -725,9 +799,46 @@ class SeenotAccessibilityService : AccessibilityService() {
             packageName = packageName,
             sessionManager = sessionManager,
             onTapToReopen = {
+                cancelPendingIntentReminder(packageName)
                 showIntentInputDialog(packageName, appName, sessionManager, allowDefaultRuleAutoApply = false)
             }
         )
+    }
+
+    private fun scheduleIntentReminder(packageName: String, appName: String) {
+        if (!IntentReminderPrefs.isEnabled(this)) {
+            cancelPendingIntentReminder()
+            return
+        }
+        val delayMs = IntentReminderPrefs.getDelayMs(this)
+        cancelPendingIntentReminder()
+        pendingIntentReminderPackage = packageName
+        pendingIntentReminderAppName = appName
+        mainHandler.postDelayed(pendingIntentReminderRunnable, delayMs)
+    }
+
+    private fun cancelPendingIntentReminder(packageName: String? = null) {
+        if (packageName != null && pendingIntentReminderPackage != packageName) {
+            return
+        }
+        mainHandler.removeCallbacks(pendingIntentReminderRunnable)
+        pendingIntentReminderPackage = null
+        pendingIntentReminderAppName = null
+        pendingIntentReminderCount = 0
+        IntentReminderOverlay.dismiss()
+    }
+
+    private fun shouldShowIntentReminder(packageName: String, sessionManager: SessionManager): Boolean {
+        val foregroundPackage = resolveForegroundPackage()
+        val isStillForeground = foregroundPackage == packageName || _currentPackage.value == packageName
+        if (!isStillForeground) return false
+        if (isSessionBeingCreated) return false
+        if (sessionManager.activeSession.value?.appPackageName == packageName) return false
+        if (sessionManager.hasResumableSession(packageName)) return false
+        if (IntentInputDialogOverlay.isShowing()) return false
+        if (FloatingIndicatorOverlay.isExpanded()) return false
+        val controlledApps = sessionManager.controlledApps.value
+        return packageName in controlledApps
     }
 
     fun forceRestartOverlayForCurrentApp(packageName: String) {
@@ -747,6 +858,7 @@ class SeenotAccessibilityService : AccessibilityService() {
                 currentMonitoredPackage = null
                 lastExitedPackage = null
                 lastExitedTime = 0L
+                cancelPendingIntentReminder()
                 dismissAllOverlays()
                 showIndicatorAndOverlay(
                     packageName = packageName,
@@ -769,6 +881,7 @@ class SeenotAccessibilityService : AccessibilityService() {
 
     private fun dismissAllOverlays() {
         IntentInputDialogOverlay.dismiss()
+        IntentReminderOverlay.dismiss()
         FloatingIndicatorOverlay.dismiss()
         JudgmentFeedbackConfirmOverlay.dismiss()
         VoiceInputOverlay.dismiss()
@@ -786,6 +899,7 @@ class SeenotAccessibilityService : AccessibilityService() {
         try {
             super.onDestroy()
             serviceScope.cancel()
+            cancelPendingIntentReminder()
             unregisterDeviceStateReceiver()
             stopForeground(STOP_FOREGROUND_REMOVE)
             dismissAllOverlays()
@@ -800,6 +914,7 @@ class SeenotAccessibilityService : AccessibilityService() {
     override fun onUnbind(intent: Intent?): Boolean {
         try {
             unregisterDeviceStateReceiver()
+            cancelPendingIntentReminder()
             instance = null
             _isServiceReady.value = false
             return super.onUnbind(intent)

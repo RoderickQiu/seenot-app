@@ -229,6 +229,10 @@
     <string name="intent_time_scope_suffix"> %s%s分</string>
     <string name="intent_retry">再说一次</string>
     <string name="intent_skip">跳过</string>
+    <string name="intent_reminder_title">还没设置这次意图</string>
+    <string name="intent_reminder_subtitle">如果继续用这个 app，先设一下意图或规则会更稳妥。</string>
+    <string name="intent_reminder_set_now">现在设置</string>
+    <string name="intent_reminder_later">稍后再说</string>
     <string name="common_or">或</string>
     <string name="common_error">出错</string>
 
@@ -565,11 +569,18 @@
     <string name="settings_ai_title">AI</string>
     <string name="settings_model_desc">模型、语音输入和服务商设置</string>
     <string name="experience_settings">使用体验</string>
-    <string name="experience_settings_desc">影响首页展示和启动方式</string>
+    <string name="experience_settings_desc">影响首页展示、启动方式和意图提醒</string>
     <string name="show_today_timeline">首页显示今日时间轴</string>
     <string name="show_today_timeline_desc">关闭后，首页不再显示今日时间轴</string>
     <string name="auto_start_on_boot">开机时自动启动</string>
     <string name="auto_start_on_boot_desc">系统启动后自动运行 SeeNot</string>
+    <string name="intent_reminder_enabled_title">没设意图时提醒我</string>
+    <string name="intent_reminder_enabled_desc">进入受控 app 后，如果一直没设置意图，稍后再提醒一次</string>
+    <string name="intent_reminder_delay_title">意图提醒延迟</string>
+    <string name="intent_reminder_delay_desc">可选 30 秒到 10 分钟；关闭后不再弹出这类提醒</string>
+    <string name="intent_reminder_delay_30_seconds">30 秒</string>
+    <string name="intent_reminder_delay_1_minute">1 分钟</string>
+    <string name="intent_reminder_delay_minutes">%s 分钟</string>
     <string name="judgment_records">判断记录</string>
     <string name="judgment_records_desc">决定要不要保存判断历史，以及是否即时提醒</string>
     <string name="save_judgment_records">保存判断记录</string>

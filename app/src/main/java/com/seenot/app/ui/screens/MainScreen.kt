@@ -43,6 +43,7 @@ import com.seenot.app.config.SttSettings
 import com.seenot.app.config.recommendedSttModelPresets
 import com.seenot.app.config.selectableProviders
 import com.seenot.app.config.selectableSttProviders
+import com.seenot.app.config.IntentReminderPrefs
 import com.seenot.app.config.RuleRecordingPrefs
 import com.seenot.app.domain.SessionManager
 import com.seenot.app.service.SeenotAccessibilityService
@@ -2196,6 +2197,9 @@ fun SettingsTab(
     var saveRuleRecords by remember { mutableStateOf(RuleRecordingPrefs.isEnabled(context)) }
     var showHomeTimeline by remember { mutableStateOf(RuleRecordingPrefs.isHomeTimelineEnabled(context)) }
     var showAnalysisResultToast by remember { mutableStateOf(RuleRecordingPrefs.isAnalysisResultToastEnabled(context)) }
+    var intentReminderEnabled by remember { mutableStateOf(IntentReminderPrefs.isEnabled(context)) }
+    var intentReminderDelayMs by remember { mutableLongStateOf(IntentReminderPrefs.getDelayMs(context)) }
+    var intentReminderDropdownExpanded by remember { mutableStateOf(false) }
     var screenshotMode by remember { mutableStateOf(RuleRecordingPrefs.getScreenshotMode(context)) }
     var screenshotDropdownExpanded by remember { mutableStateOf(false) }
     var showLogExportDialog by remember { mutableStateOf(false) }
@@ -2221,6 +2225,12 @@ fun SettingsTab(
                 "Qwen · $aiPresetLabel"
             else -> "${context.getString(aiSettings.provider.displayNameResId)} · $aiPresetLabel"
         }
+    }
+    val intentReminderOptions = remember {
+        IntentReminderPrefs.supportedDelayOptionsMs
+    }
+    val selectedIntentReminderDelayLabel = remember(intentReminderDelayMs, context) {
+        IntentReminderPrefs.formatDelayLabel(context, intentReminderDelayMs)
     }
 
     var selectedLanguage by remember { mutableStateOf(AppLocalePrefs.getLanguage(context)) }
@@ -2344,6 +2354,44 @@ fun SettingsTab(
                     sessionManager.setAutoStartEnabled(it)
                 }
             )
+            HorizontalDivider()
+            SettingsSwitchRow(
+                title = stringResource(R.string.intent_reminder_enabled_title),
+                summary = stringResource(R.string.intent_reminder_enabled_desc),
+                checked = intentReminderEnabled,
+                onCheckedChange = {
+                    intentReminderEnabled = it
+                    IntentReminderPrefs.setEnabled(context, it)
+                }
+            )
+            if (intentReminderEnabled) {
+                HorizontalDivider()
+                Box {
+                    SettingsDropdownRow(
+                        title = stringResource(R.string.intent_reminder_delay_title),
+                        summary = stringResource(R.string.intent_reminder_delay_desc),
+                        value = selectedIntentReminderDelayLabel,
+                        expanded = intentReminderDropdownExpanded,
+                        onClick = { intentReminderDropdownExpanded = !intentReminderDropdownExpanded }
+                    )
+                    DropdownMenu(
+                        expanded = intentReminderDropdownExpanded,
+                        onDismissRequest = { intentReminderDropdownExpanded = false },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        intentReminderOptions.forEach { delayMs ->
+                            DropdownMenuItem(
+                                text = { Text(IntentReminderPrefs.formatDelayLabel(context, delayMs)) },
+                                onClick = {
+                                    intentReminderDelayMs = delayMs
+                                    IntentReminderPrefs.setDelayMs(context, delayMs)
+                                    intentReminderDropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))

@@ -225,6 +225,10 @@
     <string name="intent_time_scope_suffix"> %s%smin</string>
     <string name="intent_retry">Try again</string>
     <string name="intent_skip">Skip</string>
+    <string name="intent_reminder_title">No intent set yet</string>
+    <string name="intent_reminder_subtitle">If you plan to keep using this app, set an intent or rule first.</string>
+    <string name="intent_reminder_set_now">Set now</string>
+    <string name="intent_reminder_later">Later</string>
     <string name="common_or">Or</string>
     <string name="common_error">Error</string>
 
@@ -559,11 +563,18 @@
     <string name="settings_ai_title">AI</string>
     <string name="settings_model_desc">Model, voice input and provider settings</string>
     <string name="experience_settings">Experience Settings</string>
-    <string name="experience_settings_desc">Affects home screen display and startup behavior</string>
+    <string name="experience_settings_desc">Affects home display, startup behavior, and intent reminders</string>
     <string name="show_today_timeline">Show today\'s timeline on home</string>
     <string name="show_today_timeline_desc">When off, home screen will not show today\'s timeline</string>
     <string name="auto_start_on_boot">Auto start on boot</string>
     <string name="auto_start_on_boot_desc">Automatically run SeeNot when system starts</string>
+    <string name="intent_reminder_enabled_title">Remind when no intent is set</string>
+    <string name="intent_reminder_enabled_desc">If you stay in a controlled app without setting intent, remind again later</string>
+    <string name="intent_reminder_delay_title">Intent reminder delay</string>
+    <string name="intent_reminder_delay_desc">Choose from 30 seconds to 10 minutes; turn it off to disable this reminder</string>
+    <string name="intent_reminder_delay_30_seconds">30 seconds</string>
+    <string name="intent_reminder_delay_1_minute">1 minute</string>
+    <string name="intent_reminder_delay_minutes">%s minutes</string>
     <string name="judgment_records">Judgment Records</string>
     <string name="judgment_records_desc">Decide whether to save judgment history and whether to remind immediately</string>
     <string name="save_judgment_records">Save Judgment Records</string>
