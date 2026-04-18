@@ -761,14 +761,14 @@ class SessionManager(private val context: Context) {
                 context = context,
                 appName = session.appDisplayName,
                 constraintDescription = constraint.description,
-                titleText = if (isGentle) context.getString(R.string.dialog_title_pause) else context.getString(R.string.dialog_title_pause_confirm),
+                titleText = if (isGentle) l10n(R.string.dialog_title_pause) else l10n(R.string.dialog_title_pause_confirm),
                 subtitleText = if (isGentle) {
-                    context.getString(R.string.dialog_subtitle_gentle_deviation)
+                    l10n(R.string.dialog_subtitle_gentle_deviation)
                 } else {
-                    context.getString(R.string.dialog_subtitle_moderate_deviation)
+                    l10n(R.string.dialog_subtitle_moderate_deviation)
                 },
-                primaryButtonText = if (isGentle) context.getString(R.string.dialog_btn_back_to_task) else context.getString(R.string.dialog_btn_exit),
-                secondaryButtonText = if (isGentle) context.getString(R.string.dialog_btn_continue) else null,
+                primaryButtonText = if (isGentle) l10n(R.string.dialog_btn_back_to_task) else l10n(R.string.dialog_btn_exit),
+                secondaryButtonText = if (isGentle) l10n(R.string.dialog_btn_continue) else null,
                 onFalsePositive = {
                     logRuntimeEvent(
                         eventType = RuntimeEventType.USER_MARKED_MISUNDERSTAND,

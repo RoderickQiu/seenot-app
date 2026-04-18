@@ -7,6 +7,7 @@ import android.os.VibratorManager
 import com.seenot.app.data.model.InterventionLevel
 import com.seenot.app.data.repository.RuleRecordRepository
 import com.seenot.app.domain.SessionConstraint
+import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.observability.RuntimeEventLogger
 import com.seenot.app.observability.RuntimeEventType
 import com.seenot.app.R
@@ -57,6 +58,10 @@ class ActionExecutor(private val context: Context) {
     // Callback for HUD updates
     private var onViolationWarning: ((String) -> Unit)? = null
     private var onActionTaken: ((ActionType) -> Unit)? = null
+
+    private fun l10n(resId: Int, vararg args: Any): String {
+        return AppLocalePrefs.createLocalizedContext(context).getString(resId, *args)
+    }
 
     fun executeUserConfirmedReturn(
         constraint: SessionConstraint,
@@ -306,16 +311,16 @@ class ActionExecutor(private val context: Context) {
                     val minutes = ms / 60000
                     val seconds = (ms % 60000) / 1000
                     when {
-                        minutes > 0 && seconds > 0 -> context.getString(R.string.duration_minutes_seconds, minutes, seconds)
-                        minutes > 0 -> context.getString(R.string.duration_minutes, minutes)
-                        else -> context.getString(R.string.duration_seconds, seconds)
+                        minutes > 0 && seconds > 0 -> l10n(R.string.duration_minutes_seconds, minutes, seconds)
+                        minutes > 0 -> l10n(R.string.duration_minutes, minutes)
+                        else -> l10n(R.string.duration_seconds, seconds)
                     }
-                } ?: context.getString(R.string.label_time)
-                context.getString(R.string.toast_time_limit_reached, constraint.description, timeLimit)
+                } ?: l10n(R.string.label_time)
+                l10n(R.string.toast_time_limit_reached, constraint.description, timeLimit)
             }
             com.seenot.app.data.model.ConstraintType.DENY -> {
                 // DENY: show violation warning
-                context.getString(R.string.toast_violation_warning, constraint.description)
+                l10n(R.string.toast_violation_warning, constraint.description)
             }
         }
 
@@ -338,9 +343,9 @@ class ActionExecutor(private val context: Context) {
 
         // Show toast before action
         val message = when {
-            reason == REASON_GENTLE_CONFIRMED_RETURN -> context.getString(R.string.toast_return_to_task)
-            constraint.type == com.seenot.app.data.model.ConstraintType.TIME_CAP -> context.getString(R.string.toast_time_up_auto_return)
-            else -> context.getString(R.string.toast_violation_auto_return)
+            reason == REASON_GENTLE_CONFIRMED_RETURN -> l10n(R.string.toast_return_to_task)
+            constraint.type == com.seenot.app.data.model.ConstraintType.TIME_CAP -> l10n(R.string.toast_time_up_auto_return)
+            else -> l10n(R.string.toast_violation_auto_return)
         }
         
         scope.launch {
@@ -398,9 +403,9 @@ class ActionExecutor(private val context: Context) {
 
         // Show toast before action
         val message = when {
-            reason == REASON_GENTLE_CONFIRMED_RETURN -> context.getString(R.string.toast_distraction_ended)
-            constraint.type == com.seenot.app.data.model.ConstraintType.TIME_CAP -> context.getString(R.string.toast_time_up_return_home)
-            else -> context.getString(R.string.toast_severe_violation_return)
+            reason == REASON_GENTLE_CONFIRMED_RETURN -> l10n(R.string.toast_distraction_ended)
+            constraint.type == com.seenot.app.data.model.ConstraintType.TIME_CAP -> l10n(R.string.toast_time_up_return_home)
+            else -> l10n(R.string.toast_severe_violation_return)
         }
         ToastOverlay.show(context, message)
 
