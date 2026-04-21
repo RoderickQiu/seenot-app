@@ -330,10 +330,10 @@ class SeenotAccessibilityService : AccessibilityService() {
                         // can incorrectly resume sessions while the user is still on desktop.
                         val isLauncher = isLauncher(packageName)
                         val isCapable = isCapableClass(className)
-                        val controlledApps = SessionManager.getInstance(this).controlledApps.value
+                        val sessionManager = SessionManager.getInstance(this)
                         val currentPackage = _currentPackage.value
-                        val isEnteringControlledApp = packageName in controlledApps
-                        val isLeavingControlledContext = currentPackage in controlledApps
+                        val isEnteringControlledApp = sessionManager.isAppMonitoringEnabled(packageName)
+                        val isLeavingControlledContext = sessionManager.isAppMonitoringEnabled(currentPackage)
                         val shouldTrackForeground =
                             isCapable ||
                                 isLauncher ||
@@ -414,8 +414,8 @@ class SeenotAccessibilityService : AccessibilityService() {
 
         if (isSystemApp(packageName) && !isLauncher(packageName)) return
 
-        val controlledApps = SessionManager.getInstance(this).controlledApps.value
-        if (packageName !in controlledApps) {
+        val sessionManager = SessionManager.getInstance(this)
+        if (!sessionManager.isAppMonitoringEnabled(packageName)) {
             cancelPendingIntentReminder(packageName)
             resetOverlayMissingCandidate(packageName)
             return
@@ -542,10 +542,7 @@ class SeenotAccessibilityService : AccessibilityService() {
         try {
             // Get controlled apps from SessionManager
             val sessionManager = SessionManager.getInstance(this)
-            val controlledApps = sessionManager.controlledApps.value
-            Logger.d(TAG, "controlledApps: $controlledApps")
-
-            val isControlledApp = packageName in controlledApps
+            val isControlledApp = sessionManager.isAppMonitoringEnabled(packageName)
             Logger.d(TAG, "isControlledApp: $isControlledApp for $packageName")
 
             // Get previous monitored package
@@ -837,8 +834,7 @@ class SeenotAccessibilityService : AccessibilityService() {
         if (sessionManager.hasResumableSession(packageName)) return false
         if (IntentInputDialogOverlay.isShowing()) return false
         if (FloatingIndicatorOverlay.isExpanded()) return false
-        val controlledApps = sessionManager.controlledApps.value
-        return packageName in controlledApps
+        return sessionManager.isAppMonitoringEnabled(packageName)
     }
 
     fun forceRestartOverlayForCurrentApp(packageName: String) {

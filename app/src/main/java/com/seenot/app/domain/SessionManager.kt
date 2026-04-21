@@ -1,7 +1,11 @@
 package com.seenot.app.domain
 
+import android.app.AlarmManager
+import android.app.PendingIntent
 import android.content.Context
+import android.content.Intent
 import android.content.SharedPreferences
+import android.os.Build
 import com.google.gson.Gson
 import com.seenot.app.R
 import com.seenot.app.ai.feedback.FalsePositiveRuleGenerator
@@ -25,6 +29,7 @@ import com.seenot.app.data.repository.SessionRepository
 import com.seenot.app.domain.action.ActionExecutor
 import com.seenot.app.observability.RuntimeEventLogger
 import com.seenot.app.observability.RuntimeEventType
+import com.seenot.app.receiver.AppMonitoringResumeReceiver
 import com.seenot.app.service.SeenotAccessibilityService
 import com.seenot.app.ui.overlay.InterventionFeedbackDialogOverlay
 import com.seenot.app.ui.overlay.FalsePositiveRuleReviewOverlay
@@ -55,6 +60,7 @@ class SessionManager(private val context: Context) {
         private const val KEY_PRESET_RULES_PREFIX = "preset_rules_"
         private const val KEY_DEFAULT_RULE_PREFIX = "default_rule_"
         private const val KEY_AUTO_START = "auto_start"
+        private const val KEY_PAUSED_APP_MONITORING = "paused_app_monitoring"
         private const val MAX_HISTORY_PER_APP = 10
 
         // Short vs long session pause threshold (ms)
@@ -95,6 +101,7 @@ class SessionManager(private val context: Context) {
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
     private val prefs: SharedPreferences = context.getSharedPreferences(PREFS_NAME, Context.MODE_PRIVATE)
+    private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
     private val gson = Gson()
 
@@ -107,6 +114,10 @@ class SessionManager(private val context: Context) {
     // Controlled apps set (from settings)
     private val _controlledApps = MutableStateFlow<Set<String>>(loadControlledApps())
     val controlledApps: StateFlow<Set<String>> = _controlledApps.asStateFlow()
+
+    // Per-app monitoring pause state.
+    private val _pausedMonitoringApps = MutableStateFlow(loadPausedMonitoringApps())
+    val pausedMonitoringApps: StateFlow<Map<String, AppMonitoringPause>> = _pausedMonitoringApps.asStateFlow()
 
     // Session events
     private val _sessionEvents = MutableSharedFlow<SessionEvent>()
@@ -181,6 +192,7 @@ class SessionManager(private val context: Context) {
         // Start listening for app changes
         Logger.d(TAG, "SessionManager initializing, observing app changes")
         Logger.i(TAG, "SessionManager initializing, observing app changes")
+        refreshPausedMonitoringState("init")
         observeAppChanges()
         observeDeviceStateChanges()
     }
@@ -358,7 +370,7 @@ class SessionManager(private val context: Context) {
 
         Logger.d(TAG, "App changed to: $packageName, controlled apps: $controlled")
 
-        if (packageName in controlled) {
+        if (packageName in controlled && isAppMonitoringEnabled(packageName)) {
             // User entered a controlled app
             Logger.d(TAG, "Entered controlled app: $packageName")
             onControlledAppEntered(packageName)
@@ -1781,6 +1793,140 @@ class SessionManager(private val context: Context) {
         Logger.d(TAG, "Saved controlled apps: $apps")
     }
 
+    private fun loadPausedMonitoringApps(): Map<String, AppMonitoringPause> {
+        val json = prefs.getString(KEY_PAUSED_APP_MONITORING, null) ?: return emptyMap()
+        return try {
+            @Suppress("UNCHECKED_CAST")
+            val raw = gson.fromJson(json, Map::class.java) as Map<String, Any?>
+            raw.mapNotNull { (packageName, value) ->
+                val resumeAt = when (value) {
+                    null -> null
+                    is Number -> value.toLong().takeIf { it > 0L }
+                    is String -> value.toLongOrNull()?.takeIf { it > 0L }
+                    else -> null
+                }
+                packageName.takeIf { it.isNotBlank() }?.let {
+                    it to AppMonitoringPause(packageName = it, resumeAt = resumeAt)
+                }
+            }.toMap()
+        } catch (e: Exception) {
+            Logger.e(TAG, "Failed to load paused monitoring apps", e)
+            emptyMap()
+        }
+    }
+
+    private fun savePausedMonitoringApps(pausedApps: Map<String, AppMonitoringPause>) {
+        val payload = pausedApps.mapValues { (_, pause) -> pause.resumeAt }
+        prefs.edit().putString(KEY_PAUSED_APP_MONITORING, gson.toJson(payload)).apply()
+        Logger.d(TAG, "Saved paused monitoring apps: $payload")
+    }
+
+    private fun buildResumeMonitoringIntent(packageName: String): PendingIntent {
+        val intent = Intent(context, AppMonitoringResumeReceiver::class.java).apply {
+            action = AppMonitoringResumeReceiver.ACTION_RESUME_APP_MONITORING
+            putExtra(AppMonitoringResumeReceiver.EXTRA_PACKAGE_NAME, packageName)
+        }
+        val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        return PendingIntent.getBroadcast(
+            context,
+            packageName.hashCode(),
+            intent,
+            flags
+        )
+    }
+
+    private fun scheduleAppMonitoringResume(packageName: String, resumeAt: Long) {
+        val pendingIntent = buildResumeMonitoringIntent(packageName)
+        alarmManager.cancel(pendingIntent)
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+            alarmManager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, resumeAt, pendingIntent)
+        } else {
+            alarmManager.set(AlarmManager.RTC_WAKEUP, resumeAt, pendingIntent)
+        }
+        Logger.d(TAG, "Scheduled monitoring resume for $packageName at $resumeAt")
+    }
+
+    private fun cancelAppMonitoringResume(packageName: String) {
+        val pendingIntent = buildResumeMonitoringIntent(packageName)
+        alarmManager.cancel(pendingIntent)
+    }
+
+    fun refreshPausedMonitoringState(triggerSource: String = "external") {
+        val now = System.currentTimeMillis()
+        val current = loadPausedMonitoringApps()
+        val active = current.filterValues { pause -> pause.resumeAt == null || pause.resumeAt > now }
+        val expiredPackages = current.keys - active.keys
+
+        _pausedMonitoringApps.value = active
+        if (expiredPackages.isNotEmpty() || current != active) {
+            savePausedMonitoringApps(active)
+        }
+
+        active.values.forEach { pause ->
+            pause.resumeAt?.let { scheduleAppMonitoringResume(pause.packageName, it) }
+        }
+        expiredPackages.forEach { packageName ->
+            cancelAppMonitoringResume(packageName)
+            Logger.d(TAG, "Expired paused monitoring restored for $packageName via $triggerSource")
+        }
+    }
+
+    fun pauseAppMonitoring(packageName: String, durationMs: Long?) {
+        val resumeAt = durationMs?.let { System.currentTimeMillis() + it }
+        val updated = _pausedMonitoringApps.value.toMutableMap().apply {
+            this[packageName] = AppMonitoringPause(packageName = packageName, resumeAt = resumeAt)
+        }
+        _pausedMonitoringApps.value = updated
+        savePausedMonitoringApps(updated)
+        if (resumeAt != null) {
+            scheduleAppMonitoringResume(packageName, resumeAt)
+        } else {
+            cancelAppMonitoringResume(packageName)
+        }
+
+        if (_activeSession.value?.appPackageName == packageName) {
+            scope.launch {
+                endSession(SessionEndReason.USER_LEFT)
+            }
+        }
+        suspendedSessions.remove(packageName)
+        Logger.d(TAG, "Paused monitoring for $packageName until=$resumeAt")
+    }
+
+    fun resumeAppMonitoring(packageName: String, triggerSource: String = "manual") {
+        val updated = _pausedMonitoringApps.value.toMutableMap()
+        if (updated.remove(packageName) == null) return
+
+        _pausedMonitoringApps.value = updated
+        savePausedMonitoringApps(updated)
+        cancelAppMonitoringResume(packageName)
+
+        if (SeenotAccessibilityService.currentPackage.value == packageName) {
+            SeenotAccessibilityService.instance?.forceRestartOverlayForCurrentApp(packageName)
+        }
+        Logger.d(TAG, "Resumed monitoring for $packageName via $triggerSource")
+    }
+
+    fun getAppMonitoringPause(packageName: String): AppMonitoringPause? {
+        val pause = _pausedMonitoringApps.value[packageName] ?: return null
+        val resumeAt = pause.resumeAt ?: return pause
+        return if (resumeAt > System.currentTimeMillis()) {
+            pause
+        } else {
+            resumeAppMonitoring(packageName, triggerSource = "expired_on_read")
+            null
+        }
+    }
+
+    fun isAppMonitoringPaused(packageName: String): Boolean {
+        return getAppMonitoringPause(packageName) != null
+    }
+
+    fun isAppMonitoringEnabled(packageName: String?): Boolean {
+        if (packageName.isNullOrBlank()) return false
+        return packageName in _controlledApps.value && !isAppMonitoringPaused(packageName)
+    }
+
     /**
      * Save intent for an app. Persists as "last intent" and also appends to
      * the per-app history list (deduplicated by constraint fingerprint).
@@ -2070,6 +2216,12 @@ class SessionManager(private val context: Context) {
         val newApps = _controlledApps.value - packageName
         _controlledApps.value = newApps
         saveControlledApps(newApps)
+        val updatedPausedApps = _pausedMonitoringApps.value.toMutableMap()
+        if (updatedPausedApps.remove(packageName) != null) {
+            _pausedMonitoringApps.value = updatedPausedApps
+            savePausedMonitoringApps(updatedPausedApps)
+            cancelAppMonitoringResume(packageName)
+        }
         Logger.d(TAG, "Removed controlled app: $packageName")
     }
 
@@ -2132,6 +2284,14 @@ data class ActiveSession(
     val constraintTimeRemaining: Map<String, Long?> = emptyMap(),
     val violationCount: Int = 0
 )
+
+data class AppMonitoringPause(
+    val packageName: String,
+    val resumeAt: Long?
+) {
+    val isPermanent: Boolean
+        get() = resumeAt == null
+}
 
 private data class PendingSessionStartContext(
     val triggerSource: String,

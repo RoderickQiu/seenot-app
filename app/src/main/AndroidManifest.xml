@@ -82,6 +82,10 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".receiver.AppMonitoringResumeReceiver"
+            android:exported="false" />
+
         <!-- FileProvider for exports -->
         <provider
             android:name="androidx.core.content.FileProvider"
