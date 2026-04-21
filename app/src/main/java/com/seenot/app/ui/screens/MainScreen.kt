@@ -1,10 +1,14 @@
 package com.seenot.app.ui.screens
 
+import android.net.Uri
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
 import android.content.pm.PackageManager
+import android.os.Build
+import android.os.PowerManager
 import android.provider.Settings
+import android.text.format.DateUtils
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -16,6 +20,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
+import androidx.compose.material.icons.filled.PauseCircle
+import androidx.compose.material.icons.filled.PlayCircle
 import androidx.compose.material.icons.outlined.StarBorder
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -46,6 +52,7 @@ import com.seenot.app.config.selectableSttProviders
 import com.seenot.app.config.IntentReminderPrefs
 import com.seenot.app.config.RuleRecordingPrefs
 import com.seenot.app.domain.SessionManager
+import com.seenot.app.domain.AppMonitoringPause
 import com.seenot.app.service.SeenotAccessibilityService
 import com.seenot.app.ai.voice.VoiceInputManager
 import com.seenot.app.ai.voice.VoiceRecordingState
@@ -97,6 +104,7 @@ fun MainScreen(
     var isOverlayEnabled by remember { mutableStateOf(false) }
     var isNotificationEnabled by remember { mutableStateOf(false) }
     var isMicrophoneEnabled by remember { mutableStateOf(false) }
+    var isBatteryOptimizationIgnored by remember { mutableStateOf(false) }
     var showVoiceInput by remember { mutableStateOf(startWithVoiceInput) }
     var currentVoiceInputPackage by remember { mutableStateOf(voiceInputPackageName) }
 
@@ -109,6 +117,12 @@ fun MainScreen(
     ) {
         // Refresh overlay permission status when returning from settings
         isOverlayEnabled = Settings.canDrawOverlays(context)
+    }
+
+    val batteryOptimizationLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        isBatteryOptimizationIgnored = isBatteryOptimizationIgnored(context)
     }
 
     // Notification permission launcher
@@ -157,8 +171,17 @@ fun MainScreen(
             android.content.pm.PackageManager.PERMISSION_GRANTED
     }
 
+    // Check battery optimization exemption
+    LaunchedEffect(Unit) {
+        isBatteryOptimizationIgnored = isBatteryOptimizationIgnored(context)
+    }
+
     // Determine if required permissions are granted. Microphone is optional because text input works.
-    val allPermissionsGranted = isAccessibilityEnabled && isOverlayEnabled && isNotificationEnabled
+    val allPermissionsGranted =
+        isAccessibilityEnabled &&
+            isOverlayEnabled &&
+            isNotificationEnabled &&
+            isBatteryOptimizationIgnored
     val isAiConfigured = remember(showAiSettingsDialog) { ApiConfig.isConfigured() }
     val isHomeReady = allPermissionsGranted && isAiConfigured
 
@@ -207,8 +230,8 @@ fun MainScreen(
                         isAccessibilityEnabled = isAccessibilityEnabled,
                         isOverlayEnabled = isOverlayEnabled,
                         isNotificationEnabled = isNotificationEnabled,
+                        isBatteryOptimizationIgnored = isBatteryOptimizationIgnored,
                         isMicrophoneEnabled = isMicrophoneEnabled,
-                        allPermissionsGranted = allPermissionsGranted,
                         isAiConfigured = isAiConfigured,
                         isHomeReady = isHomeReady,
                         onEnableAccessibility = {
@@ -217,6 +240,11 @@ fun MainScreen(
                         onEnableOverlay = {
                             overlayPermissionLauncher.launch(
                                 Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+                            )
+                        },
+                        onRequestIgnoreBatteryOptimizations = {
+                            batteryOptimizationLauncher.launch(
+                                createBatteryOptimizationIntent(context)
                             )
                         },
                         onRequestMicrophone = {
@@ -300,12 +328,13 @@ fun HomeTab(
     isAccessibilityEnabled: Boolean,
     isOverlayEnabled: Boolean,
     isNotificationEnabled: Boolean,
+    isBatteryOptimizationIgnored: Boolean,
     isMicrophoneEnabled: Boolean,
-    allPermissionsGranted: Boolean,
     isAiConfigured: Boolean,
     isHomeReady: Boolean,
     onEnableAccessibility: () -> Unit,
     onEnableOverlay: () -> Unit,
+    onRequestIgnoreBatteryOptimizations: () -> Unit,
     onRequestMicrophone: () -> Unit,
     onOpenAiSettings: () -> Unit,
     showHomeTimeline: Boolean,
@@ -371,6 +400,15 @@ fun HomeTab(
                 description = stringResource(R.string.permission_notification_desc),
                 isEnabled = isNotificationEnabled,
                 onClick = { /* Notification permission handled automatically */ }
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            PermissionCard(
+                title = stringResource(R.string.permission_battery_optimization),
+                description = stringResource(R.string.permission_battery_optimization_desc),
+                isEnabled = isBatteryOptimizationIgnored,
+                onClick = onRequestIgnoreBatteryOptimizations
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -597,6 +635,27 @@ fun PermissionCard(
     }
 }
 
+private fun isBatteryOptimizationIgnored(context: Context): Boolean {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) return true
+    val powerManager = context.getSystemService(PowerManager::class.java) ?: return false
+    return powerManager.isIgnoringBatteryOptimizations(context.packageName)
+}
+
+private fun createBatteryOptimizationIntent(context: Context): Intent {
+    if (Build.VERSION.SDK_INT < Build.VERSION_CODES.M) {
+        return Intent(Settings.ACTION_SETTINGS)
+    }
+
+    val requestIntent = Intent(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS).apply {
+        data = Uri.parse("package:${context.packageName}")
+    }
+    return if (requestIntent.resolveActivity(context.packageManager) != null) {
+        requestIntent
+    } else {
+        Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+    }
+}
+
 /**
  * Step Item
  */
@@ -632,17 +691,26 @@ fun AppsTab(modifier: Modifier = Modifier) {
 
     // State for controlled apps from SessionManager
     var controlledApps by remember { mutableStateOf<Set<String>>(emptySet()) }
+    var pausedMonitoringApps by remember { mutableStateOf<Map<String, AppMonitoringPause>>(emptyMap()) }
 
     // State for add app dialog
     var showAddAppDialog by remember { mutableStateOf(false) }
     // State for app rules dialog
     var selectedAppForRules by remember { mutableStateOf<AppInfo?>(null) }
+    var selectedAppForPause by remember { mutableStateOf<AppInfo?>(null) }
+    var selectedAppForDelete by remember { mutableStateOf<AppInfo?>(null) }
 
     // Collect controlled apps from SessionManager
     LaunchedEffect(Unit) {
         controlledApps = sessionManager.controlledApps.value
+        pausedMonitoringApps = sessionManager.pausedMonitoringApps.value
         sessionManager.controlledApps.collectLatest {
             controlledApps = it
+        }
+    }
+    LaunchedEffect(Unit) {
+        sessionManager.pausedMonitoringApps.collectLatest {
+            pausedMonitoringApps = it
         }
     }
 
@@ -724,11 +792,18 @@ fun AppsTab(modifier: Modifier = Modifier) {
                 items(controlledAppList) { app ->
                     AppItem(
                         app = app,
+                        pause = pausedMonitoringApps[app.packageName],
                         onDelete = {
-                            sessionManager.removeControlledApp(app.packageName)
+                            selectedAppForDelete = app
                         },
                         onEditRules = {
                             selectedAppForRules = app
+                        },
+                        onPauseMonitoring = {
+                            selectedAppForPause = app
+                        },
+                        onResumeMonitoring = {
+                            sessionManager.resumeAppMonitoring(app.packageName)
                         }
                     )
                 }
@@ -755,6 +830,51 @@ fun AppsTab(modifier: Modifier = Modifier) {
             app = app,
             sessionManager = sessionManager,
             onDismiss = { selectedAppForRules = null }
+        )
+    }
+
+    selectedAppForPause?.let { app ->
+        PauseMonitoringDialog(
+            app = app,
+            onDismiss = { selectedAppForPause = null },
+            onPauseForHalfHour = {
+                sessionManager.pauseAppMonitoring(app.packageName, 30L * 60L * 1000L)
+                selectedAppForPause = null
+            },
+            onPauseForOneDay = {
+                sessionManager.pauseAppMonitoring(app.packageName, 24L * 60L * 60L * 1000L)
+                selectedAppForPause = null
+            },
+            onPausePermanently = {
+                sessionManager.pauseAppMonitoring(app.packageName, null)
+                selectedAppForPause = null
+            }
+        )
+    }
+
+    selectedAppForDelete?.let { app ->
+        AlertDialog(
+            onDismissRequest = { selectedAppForDelete = null },
+            title = { Text(stringResource(R.string.remove_controlled_app_title)) },
+            text = { Text(stringResource(R.string.remove_controlled_app_message, app.name)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        sessionManager.removeControlledApp(app.packageName)
+                        selectedAppForDelete = null
+                    }
+                ) {
+                    Text(
+                        text = stringResource(R.string.remove_controlled_app_action),
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { selectedAppForDelete = null }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
         )
     }
 }
@@ -2117,8 +2237,11 @@ private fun interventionLevelDescription(level: InterventionLevel): Int = when (
 @Composable
 fun AppItem(
     app: AppInfo,
+    pause: AppMonitoringPause?,
     onDelete: () -> Unit,
-    onEditRules: () -> Unit
+    onEditRules: () -> Unit,
+    onPauseMonitoring: () -> Unit,
+    onResumeMonitoring: () -> Unit
 ) {
     Card(
         modifier = Modifier.fillMaxWidth()
@@ -2126,10 +2249,9 @@ fun AppItem(
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(12.dp),
+                .padding(horizontal = 14.dp, vertical = 12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // App icon placeholder
             Surface(
                 shape = MaterialTheme.shapes.small,
                 color = MaterialTheme.colorScheme.primaryContainer,
@@ -2145,36 +2267,139 @@ fun AppItem(
 
             Spacer(modifier = Modifier.width(12.dp))
 
-            Column(modifier = Modifier.weight(1f)) {
+            Column(
+                modifier = Modifier.weight(1f),
+                verticalArrangement = Arrangement.spacedBy(2.dp)
+            ) {
                 Text(
                     text = app.name,
-                    style = MaterialTheme.typography.bodyLarge
+                    style = MaterialTheme.typography.bodyLarge,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
                 Text(
                     text = app.packageName,
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
                 )
+                pause?.let {
+                    Text(
+                        text = formatMonitoringPauseStatus(LocalContext.current, it),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.secondary
+                    )
+                }
             }
 
-            // Edit Rules Button
-            IconButton(onClick = onEditRules) {
-                Icon(
-                    Icons.Default.Edit,
-                    contentDescription = stringResource(R.string.edit_intent),
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            }
+            Spacer(modifier = Modifier.width(12.dp))
 
-            IconButton(onClick = onDelete) {
-                Icon(
-                    Icons.Default.Delete,
-                    contentDescription = stringResource(R.string.delete),
-                    tint = MaterialTheme.colorScheme.error
-                )
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(2.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                IconButton(
+                    onClick = if (pause == null) onPauseMonitoring else onResumeMonitoring,
+                    modifier = Modifier.size(34.dp)
+                ) {
+                    Icon(
+                        if (pause == null) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
+                        contentDescription = if (pause == null) {
+                            stringResource(R.string.pause_app_monitoring)
+                        } else {
+                            stringResource(R.string.resume_app_monitoring)
+                        },
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+
+                IconButton(
+                    onClick = onEditRules,
+                    modifier = Modifier.size(34.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Edit,
+                        contentDescription = stringResource(R.string.edit_intent),
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+
+                IconButton(
+                    onClick = onDelete,
+                    modifier = Modifier.size(34.dp)
+                ) {
+                    Icon(
+                        Icons.Default.Delete,
+                        contentDescription = stringResource(R.string.delete),
+                        modifier = Modifier.size(18.dp),
+                        tint = MaterialTheme.colorScheme.error
+                    )
+                }
             }
         }
     }
+}
+
+@Composable
+private fun PauseMonitoringDialog(
+    app: AppInfo,
+    onDismiss: () -> Unit,
+    onPauseForHalfHour: () -> Unit,
+    onPauseForOneDay: () -> Unit,
+    onPausePermanently: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.pause_app_monitoring_title, app.name)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.pause_app_monitoring_desc))
+                FilledTonalButton(
+                    onClick = onPauseForHalfHour,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.pause_for_half_hour))
+                }
+                FilledTonalButton(
+                    onClick = onPauseForOneDay,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.pause_for_one_day))
+                }
+                OutlinedButton(
+                    onClick = onPausePermanently,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.pause_permanently))
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+private fun formatMonitoringPauseStatus(context: Context, pause: AppMonitoringPause): String {
+    val resumeAt = pause.resumeAt
+    if (resumeAt == null) {
+        return context.getString(R.string.app_monitoring_paused_permanently)
+    }
+    val formattedTime = DateUtils.formatDateTime(
+        context,
+        resumeAt,
+        DateUtils.FORMAT_SHOW_DATE or
+            DateUtils.FORMAT_SHOW_TIME or
+            DateUtils.FORMAT_ABBREV_MONTH or
+            DateUtils.FORMAT_ABBREV_RELATIVE
+    )
+    return context.getString(R.string.app_monitoring_paused_until, formattedTime)
 }
 
 /**

@@ -27,6 +27,18 @@
     <string name="select_all">全选</string>
     <string name="clear_all">清除</string>
     <string name="controlled_apps">受控应用</string>
+    <string name="pause_app_monitoring">暂停监控</string>
+    <string name="resume_app_monitoring">恢复监控</string>
+    <string name="pause_app_monitoring_title">暂停 %s 的监控</string>
+    <string name="pause_app_monitoring_desc">暂停后，这个 app 暂时不会被 SeeNot 监控；到点后会自动恢复。</string>
+    <string name="pause_for_half_hour">只暂停半小时</string>
+    <string name="pause_for_one_day">暂停一天</string>
+    <string name="pause_permanently">永久暂停</string>
+    <string name="app_monitoring_paused_until">已暂停监控，%s 自动恢复</string>
+    <string name="app_monitoring_paused_permanently">已永久暂停监控</string>
+    <string name="remove_controlled_app_title">移除受控应用？</string>
+    <string name="remove_controlled_app_message">确定要把 %s 从受控应用里移除吗？移除后，SeeNot 不会再监控它，但不会删除你之前保存的意图和记录。</string>
+    <string name="remove_controlled_app_action">移除</string>
 
     <!-- Settings -->
     <string name="settings_title">设置</string>
@@ -480,6 +492,8 @@
     <!-- HomeTab -->
     <string name="permission_notification">通知权限</string>
     <string name="permission_notification_desc">用于显示提醒通知和前台服务</string>
+    <string name="permission_battery_optimization">后台无限制</string>
+    <string name="permission_battery_optimization_desc">用于请求忽略电池优化，降低系统省电策略杀死 SeeNot 的概率</string>
     <string name="permission_microphone_optional">麦克风权限（可选）</string>
     <string name="permission_microphone_desc">用于语音输入声明意图</string>
     <string name="ai_settings">AI 设置</string>
@@ -591,9 +605,9 @@
     <string name="notify_each_judgment_desc">判断后立刻弹出提示；关闭后不再弹这类提示</string>
     <string name="view_records">查看记录</string>
     <string name="clear_records">清空记录</string>
-    <string name="export_section">导出</string>
-    <string name="export_section_desc">导出日志和数据，方便排查问题或备份</string>
-    <string name="export_data">导出数据</string>
+    <string name="export_section">数据与日志</string>
+    <string name="export_section_desc">导入或导出配置，并分享日志和运行事件</string>
+    <string name="export_data">打开数据工具</string>
     <string name="about_section">关于</string>
     <string name="edit_intent">编辑意图</string>
 
@@ -654,7 +668,7 @@
     <string name="exporting_app_config">正在导入应用配置…</string>
     <string name="import_success">导入成功！共导入 %d 个应用配置</string>
     <string name="import_failed">导入失败: %s</string>
-    <string name="export_title">导出</string>
+    <string name="export_title">数据与日志</string>
     <string name="app_config">应用配置</string>
     <string name="logs">日志</string>
     <string name="runtime_events">运行事件</string>

@@ -27,6 +27,18 @@
     <string name="select_all">Select All</string>
     <string name="clear_all">Clear</string>
     <string name="controlled_apps">Controlled Apps</string>
+    <string name="pause_app_monitoring">Pause Monitoring</string>
+    <string name="resume_app_monitoring">Resume Monitoring</string>
+    <string name="pause_app_monitoring_title">Pause monitoring for %s</string>
+    <string name="pause_app_monitoring_desc">While paused, SeeNot will stop monitoring this app and restore it automatically when time is up.</string>
+    <string name="pause_for_half_hour">Pause for 30 minutes</string>
+    <string name="pause_for_one_day">Pause for 1 day</string>
+    <string name="pause_permanently">Pause permanently</string>
+    <string name="app_monitoring_paused_until">Monitoring paused, resumes %s</string>
+    <string name="app_monitoring_paused_permanently">Monitoring paused permanently</string>
+    <string name="remove_controlled_app_title">Remove controlled app?</string>
+    <string name="remove_controlled_app_message">Remove %s from controlled apps? SeeNot will stop monitoring it, but your saved intents and records will remain.</string>
+    <string name="remove_controlled_app_action">Remove</string>
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>
@@ -474,6 +486,8 @@
     <!-- HomeTab -->
     <string name="permission_notification">Notification Permission</string>
     <string name="permission_notification_desc">Used to show reminder notifications and foreground service</string>
+    <string name="permission_battery_optimization">Unrestricted Battery</string>
+    <string name="permission_battery_optimization_desc">Requests battery-optimization exemption so the system is less likely to kill SeeNot in the background</string>
     <string name="permission_microphone_optional">Microphone Permission (Optional)</string>
     <string name="permission_microphone_desc">Used for voice input to declare intents</string>
     <string name="ai_settings">AI Settings</string>
@@ -585,9 +599,9 @@
     <string name="notify_each_judgment_desc">Pop up immediately after judgment; when off, these notifications will not appear</string>
     <string name="view_records">View Records</string>
     <string name="clear_records">Clear Records</string>
-    <string name="export_section">Export</string>
-    <string name="export_section_desc">Export logs and data for troubleshooting or backup</string>
-    <string name="export_data">Export Data</string>
+    <string name="export_section">Data and Logs</string>
+    <string name="export_section_desc">Import or export configuration, and share logs or runtime events</string>
+    <string name="export_data">Open Data Tools</string>
     <string name="about_section">About</string>
     <string name="edit_intent">Edit Intent</string>
 
@@ -648,7 +662,7 @@
     <string name="exporting_app_config">Importing app configuration…</string>
     <string name="import_success">Import successful! Imported %d app configurations</string>
     <string name="import_failed">Import failed: %s</string>
-    <string name="export_title">Export</string>
+    <string name="export_title">Data and Logs</string>
     <string name="app_config">App Configuration</string>
     <string name="logs">Logs</string>
     <string name="runtime_events">Runtime Events</string>
