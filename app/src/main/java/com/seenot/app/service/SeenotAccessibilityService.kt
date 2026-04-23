@@ -23,7 +23,6 @@ import android.os.PowerManager
 import com.seenot.app.utils.Logger
 import android.view.Display
 import android.view.accessibility.AccessibilityEvent
-import android.view.accessibility.AccessibilityNodeInfo
 import androidx.core.content.ContextCompat
 import androidx.core.app.NotificationCompat
 import com.seenot.app.MainActivity
@@ -59,6 +58,7 @@ class SeenotAccessibilityService : AccessibilityService() {
         private const val CHANNEL_ID = "seenot_accessibility"
         private const val NOTIFICATION_ID = 1001
         private const val APP_SWITCH_DEBOUNCE_MS = 500L
+        private const val CONTENT_CHANGED_DEBOUNCE_MS = 1200L
         private const val OVERLAY_WATCHDOG_MISSING_MS = 1500L
         private const val OVERLAY_WATCHDOG_STREAK_WINDOW_MS = 1200L
         private const val OVERLAY_WATCHDOG_MIN_EVENTS = 3
@@ -90,6 +90,9 @@ class SeenotAccessibilityService : AccessibilityService() {
 
     private val gestureExecutor: Executor = Executors.newSingleThreadExecutor()
     private var lastAppSwitchTime = 0L
+    private var lastContentChangedPackage: String? = null
+    private var lastContentChangedClassName: String? = null
+    private var lastContentChangedHandledAt: Long = 0L
     private var overlayMissingCandidatePackage: String? = null
     private var overlayMissingCandidateFirstAt: Long = 0L
     private var overlayMissingCandidateLastAt: Long = 0L
@@ -300,67 +303,79 @@ class SeenotAccessibilityService : AccessibilityService() {
             maybeRecoverPausedSessionFromEvent(event)
             maybeRecoverMissingOverlayFromEvent(event)
 
-            when (event.eventType) {
-                AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED -> {
-                    val packageName = event.packageName?.toString()
-                    val className = event.className?.toString()
+            val eventType = event.eventType
+            if (
+                eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
+                    eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+            ) {
+                return
+            }
 
-                    if (packageName == null) return
+            val packageName = event.packageName?.toString()
+            val className = event.className?.toString()
 
-                    if (packageName == this.packageName) {
-                        Logger.d(TAG, "Ignoring SeeNot package window event before foreground tracking: $packageName")
-                        return
-                    }
+            if (packageName == null) return
 
-                    val now = System.currentTimeMillis()
-                    if (now - lastAppSwitchTime < APP_SWITCH_DEBOUNCE_MS) {
-                        Logger.d(TAG, "Debouncing app switch: $packageName (${now - lastAppSwitchTime}ms)")
-                        return
-                    }
+            if (packageName == this.packageName) {
+                Logger.d(TAG, "Ignoring SeeNot package window event before foreground tracking: $packageName")
+                return
+            }
 
-                    // Ignore system apps (except launcher)
-                    if (isSystemApp(packageName) && !isLauncher(packageName)) {
-                        Logger.d(TAG, "Ignoring system app: $packageName")
-                        return
-                    }
-
-                    if (packageName != _currentPackage.value) {
-                        // Only publish foreground-package changes once the window looks like
-                        // a real app/launcher surface; otherwise transient frame/layout events
-                        // can incorrectly resume sessions while the user is still on desktop.
-                        val isLauncher = isLauncher(packageName)
-                        val isCapable = isCapableClass(className)
-                        val sessionManager = SessionManager.getInstance(this)
-                        val currentPackage = _currentPackage.value
-                        val isEnteringControlledApp = sessionManager.isAppMonitoringEnabled(packageName)
-                        val isLeavingControlledContext = sessionManager.isAppMonitoringEnabled(currentPackage)
-                        val shouldTrackForeground =
-                            isCapable ||
-                                isLauncher ||
-                                isEnteringControlledApp ||
-                                isLeavingControlledContext
-
-                        if (shouldTrackForeground) {
-                            Logger.d(TAG, "App switched to: $packageName")
-                            lastAppSwitchTime = now
-                            _currentPackage.value = packageName
-                            checkAndShowOverlay(packageName, className)
-                        } else {
-                            Logger.d(
-                                TAG,
-                                "Not tracking package update for $packageName, class=$className, " +
-                                    "isCapable=$isCapable, isLauncher=$isLauncher, " +
-                                    "isEnteringControlledApp=$isEnteringControlledApp, " +
-                                    "isLeavingControlledContext=$isLeavingControlledContext"
-                            )
-                        }
-                    } else {
-                        Logger.d(TAG, "Same package, skipping: $packageName")
-                    }
+            val now = System.currentTimeMillis()
+            if (eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+                if (!shouldProcessContentChanged(packageName, className, now)) {
+                    return
                 }
-                AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED -> {
-                    // Can be used for content monitoring if needed
+            } else {
+                resetContentChangedDebounce()
+                if (now - lastAppSwitchTime < APP_SWITCH_DEBOUNCE_MS) {
+                    Logger.d(TAG, "Debouncing app switch: $packageName (${now - lastAppSwitchTime}ms)")
+                    return
                 }
+            }
+
+            // Ignore system apps (except launcher)
+            if (isSystemApp(packageName) && !isLauncher(packageName)) {
+                Logger.d(TAG, "Ignoring system app: $packageName")
+                return
+            }
+
+            if (packageName != _currentPackage.value) {
+                // Only publish foreground-package changes once the window looks like
+                // a real app/launcher surface; otherwise transient frame/layout events
+                // can incorrectly resume sessions while the user is still on desktop.
+                val isLauncher = isLauncher(packageName)
+                val isCapable = isCapableClass(className)
+                val sessionManager = SessionManager.getInstance(this)
+                val currentPackage = _currentPackage.value
+                val isEnteringControlledApp = sessionManager.isAppMonitoringEnabled(packageName)
+                val isLeavingControlledContext = sessionManager.isAppMonitoringEnabled(currentPackage)
+                val shouldTrackForeground =
+                    isCapable ||
+                        isLauncher ||
+                        isEnteringControlledApp ||
+                        isLeavingControlledContext
+
+                if (shouldTrackForeground) {
+                    Logger.d(
+                        TAG,
+                        "Foreground event accepted: package=$packageName, " +
+                            "event=${AccessibilityEvent.eventTypeToString(eventType)}"
+                    )
+                    lastAppSwitchTime = now
+                    _currentPackage.value = packageName
+                    checkAndShowOverlay(packageName, className)
+                } else {
+                    Logger.d(
+                        TAG,
+                        "Not tracking package update for $packageName, class=$className, " +
+                            "isCapable=$isCapable, isLauncher=$isLauncher, " +
+                            "isEnteringControlledApp=$isEnteringControlledApp, " +
+                            "isLeavingControlledContext=$isLeavingControlledContext"
+                    )
+                }
+            } else {
+                Logger.d(TAG, "Same package, skipping: $packageName")
             }
         } catch (e: Exception) {
             Logger.e(TAG, "Error in onAccessibilityEvent", e)
@@ -371,11 +386,13 @@ class SeenotAccessibilityService : AccessibilityService() {
         val packageName = event.packageName?.toString() ?: return
         if (packageName == this.packageName) return
 
-        val recoverableEvent =
-            event.eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
-                event.eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
-                event.eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED
-        if (!recoverableEvent) return
+        val eventType = event.eventType
+        if (
+            eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
+                eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+        ) {
+            return
+        }
 
         if (isSystemApp(packageName) && !isLauncher(packageName)) {
             return
@@ -406,11 +423,12 @@ class SeenotAccessibilityService : AccessibilityService() {
         if (packageName == this.packageName) return
 
         val eventType = event.eventType
-        val recoverableEvent =
-            eventType == AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED ||
-                eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED ||
-                eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED
-        if (!recoverableEvent) return
+        if (
+            eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
+                eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+        ) {
+            return
+        }
 
         if (isSystemApp(packageName) && !isLauncher(packageName)) return
 
@@ -459,6 +477,36 @@ class SeenotAccessibilityService : AccessibilityService() {
             forceRestartOverlayForCurrentApp(packageName)
             resetOverlayMissingCandidate(packageName)
         }
+    }
+
+    private fun shouldProcessContentChanged(
+        packageName: String,
+        className: String?,
+        now: Long
+    ): Boolean {
+        val samePackage = lastContentChangedPackage == packageName
+        val sameClass = lastContentChangedClassName == className
+        val withinDebounceWindow = now - lastContentChangedHandledAt < CONTENT_CHANGED_DEBOUNCE_MS
+
+        if (samePackage && sameClass && withinDebounceWindow) {
+            Logger.d(
+                TAG,
+                "Debouncing content change: package=$packageName, class=$className, " +
+                    "delta=${now - lastContentChangedHandledAt}ms"
+            )
+            return false
+        }
+
+        lastContentChangedPackage = packageName
+        lastContentChangedClassName = className
+        lastContentChangedHandledAt = now
+        return true
+    }
+
+    private fun resetContentChangedDebounce() {
+        lastContentChangedPackage = null
+        lastContentChangedClassName = null
+        lastContentChangedHandledAt = 0L
     }
 
     private fun isAnySessionOverlayShowing(): Boolean {
@@ -868,10 +916,6 @@ class SeenotAccessibilityService : AccessibilityService() {
     }
 
     private fun resolveForegroundPackage(): String? {
-        val activeWindowPackage = rootInActiveWindow?.packageName?.toString()
-        if (!activeWindowPackage.isNullOrBlank()) {
-            return activeWindowPackage
-        }
         return _currentPackage.value
     }
 
@@ -1083,46 +1127,6 @@ class SeenotAccessibilityService : AccessibilityService() {
             .build()
     }
 
-    // ==================== Node Operations ====================
-
-    /**
-     * Find a node by text
-     */
-    fun findNodeByText(text: String): AccessibilityNodeInfo? {
-        val rootNode = rootInActiveWindow ?: return null
-        val nodes = rootNode.findAccessibilityNodeInfosByText(text)
-        return if (nodes.isNotEmpty()) nodes[0] else null
-    }
-
-    /**
-     * Find a node by view ID
-     */
-    @Suppress("UNUSED_PARAMETER")
-    fun findNodeByViewId(viewId: String): AccessibilityNodeInfo? {
-        val rootNode = rootInActiveWindow ?: return null
-        return rootNode.findFocus(AccessibilityNodeInfo.FOCUS_INPUT)
-    }
-
-    /**
-     * Click on a node
-     */
-    fun clickNode(node: AccessibilityNodeInfo): Boolean {
-        return node.performAction(AccessibilityNodeInfo.ACTION_CLICK)
-    }
-
-    /**
-     * Scroll forward
-     */
-    fun scrollForward(node: AccessibilityNodeInfo): Boolean {
-        return node.performAction(AccessibilityNodeInfo.ACTION_SCROLL_FORWARD)
-    }
-
-    /**
-     * Scroll backward
-     */
-    fun scrollBackward(node: AccessibilityNodeInfo): Boolean {
-        return node.performAction(AccessibilityNodeInfo.ACTION_SCROLL_BACKWARD)
-    }
 }
 
 data class AccessibilityDeviceState(
