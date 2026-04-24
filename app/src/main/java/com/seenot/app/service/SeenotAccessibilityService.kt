@@ -59,6 +59,7 @@ class SeenotAccessibilityService : AccessibilityService() {
         private const val NOTIFICATION_ID = 1001
         private const val APP_SWITCH_DEBOUNCE_MS = 500L
         private const val CONTENT_CHANGED_DEBOUNCE_MS = 1200L
+        private const val UNLOCK_FOREGROUND_GUARD_MS = 1500L
         private const val OVERLAY_WATCHDOG_MISSING_MS = 1500L
         private const val OVERLAY_WATCHDOG_STREAK_WINDOW_MS = 1200L
         private const val OVERLAY_WATCHDOG_MIN_EVENTS = 3
@@ -93,6 +94,7 @@ class SeenotAccessibilityService : AccessibilityService() {
     private var lastContentChangedPackage: String? = null
     private var lastContentChangedClassName: String? = null
     private var lastContentChangedHandledAt: Long = 0L
+    private var lastUserPresentAt: Long = 0L
     private var overlayMissingCandidatePackage: String? = null
     private var overlayMissingCandidateFirstAt: Long = 0L
     private var overlayMissingCandidateLastAt: Long = 0L
@@ -160,6 +162,9 @@ class SeenotAccessibilityService : AccessibilityService() {
     private val deviceStateReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context?, intent: Intent?) {
             Logger.d(TAG, "Device state broadcast received: ${intent?.action}")
+            if (intent?.action == Intent.ACTION_USER_PRESENT) {
+                lastUserPresentAt = System.currentTimeMillis()
+            }
             updateDeviceState()
         }
     }
@@ -321,8 +326,12 @@ class SeenotAccessibilityService : AccessibilityService() {
                 return
             }
 
+            val sessionManager = SessionManager.getInstance(this)
             val now = System.currentTimeMillis()
             if (eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+                if (!shouldConsiderContentChanged(packageName, sessionManager)) {
+                    return
+                }
                 if (!shouldProcessContentChanged(packageName, className, now)) {
                     return
                 }
@@ -346,15 +355,24 @@ class SeenotAccessibilityService : AccessibilityService() {
                 // can incorrectly resume sessions while the user is still on desktop.
                 val isLauncher = isLauncher(packageName)
                 val isCapable = isCapableClass(className)
-                val sessionManager = SessionManager.getInstance(this)
                 val currentPackage = _currentPackage.value
                 val isEnteringControlledApp = sessionManager.isAppMonitoringEnabled(packageName)
                 val isLeavingControlledContext = sessionManager.isAppMonitoringEnabled(currentPackage)
+                val shouldGuardUnlockForeground =
+                    isWithinUnlockForegroundGuard(now) &&
+                        isEnteringControlledApp &&
+                        !isCapable &&
+                        !isLauncher &&
+                        !isLeavingControlledContext
                 val shouldTrackForeground =
-                    isCapable ||
-                        isLauncher ||
-                        isEnteringControlledApp ||
-                        isLeavingControlledContext
+                    if (shouldGuardUnlockForeground) {
+                        false
+                    } else {
+                        isCapable ||
+                            isLauncher ||
+                            isEnteringControlledApp ||
+                            isLeavingControlledContext
+                    }
 
                 if (shouldTrackForeground) {
                     Logger.d(
@@ -371,10 +389,12 @@ class SeenotAccessibilityService : AccessibilityService() {
                         "Not tracking package update for $packageName, class=$className, " +
                             "isCapable=$isCapable, isLauncher=$isLauncher, " +
                             "isEnteringControlledApp=$isEnteringControlledApp, " +
-                            "isLeavingControlledContext=$isLeavingControlledContext"
+                            "isLeavingControlledContext=$isLeavingControlledContext, " +
+                            "unlockGuard=$shouldGuardUnlockForeground"
                     )
                 }
             } else {
+                maybeRecoverWeakReentry(packageName, className, eventType)
                 Logger.d(TAG, "Same package, skipping: $packageName")
             }
         } catch (e: Exception) {
@@ -479,6 +499,30 @@ class SeenotAccessibilityService : AccessibilityService() {
         }
     }
 
+    private fun shouldConsiderContentChanged(
+        packageName: String,
+        sessionManager: SessionManager
+    ): Boolean {
+        if (isLauncher(packageName)) {
+            return false
+        }
+
+        val activeSession = sessionManager.activeSession.value
+        if (activeSession?.appPackageName == packageName) {
+            return true
+        }
+
+        if (sessionManager.hasResumableSession(packageName)) {
+            return true
+        }
+
+        if (sessionManager.isAppMonitoringEnabled(packageName)) {
+            return true
+        }
+
+        return false
+    }
+
     private fun shouldProcessContentChanged(
         packageName: String,
         className: String?,
@@ -507,6 +551,47 @@ class SeenotAccessibilityService : AccessibilityService() {
         lastContentChangedPackage = null
         lastContentChangedClassName = null
         lastContentChangedHandledAt = 0L
+    }
+
+    private fun maybeRecoverWeakReentry(
+        packageName: String,
+        className: String?,
+        eventType: Int
+    ) {
+        if (currentMonitoredPackage == packageName) {
+            return
+        }
+        if (isSessionBeingCreated || isAnySessionOverlayShowing()) {
+            return
+        }
+
+        val sessionManager = SessionManager.getInstance(this)
+        if (!sessionManager.isAppMonitoringEnabled(packageName)) {
+            return
+        }
+
+        val activeSession = sessionManager.activeSession.value
+        val hasSessionContext =
+            (activeSession?.appPackageName == packageName) || sessionManager.hasResumableSession(packageName)
+
+        if (isWithinUnlockForegroundGuard(System.currentTimeMillis()) && !hasSessionContext) {
+            return
+        }
+
+        if (!hasSessionContext && eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
+            return
+        }
+
+        Logger.d(
+            TAG,
+            "Recovering weak re-entry for $packageName via " +
+                "${AccessibilityEvent.eventTypeToString(eventType)}"
+        )
+        checkAndShowOverlay(packageName, className)
+    }
+
+    private fun isWithinUnlockForegroundGuard(now: Long): Boolean {
+        return lastUserPresentAt != 0L && now - lastUserPresentAt < UNLOCK_FOREGROUND_GUARD_MS
     }
 
     private fun isAnySessionOverlayShowing(): Boolean {
