@@ -568,7 +568,7 @@
 
     <!-- SettingsTab -->
     <string name="screenshot_mode_all">Save all screenshots</string>
-    <string name="screenshot_mode_matched_only">Only save screenshots when relevant judgment is made</string>
+    <string name="screenshot_mode_matched_only">Save matched screenshots only</string>
     <string name="screenshot_mode_none">Do not save screenshots</string>
     <string name="model_not_set">Set model</string>
     <string name="clear_records_title">Clear Records</string>

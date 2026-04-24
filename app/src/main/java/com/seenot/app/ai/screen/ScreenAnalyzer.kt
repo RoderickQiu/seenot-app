@@ -489,7 +489,7 @@ class ScreenAnalyzer(
             val packageName = currentPackageName
             val bitmapToSave = processedBitmap // Keep reference for screenshot saving
 
-            if (packageName != null && matches.isNotEmpty()) {
+            if (RuleRecordingPrefs.isEnabled(context) && packageName != null && matches.isNotEmpty()) {
                 try {
                     for (match in matches) {
                         // For DENY: isConditionMatched = !isViolation (true = safe, false = violates)
