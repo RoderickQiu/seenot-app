@@ -434,7 +434,6 @@ private fun ConstraintItem(
                     TimeScope.SESSION -> stringResource(R.string.time_scope_session_short)
                     TimeScope.PER_CONTENT -> stringResource(R.string.time_scope_per_content_short)
                     TimeScope.CONTINUOUS -> stringResource(R.string.time_scope_continuous)
-                    TimeScope.DAILY_TOTAL -> stringResource(R.string.time_scope_daily_total_short)
                     null -> ""
                 }
                 Text(

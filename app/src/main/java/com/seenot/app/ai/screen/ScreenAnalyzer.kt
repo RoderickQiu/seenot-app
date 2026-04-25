@@ -437,6 +437,7 @@ class ScreenAnalyzer(
                     "🔒 Sensitive screen detected, skipping persistence and feedback" +
                         (aiAnalysis.sensitiveReason?.let { ": $it" } ?: "")
                 )
+                sessionManager.clearContentMatchStates(constraints)
 
                 bitmapToRecycle?.recycle()
                 bitmapToRecycle = null

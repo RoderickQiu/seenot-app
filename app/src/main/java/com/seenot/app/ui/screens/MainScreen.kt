@@ -1669,8 +1669,7 @@ private fun displayHintIntentLabel(context: Context, rawLabel: String): String {
         .filterNot {
             it == TimeScope.SESSION.name ||
                 it == TimeScope.PER_CONTENT.name ||
-                it == TimeScope.CONTINUOUS.name ||
-                it == TimeScope.DAILY_TOTAL.name
+                it == TimeScope.CONTINUOUS.name
         }
 
     return if (filteredExtras.isEmpty()) {
@@ -2214,7 +2213,6 @@ private fun timeScopeLabel(scope: TimeScope): Int = when (scope) {
     TimeScope.SESSION -> R.string.time_scope_session
     TimeScope.PER_CONTENT -> R.string.time_scope_per_content
     TimeScope.CONTINUOUS -> R.string.time_scope_continuous
-    TimeScope.DAILY_TOTAL -> R.string.time_scope_daily_total
 }
 
 @StringRes

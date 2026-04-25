@@ -17,15 +17,13 @@ enum class ConstraintType {
 enum class TimeScope {
     SESSION,
     PER_CONTENT,
-    CONTINUOUS,
-    DAILY_TOTAL;
+    CONTINUOUS;
 
     @StringRes
     fun displayLabelResId(): Int = when (this) {
         SESSION -> R.string.time_scope_session
         PER_CONTENT -> R.string.time_scope_per_content
         CONTINUOUS -> R.string.time_scope_continuous
-        DAILY_TOTAL -> R.string.time_scope_daily_total
     }
 }
 

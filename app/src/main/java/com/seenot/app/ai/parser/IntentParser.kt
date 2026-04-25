@@ -37,7 +37,7 @@ class IntentParser(private val contextRef: () -> Context) {
 输出：{"constraints":[{"type":"DENY","description":"除消息外的其他内容","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
 
 输入："每天最多10分钟"
-输出：{"constraints":[{"type":"TIME_CAP","description":"每日时间限制","timeLimitMinutes":10,"timeScope":"DAILY_TOTAL","intervention":"STRICT"}]}
+输出：{"constraints":[],"unsupportedMode":"DAILY_TOTAL"}
 
 输入："打开抖音，最多刷15分钟"
 输出：{"constraints":[{"type":"TIME_CAP","description":"使用时长限制","timeLimitMinutes":15,"timeScope":"SESSION","intervention":"STRICT"}]}
@@ -57,7 +57,7 @@ Input: "only look at messages"
 Output: {"constraints":[{"type":"DENY","description":"all other content except messages","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
 
 Input: "每天最多10分钟"
-Output: {"constraints":[{"type":"TIME_CAP","description":"daily time limit","timeLimitMinutes":10,"timeScope":"DAILY_TOTAL","intervention":"STRICT"}]}
+Output: {"constraints":[],"unsupportedMode":"DAILY_TOTAL"}
 
 Input: "打开抖音，最多刷15分钟"
 Output: {"constraints":[{"type":"TIME_CAP","description":"usage time limit","timeLimitMinutes":15,"timeScope":"SESSION","intervention":"STRICT"}]}
@@ -103,13 +103,14 @@ Output: {"constraints":[{"type":"TIME_CAP","description":"usage time limit","tim
 时间范围类型 (timeScope):
 - SESSION: 整个会话计时，无论看什么内容都在倒计时
 - PER_CONTENT: 只有在目标内容时才计时，切换到其他内容时暂停
-- DAILY_TOTAL: 每日累计时间，跨会话持久化（今天总共最多X分钟）
+- CONTINUOUS: 只有在同一内容持续停留时才计时
 
 ⚠️ 如何判断 timeScope：
 - "X只能看Y分钟" → PER_CONTENT（只有看X时才计时）
 - "不能看X，最多Y分钟" → SESSION（整个会话限时，看到X违规）
 - "最多Y分钟" → SESSION（纯时间限制）
-- "每天最多Y分钟" / "今天只能看Y分钟" → DAILY_TOTAL（每日累计）
+- "每天最多Y分钟" / "今天只能看Y分钟" / "today total" / "daily total" 这类“每日累计”语义当前不支持。
+  对这类输入，不要改写成 SESSION 或 PER_CONTENT；返回空 constraints，并额外返回 "unsupportedMode":"DAILY_TOTAL"。
 
 干预级别:
 - GENTLE: 温和提醒
@@ -123,10 +124,11 @@ Output: {"constraints":[{"type":"TIME_CAP","description":"usage time limit","tim
       "type": "DENY|TIME_CAP",
       "description": "规则描述",
       "timeLimitMinutes": null或数字,
-      "timeScope": "SESSION|PER_CONTENT|DAILY_TOTAL",
+      "timeScope": "SESSION|PER_CONTENT|CONTINUOUS",
       "intervention": "GENTLE|MODERATE|STRICT"
     }
-  ]
+  ],
+  "unsupportedMode": null或"DAILY_TOTAL"
 }
 
 示例：
@@ -136,7 +138,18 @@ $examples
                 """.trimIndent()
 
                 val response = callLLM(prompt)
-                val constraints = parseConstraintsFromJson(response)
+                val parseResult = parseConstraintsFromJson(response)
+                if (parseResult.unsupportedMode == "DAILY_TOTAL") {
+                    return@withContext ParsedIntentResult.Error(
+                        context.getString(R.string.voice_err_daily_total_not_supported)
+                    )
+                }
+                val constraints = parseResult.constraints
+                if (constraints.isEmpty()) {
+                    return@withContext ParsedIntentResult.Error(
+                        context.getString(R.string.voice_err_parse_intent_failed)
+                    )
+                }
                 ParsedIntentResult.Success(
                     constraints = constraints.map {
                         ParsedConstraint(
@@ -172,11 +185,20 @@ $examples
         val intervention: InterventionLevel
     )
 
-    private fun parseConstraintsFromJson(response: String): List<TempConstraint> {
+    private data class ParsePayload(
+        val constraints: List<TempConstraint>,
+        val unsupportedMode: String? = null
+    )
+
+    private fun parseConstraintsFromJson(response: String): ParsePayload {
         val constraints = mutableListOf<TempConstraint>()
         val jsonPayload = extractJsonObject(response)
         try {
             val json = JsonParser.parseString(jsonPayload).asJsonObject
+            val unsupportedMode = json.get("unsupportedMode")
+                ?.takeIf { !it.isJsonNull }
+                ?.asString
+                ?.uppercase()
             val constraintsArray = json.get("constraints")
                 ?: throw IntentParseFormatException("Missing constraints field")
             if (!constraintsArray.isJsonArray) {
@@ -199,7 +221,9 @@ $examples
                 val timeScope = when (timeScopeStr) {
                     "PER_CONTENT" -> TimeScope.PER_CONTENT
                     "CONTINUOUS" -> TimeScope.CONTINUOUS
-                    "DAILY_TOTAL" -> TimeScope.DAILY_TOTAL
+                    "DAILY_TOTAL" -> {
+                        return ParsePayload(emptyList(), unsupportedMode = "DAILY_TOTAL")
+                    }
                     else -> TimeScope.SESSION
                 }
                 constraints.add(
@@ -212,6 +236,7 @@ $examples
                     )
                 )
             }
+            return ParsePayload(constraints = constraints, unsupportedMode = unsupportedMode)
         } catch (e: IntentParseFormatException) {
             Logger.w(TAG, "Failed to parse constraints from JSON", e)
             throw e
@@ -219,7 +244,6 @@ $examples
             Logger.w(TAG, "Failed to parse constraints from JSON", e)
             throw IntentParseFormatException("Invalid parser JSON", e)
         }
-        return constraints
     }
 
     private fun extractJsonObject(response: String): String {

@@ -100,10 +100,8 @@
     <string name="time_scope_session">This session</string>
     <string name="time_scope_per_content">Per-content</string>
     <string name="time_scope_continuous">Continuous</string>
-    <string name="time_scope_daily_total">Today</string>
     <string name="time_scope_session_short">Session</string>
     <string name="time_scope_per_content_short">Content</string>
-    <string name="time_scope_daily_total_short">Daily</string>
 
     <!-- ConstraintType labels -->
     <string name="constraint_type_deny">Deny</string>
@@ -204,6 +202,7 @@
     <string name="voice_err_no_intent_input">Please input intent description</string>
     <string name="voice_err_timeout">Voice input timeout</string>
     <string name="voice_err_parse_intent_failed">Intent not recognized</string>
+    <string name="voice_err_daily_total_not_supported">Daily cumulative limits are not supported yet. Rephrase it as \"this session up to X minutes\" or \"that content up to X minutes\".</string>
     <string name="voice_err_recording_failed_with_msg">Recording error: %s</string>
     <string name="voice_err_parse_failed_simple">Parse failed</string>
 

@@ -105,8 +105,6 @@ class SessionManager(private val context: Context) {
 
     private val gson = Gson()
 
-    private val dailyTimeTracker = DailyTimeTracker(context)
-
     // Current active session
     private val _activeSession = MutableStateFlow<ActiveSession?>(null)
     val activeSession: StateFlow<ActiveSession?> = _activeSession.asStateFlow()
@@ -584,14 +582,7 @@ class SessionManager(private val context: Context) {
             startTime = System.currentTimeMillis(),
             isPaused = false,
             constraintTimeRemaining = constraints.associate { constraint ->
-                val remaining = if (constraint.timeScope == TimeScope.DAILY_TOTAL) {
-                    val accumulated = dailyTimeTracker.getAccumulatedTime(constraint.id)
-                    val limit = constraint.timeLimitMs ?: 0L
-                    (limit - accumulated).coerceAtLeast(0L)
-                } else {
-                    constraint.timeLimitMs
-                }
-                constraint.id to remaining
+                constraint.id to constraint.timeLimitMs
             }
         )
 
@@ -1023,6 +1014,14 @@ class SessionManager(private val context: Context) {
         constraintMatchStates[constraintId] = isMatching
         _constraintMatchStateFlow.value = constraintMatchStates.toMap()
         Logger.d(TAG, "Content match state updated: $constraintId = $isMatching")
+    }
+
+    fun clearContentMatchStates(constraints: List<SessionConstraint>) {
+        constraints.forEach { constraint ->
+            constraintMatchStates[constraint.id] = false
+        }
+        _constraintMatchStateFlow.value = constraintMatchStates.toMap()
+        Logger.d(TAG, "Cleared content match state for ${constraints.size} constraints")
     }
 
     fun markCurrentJudgmentAsWrong(
@@ -1718,20 +1717,12 @@ class SessionManager(private val context: Context) {
                         TimeScope.PER_CONTENT, TimeScope.CONTINUOUS -> {
                             constraintMatchStates[constraint.id] == true
                         }
-                        TimeScope.DAILY_TOTAL -> {
-                            dailyTimeTracker.resetIfNewDay(constraint.id)
-                            true
-                        }
                         null -> true
                     }
 
                     if (shouldDecrement) {
                         val newRemaining = remaining - 1000
                         updatedTimeRemaining[constraint.id] = newRemaining
-
-                        if (constraint.timeScope == TimeScope.DAILY_TOTAL) {
-                            dailyTimeTracker.addTime(constraint.id, 1000)
-                        }
 
                         if (newRemaining <= 0) {
                             Logger.d(TAG, "Constraint timeout: ${constraint.description}")
@@ -2053,12 +2044,17 @@ class SessionManager(private val context: Context) {
             val list = gson.fromJson(json, ArrayList::class.java) as ArrayList<Map<String, Any>>
             list.mapNotNull { item ->
                 try {
+                    val rawTimeScope = item["timeScope"] as? String
+                    if (rawTimeScope?.uppercase() == "DAILY_TOTAL") {
+                        Logger.w(TAG, "Dropping unsupported preset rule with DAILY_TOTAL scope")
+                        return@mapNotNull null
+                    }
                     SessionConstraint(
                         id = item["id"] as String,
                         type = ConstraintType.valueOf(item["type"] as String),
                         description = item["description"] as String,
                         timeLimitMs = (item["timeLimitMs"] as? Number)?.toLong(),
-                        timeScope = try { TimeScope.valueOf(item["timeScope"] as? String ?: "SESSION") } catch (e: Exception) { TimeScope.SESSION },
+                        timeScope = try { TimeScope.valueOf(rawTimeScope ?: "SESSION") } catch (e: Exception) { TimeScope.SESSION },
                         interventionLevel = try { InterventionLevel.valueOf(item["interventionLevel"] as? String ?: "MODERATE") } catch (e: Exception) { InterventionLevel.MODERATE },
                         isActive = item["isActive"] as? Boolean ?: true,
                         isDefault = item["isDefault"] as? Boolean ?: false
@@ -2182,12 +2178,17 @@ class SessionManager(private val context: Context) {
         return try {
             list.mapNotNull { item ->
                 try {
+                    val rawTimeScope = item["timeScope"] as? String
+                    if (rawTimeScope?.uppercase() == "DAILY_TOTAL") {
+                        Logger.w(TAG, "Dropping unsupported stored constraint with DAILY_TOTAL scope")
+                        return@mapNotNull null
+                    }
                     SessionConstraint(
                         id = item["id"] as String,
                         type = ConstraintType.valueOf(item["type"] as String),
                         description = item["description"] as String,
                         timeLimitMs = (item["timeLimitMs"] as? Number)?.toLong(),
-                        timeScope = try { TimeScope.valueOf(item["timeScope"] as? String ?: "SESSION") } catch (e: Exception) { TimeScope.SESSION },
+                        timeScope = try { TimeScope.valueOf(rawTimeScope ?: "SESSION") } catch (e: Exception) { TimeScope.SESSION },
                         interventionLevel = try { InterventionLevel.valueOf(item["interventionLevel"] as? String ?: "MODERATE") } catch (e: Exception) { InterventionLevel.MODERATE },
                         isActive = item["isActive"] as? Boolean ?: true,
                         isDefault = item["isDefault"] as? Boolean ?: false

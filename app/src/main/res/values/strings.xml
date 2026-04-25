@@ -102,12 +102,10 @@
     <string name="time_scope_session">本次</string>
     <string name="time_scope_per_content">计入时</string>
     <string name="time_scope_continuous">连续</string>
-    <string name="time_scope_daily_total">今日</string>
 
     <!-- TimeScope labels (SessionStatusHud — context-specific variants) -->
     <string name="time_scope_session_short">会话</string>
     <string name="time_scope_per_content_short">内容</string>
-    <string name="time_scope_daily_total_short">每日</string>
 
     <!-- ConstraintType labels -->
     <string name="constraint_type_deny">禁止</string>
@@ -208,6 +206,7 @@
     <string name="voice_err_no_intent_input">请输入意图描述</string>
     <string name="voice_err_timeout">语音输入超时</string>
     <string name="voice_err_parse_intent_failed">未能识别意图</string>
+    <string name="voice_err_daily_total_not_supported">暂不支持“每日累计时长”规则；请改成“这次最多 X 分钟”或“看某类内容最多 X 分钟”</string>
     <string name="voice_err_recording_failed_with_msg">录音出错: %s</string>
     <string name="voice_err_parse_failed_simple">解析失败</string>
 
