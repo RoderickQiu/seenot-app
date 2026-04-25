@@ -16,6 +16,7 @@ import java.util.UUID
 class IntentParser(private val contextRef: () -> Context) {
     companion object { private const val TAG = "IntentParser" }
     private val llmClient = OpenAiCompatibleClient()
+    private class IntentParseFormatException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
     private fun buildLanguageAwareExamples(languageCode: String): String {
         return if (languageCode == AppLocalePrefs.LANG_ZH) {
@@ -155,6 +156,7 @@ $examples
                 Logger.e(TAG, "parseIntent failed", e)
                 val errorMsg = when (e) {
                     is LlmException -> context.getString(R.string.voice_err_parse_failed)
+                    is IntentParseFormatException -> context.getString(R.string.voice_err_parse_failed)
                     else -> e.message ?: context.getString(R.string.voice_err_parse_failed_simple)
                 }
                 ParsedIntentResult.Error(errorMsg)
@@ -172,45 +174,67 @@ $examples
 
     private fun parseConstraintsFromJson(response: String): List<TempConstraint> {
         val constraints = mutableListOf<TempConstraint>()
+        val jsonPayload = extractJsonObject(response)
         try {
-            val jsonMatch = Regex("""\{[\s\S]*\}""").find(response)
-            jsonMatch?.let {
-                val json = JsonParser.parseString(it.value).asJsonObject
-                json.get("constraints")?.asJsonArray?.forEach { constraintElem ->
-                    val c = constraintElem.asJsonObject
-                    val typeStr = c.get("type")?.asString?.uppercase() ?: "DENY"
-                    val type = when (typeStr) {
-                        "TIME_CAP" -> ConstraintType.TIME_CAP
-                        else -> ConstraintType.DENY
-                    }
-                    val interventionStr = c.get("intervention")?.asString?.uppercase() ?: "MODERATE"
-                    val intervention = when (interventionStr) {
-                        "GENTLE" -> InterventionLevel.GENTLE
-                        "STRICT" -> InterventionLevel.STRICT
-                        else -> InterventionLevel.MODERATE
-                    }
-                    val timeScopeStr = c.get("timeScope")?.asString?.uppercase()
-                    val timeScope = when (timeScopeStr) {
-                        "PER_CONTENT" -> TimeScope.PER_CONTENT
-                        "CONTINUOUS" -> TimeScope.CONTINUOUS
-                        "DAILY_TOTAL" -> TimeScope.DAILY_TOTAL
-                        else -> TimeScope.SESSION
-                    }
-                    constraints.add(
-                        TempConstraint(
-                            type = type,
-                            description = c.get("description")?.asString ?: "",
-                            timeLimitMinutes = c.get("timeLimitMinutes")?.takeIf { !it.isJsonNull }?.asInt,
-                            timeScope = timeScope,
-                            intervention = intervention
-                        )
-                    )
-                }
+            val json = JsonParser.parseString(jsonPayload).asJsonObject
+            val constraintsArray = json.get("constraints")
+                ?: throw IntentParseFormatException("Missing constraints field")
+            if (!constraintsArray.isJsonArray) {
+                throw IntentParseFormatException("constraints is not an array")
             }
+            constraintsArray.asJsonArray.forEach { constraintElem ->
+                val c = constraintElem.asJsonObject
+                val typeStr = c.get("type")?.asString?.uppercase() ?: "DENY"
+                val type = when (typeStr) {
+                    "TIME_CAP" -> ConstraintType.TIME_CAP
+                    else -> ConstraintType.DENY
+                }
+                val interventionStr = c.get("intervention")?.asString?.uppercase() ?: "MODERATE"
+                val intervention = when (interventionStr) {
+                    "GENTLE" -> InterventionLevel.GENTLE
+                    "STRICT" -> InterventionLevel.STRICT
+                    else -> InterventionLevel.MODERATE
+                }
+                val timeScopeStr = c.get("timeScope")?.asString?.uppercase()
+                val timeScope = when (timeScopeStr) {
+                    "PER_CONTENT" -> TimeScope.PER_CONTENT
+                    "CONTINUOUS" -> TimeScope.CONTINUOUS
+                    "DAILY_TOTAL" -> TimeScope.DAILY_TOTAL
+                    else -> TimeScope.SESSION
+                }
+                constraints.add(
+                    TempConstraint(
+                        type = type,
+                        description = c.get("description")?.asString ?: "",
+                        timeLimitMinutes = c.get("timeLimitMinutes")?.takeIf { !it.isJsonNull }?.asInt,
+                        timeScope = timeScope,
+                        intervention = intervention
+                    )
+                )
+            }
+        } catch (e: IntentParseFormatException) {
+            Logger.w(TAG, "Failed to parse constraints from JSON", e)
+            throw e
         } catch (e: Exception) {
             Logger.w(TAG, "Failed to parse constraints from JSON", e)
+            throw IntentParseFormatException("Invalid parser JSON", e)
         }
         return constraints
+    }
+
+    private fun extractJsonObject(response: String): String {
+        val direct = response.trim()
+        if (direct.startsWith("{") && direct.endsWith("}")) {
+            return direct
+        }
+
+        val start = response.indexOf('{')
+        val end = response.lastIndexOf('}')
+        if (start >= 0 && end > start) {
+            return response.substring(start, end + 1)
+        }
+
+        throw IntentParseFormatException("Parser response did not contain a JSON object")
     }
 
     private suspend fun callLLM(prompt: String): String {

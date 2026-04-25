@@ -1,6 +1,7 @@
 package com.seenot.app.ui.screens
 
 import android.content.Context
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.widget.Toast
 import androidx.core.content.FileProvider
@@ -170,7 +171,11 @@ class RecordExporter(private val context: Context) {
         val conditionUnmatchedRecords = totalRecords - conditionMatchedRecords
         val denyRecords = records.filter { it.constraintType == ConstraintType.DENY }
         val timeCapRecords = records.filter { it.constraintType == ConstraintType.TIME_CAP }
-        val apps = records.map { it.appName }.distinct()
+        val apps = records
+            .groupBy { recordAppKey(it) }
+            .values
+            .map { resolveRecordAppLabel(it.first()) }
+            .distinct()
         val dateRange = records.minByOrNull { it.timestamp }?.let { min ->
             records.maxByOrNull { it.timestamp }?.let { max ->
                 "${formatDate(min.timestamp)} ${context.getString(R.string.date_range_separator)} ${formatDate(max.timestamp)}"
@@ -233,5 +238,24 @@ class RecordExporter(private val context: Context) {
             "",
             context.getString(R.string.readme_note)
         ).joinToString("\n")
+    }
+
+    private fun recordAppKey(record: RuleRecord): String {
+        return record.packageName?.takeIf { it.isNotBlank() } ?: "label:${record.appName}"
+    }
+
+    private fun resolveRecordAppLabel(record: RuleRecord): String {
+        val packageName = record.packageName?.takeIf { it.isNotBlank() }
+        if (packageName == null) {
+            return record.appName
+        }
+        return try {
+            val appInfo = context.packageManager.getApplicationInfo(packageName, 0)
+            context.packageManager.getApplicationLabel(appInfo).toString()
+        } catch (_: PackageManager.NameNotFoundException) {
+            record.appName.ifBlank { packageName }
+        } catch (_: Throwable) {
+            record.appName.ifBlank { packageName }
+        }
     }
 }

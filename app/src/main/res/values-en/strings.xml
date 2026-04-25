@@ -567,9 +567,9 @@
     <string name="intervention_dialog_exit">Exit</string>
 
     <!-- SettingsTab -->
-    <string name="screenshot_mode_all">Save all screenshots</string>
-    <string name="screenshot_mode_matched_only">Save matched screenshots only</string>
-    <string name="screenshot_mode_none">Do not save screenshots</string>
+    <string name="screenshot_mode_all">Save all</string>
+    <string name="screenshot_mode_matched_only">Save matched only</string>
+    <string name="screenshot_mode_none">Do not save</string>
     <string name="model_not_set">Set model</string>
     <string name="clear_records_title">Clear Records</string>
     <string name="clear_records_confirm">Are you sure you want to delete all judgment records? This cannot be undone.</string>

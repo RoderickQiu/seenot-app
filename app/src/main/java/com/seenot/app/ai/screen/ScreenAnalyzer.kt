@@ -1,7 +1,6 @@
 package com.seenot.app.ai.screen
 
 import android.app.KeyguardManager
-import android.app.NotificationManager
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Bitmap
@@ -380,10 +379,6 @@ class ScreenAnalyzer(
                 timestamp = totalStart
             )
 
-            // Dismiss all toasts before screenshot
-            Logger.d(TAG, "📴 Dismissing all toasts...")
-            dismissAllToasts()
-
             // Use pre-captured screenshot if provided (from keyframe detection loop)
             // Otherwise capture a new one
             val screenshot: Bitmap?
@@ -491,6 +486,8 @@ class ScreenAnalyzer(
 
             if (RuleRecordingPrefs.isEnabled(context) && packageName != null && matches.isNotEmpty()) {
                 try {
+                    val savedRecordIds = mutableListOf<String>()
+                    val appDisplayName = currentAppDisplayName?.takeIf { it.isNotBlank() } ?: packageName
                     for (match in matches) {
                         // For DENY: isConditionMatched = !isViolation (true = safe, false = violates)
                         // For TIME_CAP: isConditionMatched = isInScope (true = in_scope, false = out_of_scope)
@@ -501,7 +498,7 @@ class ScreenAnalyzer(
 
                         val record = RuleRecord(
                             sessionId = sessionId,
-                            appName = packageName,
+                            appName = appDisplayName,
                             packageName = packageName,
                             screenshotHash = lastQuickHash ?: "unknown",
                             constraintId = match.constraint.id.toLongOrNull(),
@@ -513,6 +510,7 @@ class ScreenAnalyzer(
                             elapsedTimeMs = aiDuration
                         )
                         val savedRecord = ruleRecordRepository.saveRecord(record)
+                        savedRecordIds += savedRecord.id
                         runtimeEventLogger.log(
                             eventType = RuntimeEventType.CONSTRAINT_EVALUATED,
                             sessionId = sessionId,
@@ -537,11 +535,12 @@ class ScreenAnalyzer(
                             )
                         )
 
-                        // Save screenshot for the record (synchronous, before bitmap is recycled)
-                        ruleRecordRepository.saveScreenshotForRecord(savedRecord.id, bitmapToSave, false)
-                        Logger.d(TAG, "💾 Saved screenshot for record: ${savedRecord.id}")
-
                         Logger.d(TAG, "💾 Saved rule record for constraint: ${match.constraint.description}")
+                    }
+
+                    if (savedRecordIds.isNotEmpty()) {
+                        ruleRecordRepository.saveScreenshotForRecords(savedRecordIds, bitmapToSave, false)
+                        Logger.d(TAG, "💾 Saved shared screenshot for ${savedRecordIds.size} records")
                     }
                 } catch (e: Exception) {
                     Logger.e(TAG, "Failed to save rule records", e)
@@ -664,24 +663,10 @@ class ScreenAnalyzer(
     }
 
     /**
-     * Dismiss all toasts to avoid capturing them in screenshot
-     */
-    private fun dismissAllToasts() {
-        try {
-            val notificationManager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
-            // cancelAll() removes all active notifications, including toast notifications
-            notificationManager.cancelAll()
-        } catch (e: Exception) {
-            Logger.w(TAG, "Failed to dismiss toasts", e)
-        }
-    }
-
-    /**
-     * Capture screenshot with delay to ensure toasts are dismissed
+     * Capture screenshot with a small delay so transient overlays can settle.
      * Skip the capture entirely if one of SeeNot's blocking overlays is visible.
      */
     private suspend fun captureScreenshotWithDelay(): Bitmap? = suspendCancellableCoroutine { continuation ->
-        // Small delay to ensure toasts are dismissed.
         Handler(Looper.getMainLooper()).postDelayed({
             val blockingOverlay = getBlockingOverlayName()
             if (blockingOverlay != null) {

@@ -41,21 +41,25 @@ class RuleRecordRepository(private val context: Context) {
         return withContext(Dispatchers.IO) {
             val entity = record.toEntity()
             dao.insert(entity)
+            trimToRetentionLimit()
             record
         }
     }
 
     /**
-     * Save screenshot bitmap to internal storage for a record
-     * Returns the path to the saved image
+     * Save one shared screenshot bitmap for multiple records from the same analysis pass.
+     * Returns the path to the saved image.
      */
-    suspend fun saveScreenshotForRecord(recordId: String, bitmap: Bitmap, isMarked: Boolean = false): String? {
+    suspend fun saveScreenshotForRecords(recordIds: List<String>, bitmap: Bitmap, isMarked: Boolean = false): String? {
         return withContext(Dispatchers.IO) {
+            if (recordIds.isEmpty()) {
+                return@withContext null
+            }
             try {
                 val timestamp = System.currentTimeMillis()
                 val dateFormat = SimpleDateFormat("yyyyMMdd_HHmmss", Locale.getDefault())
                 val markedStr = if (isMarked) "marked" else "unmarked"
-                val filename = "record_${recordId}_${dateFormat.format(Date(timestamp))}_$markedStr.png"
+                val filename = "record_${recordIds.first()}_${dateFormat.format(Date(timestamp))}_$markedStr.png"
                 val imageFile = File(imagesDir, filename)
 
                 FileOutputStream(imageFile).use { out ->
@@ -63,14 +67,14 @@ class RuleRecordRepository(private val context: Context) {
                 }
 
                 val imagePath = imageFile.absolutePath
-                Logger.d(TAG, "Saved screenshot for record $recordId: $imagePath")
-
-                // Update record with imagePath
-                dao.updateImagePath(recordId, imagePath)
+                recordIds.forEach { recordId ->
+                    dao.updateImagePath(recordId, imagePath)
+                }
+                Logger.d(TAG, "Saved shared screenshot for ${recordIds.size} records: $imagePath")
 
                 imagePath
             } catch (e: Exception) {
-                Logger.e(TAG, "Error saving screenshot for record", e)
+                Logger.e(TAG, "Error saving screenshot for records", e)
                 null
             }
         }
@@ -194,14 +198,8 @@ class RuleRecordRepository(private val context: Context) {
         return withContext(Dispatchers.IO) {
             try {
                 val record = dao.getRecordById(recordId)
-                record?.imagePath?.let { path ->
-                    try {
-                        File(path).delete()
-                    } catch (e: Exception) {
-                        Logger.w(TAG, "Failed to delete image: $path", e)
-                    }
-                }
                 dao.deleteById(recordId)
+                deleteUnreferencedImageFiles(record?.imagePath?.let(::listOf).orEmpty())
                 true
             } catch (e: Exception) {
                 Logger.e(TAG, "Error deleting record", e)
@@ -243,11 +241,15 @@ class RuleRecordRepository(private val context: Context) {
      * Get statistics for records
      */
     suspend fun getRecordStats(): RecordStats {
-        val totalRecords = dao.getTotalCount()
-        val matchedRecords = dao.getMatchedCount()
-        val uniqueApps = dao.getUniqueAppCount()
-        val oldestTimestamp = dao.getOldestTimestamp()
-        val newestTimestamp = dao.getNewestTimestamp()
+        val records = dao.getAllRecordsOnce()
+        val totalRecords = records.size
+        val matchedRecords = records.count { it.isConditionMatched }
+        val uniqueApps = records
+            .map { normalizeAppKey(it.packageName, it.appName) }
+            .distinct()
+            .size
+        val oldestTimestamp = records.minOfOrNull { it.timestamp }
+        val newestTimestamp = records.maxOfOrNull { it.timestamp }
 
         return RecordStats(
             totalRecords = totalRecords,
@@ -346,5 +348,36 @@ class RuleRecordRepository(private val context: Context) {
             actionReason = actionReason,
             actionTimestamp = actionTimestamp
         )
+    }
+
+    private suspend fun trimToRetentionLimit() {
+        val staleRecords = dao.getRecordsExceedingLimit(MAX_RECORDS)
+        if (staleRecords.isEmpty()) {
+            return
+        }
+
+        val staleImagePaths = staleRecords.mapNotNull { it.imagePath }.distinct()
+        dao.deleteByIds(staleRecords.map { it.id })
+        deleteUnreferencedImageFiles(staleImagePaths)
+        Logger.d(TAG, "Trimmed ${staleRecords.size} old rule records to keep retention at $MAX_RECORDS")
+    }
+
+    private suspend fun deleteUnreferencedImageFiles(paths: List<String>) {
+        val orphanPaths = paths.distinct().filter { path -> dao.countRecordsByImagePath(path) == 0 }
+        deleteImageFiles(orphanPaths)
+    }
+
+    private fun deleteImageFiles(paths: List<String>) {
+        paths.distinct().forEach { path ->
+            try {
+                File(path).delete()
+            } catch (e: Exception) {
+                Logger.w(TAG, "Failed to delete image: $path", e)
+            }
+        }
+    }
+
+    private fun normalizeAppKey(packageName: String?, appName: String): String {
+        return packageName?.takeIf { it.isNotBlank() } ?: appName
     }
 }

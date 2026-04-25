@@ -1,5 +1,7 @@
 package com.seenot.app.ui.screens
 
+import android.content.Context
+import android.content.pm.PackageManager
 import android.graphics.BitmapFactory
 import android.widget.Toast
 import androidx.compose.foundation.Image
@@ -72,6 +74,12 @@ private data class RecordStatusPresentation(
     val text: String,
     val accentColor: Color,
     val containerColor: Color
+)
+
+private data class RecordAppOption(
+    val key: String,
+    val label: String,
+    val count: Int
 )
 
 @Composable
@@ -719,6 +727,7 @@ private fun RecordItem(
     onLongClick: () -> Unit = {},
     onToggleMark: () -> Unit
 ) {
+    val context = LocalContext.current
     val timeFormat = SimpleDateFormat("HH:mm:ss", Locale.getDefault())
     val status = rememberRecordStatus(record)
 
@@ -783,7 +792,9 @@ private fun RecordItem(
                         )
                     }
                     Text(
-                        text = record.appName,
+                        text = remember(record.appName, record.packageName, context) {
+                            resolveRecordAppLabel(context, record)
+                        },
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Medium,
                         maxLines = 1,
@@ -861,6 +872,7 @@ private fun RecordDetailDialog(
     onDismiss: () -> Unit,
     onShowHintDialog: (RuleRecord) -> Unit
 ) {
+    val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var showDeleteConfirm by remember { mutableStateOf(false) }
@@ -992,7 +1004,10 @@ private fun RecordDetailDialog(
                                         fontWeight = FontWeight.Bold
                                     )
                                 }
-                                DetailRow(stringResource(R.string.record_app), record.appName)
+                                DetailRow(
+                                    stringResource(R.string.record_app),
+                                    resolveRecordAppLabel(context, record)
+                                )
                                 record.packageName?.let { DetailRow(stringResource(R.string.record_package), it) }
                                 DetailRow(stringResource(R.string.record_time), timeFormat.format(Date(record.timestamp)))
 
@@ -1285,16 +1300,26 @@ private fun ExportRecordsDialog(
     onExport: (List<com.seenot.app.data.model.RuleRecord>) -> Unit
 ) {
     var exportMarkedOnly by remember { mutableStateOf(false) }
-    var selectedApp by remember { mutableStateOf<String?>(null) }
+    var selectedAppKey by remember { mutableStateOf<String?>(null) }
     var appDropdownExpanded by remember { mutableStateOf(false) }
+    val context = LocalContext.current
 
     val uniqueApps = remember(records) {
-        records.map { it.appName }.distinct().sorted()
+        records
+            .groupBy { recordAppKey(it) }
+            .map { (key, appRecords) ->
+                RecordAppOption(
+                    key = key,
+                    label = resolveRecordAppLabel(context, appRecords.first()),
+                    count = appRecords.size
+                )
+            }
+            .sortedBy { it.label }
     }
 
-    val filteredRecords = remember(records, selectedApp, exportMarkedOnly) {
+    val filteredRecords = remember(records, selectedAppKey, exportMarkedOnly) {
         records.filter { record ->
-            val appMatch = selectedApp == null || record.appName == selectedApp
+            val appMatch = selectedAppKey == null || recordAppKey(record) == selectedAppKey
             val markedMatch = !exportMarkedOnly || record.isMarked
             appMatch && markedMatch
         }
@@ -1334,7 +1359,8 @@ private fun ExportRecordsDialog(
                             onExpandedChange = { appDropdownExpanded = it }
                         ) {
                             OutlinedTextField(
-                                value = selectedApp ?: stringResource(R.string.record_all_apps),
+                                value = uniqueApps.firstOrNull { it.key == selectedAppKey }?.label
+                                    ?: stringResource(R.string.record_all_apps),
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text(stringResource(R.string.record_select_app)) },
@@ -1352,16 +1378,15 @@ private fun ExportRecordsDialog(
                                 DropdownMenuItem(
                                     text = { Text(stringResource(R.string.record_all_apps)) },
                                     onClick = {
-                                        selectedApp = null
+                                        selectedAppKey = null
                                         appDropdownExpanded = false
                                     }
                                 )
-                                uniqueApps.forEach { appName ->
-                                    val appCount = records.count { it.appName == appName }
+                                uniqueApps.forEach { appOption ->
                                     DropdownMenuItem(
-                                        text = { Text("$appName ($appCount)") },
+                                        text = { Text("${appOption.label} (${appOption.count})") },
                                         onClick = {
-                                            selectedApp = appName
+                                            selectedAppKey = appOption.key
                                             appDropdownExpanded = false
                                         }
                                     )
@@ -1405,4 +1430,23 @@ private fun ExportRecordsDialog(
             }
         }
     )
+}
+
+private fun recordAppKey(record: RuleRecord): String {
+    return record.packageName?.takeIf { it.isNotBlank() } ?: "label:${record.appName}"
+}
+
+private fun resolveRecordAppLabel(context: Context, record: RuleRecord): String {
+    val packageName = record.packageName?.takeIf { it.isNotBlank() }
+    if (packageName == null) {
+        return record.appName
+    }
+    return try {
+        val appInfo = context.packageManager.getApplicationInfo(packageName, 0)
+        context.packageManager.getApplicationLabel(appInfo).toString()
+    } catch (_: PackageManager.NameNotFoundException) {
+        record.appName.ifBlank { packageName }
+    } catch (_: Throwable) {
+        record.appName.ifBlank { packageName }
+    }
 }

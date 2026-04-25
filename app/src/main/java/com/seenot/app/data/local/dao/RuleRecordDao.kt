@@ -112,4 +112,13 @@ interface RuleRecordDao {
 
     @Query("UPDATE rule_records SET imagePath = :imagePath WHERE id = :recordId")
     suspend fun updateImagePath(recordId: String, imagePath: String)
+
+    @Query("SELECT * FROM rule_records ORDER BY timestamp DESC LIMIT -1 OFFSET :keepCount")
+    suspend fun getRecordsExceedingLimit(keepCount: Int): List<RuleRecordEntity>
+
+    @Query("DELETE FROM rule_records WHERE id IN (:recordIds)")
+    suspend fun deleteByIds(recordIds: List<String>)
+
+    @Query("SELECT COUNT(*) FROM rule_records WHERE imagePath = :imagePath")
+    suspend fun countRecordsByImagePath(imagePath: String): Int
 }

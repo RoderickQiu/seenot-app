@@ -2120,7 +2120,8 @@ class SessionManager(private val context: Context) {
                     "timeLimitMs" to constraint.timeLimitMs,
                     "timeScope" to (constraint.timeScope?.name ?: "SESSION"),
                     "interventionLevel" to constraint.interventionLevel.name,
-                    "isActive" to constraint.isActive
+                    "isActive" to constraint.isActive,
+                    "isDefault" to constraint.isDefault
                 )
             }
         })
@@ -2129,13 +2130,25 @@ class SessionManager(private val context: Context) {
     }
 
     /**
-     * Fingerprint for deduplication: type+description+timeLimit sorted,
+     * Fingerprint for deduplication: include all fields that change runtime behavior,
      * so the same logical rule set won't appear twice.
      */
     fun getConstraintFingerprint(constraints: List<SessionConstraint>): String {
         return constraints
-            .sortedBy { "${it.type}|${it.description}|${it.timeLimitMs}" }
-            .joinToString(";") { "${it.type}|${it.description}|${it.timeLimitMs}" }
+            .sortedBy { constraintFingerprintKey(it) }
+            .joinToString(";") { constraintFingerprintKey(it) }
+    }
+
+    private fun constraintFingerprintKey(constraint: SessionConstraint): String {
+        return listOf(
+            constraint.type.name,
+            constraint.description,
+            constraint.timeLimitMs?.toString().orEmpty(),
+            constraint.timeScope?.name ?: "SESSION",
+            constraint.interventionLevel.name,
+            constraint.isActive.toString(),
+            constraint.isDefault.toString()
+        ).joinToString("|")
     }
 
     // --- Serialization helpers ---
