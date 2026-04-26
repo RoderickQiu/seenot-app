@@ -10,6 +10,8 @@ You tell it what you want to do — and what you want to avoid — and it watche
 
 SeeNot listens, understands, and intervenes if you drift dynamically.
 
+> **Note: We are now providing free AI keys for testing. Contact scrisqiu at hotmail.com for more information.**
+
 ---
 
 ## How It Works

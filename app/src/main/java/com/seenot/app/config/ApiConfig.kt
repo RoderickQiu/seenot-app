@@ -364,7 +364,7 @@ enum class AiProvider(
         displayName = "DashScope / Qwen",
         defaultBaseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1",
         defaultModel = "qwen3.6-plus",
-        defaultFeedbackModel = "qwen3.6-max-preview",
+        defaultFeedbackModel = "qwen3.6-plus",
         displayNameResId = R.string.provider_dashscope
     ),
     OPENAI(
