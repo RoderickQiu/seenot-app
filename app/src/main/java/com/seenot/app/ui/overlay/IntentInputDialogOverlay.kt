@@ -615,10 +615,10 @@ class IntentInputDialogOverlay(
 
         // Load preset rules first to filter out duplicates
         val loadedPresetRules = sessionManager.loadPresetRules(packageName)
-        val presetFingerprints = loadedPresetRules.map { sessionManager.getConstraintFingerprint(listOf(it)) }.toSet()
+        val presetFingerprints = loadedPresetRules.map { sessionManager.getConstraintNameFingerprint(listOf(it)) }.toSet()
 
         val history = sessionManager.loadIntentHistory(packageName).filter { historyEntry ->
-            val fingerprint = sessionManager.getConstraintFingerprint(historyEntry)
+            val fingerprint = sessionManager.getConstraintNameFingerprint(historyEntry)
             fingerprint !in presetFingerprints
         }
 

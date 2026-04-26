@@ -486,18 +486,26 @@
 
     <!-- HomeTab -->
     <string name="permission_notification">Notification Permission</string>
-    <string name="permission_notification_desc">Needed for reminders and foreground service. Tap to open settings.</string>
+    <string name="permission_notification_desc">Needed for reminders and foreground service</string>
     <string name="permission_battery_optimization">Unrestricted Battery</string>
     <string name="permission_battery_optimization_desc">Requests battery-optimization exemption so the system is less likely to kill SeeNot in the background</string>
     <string name="permission_microphone_optional">Microphone Permission (Optional)</string>
     <string name="permission_microphone_desc">Used for voice input to declare intents</string>
+    <string name="permission_ready">Done</string>
+    <string name="permission_not_ready">Not done</string>
     <string name="ai_settings">AI Settings</string>
-    <string name="ai_configured_tap_to_modify">Configuration complete. Tap to modify provider, model or API Key.</string>
-    <string name="ai_not_configured_tap_to_setup">Not configured. Tap to complete AI setup.</string>
-    <string name="basic_config_complete">Ready to use.</string>
+    <string name="ai_configured_tap_to_modify">Core analysis is ready. Tap to modify provider, model or API Key</string>
+    <string name="ai_not_configured_tap_to_setup">Core analysis is not configured yet. Tap to finish AI setup</string>
+    <string name="ai_voice_optional_not_configured">Voice input is not configured yet. You can still type your intent</string>
+    <string name="ai_voice_optional_configured">Voice input is also ready</string>
+    <string name="controlled_apps_setup_title">Controlled Apps</string>
+    <string name="controlled_apps_setup_missing">No controlled apps yet. Tap to add at least one</string>
+    <string name="controlled_apps_setup_ready">%1$d controlled apps added. Tap to review or add more</string>
+    <string name="basic_config_complete">Everything is ready. You can start using SeeNot now</string>
+    <string name="one_step_left_add_app">One last step: add at least one controlled app</string>
     <string name="tap_to_collapse">Tap to collapse permissions and config</string>
     <string name="tap_to_expand">Tap to expand permissions and config</string>
-    <string name="please_complete_permissions_and_ai_config">Please complete required permissions and AI config first</string>
+    <string name="please_complete_permissions_and_ai_config">Please complete required permissions, AI setup, and add at least one controlled app</string>
     <string name="usage_instructions">Usage Instructions</string>
     <string name="step_1_select_apps">Select apps to manage on the \"Apps\" page</string>
     <string name="step_2_declare_intent">Declare your intent when opening a controlled app</string>
@@ -509,6 +517,7 @@
     <string name="add_app">Add App</string>
     <string name="no_controlled_apps_yet">No controlled apps yet</string>
     <string name="tap_add_app_to_select">Tap \"Add App\" to select apps to manage</string>
+    <string name="add_first_app_now">Add your first app now</string>
 
     <!-- RuleRecordsPage -->
     <string name="add_ai_supplement_rule">Add AI Supplementary Rule</string>
@@ -609,7 +618,12 @@
     <!-- AiModelSettingsDialog -->
     <string name="ai_model_settings_title">AI Model Settings</string>
     <string name="vision_tab">Vision</string>
-    <string name="voice_tab">Voice</string>
+    <string name="voice_tab">Voice (Optional)</string>
+    <string name="ai_setup_intro">For first use, you only need to finish the core analysis setup. Voice input can be added later.</string>
+    <string name="advanced_settings">Advanced settings</string>
+    <string name="voice_optional_hint">Voice input is optional. If you skip it for now, you can still type your intent directly.</string>
+    <string name="save_ai_settings_ready">Saved. Core analysis is now ready.</string>
+    <string name="save_ai_settings_ready_voice_missing">Saved. Core analysis is now ready, and voice input can be configured later.</string>
     <string name="dev_mode_dashscope_temp_key">Development mode active. DashScope API Key temporarily provided, valid until %s. Will auto deactivate after expiry. You can still manually enter your own key here.</string>
     <string name="vision_provider">Vision Provider</string>
     <string name="vision_model">Vision Model</string>
@@ -631,11 +645,21 @@
     <string name="api_key">API Key</string>
     <string name="base_url">Base URL</string>
 
+    <!-- Permission guidance -->
+    <string name="permission_guide_continue">Open settings</string>
+    <string name="permission_guide_accessibility_title">Before enabling Accessibility</string>
+    <string name="permission_guide_accessibility_message">Next, the system Accessibility settings will open. Find SeeNot there and turn it on. After that, come back to the app so SeeNot can prompt for your intent and remind you when you enter controlled apps.</string>
+    <string name="permission_guide_overlay_title">Before enabling Overlay</string>
+    <string name="permission_guide_overlay_message">Next, the system overlay settings will open. Allow SeeNot to display over other apps so you can see the intent prompt and session status when entering controlled apps.</string>
+    <string name="permission_guide_battery_title">Before disabling battery limits</string>
+    <string name="permission_guide_battery_message">Next, the system battery settings will open. Set SeeNot to unrestricted or ignore optimization, so the system is less likely to kill it and interrupt reminders or analysis.</string>
+
     <!-- AddAppDialog -->
     <string name="add_app_title">Add App</string>
     <string name="no_apps_available">No apps available</string>
     <string name="select_app">Select App</string>
     <string name="search_placeholder">Search…</string>
+    <string name="search_app_label">Search apps</string>
 
     <!-- VoiceInputDialog -->
     <string name="state_recording">Recording…</string>

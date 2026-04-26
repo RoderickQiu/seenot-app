@@ -497,13 +497,21 @@
     <string name="permission_battery_optimization_desc">用于请求忽略电池优化，降低系统省电策略杀死 SeeNot 的概率</string>
     <string name="permission_microphone_optional">麦克风权限（可选）</string>
     <string name="permission_microphone_desc">用于语音输入声明意图</string>
+    <string name="permission_ready">已完成</string>
+    <string name="permission_not_ready">未完成</string>
     <string name="ai_settings">AI 设置</string>
-    <string name="ai_configured_tap_to_modify">已完成配置，点按修改 provider、模型或 API Key</string>
-    <string name="ai_not_configured_tap_to_setup">尚未配置，点按完成 AI 设置</string>
-    <string name="basic_config_complete">基础配置已完成，可以正常使用</string>
+    <string name="ai_configured_tap_to_modify">核心分析已可用，点按修改 provider、模型或 API Key</string>
+    <string name="ai_not_configured_tap_to_setup">尚未配置核心分析，点按完成 AI 设置</string>
+    <string name="ai_voice_optional_not_configured">语音输入暂未配置，仍可直接键盘输入</string>
+    <string name="ai_voice_optional_configured">语音输入也已可用</string>
+    <string name="controlled_apps_setup_title">受控应用</string>
+    <string name="controlled_apps_setup_missing">尚未添加受控应用，点按去添加至少 1 个</string>
+    <string name="controlled_apps_setup_ready">已添加 %1$d 个受控应用，点按查看或继续添加</string>
+    <string name="basic_config_complete">已准备就绪，可以开始使用</string>
+    <string name="one_step_left_add_app">还差最后一步：添加至少 1 个受控应用</string>
     <string name="tap_to_collapse">点按收起权限与配置入口</string>
     <string name="tap_to_expand">点按展开权限与配置入口</string>
-    <string name="please_complete_permissions_and_ai_config">请先完成必要权限和 AI 配置</string>
+    <string name="please_complete_permissions_and_ai_config">请先完成必要权限、AI 配置，并添加至少 1 个受控应用</string>
     <string name="usage_instructions">使用说明</string>
     <string name="step_1_select_apps">在「应用」页面选择要管理的 App</string>
     <string name="step_2_declare_intent">打开受控 App 时，声明你的意图</string>
@@ -515,6 +523,7 @@
     <string name="add_app">添加应用</string>
     <string name="no_controlled_apps_yet">尚未添加受控应用</string>
     <string name="tap_add_app_to_select">点击「添加应用」按钮选择要管理的应用</string>
+    <string name="add_first_app_now">现在添加第一个应用</string>
 
     <!-- RuleRecordsPage -->
     <string name="add_ai_supplement_rule">添加 AI 补充规则</string>
@@ -615,7 +624,12 @@
     <!-- AiModelSettingsDialog -->
     <string name="ai_model_settings_title">AI 模型设置</string>
     <string name="vision_tab">视觉</string>
-    <string name="voice_tab">语音</string>
+    <string name="voice_tab">语音（可选）</string>
+    <string name="ai_setup_intro">第一次使用时，只需要先完成核心分析配置。语音输入可以之后再补。</string>
+    <string name="advanced_settings">高级设置</string>
+    <string name="voice_optional_hint">语音输入是可选能力；如果暂时不配，也可以直接键盘输入意图。</string>
+    <string name="save_ai_settings_ready">已保存。核心分析现在可用。</string>
+    <string name="save_ai_settings_ready_voice_missing">已保存。核心分析现在可用，语音输入仍可稍后再配。</string>
     <string name="dev_mode_dashscope_temp_key">当前为开发模式，已临时提供 DashScope API Key，可用至 %s。到期后会自动停用，你仍可在这里手动填写自己的 Key。</string>
     <string name="vision_provider">视觉 Provider</string>
     <string name="vision_model">视觉模型</string>
@@ -637,11 +651,21 @@
     <string name="api_key">API Key</string>
     <string name="base_url">Base URL</string>
 
+    <!-- Permission guidance -->
+    <string name="permission_guide_continue">去设置</string>
+    <string name="permission_guide_accessibility_title">开启无障碍前先看一下</string>
+    <string name="permission_guide_accessibility_message">接下来会打开系统无障碍设置。请在里面找到 SeeNot，并把它打开。开启后回到 app，SeeNot 才能在你进入受控应用时及时弹出意图输入和提醒。</string>
+    <string name="permission_guide_overlay_title">开启悬浮窗前先看一下</string>
+    <string name="permission_guide_overlay_message">接下来会打开系统悬浮窗设置。请允许 SeeNot 在其他应用上层显示，这样进入受控应用时才能看到意图输入和状态提示。</string>
+    <string name="permission_guide_battery_title">关闭电池限制前先看一下</string>
+    <string name="permission_guide_battery_message">接下来会打开系统电池设置。请把 SeeNot 设为后台无限制或忽略优化，避免系统把它杀掉，导致提醒和判断中断。</string>
+
     <!-- AddAppDialog -->
     <string name="add_app_title">添加应用</string>
     <string name="no_apps_available">没有可添加的应用</string>
     <string name="select_app">选择应用</string>
     <string name="search_placeholder">搜索…</string>
+    <string name="search_app_label">搜索应用</string>
 
     <!-- VoiceInputDialog -->
     <string name="state_recording">正在录音…</string>

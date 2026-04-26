@@ -1600,7 +1600,6 @@ class SessionManager(private val context: Context) {
         val session = _activeSession.value ?: return
 
         Logger.d(TAG, "!!! endSession called, reason=$reason, session=${session.appPackageName}")
-        Logger.d(TAG, "!!! Stack trace: ${Exception("endSession trace").stackTraceToString()}")
 
         timerJob?.cancel()
         cancelPauseTimeout()
@@ -1966,7 +1965,9 @@ class SessionManager(private val context: Context) {
         return try {
             @Suppress("UNCHECKED_CAST")
             val outerList = gson.fromJson(json, ArrayList::class.java) as ArrayList<ArrayList<Map<String, Any>>>
-            outerList.mapNotNull { entry -> deserializeConstraintList(entry) }
+            dedupeHistoryByName(
+                outerList.mapNotNull { entry -> deserializeConstraintList(entry) }
+            )
         } catch (e: Exception) {
             Logger.e(TAG, "Failed to load intent history for $packageName", e)
             emptyList()
@@ -1974,7 +1975,7 @@ class SessionManager(private val context: Context) {
     }
 
     private fun appendToIntentHistory(packageName: String, constraints: List<SessionConstraint>) {
-        val fingerprint = getConstraintFingerprint(constraints)
+        val nameFingerprint = getConstraintNameFingerprint(constraints)
 
         val existingJson = prefs.getString("${KEY_INTENT_HISTORY_PREFIX}$packageName", null)
         val history = mutableListOf<List<Map<String, Any?>>>()
@@ -1985,7 +1986,7 @@ class SessionManager(private val context: Context) {
                 val parsed = gson.fromJson(existingJson, ArrayList::class.java) as ArrayList<ArrayList<Map<String, Any>>>
                 for (entry in parsed) {
                     val entryConstraints = deserializeConstraintList(entry)
-                    if (entryConstraints != null && getConstraintFingerprint(entryConstraints) != fingerprint) {
+                    if (entryConstraints != null && getConstraintNameFingerprint(entryConstraints) != nameFingerprint) {
                         history.add(entry.map { it.toMap() })
                     }
                 }
@@ -2018,7 +2019,8 @@ class SessionManager(private val context: Context) {
      * Save preset rules for a specific app.
      */
     fun savePresetRules(packageName: String, rules: List<SessionConstraint>) {
-        val json = gson.toJson(rules.map { constraint ->
+        val dedupedRules = dedupePresetRulesByName(rules)
+        val json = gson.toJson(dedupedRules.map { constraint ->
             mapOf(
                 "id" to constraint.id,
                 "type" to constraint.type.name,
@@ -2031,7 +2033,7 @@ class SessionManager(private val context: Context) {
             )
         })
         prefs.edit().putString("${KEY_PRESET_RULES_PREFIX}$packageName", json).apply()
-        Logger.d(TAG, "Saved ${rules.size} preset rules for $packageName")
+        Logger.d(TAG, "Saved ${dedupedRules.size} preset rules for $packageName")
     }
 
     /**
@@ -2042,7 +2044,7 @@ class SessionManager(private val context: Context) {
         return try {
             @Suppress("UNCHECKED_CAST")
             val list = gson.fromJson(json, ArrayList::class.java) as ArrayList<Map<String, Any>>
-            list.mapNotNull { item ->
+            dedupePresetRulesByName(list.mapNotNull { item ->
                 try {
                     val rawTimeScope = item["timeScope"] as? String
                     if (rawTimeScope?.uppercase() == "DAILY_TOTAL") {
@@ -2063,7 +2065,7 @@ class SessionManager(private val context: Context) {
                     Logger.e(TAG, "Failed to parse preset rule", e)
                     null
                 }
-            }
+            })
         } catch (e: Exception) {
             Logger.e(TAG, "Failed to load preset rules for $packageName", e)
             emptyList()
@@ -2106,7 +2108,7 @@ class SessionManager(private val context: Context) {
      * Save intent history (for editing).
      */
     fun saveIntentHistory(packageName: String, history: List<List<SessionConstraint>>) {
-        val trimmed = history.take(MAX_HISTORY_PER_APP)
+        val trimmed = dedupeHistoryByName(history).take(MAX_HISTORY_PER_APP)
         val json = gson.toJson(trimmed.map { constraints ->
             constraints.map { constraint ->
                 mapOf<String, Any?>(
@@ -2125,6 +2127,12 @@ class SessionManager(private val context: Context) {
         Logger.d(TAG, "Saved intent history for $packageName, ${trimmed.size} entries")
     }
 
+    fun getConstraintNameFingerprint(constraints: List<SessionConstraint>): String {
+        return constraints
+            .sortedBy { constraintNameKey(it) }
+            .joinToString(";") { constraintNameKey(it) }
+    }
+
     /**
      * Fingerprint for deduplication: include all fields that change runtime behavior,
      * so the same logical rule set won't appear twice.
@@ -2135,16 +2143,39 @@ class SessionManager(private val context: Context) {
             .joinToString(";") { constraintFingerprintKey(it) }
     }
 
+    private fun dedupePresetRulesByName(rules: List<SessionConstraint>): List<SessionConstraint> {
+        val seen = mutableSetOf<String>()
+        return rules.asReversed()
+            .filter { seen.add(getConstraintNameFingerprint(listOf(it))) }
+            .asReversed()
+    }
+
+    private fun dedupeHistoryByName(history: List<List<SessionConstraint>>): List<List<SessionConstraint>> {
+        val seen = mutableSetOf<String>()
+        return history.filter { seen.add(getConstraintNameFingerprint(it)) }
+    }
+
+    private fun constraintNameKey(constraint: SessionConstraint): String {
+        return listOf(
+            constraint.type.name,
+            normalizeConstraintDescription(constraint.description)
+        ).joinToString("|")
+    }
+
     private fun constraintFingerprintKey(constraint: SessionConstraint): String {
         return listOf(
             constraint.type.name,
-            constraint.description,
+            normalizeConstraintDescription(constraint.description),
             constraint.timeLimitMs?.toString().orEmpty(),
             constraint.timeScope?.name ?: "SESSION",
             constraint.interventionLevel.name,
             constraint.isActive.toString(),
             constraint.isDefault.toString()
         ).joinToString("|")
+    }
+
+    private fun normalizeConstraintDescription(description: String): String {
+        return description.trim().replace(Regex("\\s+"), " ").lowercase()
     }
 
     // --- Serialization helpers ---

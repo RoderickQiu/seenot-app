@@ -74,6 +74,7 @@ import com.seenot.app.data.model.buildIntentScopedHintId
 import com.seenot.app.data.model.buildIntentScopedHintLabel
 import com.seenot.app.domain.SessionConstraint
 import com.seenot.app.observability.RuntimeEventLogger
+import android.widget.Toast
 import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import com.seenot.app.ui.overlay.VoiceInputState
@@ -96,8 +97,10 @@ fun MainScreen(
     voiceInputPackageName: String? = null
 ) {
     val context = LocalContext.current
+    val sessionManager = remember { SessionManager.getInstance(context) }
     var showHomeTimeline by remember { mutableStateOf(RuleRecordingPrefs.isHomeTimelineEnabled(context)) }
     var showAiSettingsDialog by remember { mutableStateOf(false) }
+    var pendingPermissionGuide by remember { mutableStateOf<PermissionGuideType?>(null) }
 
     // State
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -108,6 +111,7 @@ fun MainScreen(
     var isBatteryOptimizationIgnored by remember { mutableStateOf(false) }
     var showVoiceInput by remember { mutableStateOf(startWithVoiceInput) }
     var currentVoiceInputPackage by remember { mutableStateOf(voiceInputPackageName) }
+    var controlledAppCount by remember { mutableIntStateOf(0) }
 
     // Rule records state
     var showRuleRecordsPage by remember { mutableStateOf(false) }
@@ -147,14 +151,11 @@ fun MainScreen(
         isMicrophoneEnabled = isGranted
     }
 
-    // Request notification permission on first launch
+    // Check notification permission status. Request only when the user explicitly enters the flow.
     LaunchedEffect(Unit) {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
             val notificationManager = context.getSystemService(android.app.NotificationManager::class.java)
             isNotificationEnabled = notificationManager?.areNotificationsEnabled() == true
-            if (!isNotificationEnabled) {
-                notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
-            }
         } else {
             isNotificationEnabled = true
         }
@@ -184,14 +185,23 @@ fun MainScreen(
         isBatteryOptimizationIgnored = isBatteryOptimizationIgnored(context)
     }
 
+    LaunchedEffect(Unit) {
+        controlledAppCount = sessionManager.controlledApps.value.size
+        sessionManager.controlledApps.collectLatest {
+            controlledAppCount = it.size
+        }
+    }
+
     // Determine if required permissions are granted. Microphone is optional because text input works.
     val allPermissionsGranted =
         isAccessibilityEnabled &&
             isOverlayEnabled &&
             isNotificationEnabled &&
             isBatteryOptimizationIgnored
-    val isAiConfigured = remember(showAiSettingsDialog) { ApiConfig.isConfigured() }
-    val isHomeReady = allPermissionsGranted && isAiConfigured
+    val isAiConfigured = remember(showAiSettingsDialog) { ApiConfig.isVisionConfigured() }
+    val isVoiceConfigured = remember(showAiSettingsDialog) { ApiConfig.isVoiceConfigured() }
+    val hasControlledApps = controlledAppCount > 0
+    val isHomeReady = allPermissionsGranted && isAiConfigured && hasControlledApps
 
     if (showRuleRecordsPage) {
         val repository = remember { RuleRecordRepository(context) }
@@ -241,19 +251,17 @@ fun MainScreen(
                         isBatteryOptimizationIgnored = isBatteryOptimizationIgnored,
                         isMicrophoneEnabled = isMicrophoneEnabled,
                         isAiConfigured = isAiConfigured,
+                        isVoiceConfigured = isVoiceConfigured,
                         isHomeReady = isHomeReady,
+                        controlledAppCount = controlledAppCount,
                         onEnableAccessibility = {
-                            context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                            pendingPermissionGuide = PermissionGuideType.ACCESSIBILITY
                         },
                         onEnableOverlay = {
-                            overlayPermissionLauncher.launch(
-                                Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
-                            )
+                            pendingPermissionGuide = PermissionGuideType.OVERLAY
                         },
                         onRequestIgnoreBatteryOptimizations = {
-                            batteryOptimizationLauncher.launch(
-                                createBatteryOptimizationIntent(context)
-                            )
+                            pendingPermissionGuide = PermissionGuideType.BATTERY
                         },
                         onOpenNotificationSettings = {
                             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !isNotificationEnabled) {
@@ -266,6 +274,7 @@ fun MainScreen(
                             microphonePermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
                         },
                         onOpenAiSettings = { showAiSettingsDialog = true },
+                        onOpenControlledApps = { selectedTab = 1 },
                         showHomeTimeline = showHomeTimeline,
                         modifier = Modifier.padding(padding)
                     )
@@ -333,6 +342,31 @@ fun MainScreen(
             onDismiss = { showAiSettingsDialog = false }
         )
     }
+
+    pendingPermissionGuide?.let { guideType ->
+        PermissionGuideDialog(
+            type = guideType,
+            onDismiss = { pendingPermissionGuide = null },
+            onContinue = {
+                pendingPermissionGuide = null
+                when (guideType) {
+                    PermissionGuideType.ACCESSIBILITY -> {
+                        context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                    }
+                    PermissionGuideType.OVERLAY -> {
+                        overlayPermissionLauncher.launch(
+                            Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+                        )
+                    }
+                    PermissionGuideType.BATTERY -> {
+                        batteryOptimizationLauncher.launch(
+                            createBatteryOptimizationIntent(context)
+                        )
+                    }
+                }
+            }
+        )
+    }
 }
 
 /**
@@ -346,18 +380,24 @@ fun HomeTab(
     isBatteryOptimizationIgnored: Boolean,
     isMicrophoneEnabled: Boolean,
     isAiConfigured: Boolean,
+    isVoiceConfigured: Boolean,
     isHomeReady: Boolean,
+    controlledAppCount: Int,
     onEnableAccessibility: () -> Unit,
     onEnableOverlay: () -> Unit,
     onRequestIgnoreBatteryOptimizations: () -> Unit,
     onOpenNotificationSettings: () -> Unit,
     onRequestMicrophone: () -> Unit,
     onOpenAiSettings: () -> Unit,
+    onOpenControlledApps: () -> Unit,
     showHomeTimeline: Boolean,
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
     var showCompletedConfigDetails by rememberSaveable { mutableStateOf(false) }
+    val permissionsReady = isAccessibilityEnabled && isOverlayEnabled && isNotificationEnabled && isBatteryOptimizationIgnored
+    val hasControlledApps = controlledAppCount > 0
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -486,6 +526,66 @@ fun HomeTab(
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        if (isAiConfigured) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (isVoiceConfigured) {
+                                    stringResource(R.string.ai_voice_optional_configured)
+                                } else {
+                                    stringResource(R.string.ai_voice_optional_not_configured)
+                                },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Icon(
+                        Icons.Default.ChevronRight,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Card(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .clickable { onOpenControlledApps() }
+            ) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        if (hasControlledApps) Icons.Default.CheckCircle else Icons.Default.Apps,
+                        contentDescription = null,
+                        tint = if (hasControlledApps) {
+                            MaterialTheme.colorScheme.primary
+                        } else {
+                            MaterialTheme.colorScheme.secondary
+                        }
+                    )
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = stringResource(R.string.controlled_apps_setup_title),
+                            style = MaterialTheme.typography.bodyLarge,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Text(
+                            text = if (hasControlledApps) {
+                                stringResource(R.string.controlled_apps_setup_ready, controlledAppCount)
+                            } else {
+                                stringResource(R.string.controlled_apps_setup_missing)
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     }
                     Spacer(modifier = Modifier.width(12.dp))
                     Icon(
@@ -558,10 +658,16 @@ fun HomeTab(
                         tint = MaterialTheme.colorScheme.error
                     )
                     Spacer(modifier = Modifier.width(12.dp))
-                    Text(
-                        text = stringResource(R.string.please_complete_permissions_and_ai_config),
-                        style = MaterialTheme.typography.bodyLarge
-                    )
+                    Column {
+                        Text(
+                            text = when {
+                                permissionsReady && isAiConfigured && !hasControlledApps ->
+                                    stringResource(R.string.one_step_left_add_app)
+                                else -> stringResource(R.string.please_complete_permissions_and_ai_config)
+                            },
+                            style = MaterialTheme.typography.bodyLarge
+                        )
+                    }
                 }
             }
         }
@@ -638,6 +744,12 @@ fun PermissionCard(
                     fontWeight = FontWeight.Medium
                 )
                 Text(
+                    text = if (isEnabled) stringResource(R.string.permission_ready) else stringResource(R.string.permission_not_ready),
+                    style = MaterialTheme.typography.labelSmall,
+                    color = if (isEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Text(
                     text = description,
                     style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
@@ -649,6 +761,41 @@ fun PermissionCard(
             )
         }
     }
+}
+
+private enum class PermissionGuideType {
+    ACCESSIBILITY,
+    OVERLAY,
+    BATTERY
+}
+
+@Composable
+private fun PermissionGuideDialog(
+    type: PermissionGuideType,
+    onDismiss: () -> Unit,
+    onContinue: () -> Unit
+) {
+    val (titleRes, messageRes) = when (type) {
+        PermissionGuideType.ACCESSIBILITY -> R.string.permission_guide_accessibility_title to R.string.permission_guide_accessibility_message
+        PermissionGuideType.OVERLAY -> R.string.permission_guide_overlay_title to R.string.permission_guide_overlay_message
+        PermissionGuideType.BATTERY -> R.string.permission_guide_battery_title to R.string.permission_guide_battery_message
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(titleRes)) },
+        text = { Text(stringResource(messageRes)) },
+        confirmButton = {
+            Button(onClick = onContinue) {
+                Text(stringResource(R.string.permission_guide_continue))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
 }
 
 private fun isBatteryOptimizationIgnored(context: Context): Boolean {
@@ -802,6 +949,10 @@ fun AppsTab(modifier: Modifier = Modifier) {
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                    Spacer(modifier = Modifier.height(16.dp))
+                    Button(onClick = { showAddAppDialog = true }) {
+                        Text(stringResource(R.string.add_first_app_now))
+                    }
                 }
             }
         } else {
@@ -940,9 +1091,9 @@ fun AppRulesDialog(
         presetRules = loadedPresetRules
 
         val loadedHistoryRules = sessionManager.loadIntentHistory(app.packageName)
-        val presetFingerprints = loadedPresetRules.map { sessionManager.getConstraintFingerprint(listOf(it)) }.toSet()
+        val presetFingerprints = loadedPresetRules.map { sessionManager.getConstraintNameFingerprint(listOf(it)) }.toSet()
         historyRules = loadedHistoryRules.filter { history ->
-            val fingerprint = sessionManager.getConstraintFingerprint(history)
+            val fingerprint = sessionManager.getConstraintNameFingerprint(history)
             fingerprint !in presetFingerprints
         }
         lastIntentRules = sessionManager.loadLastIntent(app.packageName).orEmpty()
@@ -1485,10 +1636,10 @@ fun AppRulesDialog(
                 onSaveAsPreset = { updatedConstraints ->
                     val originalConstraints = historyRules[index]
                     val existingFingerprints = presetRules
-                        .map { sessionManager.getConstraintFingerprint(listOf(it)) }
+                        .map { sessionManager.getConstraintNameFingerprint(listOf(it)) }
                         .toMutableSet()
                     val constraintsToAdd = updatedConstraints.mapNotNull { constraint ->
-                        val fingerprint = sessionManager.getConstraintFingerprint(listOf(constraint))
+                        val fingerprint = sessionManager.getConstraintNameFingerprint(listOf(constraint))
                         if (fingerprint in existingFingerprints) {
                             null
                         } else {
@@ -1723,30 +1874,37 @@ private fun buildHintIntentOptions(
     existingHints: List<com.seenot.app.data.model.AppHint>
 ): List<HintIntentOption> {
     val options = linkedMapOf<String, HintIntentOption>()
+    val seenLabels = mutableSetOf<String>()
 
     fun addConstraint(constraint: SessionConstraint) {
         val intentId = buildIntentScopedHintId(constraint)
-        options.putIfAbsent(
-            intentId,
-            HintIntentOption(
+        val intentLabel = displayHintIntentLabel(context, buildIntentScopedHintLabel(context, constraint))
+        val labelKey = intentLabel.trim().lowercase()
+        if (seenLabels.add(labelKey)) {
+            options[intentId] = HintIntentOption(
                 intentId = intentId,
-                intentLabel = displayHintIntentLabel(context, buildIntentScopedHintLabel(context, constraint))
+                intentLabel = intentLabel
             )
-        )
+        }
+    }
+
+    fun addHintOption(hint: com.seenot.app.data.model.AppHint) {
+        val intentLabel = displayHintIntentLabel(context, hint.intentLabel)
+        val labelKey = intentLabel.trim().lowercase()
+        if (seenLabels.add(labelKey)) {
+            options[hint.intentId] = HintIntentOption(
+                intentId = hint.intentId,
+                intentLabel = intentLabel
+            )
+        }
     }
 
     presetRules.forEach(::addConstraint)
     historyRules.flatten().forEach(::addConstraint)
     lastIntentRules.forEach(::addConstraint)
-    existingHints.filter { it.scopeType == AppHintScopeType.INTENT_SPECIFIC }.forEach { hint ->
-        options.putIfAbsent(
-            hint.intentId,
-            HintIntentOption(
-                intentId = hint.intentId,
-                intentLabel = displayHintIntentLabel(context, hint.intentLabel)
-            )
-        )
-    }
+    existingHints
+        .filter { it.scopeType == AppHintScopeType.INTENT_SPECIFIC }
+        .forEach(::addHintOption)
 
     return options.values.toList()
 }
@@ -2873,6 +3031,7 @@ private fun SettingsDropdownRow(
 private fun AiModelSettingsDialog(
     onDismiss: () -> Unit
 ) {
+    val context = LocalContext.current
     val initialSettings = remember { ApiConfig.getSettings() }
     val initialSttSettings = remember { ApiConfig.getSttSettings() }
 
@@ -2896,6 +3055,7 @@ private fun AiModelSettingsDialog(
     var sttProviderExpanded by remember { mutableStateOf(false) }
     var sttModelExpanded by remember { mutableStateOf(false) }
     var sttBaseUrlExpanded by remember { mutableStateOf(false) }
+    var showAdvancedVisionSettings by remember { mutableStateOf(false) }
 
     val recommendedPresets = remember(provider, qwenRegion) {
         recommendedModelPresets(provider, qwenRegion)
@@ -3037,6 +3197,12 @@ private fun AiModelSettingsDialog(
                 Spacer(modifier = Modifier.height(12.dp))
 
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    Text(
+                        text = stringResource(R.string.ai_setup_intro),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+
                     if (isDevDashscopeKeyActive) {
                         Text(
                             text = stringResource(R.string.dev_mode_dashscope_temp_key, devDashscopeKeyExpiryText),
@@ -3051,7 +3217,7 @@ private fun AiModelSettingsDialog(
                             onExpandedChange = { providerExpanded = !providerExpanded }
                         ) {
                             OutlinedTextField(
-                                value = LocalContext.current.getString(provider.displayNameResId),
+                                value = context.getString(provider.displayNameResId),
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text(stringResource(R.string.vision_provider)) },
@@ -3068,7 +3234,7 @@ private fun AiModelSettingsDialog(
                             ) {
                                 providerOptions.forEach { candidate ->
                                     DropdownMenuItem(
-                                        text = { Text(LocalContext.current.getString(candidate.displayNameResId)) },
+                                        text = { Text(context.getString(candidate.displayNameResId)) },
                                         onClick = {
                                             providerExpanded = false
                                             applyProviderDefaults(candidate)
@@ -3091,57 +3257,6 @@ private fun AiModelSettingsDialog(
                             singleLine = true,
                             visualTransformation = PasswordVisualTransformation()
                         )
-
-                        ExposedDropdownMenuBox(
-                            expanded = baseUrlExpanded,
-                            onExpandedChange = {
-                                if (baseUrlSuggestions.isNotEmpty()) baseUrlExpanded = !baseUrlExpanded
-                            }
-                        ) {
-                            OutlinedTextField(
-                                value = baseUrl,
-                                onValueChange = {
-                                    baseUrl = it
-                                    if (provider == sttProvider && provider != AiProvider.CUSTOM) {
-                                        sttBaseUrl = it
-                                    }
-                                },
-                                label = { Text(stringResource(R.string.base_url)) },
-                                placeholder = { Text(stringResource(R.string.base_url_placeholder)) },
-                                trailingIcon = {
-                                    if (baseUrlSuggestions.isNotEmpty()) {
-                                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = baseUrlExpanded)
-                                    }
-                                },
-                                modifier = Modifier
-                                    .menuAnchor()
-                                    .fillMaxWidth(),
-                                singleLine = true
-                            )
-                            if (baseUrlSuggestions.isNotEmpty()) {
-                                ExposedDropdownMenu(
-                                    expanded = baseUrlExpanded,
-                                    onDismissRequest = { baseUrlExpanded = false }
-                                ) {
-                                    baseUrlSuggestions.forEach { (labelResId, value) ->
-                                        DropdownMenuItem(
-                                            text = { Text(stringResource(labelResId)) },
-                                            onClick = {
-                                                baseUrlExpanded = false
-                                                baseUrl = value
-                                                if (provider == sttProvider && provider != AiProvider.CUSTOM) {
-                                                    sttBaseUrl = value
-                                                }
-                                                if (provider == AiProvider.DASHSCOPE) {
-                                                    qwenRegion = QwenRegion.entries.firstOrNull { it.baseUrl == value }
-                                                        ?: qwenRegion
-                                                }
-                                            }
-                                        )
-                                    }
-                                }
-                            }
-                        }
 
                         ExposedDropdownMenuBox(
                             expanded = modelExpanded,
@@ -3194,79 +3309,170 @@ private fun AiModelSettingsDialog(
                             }
                         }
 
-                        ExposedDropdownMenuBox(
-                            expanded = feedbackModelExpanded,
-                            onExpandedChange = {
-                                if (recommendedPresets.isNotEmpty()) {
-                                    feedbackModelExpanded = !feedbackModelExpanded
-                                }
-                            }
+                        Surface(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable { showAdvancedVisionSettings = !showAdvancedVisionSettings },
+                            shape = MaterialTheme.shapes.medium,
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
                         ) {
-                            OutlinedTextField(
-                                value = feedbackModelInput,
-                                onValueChange = {
-                                    feedbackModelInput = it
-                                    feedbackModel = it
-                                },
-                                label = { Text(stringResource(R.string.bias_model)) },
-                                placeholder = { Text(stringResource(R.string.bias_model_hint)) },
-                                trailingIcon = {
-                                    if (recommendedPresets.isNotEmpty()) {
-                                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = feedbackModelExpanded)
-                                    }
-                                },
+                            Row(
                                 modifier = Modifier
-                                    .menuAnchor()
-                                    .fillMaxWidth(),
-                                singleLine = true
-                            )
-                            if (recommendedPresets.isNotEmpty()) {
-                                ExposedDropdownMenu(
-                                    expanded = feedbackModelExpanded,
-                                    onDismissRequest = { feedbackModelExpanded = false }
-                                ) {
-                                    recommendedPresets.forEach { preset ->
-                                        DropdownMenuItem(
-                                            text = {
-                                                Text(
-                                                    when {
-                                                        preset.noteResId != null -> "${preset.model}  ${stringResource(preset.noteResId)}"
-                                                        preset.note.isNotBlank() -> "${preset.model}  ${preset.note}"
-                                                        else -> preset.model
+                                    .fillMaxWidth()
+                                    .padding(horizontal = 16.dp, vertical = 12.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = stringResource(R.string.advanced_settings),
+                                    style = MaterialTheme.typography.bodyMedium,
+                                    fontWeight = FontWeight.Medium,
+                                    modifier = Modifier.weight(1f)
+                                )
+                                Icon(
+                                    imageVector = if (showAdvancedVisionSettings) {
+                                        Icons.Default.ExpandLess
+                                    } else {
+                                        Icons.Default.ExpandMore
+                                    },
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
+                        if (showAdvancedVisionSettings) {
+                            ExposedDropdownMenuBox(
+                                expanded = baseUrlExpanded,
+                                onExpandedChange = {
+                                    if (baseUrlSuggestions.isNotEmpty()) baseUrlExpanded = !baseUrlExpanded
+                                }
+                            ) {
+                                OutlinedTextField(
+                                    value = baseUrl,
+                                    onValueChange = {
+                                        baseUrl = it
+                                        if (provider == sttProvider && provider != AiProvider.CUSTOM) {
+                                            sttBaseUrl = it
+                                        }
+                                    },
+                                    label = { Text(stringResource(R.string.base_url)) },
+                                    placeholder = { Text(stringResource(R.string.base_url_placeholder)) },
+                                    trailingIcon = {
+                                        if (baseUrlSuggestions.isNotEmpty()) {
+                                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = baseUrlExpanded)
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .menuAnchor()
+                                        .fillMaxWidth(),
+                                    singleLine = true
+                                )
+                                if (baseUrlSuggestions.isNotEmpty()) {
+                                    ExposedDropdownMenu(
+                                        expanded = baseUrlExpanded,
+                                        onDismissRequest = { baseUrlExpanded = false }
+                                    ) {
+                                        baseUrlSuggestions.forEach { (labelResId, value) ->
+                                            DropdownMenuItem(
+                                                text = { Text(stringResource(labelResId)) },
+                                                onClick = {
+                                                    baseUrlExpanded = false
+                                                    baseUrl = value
+                                                    if (provider == sttProvider && provider != AiProvider.CUSTOM) {
+                                                        sttBaseUrl = value
                                                     }
-                                                )
-                                            },
-                                            onClick = {
-                                                feedbackModelExpanded = false
-                                                feedbackModel = preset.model
-                                                feedbackModelInput = preset.model
-                                            }
-                                        )
+                                                    if (provider == AiProvider.DASHSCOPE) {
+                                                        qwenRegion = QwenRegion.entries.firstOrNull { it.baseUrl == value }
+                                                            ?: qwenRegion
+                                                    }
+                                                }
+                                            )
+                                        }
                                     }
                                 }
                             }
                         }
 
-                        Text(
-                            text = stringResource(R.string.bias_model_not_highfreq_usage),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        if (showAdvancedVisionSettings) {
+                            ExposedDropdownMenuBox(
+                                expanded = feedbackModelExpanded,
+                                onExpandedChange = {
+                                    if (recommendedPresets.isNotEmpty()) {
+                                        feedbackModelExpanded = !feedbackModelExpanded
+                                    }
+                                }
+                            ) {
+                                OutlinedTextField(
+                                    value = feedbackModelInput,
+                                    onValueChange = {
+                                        feedbackModelInput = it
+                                        feedbackModel = it
+                                    },
+                                    label = { Text(stringResource(R.string.bias_model)) },
+                                    placeholder = { Text(stringResource(R.string.bias_model_hint)) },
+                                    trailingIcon = {
+                                        if (recommendedPresets.isNotEmpty()) {
+                                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = feedbackModelExpanded)
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .menuAnchor()
+                                        .fillMaxWidth(),
+                                    singleLine = true
+                                )
+                                if (recommendedPresets.isNotEmpty()) {
+                                    ExposedDropdownMenu(
+                                        expanded = feedbackModelExpanded,
+                                        onDismissRequest = { feedbackModelExpanded = false }
+                                    ) {
+                                        recommendedPresets.forEach { preset ->
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        when {
+                                                            preset.noteResId != null -> "${preset.model}  ${stringResource(preset.noteResId)}"
+                                                            preset.note.isNotBlank() -> "${preset.model}  ${preset.note}"
+                                                            else -> preset.model
+                                                        }
+                                                    )
+                                                },
+                                                onClick = {
+                                                    feedbackModelExpanded = false
+                                                    feedbackModel = preset.model
+                                                    feedbackModelInput = preset.model
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                            Text(
+                                text = stringResource(R.string.bias_model_not_highfreq_usage),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
 
                         if (provider == AiProvider.DASHSCOPE) {
                             Text(
-                                text = stringResource(R.string.qwen_region_label, LocalContext.current.getString(qwenRegion.displayNameResId)),
+                                text = stringResource(R.string.qwen_region_label, context.getString(qwenRegion.displayNameResId)),
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
                     } else {
+                        Text(
+                            text = stringResource(R.string.voice_optional_hint),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
                         ExposedDropdownMenuBox(
                             expanded = sttProviderExpanded,
                             onExpandedChange = { sttProviderExpanded = !sttProviderExpanded }
                         ) {
                             OutlinedTextField(
-                                value = LocalContext.current.getString(sttProvider.displayNameResId),
+                                value = context.getString(sttProvider.displayNameResId),
                                 onValueChange = {},
                                 readOnly = true,
                                 label = { Text(stringResource(R.string.voice_provider)) },
@@ -3283,7 +3489,7 @@ private fun AiModelSettingsDialog(
                             ) {
                                 sttProviderOptions.forEach { candidate ->
                                     DropdownMenuItem(
-                                        text = { Text(LocalContext.current.getString(candidate.displayNameResId)) },
+                                        text = { Text(context.getString(candidate.displayNameResId)) },
                                         onClick = {
                                             sttProviderExpanded = false
                                             applySttDefaults(candidate)
@@ -3468,15 +3674,23 @@ private fun AiModelSettingsDialog(
                         )
                     )
 
+                    Toast.makeText(
+                        context,
+                        context.getString(
+                            if (ApiConfig.isVoiceConfigured()) {
+                                R.string.save_ai_settings_ready
+                            } else {
+                                R.string.save_ai_settings_ready_voice_missing
+                            }
+                        ),
+                        Toast.LENGTH_SHORT
+                    ).show()
                     onDismiss()
                 },
                 enabled = apiKey.isNotBlank() &&
                     baseUrl.isNotBlank() &&
                     model.isNotBlank() &&
-                    feedbackModel.isNotBlank() &&
-                    sttApiKey.isNotBlank() &&
-                    sttBaseUrl.isNotBlank() &&
-                    (sttModelIsFixed || sttModel.isNotBlank())
+                    feedbackModel.isNotBlank()
             ) {
                 Text(stringResource(R.string.save))
             }
@@ -3568,8 +3782,6 @@ fun AddAppDialog(
 ) {
     val context = LocalContext.current
     var installedApps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
-    var selectedApp by remember { mutableStateOf<AppInfo?>(null) }
-    var showAppList by remember { mutableStateOf(false) }
     var searchQuery by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
@@ -3608,90 +3820,64 @@ fun AddAppDialog(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 } else {
-                    // App selector button
-                    OutlinedButton(
-                        onClick = { showAppList = !showAppList },
-                        modifier = Modifier.fillMaxWidth()
+                    OutlinedTextField(
+                        value = searchQuery,
+                        onValueChange = { searchQuery = it },
+                        modifier = Modifier.fillMaxWidth(),
+                        label = { Text(stringResource(R.string.search_app_label)) },
+                        placeholder = { Text(stringResource(R.string.search_placeholder)) },
+                        leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
+                        singleLine = true
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    LazyColumn(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(280.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        Text(
-                            text = selectedApp?.name ?: stringResource(R.string.select_app),
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.weight(1f)
-                        )
-                        Icon(
-                            Icons.Default.ArrowDropDown,
-                            contentDescription = null
-                        )
-                    }
-
-                    // App list
-                    if (showAppList) {
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        // Search field
-                        OutlinedTextField(
-                            value = searchQuery,
-                            onValueChange = { searchQuery = it },
-                            modifier = Modifier.fillMaxWidth(),
-                            placeholder = { Text(stringResource(R.string.search_placeholder)) },
-                            leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                            singleLine = true
-                        )
-
-                        Spacer(modifier = Modifier.height(8.dp))
-
-                        LazyColumn(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .height(200.dp)
-                        ) {
-                            items(filteredApps) { app ->
-                                Card(
+                        items(filteredApps) { app ->
+                            Card(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { onAppSelected(app.packageName) }
+                            ) {
+                                Row(
                                     modifier = Modifier
                                         .fillMaxWidth()
-                                        .clickable {
-                                            selectedApp = app
-                                            showAppList = false
-                                            searchQuery = ""
-                                        }
+                                        .padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
                                 ) {
-                                    Row(
-                                        modifier = Modifier
-                                            .fillMaxWidth()
-                                            .padding(12.dp),
-                                        verticalAlignment = Alignment.CenterVertically
+                                    Surface(
+                                        shape = MaterialTheme.shapes.small,
+                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                        modifier = Modifier.size(36.dp)
                                     ) {
-                                        Surface(
-                                            shape = MaterialTheme.shapes.small,
-                                            color = MaterialTheme.colorScheme.primaryContainer,
-                                            modifier = Modifier.size(36.dp)
-                                        ) {
-                                            Box(contentAlignment = Alignment.Center) {
-                                                Text(
-                                                    text = app.name.take(1).uppercase(),
-                                                    style = MaterialTheme.typography.titleSmall
-                                                )
-                                            }
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Text(
+                                                text = app.name.take(1).uppercase(),
+                                                style = MaterialTheme.typography.titleSmall
+                                            )
                                         }
-                                        Spacer(modifier = Modifier.width(12.dp))
-                                        Column(modifier = Modifier.weight(1f)) {
-                                            Text(
-                                                text = app.name,
-                                                style = MaterialTheme.typography.bodyMedium
-                                            )
-                                            Text(
-                                                text = app.packageName,
-                                                style = MaterialTheme.typography.bodySmall,
-                                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                                            )
+                                    }
+                                    Spacer(modifier = Modifier.width(12.dp))
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = app.name,
+                                            style = MaterialTheme.typography.bodyMedium
+                                        )
+                                        Text(
+                                            text = app.packageName,
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
                                 }
                             }
                         }
-
                     }
-                }
-            }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
@@ -3703,17 +3889,6 @@ fun AddAppDialog(
                 ) {
                     TextButton(onClick = onDismiss) {
                         Text(stringResource(R.string.cancel))
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Button(
-                        onClick = {
-                            selectedApp?.let { app ->
-                                onAppSelected(app.packageName)
-                            }
-                        },
-                        enabled = selectedApp != null
-                    ) {
-                        Text(stringResource(R.string.add))
                     }
                 }
             }

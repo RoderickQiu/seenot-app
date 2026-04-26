@@ -213,8 +213,28 @@ object ApiConfig {
             ?.apply()
     }
 
-    fun isConfigured(): Boolean {
-        return getApiKey().isNotBlank()
+    fun isConfigured(): Boolean = isVisionConfigured()
+
+    fun isVisionConfigured(): Boolean {
+        val settings = getSettings()
+        return settings.apiKey.isNotBlank() &&
+            settings.baseUrl.isNotBlank() &&
+            settings.model.isNotBlank()
+    }
+
+    fun isVoiceConfigured(): Boolean {
+        val settings = getSttSettings()
+        val providerSupported = when (settings.provider) {
+            AiProvider.DASHSCOPE,
+            AiProvider.OPENAI,
+            AiProvider.GLM,
+            AiProvider.CUSTOM -> true
+            AiProvider.GEMINI,
+            AiProvider.ANTHROPIC -> false
+        }
+        if (!providerSupported) return false
+        if (settings.apiKey.isBlank() || settings.model.isBlank()) return false
+        return settings.provider == AiProvider.DASHSCOPE || settings.baseUrl.isNotBlank()
     }
 
     fun reconcileDevelopmentInjectedDashscopeKey(
