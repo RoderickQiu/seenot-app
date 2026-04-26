@@ -102,7 +102,7 @@ object ApiConfig {
     }
 
     fun getFeedbackModel(): String {
-        val fallback = getModel()
+        val fallback = getProvider().defaultFeedbackModel
         val raw = prefs?.getString(KEY_FEEDBACK_MODEL, fallback)?.trim().orEmpty()
         return if (raw.isBlank()) fallback else raw
     }
@@ -337,36 +337,42 @@ enum class AiProvider(
     val displayName: String,
     val defaultBaseUrl: String,
     val defaultModel: String,
+    val defaultFeedbackModel: String = defaultModel,
     @StringRes val displayNameResId: Int
 ) {
     DASHSCOPE(
         displayName = "DashScope / Qwen",
         defaultBaseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1",
         defaultModel = "qwen3.6-plus",
+        defaultFeedbackModel = "qwen3.6-max-preview",
         displayNameResId = R.string.provider_dashscope
     ),
     OPENAI(
         displayName = "OpenAI",
         defaultBaseUrl = "https://api.openai.com/v1",
         defaultModel = "gpt-5.4-mini",
+        defaultFeedbackModel = "gpt-5.5",
         displayNameResId = R.string.provider_openai
     ),
     GEMINI(
         displayName = "Google Gemini",
         defaultBaseUrl = "https://generativelanguage.googleapis.com/v1beta/openai",
         defaultModel = "gemini-3.1-flash-preview",
+        defaultFeedbackModel = "gemini-3.1-pro-preview",
         displayNameResId = R.string.provider_gemini
     ),
     ANTHROPIC(
         displayName = "Anthropic Claude",
         defaultBaseUrl = "https://api.anthropic.com/v1",
         defaultModel = "claude-sonnet-4.6",
+        defaultFeedbackModel = "claude-opus-4-7",
         displayNameResId = R.string.provider_anthropic
     ),
     GLM(
         displayName = "Zhipu GLM",
         defaultBaseUrl = "https://open.bigmodel.cn/api/paas/v4",
         defaultModel = "glm-5v-turbo",
+        defaultFeedbackModel = "glm-5.1",
         displayNameResId = R.string.provider_glm
     ),
     CUSTOM(
@@ -415,7 +421,7 @@ data class ApiSettings(
                 apiKey = "",
                 baseUrl = provider.defaultBaseUrl,
                 model = provider.defaultModel,
-                feedbackModel = provider.defaultModel,
+                feedbackModel = provider.defaultFeedbackModel,
                 qwenRegion = QwenRegion.BEIJING
             )
         }
@@ -467,36 +473,48 @@ fun recommendedModelPresets(
         AiProvider.DASHSCOPE -> when (qwenRegion) {
             QwenRegion.BEIJING -> listOf(
                 ModelPreset("qwen36plus-cn", "Qwen 3.6 Plus", "qwen3.6-plus", noteResId = R.string.model_note_recommended),
+                ModelPreset("qwen36maxpreview-cn", "Qwen 3.6 Max Preview", "qwen3.6-max-preview"),
                 ModelPreset("qwen35plus-cn", "Qwen 3.5 Plus", "qwen3.5-plus"),
                 ModelPreset("qwen35flash-cn", "Qwen 3.5 Flash", "qwen3.5-flash"),
                 ModelPreset("qwenvlplus-cn", "Qwen VL Plus", "qwen-vl-plus")
             )
             QwenRegion.SINGAPORE -> listOf(
                 ModelPreset("qwen36plus-sg", "Qwen 3.6 Plus", "qwen3.6-plus", noteResId = R.string.model_note_recommended),
+                ModelPreset("qwen36maxpreview-sg", "Qwen 3.6 Max Preview", "qwen3.6-max-preview"),
                 ModelPreset("qwen35plus-sg", "Qwen 3.5 Plus", "qwen3.5-plus"),
                 ModelPreset("qwen35flash-sg", "Qwen 3.5 Flash", "qwen3.5-flash"),
                 ModelPreset("qwenvlplus-sg", "Qwen VL Plus", "qwen-vl-plus"),
                 ModelPreset("qwenvlmax-sg", "Qwen VL Max", "qwen-vl-max")
             )
             QwenRegion.VIRGINIA -> listOf(
+                ModelPreset("qwen36plus-us", "Qwen 3.6 Plus", "qwen3.6-plus", noteResId = R.string.model_note_recommended),
+                ModelPreset("qwen36maxpreview-us", "Qwen 3.6 Max Preview", "qwen3.6-max-preview"),
+                ModelPreset("qwen36flash-us", "Qwen 3.6 Flash", "qwen3.6-flash"),
                 ModelPreset("qwen35plus-us", "Qwen 3.5 Plus", "qwen3.5-plus"),
                 ModelPreset("qwen35flash-us", "Qwen 3.5 Flash", "qwen3.5-flash")
             )
         }
         AiProvider.OPENAI -> listOf(
+            ModelPreset("gpt55", "GPT 5.5", "gpt-5.5"),
+            ModelPreset("gpt54", "GPT 5.4", "gpt-5.4"),
             ModelPreset("gpt54mini", "GPT 5.4 Mini", "gpt-5.4-mini", noteResId = R.string.model_note_recommended),
             ModelPreset("gpt5mini", "GPT 5 Mini", "gpt-5-mini")
         )
         AiProvider.GEMINI -> listOf(
+            ModelPreset("gem31pro", "Gemini 3.1 Pro Preview", "gemini-3.1-pro-preview"),
+            ModelPreset("gem25pro", "Gemini 2.5 Pro", "gemini-2.5-pro"),
             ModelPreset("gem31flash", "Gemini 3 Flash", "gemini-3-flash-preview", noteResId = R.string.model_note_recommended),
             ModelPreset("gem31flashlite", "Gemini 3.1 Flash Lite", "gemini-3.1-flash-lite-preview"),
             ModelPreset("gem25flash", "Gemini 2.5 Flash", "gemini-2.5-flash")
         )
         AiProvider.ANTHROPIC -> listOf(
+            ModelPreset("claudeopus47", "Claude Opus 4.7", "claude-opus-4-7"),
+            ModelPreset("claudeopus46", "Claude Opus 4.6", "claude-opus-4-6"),
             ModelPreset("claudesonnet46", "Claude Sonnet 4.6", "claude-sonnet-4-6", noteResId = R.string.model_note_recommended),
             ModelPreset("claudehaiku45", "Claude Haiku 4.5", "claude-haiku-4-5")
         )
         AiProvider.GLM -> listOf(
+            ModelPreset("glm51", "GLM 5.1", "glm-5.1"),
             ModelPreset("glm5vturbo", "GLM 5V Turbo", "glm-5v-turbo", noteResId = R.string.model_note_recommended),
             ModelPreset("glm5", "GLM 5", "glm-5"),
             ModelPreset("glm46vflashx", "GLM 4.6V Flash X", "glm-4.6v-flashx"),

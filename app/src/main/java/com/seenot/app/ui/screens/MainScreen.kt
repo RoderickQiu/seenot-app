@@ -3519,10 +3519,8 @@ private fun getInstalledApps(context: android.content.Context): List<AppInfo> {
         .mapNotNull { packageName ->
             try {
                 val appInfo = pm.getApplicationInfo(packageName, 0)
-                // Filter out system apps (except launcher)
-                val isSystemApp = (appInfo.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0
-                if (isSystemApp) {
-                    android.util.Log.d("AppsTab", "Filtering out system app: $packageName")
+                if (shouldExcludeFromControlledAppPicker(pm, context.packageName, packageName)) {
+                    android.util.Log.d("AppsTab", "Filtering out utility/system shell app: $packageName")
                     return@mapNotNull null
                 }
                 AppInfo(
@@ -3537,6 +3535,26 @@ private fun getInstalledApps(context: android.content.Context): List<AppInfo> {
 
     android.util.Log.d("AppsTab", "Found ${apps.size} launchable apps")
     return apps
+}
+
+private fun shouldExcludeFromControlledAppPicker(
+    packageManager: PackageManager,
+    selfPackageName: String,
+    packageName: String
+): Boolean {
+    if (packageName == selfPackageName) return true
+    // Across OEMs, the only stable "not a real target app" signal for launcher-
+    // visible packages is that they are HOME apps. Other utility/system surfaces
+    // vary too much by package name and preload strategy to exclude safely.
+    return isHomeApp(packageManager, packageName)
+}
+
+private fun isHomeApp(packageManager: PackageManager, packageName: String): Boolean {
+    val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+        addCategory(Intent.CATEGORY_HOME)
+    }
+    return packageManager.queryIntentActivities(homeIntent, 0)
+        .any { it.activityInfo?.packageName == packageName }
 }
 
 /**
