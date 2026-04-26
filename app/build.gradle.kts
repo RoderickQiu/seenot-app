@@ -1,19 +1,31 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("com.google.devtools.ksp")
 }
 
+val versionProperties = Properties().apply {
+    val versionFile = rootProject.file("app/version.properties")
+    versionFile.inputStream().use { load(it) }
+}
 val releaseStoreFilePath = project.findProperty("RELEASE_STORE_FILE") as? String
 val releaseStorePassword = project.findProperty("RELEASE_STORE_PASSWORD") as? String
 val releaseKeyAlias = project.findProperty("RELEASE_KEY_ALIAS") as? String
 val releaseKeyPassword = project.findProperty("RELEASE_KEY_PASSWORD") as? String
+val defaultVersionCode = versionProperties.getProperty("VERSION_CODE")
+    ?.toIntOrNull()
+    ?: error("VERSION_CODE in app/version.properties must be an integer")
+val defaultVersionName = versionProperties.getProperty("VERSION_NAME")
+    ?.takeIf { it.isNotBlank() }
+    ?: error("VERSION_NAME in app/version.properties must not be blank")
 val configuredVersionCode = (project.findProperty("SEENOT_VERSION_CODE") as? String)
     ?.toIntOrNull()
-    ?: 1
+    ?: defaultVersionCode
 val configuredVersionName = (project.findProperty("SEENOT_VERSION_NAME") as? String)
     ?.takeIf { it.isNotBlank() }
-    ?: "1.0.0"
+    ?: defaultVersionName
 val hasReleaseSigningConfig = listOf(
     releaseStoreFilePath,
     releaseStorePassword,
