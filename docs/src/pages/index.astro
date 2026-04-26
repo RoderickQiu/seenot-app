@@ -1,0 +1,6 @@
+---
+import HomePage from "../components/HomePage.astro";
+import { getAlternateLanguages, homeCopy } from "../content/home";
+---
+
+<HomePage copy={homeCopy.en} alternateLanguages={getAlternateLanguages("/")} />

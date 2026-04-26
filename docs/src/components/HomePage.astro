@@ -1,0 +1,130 @@
+---
+import BaseLayout from "../layouts/BaseLayout.astro";
+import type { homeCopy } from "../content/home";
+
+type HomeCopy = (typeof homeCopy)[keyof typeof homeCopy];
+
+interface Props {
+  copy: HomeCopy;
+  alternateLanguages: { hrefLang: string; href: string }[];
+}
+
+const { copy, alternateLanguages } = Astro.props;
+const externalLinkAttrs = {
+  target: "_blank",
+  rel: "noopener noreferrer"
+};
+
+const softwareApplication = {
+  "@context": "https://schema.org",
+  "@type": "SoftwareApplication",
+  name: "SeeNot",
+  operatingSystem: "Android 11+",
+  applicationCategory: "ProductivityApplication",
+  description: copy.description,
+  url: "https://roderickqiu.github.io/seenot-reborn/",
+  downloadUrl: "https://github.com/RoderickQiu/seenot-reborn/releases",
+  softwareHelp: "https://github.com/RoderickQiu/seenot-reborn",
+  inLanguage: ["en", "zh-CN"],
+  offers: {
+    "@type": "Offer",
+    price: "0",
+    priceCurrency: "USD"
+  }
+};
+---
+
+<BaseLayout
+  title={copy.title}
+  description={copy.description}
+  canonical={copy.canonical}
+  lang={copy.lang}
+  ogLocale={copy.ogLocale}
+  alternateLanguages={alternateLanguages}
+>
+  <Fragment slot="head">
+    <script type="application/ld+json" set:html={JSON.stringify(softwareApplication)} />
+  </Fragment>
+
+  <div class="site-shell">
+    <header class="top-app-bar">
+      <a class="brand" href="#top" aria-label={copy.brandLabel}>
+        <img class="brand-icon" src="/favicon.svg" alt="" aria-hidden="true" />
+        <span class="brand-copy">
+          <strong>SeeNot</strong>
+          <small>{copy.brandSubtitle}</small>
+        </span>
+      </a>
+
+      <div class="top-app-bar-actions">
+        <nav class="nav-tabs" aria-label={copy.navAriaLabel}>
+          {copy.navLinks.map((item) => (
+            <a href={item.href}>{item.label}</a>
+          ))}
+        </nav>
+
+        <a class="language-switch" href={copy.languageSwitchHref} aria-label={copy.languageSwitchLabel}>
+          {copy.languageSwitchText}
+        </a>
+      </div>
+    </header>
+
+    <main id="top" class="page">
+      <section class="hero">
+        <article class="hero-copy">
+          <span class="eyebrow">{copy.eyebrow}</span>
+          <h1 class="hero-title">{copy.heroTitle}</h1>
+          <p class="hero-text">{copy.heroText}</p>
+
+          <div class="actions">
+            <a class="button primary" href={copy.primaryCta.href} {...externalLinkAttrs}>{copy.primaryCta.label}</a>
+            <a class="button ghost" href={copy.secondaryCta.href} {...externalLinkAttrs}>{copy.secondaryCta.label}</a>
+          </div>
+
+          <p class="intent-example">{copy.intentExample}</p>
+        </article>
+      </section>
+
+      <section class="flow-section" id="flow">
+        <div class="flow-shell">
+          <div class="step-grid">
+            {copy.steps.map((item) => (
+              <article>
+                <span class="step-index">{item.step}</span>
+                <h3>{item.title}</h3>
+                <p>{item.body}</p>
+              </article>
+            ))}
+          </div>
+        </div>
+      </section>
+
+      <section class="scene-section" id="scenes">
+        <article class="large-panel">
+          <div class="section-head">
+            <h2>{copy.scenariosHeading}</h2>
+          </div>
+          <ul class="simple-list">
+            {copy.scenarios.map((item) => <li>{item}</li>)}
+          </ul>
+        </article>
+      </section>
+
+      <section class="download-section" id="download">
+        <article class="download-card">
+          <div>
+            <h2>{copy.downloadHeading}</h2>
+            <p>{copy.downloadBody}</p>
+            <div class="requirement-chips" aria-label={copy.boundariesAriaLabel}>
+              {copy.boundaries.map((item) => <span>{item}</span>)}
+            </div>
+          </div>
+          <div class="actions">
+            <a class="button primary" href={copy.downloadCta.href} {...externalLinkAttrs}>{copy.downloadCta.label}</a>
+            <a class="button ghost" href={copy.docsCta.href} {...externalLinkAttrs}>{copy.docsCta.label}</a>
+          </div>
+        </article>
+      </section>
+    </main>
+  </div>
+</BaseLayout>
