@@ -50,6 +50,22 @@
 
 建议在真机上测试，模拟器上无障碍和悬浮窗行为可能不一样。
 
+### 去哪里获取 API Key
+
+SeeNot 需要 AI API Key 才能工作。我们目前正在提供免费 API 供测试；请联系我，如通过 scrisqiu at hotmail.com 来获取。或者，你也可以注册自己的 AI Key：
+
+注册 AI 服务商的账号，进入 API Key 页面，新建一个 key，然后粘贴到 SeeNot 里。
+
+- OpenAI：在 OpenAI 的 API keys 页面创建：[https://platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+- Anthropic：登录 Anthropic Console，在 Account Settings / API Keys 里创建：[https://console.anthropic.com/](https://console.anthropic.com/)；文档：[https://docs.anthropic.com/en/api/getting-started](https://docs.anthropic.com/en/api/getting-started)
+- Gemini：在 Google AI Studio 的 API Keys 页面创建和管理：[https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey)；文档：[https://ai.google.dev/gemini-api/docs/api-key](https://ai.google.dev/gemini-api/docs/api-key)
+- Qwen（通义千问，**便宜**）：先开通阿里云百炼 / DashScope，再到 API-KEY 页面创建；官方说明：[https://help.aliyun.com/zh/dashscope/opening-service](https://help.aliyun.com/zh/dashscope/opening-service)
+  - 如果你是中国学生，可以前往[这里](https://university.aliyun.com/buycenter/)申请免费的 Qwen API。
+- GLM（智谱，**便宜**）：登录智谱开放平台，在 API Keys 页面创建；文档入口：[https://docs.bigmodel.cn/](https://docs.bigmodel.cn/)；示例说明：[https://docs.bigmodel.cn/cn/guide/develop/claude/introduction](https://docs.bigmodel.cn/cn/guide/develop/claude/introduction)
+
+你也可以使用任何兼容 OpenAI 模式，且提供视觉大模型的 AI 服务商，或者自建 AI 服务。
+
+
 ### 开发者
 
 ```bash

@@ -50,6 +50,24 @@ You'll need to:
 
 SeeNot is best tested on a real Android device. Some accessibility and overlay behaviors may differ on emulators.
 
+### Where to get API keys
+
+SeeNot requires an AI API key to work. We are currently providing free API access for testing — contact me at scrisqiu at hotmail.com to get one. 
+
+Alternatively, you can register your own AI key: create an account, enable billing or complete any required verification, open the provider's API key page, create a new key, and paste it into SeeNot.
+
+- OpenAI: create a key from the OpenAI API keys page: [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys)
+- Anthropic: sign in to Anthropic Console, then create a key from Account Settings / API Keys: [https://console.anthropic.com/](https://console.anthropic.com/) and docs: [https://docs.anthropic.com/en/api/getting-started](https://docs.anthropic.com/en/api/getting-started)
+- Gemini: create and manage keys in Google AI Studio: [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) and guide: [https://ai.google.dev/gemini-api/docs/api-key](https://ai.google.dev/gemini-api/docs/api-key)
+- Qwen (low-cost):
+  - International: use Alibaba Cloud Model Studio international, then create a key from the API Key page. Official guide: [https://www.alibabacloud.com/help/en/model-studio/get-api-key](https://www.alibabacloud.com/help/en/model-studio/get-api-key)
+  - China route: use Alibaba Cloud China. Official guide: [https://www.alibabacloud.com/help/zh/model-studio/get-api-key](https://www.alibabacloud.com/help/zh/model-studio/get-api-key)
+- GLM (low-cost):
+  - International: use Z.ai, then create a key from the API Keys page. Official docs: [https://docs.z.ai/guides/develop/http/introduction](https://docs.z.ai/guides/develop/http/introduction) and key page: [https://z.ai/manage-apikey/apikey-list](https://z.ai/manage-apikey/apikey-list)
+  - China route: use Zhipu BigModel Open Platform. Official docs: [https://docs.bigmodel.cn/](https://docs.bigmodel.cn/) and example guide: [https://docs.bigmodel.cn/cn/guide/develop/claude/introduction](https://docs.bigmodel.cn/cn/guide/develop/claude/introduction)
+
+Or, you may use any OpenAI-compatible provider with a VLM or even your self-hosted AI.
+
 ### For developers
 
 ```bash
