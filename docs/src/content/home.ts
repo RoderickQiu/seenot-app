@@ -38,6 +38,8 @@ type HomeCopy = {
   boundariesAriaLabel: string;
   boundaries: string[];
   downloadCta: Link;
+  downloadSourcesAriaLabel?: string;
+  downloadSources?: Link[];
   docsCta: Link;
 };
 
@@ -66,11 +68,11 @@ export const homeCopy: Record<"en" | "zh", HomeCopy> = {
       "Those apps are designed to pull you in, keep you there, and make you forget what you came to do. SeeNot watches the screen for this session and pulls you back when you drift, instead of blocking the whole app.",
     primaryCta: {
       label: "Download for Android",
-      href: "https://github.com/RoderickQiu/seenot-reborn/releases"
+      href: "https://github.com/RoderickQiu/seenot-app/releases"
     },
     secondaryCta: {
       label: "GitHub",
-      href: "https://github.com/RoderickQiu/seenot-reborn"
+      href: "https://github.com/RoderickQiu/seenot-app"
     },
     exampleIntents: [
       "\"Let me open Reddit for 15 minutes, but only my programming subreddits.\"",
@@ -88,16 +90,20 @@ export const homeCopy: Record<"en" | "zh", HomeCopy> = {
       "\"Use Maps to find the nearest pharmacy, then end the detour.\"",
       "\"Open Airbnb to confirm check-in details, not browse other places.\""
     ],
-    downloadHeading: "Install the APK. Grant permissions. Add a vision model.",
+    downloadHeading: "Download, connect AI, start using.",
     downloadBody: "",
     boundariesAriaLabel: "Setup requirements",
     boundaries: [
-      "Supports Qwen, GPT, Claude, Gemini, and other vision models"
+      "Supports Qwen, GPT, Claude, Gemini, and other vision models' API"
     ],
     downloadCta: {
       label: "Download now",
-      href: "https://github.com/RoderickQiu/seenot-reborn/releases"
+      href: "https://github.com/RoderickQiu/seenot-app/releases"
     },
+    downloadSourcesAriaLabel: "Download sources",
+    downloadSources: [
+      { label: "GitHub Releases", href: "https://github.com/RoderickQiu/seenot-app/releases" }
+    ],
     docsCta: {
       label: "Read more",
       href: "https://github.com/RoderickQiu/seenot-app#seenot"
@@ -127,11 +133,11 @@ export const homeCopy: Record<"en" | "zh", HomeCopy> = {
       "那些 App 会一步步把你诱导进去，让你越刷越久，甚至忘了本来想做什么。SeeNot 盯的是这次会话里的当前页面；你一偏，它就把你往回拉，而不是直接封整个 App。",
     primaryCta: {
       label: "下载安卓版",
-      href: "https://github.com/RoderickQiu/seenot-reborn/releases"
+      href: "https://github.com/RoderickQiu/seenot-app/releases"
     },
     secondaryCta: {
       label: "GitHub",
-      href: "https://github.com/RoderickQiu/seenot-reborn"
+      href: "https://github.com/RoderickQiu/seenot-app"
     },
     exampleIntents: [
       "“淘宝只买手机壳，别又开始乱逛。”",
@@ -149,7 +155,7 @@ export const homeCopy: Record<"en" | "zh", HomeCopy> = {
       "“小红书查大阪住宿攻略，别刷别的了。”",
       "“高德地图只查去医院怎么走，别再点周边推荐。”"
     ],
-    downloadHeading: "装 APK，开权限，接视觉模型。",
+    downloadHeading: "下载，接 AI，开始用。",
     downloadBody: "",
     boundariesAriaLabel: "安装提示",
     boundaries: [
@@ -157,11 +163,16 @@ export const homeCopy: Record<"en" | "zh", HomeCopy> = {
     ],
     downloadCta: {
       label: "现在下载",
-      href: "https://github.com/RoderickQiu/seenot-reborn/releases"
+      href: "https://github.com/RoderickQiu/seenot-app/releases"
     },
+    downloadSourcesAriaLabel: "下载来源",
+    downloadSources: [
+      { label: "GitHub Releases", href: "https://github.com/RoderickQiu/seenot-app/releases" },
+      { label: "蓝奏云（高速）", href: "http://b-bu.cn/b0pnkdfuh" }
+    ],
     docsCta: {
       label: "查看说明",
-      href: "https://github.com/RoderickQiu/seenot-reborn/blob/main/README.zh-CN.md"
+      href: "https://github.com/RoderickQiu/seenot-app/blob/main/README.zh-CN.md"
     }
   }
 };

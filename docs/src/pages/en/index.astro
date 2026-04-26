@@ -1,0 +1,29 @@
+---
+import BaseLayout from "../../layouts/BaseLayout.astro";
+import { getAlternateLanguages, homeCopy } from "../../content/home";
+
+const copy = homeCopy.en;
+---
+
+<BaseLayout
+  title={copy.title}
+  description={copy.description}
+  canonical="/"
+  lang={copy.lang}
+  ogLocale={copy.ogLocale}
+  alternateLanguages={getAlternateLanguages("/")}
+>
+  <Fragment slot="head">
+    <meta http-equiv="refresh" content="0;url=/" />
+    <meta name="robots" content="noindex" />
+    <script is:inline>
+      window.location.replace("/");
+    </script>
+  </Fragment>
+
+  <main style="min-height: 100vh; display: grid; place-items: center; padding: 24px;">
+    <p style="margin: 0; color: #6b7280; font: 500 16px/1.6 'Roboto Flex', 'Noto Sans SC', sans-serif;">
+      Redirecting to the English page. <a href="/" style="color: #2563eb;">Continue</a>.
+    </p>
+  </main>
+</BaseLayout>

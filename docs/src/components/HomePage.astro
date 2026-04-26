@@ -14,6 +14,7 @@ const externalLinkAttrs = {
   target: "_blank",
   rel: "noopener noreferrer"
 };
+const hasMultipleDownloadSources = (copy.downloadSources?.length ?? 0) > 1;
 
 const softwareApplication = {
   "@context": "https://schema.org",
@@ -44,6 +45,27 @@ const softwareApplication = {
 >
   <Fragment slot="head">
     <script type="application/ld+json" set:html={JSON.stringify(softwareApplication)} />
+    <script is:inline>
+      document.addEventListener("click", (event) => {
+        const target = event.target;
+        if (!(target instanceof Node)) return;
+        document.querySelectorAll(".download-menu[open]").forEach((menu) => {
+          if (!(menu instanceof HTMLDetailsElement)) return;
+          if (!menu.contains(target)) {
+            menu.removeAttribute("open");
+          }
+        });
+      });
+
+      document.addEventListener("keydown", (event) => {
+        if (event.key !== "Escape") return;
+        document.querySelectorAll(".download-menu[open]").forEach((menu) => {
+          if (menu instanceof HTMLDetailsElement) {
+            menu.removeAttribute("open");
+          }
+        });
+      });
+    </script>
   </Fragment>
 
   <div class="site-shell">
@@ -78,7 +100,20 @@ const softwareApplication = {
             <p class="hero-text">{copy.heroText}</p>
 
             <div class="actions">
-              <a class="button primary" href={copy.primaryCta.href} {...externalLinkAttrs}>{copy.primaryCta.label}</a>
+              {hasMultipleDownloadSources ? (
+                <details class="download-menu">
+                  <summary class="button primary">{copy.primaryCta.label}</summary>
+                  <div class="download-menu-panel" aria-label={copy.downloadSourcesAriaLabel}>
+                    {copy.downloadSources?.map((item) => (
+                      <a href={item.href} {...externalLinkAttrs}>
+                        {item.label}
+                      </a>
+                    ))}
+                  </div>
+                </details>
+              ) : (
+                <a class="button primary" href={copy.primaryCta.href} {...externalLinkAttrs}>{copy.primaryCta.label}</a>
+              )}
               <a class="button ghost" href={copy.secondaryCta.href} {...externalLinkAttrs}>{copy.secondaryCta.label}</a>
             </div>
           </article>
@@ -122,7 +157,20 @@ const softwareApplication = {
             </div>
           </div>
           <div class="actions">
-            <a class="button primary" href={copy.downloadCta.href} {...externalLinkAttrs}>{copy.downloadCta.label}</a>
+            {hasMultipleDownloadSources ? (
+              <details class="download-menu upward">
+                <summary class="button primary">{copy.downloadCta.label}</summary>
+                <div class="download-menu-panel" aria-label={copy.downloadSourcesAriaLabel}>
+                  {copy.downloadSources?.map((item) => (
+                    <a href={item.href} {...externalLinkAttrs}>
+                      {item.label}
+                    </a>
+                  ))}
+                </div>
+              </details>
+            ) : (
+              <a class="button primary" href={copy.downloadCta.href} {...externalLinkAttrs}>{copy.downloadCta.label}</a>
+            )}
             <a class="button ghost" href={copy.docsCta.href} {...externalLinkAttrs}>{copy.docsCta.label}</a>
           </div>
         </article>
