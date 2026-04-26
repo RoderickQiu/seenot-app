@@ -87,8 +87,9 @@ export const homeCopy: Record<"en" | "zh", HomeCopy> = {
     scenariosHeading: "These scenes all fit.",
     scenarios: [
       "\"Open YouTube for cooking recipes, not Shorts.\"",
-      "\"Use Maps to find the nearest pharmacy, then end the detour.\"",
-      "\"Open Airbnb to confirm check-in details, not browse other places.\""
+      "\"No more than 10 minutes on football news.\"",
+      "\"Open Airbnb to confirm check-in details, not browse other places.\"",
+      "And when just want to relax? just also tell SeeNot."
     ],
     downloadHeading: "Download, connect AI, start using.",
     downloadBody: "",
@@ -140,9 +141,9 @@ export const homeCopy: Record<"en" | "zh", HomeCopy> = {
       href: "https://github.com/RoderickQiu/seenot-app"
     },
     exampleIntents: [
-      "“淘宝只买手机壳，别又开始乱逛。”",
-      "“回个微信就出来，不要顺手刷朋友圈。”",
-      "“大众点评只找今晚能订的火锅店，订完就停。”"
+      "“上淘宝是为了买手机壳。”",
+      "“回个微信就出来，不刷朋友圈和公众号。”",
+      "“我可以用 B 站 15 分钟——但只看编程教程。”"
     ],
     steps: [
       { step: "01", title: "直接说出来", body: "像平时那样说，不用先学规则。" },
@@ -151,9 +152,10 @@ export const homeCopy: Record<"en" | "zh", HomeCopy> = {
     ],
     scenariosHeading: "这些场景都适合。",
     scenarios: [
-      "“B 站只看数学教程，不点别的视频。”",
-      "“小红书查大阪住宿攻略，别刷别的了。”",
-      "“高德地图只查去医院怎么走，别再点周边推荐。”"
+      "“屏蔽 QQ 空间和小游戏。”",
+      "“小红书查大阪住宿攻略，不刷别的。”",
+      "“刷体育新闻就刷 15 分钟。”",
+      "只想放松一下，什么限制都不要？也可以。"
     ],
     downloadHeading: "下载，接 AI，开始用。",
     downloadBody: "",

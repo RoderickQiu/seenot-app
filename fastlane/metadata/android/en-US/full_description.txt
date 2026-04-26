@@ -1,0 +1,19 @@
+SeeNot helps you keep your phone use aligned with your own intent.
+
+Tell SeeNot what you want to do and what you want to avoid. During the session,
+it analyzes your screen in context and intervenes when you drift away from your
+goal.
+
+Key features:
+- Voice-first intent input (text input also supported)
+- AI screen understanding based on actual page content
+- Graduated intervention levels: reminder, auto-back, return home
+- Flexible limits: session cap, content cap, and daily limits
+- False-positive feedback loop to improve future judgments
+- Local-first data storage on device
+
+Permissions:
+- Accessibility Service: detect foreground app and screen state
+- Display over other apps: show floating button and intervention overlays
+
+An OpenAI-compatible vision model API key is required.

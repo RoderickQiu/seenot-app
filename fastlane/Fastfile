@@ -1,0 +1,122 @@
+default_platform(:android)
+
+def load_version_properties
+  path = File.expand_path("../app/version.properties", __dir__)
+  unless File.exist?(path)
+    UI.user_error!("Missing version file at #{path}")
+  end
+
+  properties = {}
+  File.readlines(path, chomp: true).each do |line|
+    stripped = line.strip
+    next if stripped.empty? || stripped.start_with?("#")
+
+    key, value = stripped.split("=", 2)
+    next if key.nil? || value.nil?
+
+    properties[key.strip] = value.strip
+  end
+  properties
+end
+
+def load_local_properties
+  path = File.expand_path("../local.properties", __dir__)
+  return {} unless File.exist?(path)
+
+  properties = {}
+  File.readlines(path, chomp: true).each do |line|
+    stripped = line.strip
+    next if stripped.empty? || stripped.start_with?("#")
+
+    key, value = stripped.split("=", 2)
+    next if key.nil? || value.nil?
+
+    properties[key.strip] = value.strip
+  end
+  properties
+end
+
+platform :android do
+  desc "Build debug APK"
+  lane :build_debug do
+    gradle(
+      task: "assembleDebug",
+      project_dir: "."
+    )
+  end
+
+  desc "Build signed release artifacts (APK + AAB)"
+  lane :release do |options|
+    version_props = load_version_properties
+    local_props = load_local_properties
+    version_name = options[:version_name] || version_props["VERSION_NAME"]
+    version_code = options[:version_code] || version_props["VERSION_CODE"]
+    UI.user_error!("VERSION_NAME is missing") if version_name.to_s.strip.empty?
+    UI.user_error!("VERSION_CODE is missing") if version_code.to_s.strip.empty?
+    signing_values = {
+      "RELEASE_STORE_FILE" => ENV["RELEASE_STORE_FILE"].to_s.strip,
+      "RELEASE_STORE_PASSWORD" => ENV["RELEASE_STORE_PASSWORD"].to_s.strip,
+      "RELEASE_KEY_ALIAS" => ENV["RELEASE_KEY_ALIAS"].to_s.strip,
+      "RELEASE_KEY_PASSWORD" => ENV["RELEASE_KEY_PASSWORD"].to_s.strip
+    }
+    signing_values.keys.each do |key|
+      next unless signing_values[key].empty?
+
+      signing_values[key] = local_props[key].to_s.strip
+    end
+    missing = signing_values.select { |_key, value| value.empty? }.keys
+    unless missing.empty?
+      UI.user_error!(
+        "Missing signing values: #{missing.join(', ')}. " \
+        "Provide via env vars or local.properties."
+      )
+    end
+
+    gradle(
+      tasks: ["testReleaseUnitTest", "assembleRelease", "bundleRelease"],
+      project_dir: ".",
+      properties: {
+        "SEENOT_VERSION_NAME" => version_name,
+        "SEENOT_VERSION_CODE" => version_code,
+        "RELEASE_STORE_FILE" => signing_values["RELEASE_STORE_FILE"],
+        "RELEASE_STORE_PASSWORD" => signing_values["RELEASE_STORE_PASSWORD"],
+        "RELEASE_KEY_ALIAS" => signing_values["RELEASE_KEY_ALIAS"],
+        "RELEASE_KEY_PASSWORD" => signing_values["RELEASE_KEY_PASSWORD"]
+      }
+    )
+  end
+
+  desc "CI lane for signed release build"
+  lane :ci_release do |options|
+    release(
+      version_name: options[:version_name],
+      version_code: options[:version_code]
+    )
+  end
+
+  desc "Validate minimum fastlane metadata expected by IzzyOnDroid/F-Droid"
+  lane :metadata_check do
+    version_props = load_version_properties
+    version_code = version_props["VERSION_CODE"].to_s.strip
+    base_path = File.expand_path("metadata/android/en-US", __dir__)
+    short_description_file = File.join(base_path, "short_description.txt")
+    full_description_file = File.join(base_path, "full_description.txt")
+    changelog_file = File.join(base_path, "changelogs", "#{version_code}.txt")
+
+    [short_description_file, full_description_file, changelog_file].each do |file|
+      UI.user_error!("Missing metadata file: #{file}") unless File.exist?(file)
+    end
+
+    short_description = File.read(short_description_file).strip
+    full_description = File.read(full_description_file).strip
+    changelog = File.read(changelog_file).strip
+
+    UI.user_error!("short_description.txt must not be empty") if short_description.empty?
+    UI.user_error!("short_description.txt must be <= 80 characters") if short_description.length > 80
+    UI.user_error!("full_description.txt must not be empty") if full_description.empty?
+    UI.user_error!("full_description.txt must be <= 4000 characters") if full_description.length > 4000
+    UI.user_error!("changelogs/#{version_code}.txt must not be empty") if changelog.empty?
+
+    UI.message("Metadata check passed for VERSION_CODE=#{version_code}")
+  end
+end

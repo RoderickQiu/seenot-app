@@ -82,6 +82,31 @@ cd seenot-app
 adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 
+### Fastlane（构建 + Metadata）
+
+仓库已加入 Fastlane，用于统一 Android 发版构建流程，以及维护
+IzzyOnDroid/F-Droid 风格的 metadata 文件。
+
+先安装依赖：
+
+```bash
+bundle install --path vendor/bundle
+```
+
+常用命令：
+
+```bash
+# 构建 Debug APK
+bundle exec fastlane android build_debug
+
+# 校验当前 VERSION_CODE 对应的 metadata
+bundle exec fastlane android metadata_check
+
+# 构建已签名 Release APK + AAB
+# 默认从 local.properties 读取签名参数。
+bundle exec fastlane android release
+```
+
 ---
 
 ## 项目结构

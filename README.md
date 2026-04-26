@@ -84,6 +84,30 @@ Or build from the command line:
 adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 
+### Fastlane (build + metadata)
+
+This repo now includes Fastlane support for Android release automation and
+IzzyOnDroid/F-Droid style metadata management.
+
+Install dependencies:
+
+```bash
+bundle install --path vendor/bundle
+```
+
+Common commands:
+
+```bash
+# Build debug APK
+bundle exec fastlane android build_debug
+
+# Validate metadata files for current VERSION_CODE
+bundle exec fastlane android metadata_check
+
+# Build signed release APK + AAB
+bundle exec fastlane android release
+```
+
 ---
 
 ## Project Structure

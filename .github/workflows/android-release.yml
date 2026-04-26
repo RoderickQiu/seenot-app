@@ -29,6 +29,12 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+
       - name: Resolve release version from repository
         id: version
         shell: bash
@@ -72,6 +78,9 @@ jobs:
       - name: Build signed release artifacts
         shell: bash
         env:
+          SEENOT_VERSION_NAME: ${{ steps.version.outputs.version_name }}
+          SEENOT_VERSION_CODE: ${{ steps.version.outputs.version_code }}
+          RELEASE_STORE_FILE: ${{ runner.temp }}/release.keystore
           RELEASE_STORE_PASSWORD: ${{ secrets.RELEASE_STORE_PASSWORD }}
           RELEASE_KEY_ALIAS: ${{ secrets.RELEASE_KEY_ALIAS }}
           RELEASE_KEY_PASSWORD: ${{ secrets.RELEASE_KEY_PASSWORD }}
@@ -83,18 +92,9 @@ jobs:
             exit 1
           fi
 
-          chmod +x ./gradlew
-
-          ./gradlew \
-            :app:testReleaseUnitTest \
-            :app:assembleRelease \
-            :app:bundleRelease \
-            -PSEENOT_VERSION_NAME="${{ steps.version.outputs.version_name }}" \
-            -PSEENOT_VERSION_CODE="${{ steps.version.outputs.version_code }}" \
-            -PRELEASE_STORE_FILE="$RUNNER_TEMP/release.keystore" \
-            -PRELEASE_STORE_PASSWORD="${RELEASE_STORE_PASSWORD}" \
-            -PRELEASE_KEY_ALIAS="${RELEASE_KEY_ALIAS}" \
-            -PRELEASE_KEY_PASSWORD="${RELEASE_KEY_PASSWORD}"
+          bundle exec fastlane android ci_release \
+            version_name:"${SEENOT_VERSION_NAME}" \
+            version_code:"${SEENOT_VERSION_CODE}"
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
