@@ -220,7 +220,7 @@
     <string name="intent_type_to_declare">直接键盘输入声明意图</string>
     <string name="intent_tap_to_start_recording">点击开始录音</string>
     <string name="intent_no_mic_permission_type">未开启麦克风权限，可直接键盘输入</string>
-    <string name="intent_enter_to_confirm">输入意图后按回车直接生效</string>
+    <string name="intent_enter_to_confirm">输入后回车，SeeNot 会直接按这条规则执行</string>
     <string name="intent_confirm_title">确认意图</string>
     <string name="intent_preset_tab">预设意图</string>
     <string name="intent_history_tab">历史意图</string>
@@ -234,16 +234,18 @@
     <string name="intent_parsed_confirm_voice">意图已识别，请手动确认；不对的话可以再说一次</string>
     <string name="intent_parsed">意图已识别</string>
     <string name="intent_constraint_deny_format">禁止 %s</string>
-    <string name="intent_constraint_time_cap_format">限时 %s %s分</string>
+    <string name="intent_constraint_time_cap_format">限时 %1$s %2$s分</string>
     <string name="intent_constraint_deny_full">禁止: %s</string>
-    <string name="intent_constraint_time_cap_full">限时: %s %s分钟</string>
-    <string name="intent_time_scope_suffix"> %s%s分</string>
+    <string name="intent_constraint_time_cap_full">限时: %1$s %2$s分钟</string>
+    <string name="intent_time_scope_suffix"> %1$s%2$s分</string>
     <string name="intent_retry">再说一次</string>
     <string name="intent_skip">跳过</string>
     <string name="intent_reminder_title">还没设置这次意图</string>
-    <string name="intent_reminder_subtitle">如果继续用这个 app，先设一下意图或规则会更稳妥。</string>
+    <string name="intent_reminder_subtitle">如果继续停留在这个 app，之后还会再提醒你。</string>
     <string name="intent_reminder_set_now">现在设置</string>
-    <string name="intent_reminder_later">稍后再说</string>
+    <string name="intent_reminder_later">稍后提醒我</string>
+    <string name="intent_apply_toast">已设置：%s</string>
+    <string name="intent_default_rule_toast">已用默认规则：%s</string>
     <string name="common_or">或</string>
     <string name="common_error">出错</string>
 
@@ -291,7 +293,7 @@
     <string name="fp_hint_after_generation">生成完成后可直接修改，也可以自己重写</string>
     <string name="fp_regenerate">重新生成</string>
     <string name="fp_saving">正在保存补充规则…</string>
-    <string name="fp_cancel">取消</string>
+    <string name="fp_cancel">不改了，继续干预</string>
     <string name="fp_save">保存</string>
 
     <!-- VoiceInputWindowOverlay -->
@@ -421,7 +423,7 @@
     <string name="record_hint_placeholder_optional">可选：例如 这里只是推荐卡片，不算真正进入目标页面</string>
     <string name="record_generating_draft">正在生成补充规则草稿…</string>
     <string name="record_scope_suggestion">建议放在：%s</string>
-    <string name="false_positive_status_format">%s · 建议放在：%s</string>
+    <string name="false_positive_status_format">%1$s · 建议放在：%2$s</string>
     <string name="record_hint_edit_placeholder">可直接修改生成结果，或自己写一条更准确的补充规则</string>
     <string name="record_generate">生成</string>
     <string name="record_save">保存</string>
@@ -490,7 +492,7 @@
 
     <!-- HomeTab -->
     <string name="permission_notification">通知权限</string>
-    <string name="permission_notification_desc">用于显示提醒通知和前台服务</string>
+    <string name="permission_notification_desc">用于显示提醒通知和前台服务，点此去开启</string>
     <string name="permission_battery_optimization">后台无限制</string>
     <string name="permission_battery_optimization_desc">用于请求忽略电池优化，降低系统省电策略杀死 SeeNot 的概率</string>
     <string name="permission_microphone_optional">麦克风权限（可选）</string>
@@ -661,7 +663,7 @@
     <string name="confirm_button">确认</string>
     <string name="start_voice_input_button">开始语音输入</string>
     <string name="use_text_input_button">使用文本输入</string>
-    <string name="skip_button">跳过</string>
+    <string name="skip_button">先不设</string>
 
     <!-- ExportDialog -->
     <string name="exporting_app_config">正在导入应用配置…</string>

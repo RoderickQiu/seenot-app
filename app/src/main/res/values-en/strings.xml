@@ -216,7 +216,7 @@
     <string name="intent_type_to_declare">Type to declare intent</string>
     <string name="intent_tap_to_start_recording">Tap to start recording</string>
     <string name="intent_no_mic_permission_type">Mic permission not granted. You can type instead.</string>
-    <string name="intent_enter_to_confirm">Press enter to confirm and apply intent</string>
+    <string name="intent_enter_to_confirm">Press Enter to apply this rule</string>
     <string name="intent_confirm_title">Confirm Intent</string>
     <string name="intent_preset_tab">Preset Intents</string>
     <string name="intent_history_tab">History</string>
@@ -230,16 +230,18 @@
     <string name="intent_parsed_confirm_voice">Intent recognized. Please confirm manually, or speak again if incorrect.</string>
     <string name="intent_parsed">Intent recognized</string>
     <string name="intent_constraint_deny_format">Deny %s</string>
-    <string name="intent_constraint_time_cap_format">Limit %s %smin</string>
+    <string name="intent_constraint_time_cap_format">Limit %1$s %2$smin</string>
     <string name="intent_constraint_deny_full">Deny: %s</string>
-    <string name="intent_constraint_time_cap_full">Time limit: %s %s minutes</string>
-    <string name="intent_time_scope_suffix"> %s%smin</string>
+    <string name="intent_constraint_time_cap_full">Time limit: %1$s %2$s minutes</string>
+    <string name="intent_time_scope_suffix"> %1$s%2$smin</string>
     <string name="intent_retry">Try again</string>
     <string name="intent_skip">Skip</string>
     <string name="intent_reminder_title">No intent set yet</string>
-    <string name="intent_reminder_subtitle">If you plan to keep using this app, set an intent or rule first.</string>
+    <string name="intent_reminder_subtitle">If you stay in this app, SeeNot will remind you again.</string>
     <string name="intent_reminder_set_now">Set now</string>
-    <string name="intent_reminder_later">Later</string>
+    <string name="intent_reminder_later">Remind me later</string>
+    <string name="intent_apply_toast">Set: %s</string>
+    <string name="intent_default_rule_toast">Default: %s</string>
     <string name="common_or">Or</string>
     <string name="common_error">Error</string>
 
@@ -287,7 +289,7 @@
     <string name="fp_hint_after_generation">You can edit the result after generation, or rewrite it yourself</string>
     <string name="fp_regenerate">Regenerate</string>
     <string name="fp_saving">Saving supplementary rule…</string>
-    <string name="fp_cancel">Cancel</string>
+    <string name="fp_cancel">Cancel, keep intervention</string>
     <string name="fp_save">Save</string>
 
     <!-- VoiceInputWindowOverlay -->
@@ -417,7 +419,7 @@
     <string name="record_hint_placeholder_optional">Optional: e.g., This is only a recommendation card, not the actual target page</string>
     <string name="record_generating_draft">Generating supplementary rule draft…</string>
     <string name="record_scope_suggestion">Suggested scope: %s</string>
-    <string name="false_positive_status_format">%s · Suggested scope: %s</string>
+    <string name="false_positive_status_format">%1$s · Suggested scope: %2$s</string>
     <string name="record_hint_edit_placeholder">You can edit the generated result, or write a more accurate supplementary rule yourself</string>
     <string name="record_generate">Generate</string>
     <string name="record_save">Save</string>
@@ -484,7 +486,7 @@
 
     <!-- HomeTab -->
     <string name="permission_notification">Notification Permission</string>
-    <string name="permission_notification_desc">Used to show reminder notifications and foreground service</string>
+    <string name="permission_notification_desc">Needed for reminders and foreground service. Tap to open settings.</string>
     <string name="permission_battery_optimization">Unrestricted Battery</string>
     <string name="permission_battery_optimization_desc">Requests battery-optimization exemption so the system is less likely to kill SeeNot in the background</string>
     <string name="permission_microphone_optional">Microphone Permission (Optional)</string>
@@ -655,7 +657,7 @@
     <string name="confirm_button">Confirm</string>
     <string name="start_voice_input_button">Start voice input</string>
     <string name="use_text_input_button">Use text input</string>
-    <string name="skip_button">Skip</string>
+    <string name="skip_button">Set later</string>
 
     <!-- ExportDialog -->
     <string name="exporting_app_config">Importing app configuration…</string>

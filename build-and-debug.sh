@@ -7,8 +7,8 @@ set -e  # Exit on error
 PACKAGE_NAME="com.seenot.app"
 DEBUG_APK_PATH="app/build/outputs/apk/debug/app-debug.apk"
 
-echo "📦 Building..."
-./gradlew assembleDebug
+echo "📦 Building app only..."
+./gradlew :app:assembleDebug
 
 echo ""
 echo "🛑 Stopping old app..."

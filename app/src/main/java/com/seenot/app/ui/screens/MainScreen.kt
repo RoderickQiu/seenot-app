@@ -9,6 +9,7 @@ import android.os.Build
 import android.os.PowerManager
 import android.provider.Settings
 import android.text.format.DateUtils
+import android.app.NotificationManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -123,6 +124,13 @@ fun MainScreen(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
         isBatteryOptimizationIgnored = isBatteryOptimizationIgnored(context)
+    }
+
+    val notificationSettingsLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        val notificationManager = context.getSystemService(NotificationManager::class.java)
+        isNotificationEnabled = notificationManager?.areNotificationsEnabled() == true
     }
 
     // Notification permission launcher
@@ -247,6 +255,13 @@ fun MainScreen(
                                 createBatteryOptimizationIntent(context)
                             )
                         },
+                        onOpenNotificationSettings = {
+                            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU && !isNotificationEnabled) {
+                                notificationPermissionLauncher.launch(android.Manifest.permission.POST_NOTIFICATIONS)
+                            } else {
+                                notificationSettingsLauncher.launch(createNotificationSettingsIntent(context))
+                            }
+                        },
                         onRequestMicrophone = {
                             microphonePermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
                         },
@@ -335,6 +350,7 @@ fun HomeTab(
     onEnableAccessibility: () -> Unit,
     onEnableOverlay: () -> Unit,
     onRequestIgnoreBatteryOptimizations: () -> Unit,
+    onOpenNotificationSettings: () -> Unit,
     onRequestMicrophone: () -> Unit,
     onOpenAiSettings: () -> Unit,
     showHomeTimeline: Boolean,
@@ -399,7 +415,7 @@ fun HomeTab(
                 title = stringResource(R.string.permission_notification),
                 description = stringResource(R.string.permission_notification_desc),
                 isEnabled = isNotificationEnabled,
-                onClick = { /* Notification permission handled automatically */ }
+                onClick = onOpenNotificationSettings
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -653,6 +669,12 @@ private fun createBatteryOptimizationIntent(context: Context): Intent {
         requestIntent
     } else {
         Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+    }
+}
+
+private fun createNotificationSettingsIntent(context: Context): Intent {
+    return Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+        putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
     }
 }
 

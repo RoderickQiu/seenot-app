@@ -90,6 +90,7 @@ class IntentInputDialogOverlay(
 
     private enum class Mode { IDLE, RECORDING, PROCESSING, SHOWING_RULES }
     private enum class InputSource { NONE, VOICE, TEXT }
+    private enum class ApplyFeedback { NONE, DEFAULT_RULE, TEXT_INPUT }
 
     private var windowManager: WindowManager? = null
     private var voiceInputManager: VoiceInputManager? = null
@@ -148,7 +149,7 @@ class IntentInputDialogOverlay(
             val defaultRule = sessionManager.getDefaultRule(packageName)
             if (defaultRule != null) {
                 pendingConstraints = listOf(defaultRule)
-                confirmAndTransition()
+                confirmAndTransition(ApplyFeedback.DEFAULT_RULE)
                 return
             }
         }
@@ -177,7 +178,7 @@ class IntentInputDialogOverlay(
                         if (parsed != null && parsed.constraints.isNotEmpty()) {
                             pendingConstraints = parsed.constraints
                             if (pendingInputSource == InputSource.TEXT) {
-                                confirmAndTransition()
+                                confirmAndTransition(ApplyFeedback.TEXT_INPUT)
                                 return@collectLatest
                             }
                             mode = Mode.SHOWING_RULES
@@ -911,13 +912,65 @@ class IntentInputDialogOverlay(
         micButton?.alpha = if (isVoiceInputAvailable) 1f else 0.45f
     }
 
-    private fun confirmAndTransition() {
+    private fun confirmAndTransition(applyFeedback: ApplyFeedback = ApplyFeedback.NONE) {
         val constraints = pendingConstraints ?: return
+        when (applyFeedback) {
+            ApplyFeedback.DEFAULT_RULE -> {
+                ToastOverlay.show(
+                    context,
+                    context.getString(
+                        R.string.intent_default_rule_toast,
+                        buildConstraintSummary(constraints)
+                    )
+                )
+            }
+            ApplyFeedback.TEXT_INPUT -> {
+                ToastOverlay.show(
+                    context,
+                    context.getString(
+                        R.string.intent_apply_toast,
+                        buildConstraintSummary(constraints)
+                    )
+                )
+            }
+            ApplyFeedback.NONE -> Unit
+        }
         sessionManager.saveLastIntent(packageName, constraints)
         pendingInputSource = InputSource.NONE
         dismiss()
         onIntentConfirmed(constraints)
     }
+
+    private fun buildConstraintSummary(constraints: List<SessionConstraint>): String {
+        val first = constraints.firstOrNull() ?: return ""
+        val prefix = when (first.type) {
+            ConstraintType.DENY -> if (isChineseUi()) "禁止" else "Deny"
+            ConstraintType.TIME_CAP -> if (isChineseUi()) "限时" else "Limit"
+        }
+        val separator = if (isChineseUi()) "：" else ": "
+        val description = truncateIntentDescription(first.description, toastDescriptionMaxChars())
+        val detail = when (first.type) {
+            ConstraintType.DENY -> description
+            ConstraintType.TIME_CAP -> {
+                val duration = first.timeLimitMs?.let { formatIntentDurationMinutesShort(it) }.orEmpty()
+                listOf(description, duration).filter { it.isNotBlank() }.joinToString(" ")
+            }
+        }
+        val suffix = if (constraints.size > 1) {
+            if (isChineseUi()) " 等${constraints.size}条" else " +${constraints.size - 1}"
+        } else {
+            ""
+        }
+        val main = if (detail.isBlank()) prefix else "$prefix$separator$detail"
+        return listOf(main.trim(), suffix)
+            .filter { it.isNotBlank() }
+            .joinToString("")
+            .trim()
+    }
+
+    private fun toastDescriptionMaxChars(): Int = if (isChineseUi()) 10 else 20
+
+    private fun isChineseUi(): Boolean = AppLocalePrefs.getLanguage(context) == AppLocalePrefs.LANG_ZH
 
     private fun hasUsableVoiceConfig(): Boolean {
         val settings = ApiConfig.getSttSettings()

@@ -7,6 +7,7 @@ import android.graphics.Color
 import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
+import android.text.TextUtils
 import android.view.Gravity
 import android.view.View
 import android.view.WindowManager
@@ -191,6 +192,8 @@ class IntentReminderOverlay(
             textSize = 15f
             setTextColor(textColor)
             typeface = Typeface.DEFAULT_BOLD
+            isSingleLine = true
+            ellipsize = TextUtils.TruncateAt.END
             gravity = Gravity.CENTER
             setPadding(18.dp(), 14.dp(), 18.dp(), 14.dp())
             layoutParams = LinearLayout.LayoutParams(
