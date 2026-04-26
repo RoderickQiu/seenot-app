@@ -8,6 +8,12 @@ val releaseStoreFilePath = project.findProperty("RELEASE_STORE_FILE") as? String
 val releaseStorePassword = project.findProperty("RELEASE_STORE_PASSWORD") as? String
 val releaseKeyAlias = project.findProperty("RELEASE_KEY_ALIAS") as? String
 val releaseKeyPassword = project.findProperty("RELEASE_KEY_PASSWORD") as? String
+val configuredVersionCode = (project.findProperty("SEENOT_VERSION_CODE") as? String)
+    ?.toIntOrNull()
+    ?: 1
+val configuredVersionName = (project.findProperty("SEENOT_VERSION_NAME") as? String)
+    ?.takeIf { it.isNotBlank() }
+    ?: "1.0.0"
 val hasReleaseSigningConfig = listOf(
     releaseStoreFilePath,
     releaseStorePassword,
@@ -23,8 +29,8 @@ android {
         applicationId = "com.seenot.app"
         minSdk = 30
         targetSdk = 35
-        versionCode = 1
-        versionName = "1.0.0"
+        versionCode = configuredVersionCode
+        versionName = configuredVersionName
 
         val developmentModeEnabled =
             (project.findProperty("SEENOT_DEVELOPMENT_MODE") as? String)
