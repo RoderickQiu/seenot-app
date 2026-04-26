@@ -29,7 +29,7 @@ type HomeCopy = {
   heroText: string;
   primaryCta: Link;
   secondaryCta: Link;
-  intentExample: string;
+  exampleIntents: string[];
   steps: Step[];
   scenariosHeading: string;
   scenarios: string[];
@@ -60,10 +60,10 @@ export const homeCopy: Record<"en" | "zh", HomeCopy> = {
     languageSwitchLabel: "Switch to Chinese",
     languageSwitchHref: "/zh/",
     languageSwitchText: "中文",
-    eyebrow: "Intent-aware, not app-wide blocking",
-    heroTitle: "Stay with what you opened your phone to do.",
+    eyebrow: "Android",
+    heroTitle: "Most of the time, you never meant to keep scrolling that long.",
     heroText:
-      "Set a goal first. SeeNot watches the current screen and intervenes when the session starts drifting.",
+      "Those apps are designed to pull you in, keep you there, and make you forget what you came to do. SeeNot watches the screen for this session and pulls you back when you drift, instead of blocking the whole app.",
     primaryCta: {
       label: "Download for Android",
       href: "https://github.com/RoderickQiu/seenot-reborn/releases"
@@ -72,23 +72,27 @@ export const homeCopy: Record<"en" | "zh", HomeCopy> = {
       label: "GitHub",
       href: "https://github.com/RoderickQiu/seenot-reborn"
     },
-    intentExample: "For example: reply to one message, then leave. No feed spiral.",
+    exampleIntents: [
+      "\"Let me open Reddit for 15 minutes, but only my programming subreddits.\"",
+      "\"I need Amazon for one replacement charger, not random shopping.\"",
+      "\"Open LinkedIn to reply to that recruiter, not scroll the feed.\""
+    ],
     steps: [
-      { step: "01", title: "Name the task", body: "Say what this session is for." },
-      { step: "02", title: "Watch the page", body: "Stay on task, or get interrupted." },
-      { step: "03", title: "Pull back", body: "Nudge, back out, or leave the app." }
+      { step: "01", title: "Say the task", body: "Use plain language, not settings menus." },
+      { step: "02", title: "Watch the screen", body: "SeeNot judges the current page, not just the app name." },
+      { step: "03", title: "Step in on drift", body: "Nudge you, back out, or end the detour." }
     ],
-    scenariosHeading: "You only meant to finish one thing, not get captured by the app.",
+    scenariosHeading: "These scenes all fit.",
     scenarios: [
-      "\"Open YouTube for one Python tutorial only.\"",
-      "\"Check Instagram messages, not Reels.\"",
-      "\"Look up a restaurant, then stop browsing and go book it.\""
+      "\"Open YouTube for cooking recipes, not Shorts.\"",
+      "\"Use Maps to find the nearest pharmacy, then end the detour.\"",
+      "\"Open Airbnb to confirm check-in details, not browse other places.\""
     ],
-    downloadHeading: "Install it now.",
-    downloadBody: "Install the APK, grant the required permissions, and configure a vision model.",
+    downloadHeading: "Install the APK. Grant permissions. Add a vision model.",
+    downloadBody: "",
     boundariesAriaLabel: "Setup requirements",
     boundaries: [
-      "Works with multiple vision models: Qwen, GPT, Claude, Gemini, and more"
+      "Supports Qwen, GPT, Claude, Gemini, and other vision models"
     ],
     downloadCta: {
       label: "Download now",
@@ -117,10 +121,10 @@ export const homeCopy: Record<"en" | "zh", HomeCopy> = {
     languageSwitchLabel: "切换到英文版",
     languageSwitchHref: "/",
     languageSwitchText: "EN",
-    eyebrow: "和你手机里的「健康使用手机」不一样",
-    heroTitle: "别让一次查资料，变成半小时刷手机。",
+    eyebrow: "安卓通用",
+    heroTitle: "很多时候，你并不是故意想刷那么久。",
     heroText:
-      "你只是想回一条微信、查一家餐厅、看完一个教程。SeeNot 会在你偏离这次目的时提醒你回来，不用粗暴封掉整个 App。",
+      "那些 App 会一步步把你诱导进去，让你越刷越久，甚至忘了本来想做什么。SeeNot 盯的是这次会话里的当前页面；你一偏，它就把你往回拉，而不是直接封整个 App。",
     primaryCta: {
       label: "下载安卓版",
       href: "https://github.com/RoderickQiu/seenot-reborn/releases"
@@ -129,23 +133,27 @@ export const homeCopy: Record<"en" | "zh", HomeCopy> = {
       label: "GitHub",
       href: "https://github.com/RoderickQiu/seenot-reborn"
     },
-    intentExample: "例如：回个微信就出来，不要顺手刷朋友圈。",
+    exampleIntents: [
+      "“淘宝只买手机壳，别又开始乱逛。”",
+      "“回个微信就出来，不要顺手刷朋友圈。”",
+      "“大众点评只找今晚能订的火锅店，订完就停。”"
+    ],
     steps: [
-      { step: "01", title: "先定这一件", body: "先说这次要做什么。" },
-      { step: "02", title: "只看当前页", body: "还在正事里，就继续。" },
-      { step: "03", title: "偏了就拉回", body: "提醒、退一步，或者直接退出。" }
+      { step: "01", title: "直接说出来", body: "像平时那样说，不用先学规则。" },
+      { step: "02", title: "盯当前页面", body: "看的是眼前这页，不只是 App 名字。" },
+      { step: "03", title: "偏了就介入", body: "提醒你、退一步，或者结束这次绕路。" }
     ],
-    scenariosHeading: "只是想做完这一件，别被 App 带跑",
+    scenariosHeading: "这些场景都适合。",
     scenarios: [
-      "“B 站只看 Python 教程，不被推荐带走。”",
-      "“小红书搜餐厅，但只看吃什么，别滑到别的。”",
-      "“回完微信就放下，不顺手点开朋友圈。”"
+      "“B 站只看数学教程，不点别的视频。”",
+      "“小红书查大阪住宿攻略，别刷别的了。”",
+      "“高德地图只查去医院怎么走，别再点周边推荐。”"
     ],
-    downloadHeading: "现在安装",
-    downloadBody: "安装 APK、开启权限，并配置视觉模型。",
+    downloadHeading: "装 APK，开权限，接视觉模型。",
+    downloadBody: "",
     boundariesAriaLabel: "安装提示",
     boundaries: [
-      "兼容多种视觉模型：Qwen，GPT，Claude，Gemini，……"
+      "兼容 Qwen、GPT、Claude、Gemini 等视觉大模型 API"
     ],
     downloadCta: {
       label: "现在下载",

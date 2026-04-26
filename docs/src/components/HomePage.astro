@@ -71,39 +71,41 @@ const softwareApplication = {
 
     <main id="top" class="page">
       <section class="hero">
-        <article class="hero-copy">
-          <span class="eyebrow">{copy.eyebrow}</span>
-          <h1 class="hero-title">{copy.heroTitle}</h1>
-          <p class="hero-text">{copy.heroText}</p>
+        <div class="hero-frame">
+          <article class="hero-copy">
+            <span class="eyebrow">{copy.eyebrow}</span>
+            <h1 class="hero-title">{copy.heroTitle}</h1>
+            <p class="hero-text">{copy.heroText}</p>
 
-          <div class="actions">
-            <a class="button primary" href={copy.primaryCta.href} {...externalLinkAttrs}>{copy.primaryCta.label}</a>
-            <a class="button ghost" href={copy.secondaryCta.href} {...externalLinkAttrs}>{copy.secondaryCta.label}</a>
-          </div>
+            <div class="actions">
+              <a class="button primary" href={copy.primaryCta.href} {...externalLinkAttrs}>{copy.primaryCta.label}</a>
+              <a class="button ghost" href={copy.secondaryCta.href} {...externalLinkAttrs}>{copy.secondaryCta.label}</a>
+            </div>
+          </article>
 
-          <p class="intent-example">{copy.intentExample}</p>
-        </article>
+          <aside class="intent-wall" aria-label="Example intents">
+            <ul class="intent-list">
+              {copy.exampleIntents.map((item) => <li>{item}</li>)}
+            </ul>
+          </aside>
+        </div>
       </section>
 
       <section class="flow-section" id="flow">
-        <div class="flow-shell">
-          <div class="step-grid">
-            {copy.steps.map((item) => (
-              <article>
-                <span class="step-index">{item.step}</span>
-                <h3>{item.title}</h3>
-                <p>{item.body}</p>
-              </article>
-            ))}
-          </div>
+        <div class="step-grid">
+          {copy.steps.map((item) => (
+            <article>
+              <span class="step-index">{item.step}</span>
+              <h2>{item.title}</h2>
+              <p>{item.body}</p>
+            </article>
+          ))}
         </div>
       </section>
 
       <section class="scene-section" id="scenes">
-        <article class="large-panel">
-          <div class="section-head">
-            <h2>{copy.scenariosHeading}</h2>
-          </div>
+        <article class="scene-layout">
+          <p class="section-lead">{copy.scenariosHeading}</p>
           <ul class="simple-list">
             {copy.scenarios.map((item) => <li>{item}</li>)}
           </ul>
@@ -111,9 +113,9 @@ const softwareApplication = {
       </section>
 
       <section class="download-section" id="download">
-        <article class="download-card">
+        <article class="download-band">
           <div>
-            <h2>{copy.downloadHeading}</h2>
+            <p class="section-lead compact">{copy.downloadHeading}</p>
             <p>{copy.downloadBody}</p>
             <div class="requirement-chips" aria-label={copy.boundariesAriaLabel}>
               {copy.boundaries.map((item) => <span>{item}</span>)}
