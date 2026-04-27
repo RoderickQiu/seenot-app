@@ -43,6 +43,7 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import java.util.Locale
+import java.util.UUID
 
 /**
  * Full-screen dialog overlay shown when user enters a controlled app.
@@ -557,6 +558,35 @@ class IntentInputDialogOverlay(
         }
     }
 
+    private fun buildNoMonitorRow(): View {
+        return LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(14.dp(), 10.dp(), 14.dp(), 10.dp())
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = 6.dp() }
+            background = GradientDrawable().apply {
+                setColor(historyBgColor)
+                cornerRadius = 10.dp().toFloat()
+            }
+            setOnClickListener {
+                selectPresetIntent(
+                    SessionConstraint(
+                        id = UUID.randomUUID().toString(),
+                        type = ConstraintType.NO_MONITOR,
+                        description = context.getString(R.string.intent_no_monitor_action)
+                    )
+                )
+            }
+            addView(TextView(context).apply {
+                text = context.getString(R.string.intent_no_monitor_action)
+                textSize = 14f
+                setTextColor(textColor)
+            })
+        }
+    }
+
     @SuppressLint("SetTextI18n")
     private fun buildPresetRow(constraints: SessionConstraint): View {
         val row = LinearLayout(context).apply {
@@ -623,7 +653,7 @@ class IntentInputDialogOverlay(
         }
 
         if (history.isEmpty()) {
-            updateHistoryScrollHeight(0)
+            updateHistoryScrollHeight(1)
             val emptyText = TextView(context).apply {
                 text = context.getString(R.string.intent_no_history_yet)
                 textSize = 13f
@@ -632,14 +662,14 @@ class IntentInputDialogOverlay(
                 setPadding(0, 12.dp(), 0, 12.dp())
             }
             historyContainer?.addView(emptyText)
-            return
+        } else {
+            updateHistoryScrollHeight(history.size + 1)
+            for ((index, constraints) in history.withIndex()) {
+                val row = buildHistoryRow(constraints, isLatest = index == 0)
+                historyContainer?.addView(row)
+            }
         }
-
-        updateHistoryScrollHeight(history.size)
-        for ((index, constraints) in history.withIndex()) {
-            val row = buildHistoryRow(constraints, isLatest = index == 0)
-            historyContainer?.addView(row)
-        }
+        historyContainer?.addView(buildNoMonitorRow())
     }
 
     @SuppressLint("SetTextI18n")
@@ -747,6 +777,7 @@ class IntentInputDialogOverlay(
                     if (meta.isBlank()) title else "$title\n$meta"
                 }
             }
+            ConstraintType.NO_MONITOR -> context.getString(R.string.intent_constraint_no_monitor_full)
         }
     }
 
@@ -774,6 +805,7 @@ class IntentInputDialogOverlay(
                     context.getString(R.string.intent_constraint_time_cap_format, "", "$scopeStr$minText")
                 }
             }
+            ConstraintType.NO_MONITOR -> context.getString(R.string.intent_constraint_no_monitor_format)
         }
     }
 
@@ -898,6 +930,7 @@ class IntentInputDialogOverlay(
                             val desc = c.description
                             if (desc.isNotEmpty()) context.getString(R.string.intent_constraint_time_cap_full, desc, minText) else context.getString(R.string.intent_constraint_time_cap_full, "", minText)
                         }
+                        ConstraintType.NO_MONITOR -> context.getString(R.string.intent_constraint_no_monitor_full)
                     }
                 } ?: ""
                 rulesPreviewText?.text = rulesText
@@ -946,6 +979,7 @@ class IntentInputDialogOverlay(
         val prefix = when (first.type) {
             ConstraintType.DENY -> if (isChineseUi()) "禁止" else "Deny"
             ConstraintType.TIME_CAP -> if (isChineseUi()) "限时" else "Limit"
+            ConstraintType.NO_MONITOR -> if (isChineseUi()) "不监控" else "No monitoring"
         }
         val separator = if (isChineseUi()) "：" else ": "
         val description = truncateIntentDescription(first.description, toastDescriptionMaxChars())
@@ -955,6 +989,7 @@ class IntentInputDialogOverlay(
                 val duration = first.timeLimitMs?.let { formatIntentDurationMinutesShort(it) }.orEmpty()
                 listOf(description, duration).filter { it.isNotBlank() }.joinToString(" ")
             }
+            ConstraintType.NO_MONITOR -> ""
         }
         val suffix = if (constraints.size > 1) {
             if (isChineseUi()) " 等${constraints.size}条" else " +${constraints.size - 1}"

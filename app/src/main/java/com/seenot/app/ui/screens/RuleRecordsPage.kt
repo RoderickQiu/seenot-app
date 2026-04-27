@@ -103,7 +103,14 @@ private fun rememberRecordStatus(record: RuleRecord): RecordStatusPresentation {
             }
         }
 
-        else -> {
+        ConstraintType.NO_MONITOR -> RecordStatusPresentation(
+            label = stringResource(R.string.constraint_type_no_monitor),
+            text = stringResource(R.string.hud_status_no_monitor),
+            accentColor = MaterialTheme.colorScheme.outline,
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
+
+        ConstraintType.DENY -> {
             if (record.isConditionMatched) {
                 RecordStatusPresentation(
                     label = stringResource(R.string.record_match_status),
@@ -120,13 +127,22 @@ private fun rememberRecordStatus(record: RuleRecord): RecordStatusPresentation {
                 )
             }
         }
+
+        null -> RecordStatusPresentation(
+            label = stringResource(R.string.record_match_status),
+            text = stringResource(R.string.record_status_unknown),
+            accentColor = MaterialTheme.colorScheme.outline,
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
     }
 }
 
 private fun RuleRecord.needsAttention(): Boolean {
     return when (constraintType) {
         ConstraintType.TIME_CAP -> isConditionMatched
-        else -> !isConditionMatched
+        ConstraintType.NO_MONITOR -> false
+        ConstraintType.DENY -> !isConditionMatched
+        null -> false
     }
 }
 

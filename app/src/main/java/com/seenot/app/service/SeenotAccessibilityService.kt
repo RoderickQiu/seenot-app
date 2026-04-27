@@ -58,12 +58,13 @@ class SeenotAccessibilityService : AccessibilityService() {
         private const val CHANNEL_ID = "seenot_accessibility"
         private const val NOTIFICATION_ID = 1001
         private const val APP_SWITCH_DEBOUNCE_MS = 500L
-        private const val CONTENT_CHANGED_DEBOUNCE_MS = 1200L
+        private const val CONTENT_CHANGED_TRAILING_DELAY_MS = 450L
         private const val UNLOCK_FOREGROUND_GUARD_MS = 1500L
         private const val OVERLAY_WATCHDOG_MISSING_MS = 1500L
         private const val OVERLAY_WATCHDOG_STREAK_WINDOW_MS = 1200L
         private const val OVERLAY_WATCHDOG_MIN_EVENTS = 3
         private const val OVERLAY_WATCHDOG_RECOVERY_COOLDOWN_MS = 5000L
+        private const val NOISY_WINDOW_EVENT_LOG_INTERVAL_MS = 2000L
 
         var instance: SeenotAccessibilityService? = null
 
@@ -91,19 +92,38 @@ class SeenotAccessibilityService : AccessibilityService() {
 
     private val gestureExecutor: Executor = Executors.newSingleThreadExecutor()
     private var lastAppSwitchTime = 0L
-    private var lastContentChangedPackage: String? = null
-    private var lastContentChangedClassName: String? = null
-    private var lastContentChangedHandledAt: Long = 0L
+    private var pendingContentChangedPackage: String? = null
+    private var pendingContentChangedClassName: String? = null
     private var lastUserPresentAt: Long = 0L
     private var overlayMissingCandidatePackage: String? = null
     private var overlayMissingCandidateFirstAt: Long = 0L
     private var overlayMissingCandidateLastAt: Long = 0L
     private var overlayMissingCandidateEventCount: Int = 0
     private var lastOverlayRecoveryAt: Long = 0L
+    private val noisyWindowEventLogTimes = mutableMapOf<String, Long>()
     private lateinit var sessionManager: SessionManager
     private var deviceStateReceiverRegistered = false
     private val runtimeEventLogger by lazy { RuntimeEventLogger.getInstance(this) }
     private val mainHandler = Handler(Looper.getMainLooper())
+    private val pendingContentChangedRunnable = Runnable {
+        val packageName = pendingContentChangedPackage ?: return@Runnable
+        val className = pendingContentChangedClassName
+        pendingContentChangedPackage = null
+        pendingContentChangedClassName = null
+
+        val sessionManager = SessionManager.getInstance(this)
+        if (!shouldConsiderContentChanged(packageName, sessionManager)) {
+            return@Runnable
+        }
+
+        processWindowEvent(
+            packageName = packageName,
+            className = className,
+            eventType = AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
+            sessionManager = sessionManager,
+            now = System.currentTimeMillis()
+        )
+    }
     private var pendingIntentReminderPackage: String? = null
     private var pendingIntentReminderAppName: String? = null
     private var pendingIntentReminderCount: Int = 0
@@ -304,10 +324,6 @@ class SeenotAccessibilityService : AccessibilityService() {
                 return
             }
 
-            // logAccessibilityEventForTest(event)
-            maybeRecoverPausedSessionFromEvent(event)
-            maybeRecoverMissingOverlayFromEvent(event)
-
             val eventType = event.eventType
             if (
                 eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
@@ -332,20 +348,49 @@ class SeenotAccessibilityService : AccessibilityService() {
                 if (!shouldConsiderContentChanged(packageName, sessionManager)) {
                     return
                 }
-                if (!shouldProcessContentChanged(packageName, className, now)) {
+                if (isScrollContainerClass(className)) {
+                    scheduleTrailingContentChanged(packageName, className)
                     return
                 }
+                cancelTrailingContentChanged()
             } else {
-                resetContentChangedDebounce()
+                cancelTrailingContentChanged()
                 if (now - lastAppSwitchTime < APP_SWITCH_DEBOUNCE_MS) {
                     Logger.d(TAG, "Debouncing app switch: $packageName (${now - lastAppSwitchTime}ms)")
                     return
                 }
             }
 
+            processWindowEvent(
+                packageName = packageName,
+                className = className,
+                eventType = eventType,
+                sessionManager = sessionManager,
+                now = now
+            )
+        } catch (e: Exception) {
+            Logger.e(TAG, "Error in onAccessibilityEvent", e)
+        }
+    }
+
+    private fun processWindowEvent(
+        packageName: String,
+        className: String?,
+        eventType: Int,
+        sessionManager: SessionManager,
+        now: Long
+    ) {
+        try {
+            maybeRecoverPausedSessionFromEvent(packageName, eventType, className)
+            maybeRecoverMissingOverlayFromEvent(packageName, eventType)
+
             // Ignore system apps (except launcher)
             if (isSystemApp(packageName) && !isLauncher(packageName)) {
-                Logger.d(TAG, "Ignoring system app: $packageName")
+                logNoisyWindowEvent(
+                    key = "system_app:$packageName",
+                    now = now,
+                    message = "Ignoring system app: $packageName"
+                )
                 return
             }
 
@@ -395,18 +440,38 @@ class SeenotAccessibilityService : AccessibilityService() {
                 }
             } else {
                 maybeRecoverWeakReentry(packageName, className, eventType)
-                Logger.d(TAG, "Same package, skipping: $packageName")
+                logNoisyWindowEvent(
+                    key = "same_package:$packageName",
+                    now = now,
+                    message = "Same package, skipping: $packageName"
+                )
             }
         } catch (e: Exception) {
-            Logger.e(TAG, "Error in onAccessibilityEvent", e)
+            Logger.e(TAG, "Error processing accessibility window event", e)
         }
     }
 
-    private fun maybeRecoverPausedSessionFromEvent(event: AccessibilityEvent) {
-        val packageName = event.packageName?.toString() ?: return
+    private fun logNoisyWindowEvent(
+        key: String,
+        now: Long,
+        message: String
+    ) {
+        val lastLoggedAt = noisyWindowEventLogTimes[key] ?: 0L
+        if (now - lastLoggedAt < NOISY_WINDOW_EVENT_LOG_INTERVAL_MS) {
+            return
+        }
+
+        noisyWindowEventLogTimes[key] = now
+        Logger.d(TAG, message)
+    }
+
+    private fun maybeRecoverPausedSessionFromEvent(
+        packageName: String,
+        eventType: Int,
+        eventSourceClassName: String?
+    ) {
         if (packageName == this.packageName) return
 
-        val eventType = event.eventType
         if (
             eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
                 eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
@@ -421,15 +486,15 @@ class SeenotAccessibilityService : AccessibilityService() {
         val sessionManager = SessionManager.getInstance(this)
         val resumed = sessionManager.resumePausedSessionFromAccessibilityEvent(
             packageName = packageName,
-            eventType = event.eventType,
-            eventSourceClassName = event.className?.toString()
+            eventType = eventType,
+            eventSourceClassName = eventSourceClassName
         )
         if (!resumed) return
 
         Logger.d(
             TAG,
             "Recovered paused session from event stream: " +
-                "package=$packageName, event=${AccessibilityEvent.eventTypeToString(event.eventType)}"
+                "package=$packageName, event=${AccessibilityEvent.eventTypeToString(eventType)}"
         )
         _currentPackage.value = packageName
         currentMonitoredPackage = packageName
@@ -438,11 +503,12 @@ class SeenotAccessibilityService : AccessibilityService() {
         cancelPendingIntentReminder()
     }
 
-    private fun maybeRecoverMissingOverlayFromEvent(event: AccessibilityEvent) {
-        val packageName = event.packageName?.toString() ?: return
+    private fun maybeRecoverMissingOverlayFromEvent(
+        packageName: String,
+        eventType: Int
+    ) {
         if (packageName == this.packageName) return
 
-        val eventType = event.eventType
         if (
             eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
                 eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
@@ -523,34 +589,34 @@ class SeenotAccessibilityService : AccessibilityService() {
         return false
     }
 
-    private fun shouldProcessContentChanged(
-        packageName: String,
-        className: String?,
-        now: Long
-    ): Boolean {
-        val samePackage = lastContentChangedPackage == packageName
-        val sameClass = lastContentChangedClassName == className
-        val withinDebounceWindow = now - lastContentChangedHandledAt < CONTENT_CHANGED_DEBOUNCE_MS
+    private fun isScrollContainerClass(className: String?): Boolean {
+        if (className == null) return false
 
-        if (samePackage && sameClass && withinDebounceWindow) {
-            Logger.d(
-                TAG,
-                "Debouncing content change: package=$packageName, class=$className, " +
-                    "delta=${now - lastContentChangedHandledAt}ms"
-            )
-            return false
-        }
-
-        lastContentChangedPackage = packageName
-        lastContentChangedClassName = className
-        lastContentChangedHandledAt = now
-        return true
+        return className == "android.widget.AbsListView" ||
+            className == "android.widget.ListView" ||
+            className == "android.widget.GridView" ||
+            className == "android.widget.ScrollView" ||
+            className == "android.widget.HorizontalScrollView" ||
+            className.endsWith(".RecyclerView") ||
+            className.endsWith(".NestedScrollView") ||
+            className.endsWith(".ViewPager") ||
+            className.endsWith(".ViewPager2")
     }
 
-    private fun resetContentChangedDebounce() {
-        lastContentChangedPackage = null
-        lastContentChangedClassName = null
-        lastContentChangedHandledAt = 0L
+    private fun scheduleTrailingContentChanged(
+        packageName: String,
+        className: String?
+    ) {
+        pendingContentChangedPackage = packageName
+        pendingContentChangedClassName = className
+        mainHandler.removeCallbacks(pendingContentChangedRunnable)
+        mainHandler.postDelayed(pendingContentChangedRunnable, CONTENT_CHANGED_TRAILING_DELAY_MS)
+    }
+
+    private fun cancelTrailingContentChanged() {
+        pendingContentChangedPackage = null
+        pendingContentChangedClassName = null
+        mainHandler.removeCallbacks(pendingContentChangedRunnable)
     }
 
     private fun maybeRecoverWeakReentry(
@@ -1024,6 +1090,7 @@ class SeenotAccessibilityService : AccessibilityService() {
         try {
             super.onDestroy()
             serviceScope.cancel()
+            cancelTrailingContentChanged()
             cancelPendingIntentReminder()
             unregisterDeviceStateReceiver()
             stopForeground(STOP_FOREGROUND_REMOVE)
@@ -1039,6 +1106,7 @@ class SeenotAccessibilityService : AccessibilityService() {
     override fun onUnbind(intent: Intent?): Boolean {
         try {
             unregisterDeviceStateReceiver()
+            cancelTrailingContentChanged()
             cancelPendingIntentReminder()
             instance = null
             _isServiceReady.value = false

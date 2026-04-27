@@ -597,7 +597,7 @@ class SessionManager(private val context: Context) {
             autoApplyCarryOverHints(packageName, displayName, constraints)
         }
 
-        if (ApiConfig.isConfigured()) {
+        if (ApiConfig.isConfigured() && constraints.any { it.type != ConstraintType.NO_MONITOR }) {
             startScreenAnalysis(packageName, displayName, constraints)
         }
 
@@ -623,6 +623,11 @@ class SessionManager(private val context: Context) {
      */
     @Suppress("UNUSED_PARAMETER")
     private fun startScreenAnalysis(packageName: String, displayName: String, constraints: List<SessionConstraint>) {
+        val analysisConstraints = constraints.filter { it.type != ConstraintType.NO_MONITOR }
+        if (analysisConstraints.isEmpty()) {
+            Logger.d(TAG, "Skipped screen analysis for no-monitor session")
+            return
+        }
         if (screenAnalyzer == null) {
             screenAnalyzer = ScreenAnalyzer(context)
         }
@@ -634,7 +639,7 @@ class SessionManager(private val context: Context) {
         screenAnalyzer?.startAnalysis(
             packageName = packageName,
             displayName = displayName,
-            constraints = constraints,
+            constraints = analysisConstraints,
             onViolation = { constraint, confidence, analysisId ->
                 handleViolation(constraint, confidence, analysisId)
             }
@@ -1404,7 +1409,7 @@ class SessionManager(private val context: Context) {
         displayName: String,
         constraints: List<SessionConstraint>
     ) {
-        if (constraints.isEmpty()) return
+        if (constraints.isEmpty() || constraints.all { it.type == ConstraintType.NO_MONITOR }) return
 
         val existingPackageHints = appHintRepository.getHintsForPackage(packageName)
         if (existingPackageHints.isEmpty()) return
@@ -1922,6 +1927,10 @@ class SessionManager(private val context: Context) {
      * the per-app history list (deduplicated by constraint fingerprint).
      */
     fun saveLastIntent(packageName: String, constraints: List<SessionConstraint>) {
+        if (constraints.isNoMonitorOnly()) {
+            Logger.d(TAG, "Skipped saving no-monitor intent for $packageName")
+            return
+        }
         val json = serializeConstraints(constraints)
         prefs.edit().putString("${KEY_LAST_INTENT_PREFIX}$packageName", json).apply()
         Logger.d(TAG, "Saved last intent for $packageName: $json")
@@ -1930,7 +1939,7 @@ class SessionManager(private val context: Context) {
     }
 
     fun replaceLastIntent(packageName: String, constraints: List<SessionConstraint>) {
-        if (constraints.isEmpty()) {
+        if (constraints.isEmpty() || constraints.isNoMonitorOnly()) {
             prefs.edit().remove("${KEY_LAST_INTENT_PREFIX}$packageName").apply()
             Logger.d(TAG, "Cleared last intent for $packageName")
             return
@@ -1945,14 +1954,14 @@ class SessionManager(private val context: Context) {
      */
     fun loadLastIntent(packageName: String): List<SessionConstraint>? {
         val json = prefs.getString("${KEY_LAST_INTENT_PREFIX}$packageName", null) ?: return null
-        return deserializeConstraints(json)
+        return deserializeConstraints(json)?.takeUnless { it.isNoMonitorOnly() }
     }
 
     /**
      * Check if an app has last intent saved
      */
     fun hasLastIntent(packageName: String): Boolean {
-        return prefs.contains("${KEY_LAST_INTENT_PREFIX}$packageName")
+        return loadLastIntent(packageName) != null
     }
 
     /**
@@ -1967,6 +1976,7 @@ class SessionManager(private val context: Context) {
             val outerList = gson.fromJson(json, ArrayList::class.java) as ArrayList<ArrayList<Map<String, Any>>>
             dedupeHistoryByName(
                 outerList.mapNotNull { entry -> deserializeConstraintList(entry) }
+                    .filterNot { it.isNoMonitorOnly() }
             )
         } catch (e: Exception) {
             Logger.e(TAG, "Failed to load intent history for $packageName", e)
@@ -1975,6 +1985,10 @@ class SessionManager(private val context: Context) {
     }
 
     private fun appendToIntentHistory(packageName: String, constraints: List<SessionConstraint>) {
+        if (constraints.isNoMonitorOnly()) {
+            Logger.d(TAG, "Skipped adding no-monitor intent to history for $packageName")
+            return
+        }
         val nameFingerprint = getConstraintNameFingerprint(constraints)
 
         val existingJson = prefs.getString("${KEY_INTENT_HISTORY_PREFIX}$packageName", null)
@@ -2019,7 +2033,7 @@ class SessionManager(private val context: Context) {
      * Save preset rules for a specific app.
      */
     fun savePresetRules(packageName: String, rules: List<SessionConstraint>) {
-        val dedupedRules = dedupePresetRulesByName(rules)
+        val dedupedRules = dedupePresetRulesByName(rules.filter { it.type != ConstraintType.NO_MONITOR })
         val json = gson.toJson(dedupedRules.map { constraint ->
             mapOf(
                 "id" to constraint.id,
@@ -2065,7 +2079,7 @@ class SessionManager(private val context: Context) {
                     Logger.e(TAG, "Failed to parse preset rule", e)
                     null
                 }
-            })
+            }.filter { it.type != ConstraintType.NO_MONITOR })
         } catch (e: Exception) {
             Logger.e(TAG, "Failed to load preset rules for $packageName", e)
             emptyList()
@@ -2108,7 +2122,7 @@ class SessionManager(private val context: Context) {
      * Save intent history (for editing).
      */
     fun saveIntentHistory(packageName: String, history: List<List<SessionConstraint>>) {
-        val trimmed = dedupeHistoryByName(history).take(MAX_HISTORY_PER_APP)
+        val trimmed = dedupeHistoryByName(history.filterNot { it.isNoMonitorOnly() }).take(MAX_HISTORY_PER_APP)
         val json = gson.toJson(trimmed.map { constraints ->
             constraints.map { constraint ->
                 mapOf<String, Any?>(
@@ -2152,7 +2166,13 @@ class SessionManager(private val context: Context) {
 
     private fun dedupeHistoryByName(history: List<List<SessionConstraint>>): List<List<SessionConstraint>> {
         val seen = mutableSetOf<String>()
-        return history.filter { seen.add(getConstraintNameFingerprint(it)) }
+        return history
+            .filterNot { it.isNoMonitorOnly() }
+            .filter { seen.add(getConstraintNameFingerprint(it)) }
+    }
+
+    private fun List<SessionConstraint>.isNoMonitorOnly(): Boolean {
+        return isNotEmpty() && all { it.type == ConstraintType.NO_MONITOR }
     }
 
     private fun constraintNameKey(constraint: SessionConstraint): String {

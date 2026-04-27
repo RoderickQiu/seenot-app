@@ -11,7 +11,10 @@ enum class ConstraintType {
     DENY,
 
     /** Pure time constraint - no specific content targeting */
-    TIME_CAP
+    TIME_CAP,
+
+    /** User explicitly chose not to monitor this app for the current session */
+    NO_MONITOR
 }
 
 enum class TimeScope {

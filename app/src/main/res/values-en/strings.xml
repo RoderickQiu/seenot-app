@@ -106,6 +106,7 @@
     <!-- ConstraintType labels -->
     <string name="constraint_type_deny">Deny</string>
     <string name="constraint_type_time_cap">Time limit</string>
+    <string name="constraint_type_no_monitor">No monitoring</string>
 
     <!-- ActionExecutor toast messages -->
     <string name="duration_minutes_seconds">%1$d min %2$d sec</string>
@@ -231,8 +232,11 @@
     <string name="intent_parsed">Intent recognized</string>
     <string name="intent_constraint_deny_format">Deny %s</string>
     <string name="intent_constraint_time_cap_format">Limit %1$s %2$smin</string>
+    <string name="intent_constraint_no_monitor_format">No monitoring this time</string>
     <string name="intent_constraint_deny_full">Deny: %s</string>
     <string name="intent_constraint_time_cap_full">Time limit: %1$s %2$s minutes</string>
+    <string name="intent_constraint_no_monitor_full">No monitoring this time</string>
+    <string name="intent_no_monitor_action">No monitoring this time</string>
     <string name="intent_time_scope_suffix"> %1$s%2$smin</string>
     <string name="intent_retry">Try again</string>
     <string name="intent_skip">Skip</string>
@@ -256,17 +260,21 @@
     <string name="hud_status_normal">Normal</string>
     <string name="hud_status_timing">Timing</string>
     <string name="hud_status_not_timing">Not timing</string>
+    <string name="hud_status_no_monitor">Not monitored</string>
     <string name="hud_judgment_deny_format">%s</string>
     <string name="hud_judgment_deny_safe">Safe</string>
     <string name="hud_judgment_deny_at_risk">At risk</string>
     <string name="hud_judgment_time_cap_timing">Timing</string>
     <string name="hud_judgment_time_cap_not_timing">Not timing</string>
+    <string name="hud_judgment_no_monitor">No analysis or intervention this session</string>
     <string name="hud_false_positive_review_subtitle">Tell us the correct situation</string>
     <string name="hud_compact_separator"> / </string>
     <string name="hud_more_count">+%d</string>
     <string name="unit_minute">min</string>
     <string name="hud_rule_type_time_cap">Time limit</string>
+    <string name="hud_rule_type_no_monitor">No monitoring</string>
     <string name="hud_rule_detail_deny">Deny %1$s</string>
+    <string name="hud_rule_detail_no_monitor">No monitoring this time</string>
     <string name="hud_rule_detail_time_cap">Limit %1$s %2$s%3$smin</string>
     <string name="hud_rule_detail_time_cap_no_desc">Limit %1$s%2$smin</string>
     <string name="hud_compact_time_limit_prefix">Limit</string>
@@ -403,6 +411,7 @@
     <string name="record_timing_active">Timing</string>
     <string name="record_timing_inactive">Not timing</string>
     <string name="record_match_status">Match status</string>
+    <string name="record_status_unknown">Unknown</string>
     <string name="record_match_normal">Normal (no rule violation)</string>
     <string name="record_match_violated">Violated (rule broken)</string>
     <string name="record_intent_scope_label">This intent only</string>

@@ -305,6 +305,7 @@ class FalsePositiveRuleGenerator(private val context: Context) {
             val type = when (targetConstraint.type) {
                 ConstraintType.DENY -> "禁止"
                 ConstraintType.TIME_CAP -> "时间限制"
+                ConstraintType.NO_MONITOR -> "不监控"
             }
             val timePart = targetConstraint.timeLimitMs?.let { "，时长 ${it / 60000.0} 分钟" } ?: ""
             val scopePart = targetConstraint.timeScope?.let { "，范围 ${it.name}" } ?: ""
@@ -326,24 +327,28 @@ class FalsePositiveRuleGenerator(private val context: Context) {
         val judgmentText = when (record.constraintType) {
             ConstraintType.TIME_CAP -> if (record.isConditionMatched) "系统判定：正在计时" else "系统判定：当前不计时"
             ConstraintType.DENY -> if (record.isConditionMatched) "系统判定：正常" else "系统判定：违规"
+            ConstraintType.NO_MONITOR -> "系统判定：未监控"
             null -> "系统判定：未知"
         }
 
         val correctedJudgmentText = when (record.constraintType) {
             ConstraintType.TIME_CAP -> if (record.isConditionMatched) "用户纠正后：这里应该判为当前不计时" else "用户纠正后：这里应该判为正在计时"
             ConstraintType.DENY -> if (record.isConditionMatched) "用户纠正后：这里应该判为违规" else "用户纠正后：这里应该判为正常"
+            ConstraintType.NO_MONITOR -> "用户纠正后：这里仍应保持不监控"
             null -> "用户纠正后：未知"
         }
 
         val systemDecisionValue = when (record.constraintType) {
             ConstraintType.TIME_CAP -> if (record.isConditionMatched) "in_scope" else "out_of_scope"
             ConstraintType.DENY -> if (record.isConditionMatched) "safe" else "violates"
+            ConstraintType.NO_MONITOR -> "no_monitor"
             null -> "unknown"
         }
 
         val correctedDecisionValue = when (record.constraintType) {
             ConstraintType.TIME_CAP -> if (record.isConditionMatched) "out_of_scope" else "in_scope"
             ConstraintType.DENY -> if (record.isConditionMatched) "violates" else "safe"
+            ConstraintType.NO_MONITOR -> "no_monitor"
             null -> "unknown"
         }
 
@@ -358,6 +363,7 @@ class FalsePositiveRuleGenerator(private val context: Context) {
             } else {
                 "这条规则必须帮助系统以后把同类页面判断为 safe（正常），而不是 violates（违规）。"
             }
+            ConstraintType.NO_MONITOR -> "这条意图表示本次不监控，不需要生成屏幕判断纠偏规则。"
             null -> "这条规则必须服务于用户这次纠正后的正确判断。"
         }
 
@@ -393,6 +399,7 @@ class FalsePositiveRuleGenerator(private val context: Context) {
         val recordConstraintType = when (record.constraintType) {
             ConstraintType.DENY -> "禁止"
             ConstraintType.TIME_CAP -> "时间限制"
+            ConstraintType.NO_MONITOR -> "不监控"
             null -> "未知"
         }
 

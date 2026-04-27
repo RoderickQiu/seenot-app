@@ -2053,6 +2053,7 @@ fun EditHistoryRuleDialog(
                                     text = when (constraint.type) {
                                         ConstraintType.DENY -> stringResource(R.string.constraint_type_deny)
                                         ConstraintType.TIME_CAP -> stringResource(R.string.constraint_type_time_cap)
+                                        ConstraintType.NO_MONITOR -> stringResource(R.string.constraint_type_no_monitor)
                                     },
                                     style = MaterialTheme.typography.labelMedium,
                                     color = MaterialTheme.colorScheme.primary
@@ -2258,7 +2259,7 @@ private fun RuleEditorForm(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            ConstraintType.entries.forEach { type ->
+            ConstraintType.entries.filter { it != ConstraintType.NO_MONITOR }.forEach { type ->
                 FilterChip(
                     selected = ruleType == type,
                     onClick = { onRuleTypeChange(type) },
@@ -2386,6 +2387,7 @@ private fun formatTimeLimitMinutes(timeLimitMs: Long): String {
 private fun constraintTypeLabel(type: ConstraintType): Int = when (type) {
     ConstraintType.DENY -> R.string.constraint_type_deny
     ConstraintType.TIME_CAP -> R.string.constraint_type_time_cap
+    ConstraintType.NO_MONITOR -> R.string.constraint_type_no_monitor
 }
 
 @StringRes

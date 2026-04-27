@@ -322,6 +322,9 @@ class ActionExecutor(private val context: Context) {
                 // DENY: show violation warning
                 l10n(R.string.toast_violation_warning, constraint.description)
             }
+            com.seenot.app.data.model.ConstraintType.NO_MONITOR -> {
+                l10n(R.string.intent_constraint_no_monitor_full)
+            }
         }
 
         Logger.d(TAG, "[executeToast] Showing toast: $message")

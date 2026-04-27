@@ -496,6 +496,7 @@ class FloatingIndicatorOverlay(
                             if (status.isConditionMatched) context.getString(R.string.hud_judgment_time_cap_timing)
                             else context.getString(R.string.hud_judgment_time_cap_not_timing)
                         )
+                        ConstraintType.NO_MONITOR -> context.getString(R.string.hud_judgment_no_monitor)
                     }
                     textSize = 12f
                     setTextColor(subtleTextColor)
@@ -525,42 +526,44 @@ class FloatingIndicatorOverlay(
                 )
             }
 
-            addView(
-                Button(context).apply {
-                    text = context.getString(R.string.hud_wrong_judgment)
-                    textSize = 14f
-                    setTextColor(strongTextColor)
-                    typeface = Typeface.DEFAULT_BOLD
-                    background = GradientDrawable().apply {
-                        setColor(mutedButtonColor)
-                        cornerRadius = 12.dp().toFloat()
+            if (status.type != ConstraintType.NO_MONITOR) {
+                addView(
+                    Button(context).apply {
+                        text = context.getString(R.string.hud_wrong_judgment)
+                        textSize = 14f
+                        setTextColor(strongTextColor)
+                        typeface = Typeface.DEFAULT_BOLD
+                        background = GradientDrawable().apply {
+                            setColor(mutedButtonColor)
+                            cornerRadius = 12.dp().toFloat()
+                        }
+                        setOnClickListener {
+                            FalsePositiveRuleReviewOverlay.show(
+                                context = context,
+                                titleResId = R.string.hud_judgment_wrong_title,
+                                subtitleResId = R.string.hud_false_positive_review_subtitle,
+                                onGenerate = { callback ->
+                                    sessionManager.previewCurrentJudgmentFalsePositiveRule(
+                                        constraintType = status.type,
+                                        isConditionMatched = status.isConditionMatched,
+                                        onComplete = callback
+                                    )
+                                },
+                                onSave = { ruleText, scopeType, callback ->
+                                    sessionManager.saveCurrentJudgmentFalsePositiveRule(
+                                        constraintType = status.type,
+                                        isConditionMatched = status.isConditionMatched,
+                                        confirmedRule = ruleText,
+                                        scopeType = scopeType,
+                                        source = "floating_overlay",
+                                        onComplete = callback
+                                    )
+                                }
+                            )
+                        }
                     }
-                    setOnClickListener {
-                        FalsePositiveRuleReviewOverlay.show(
-                            context = context,
-                            titleResId = R.string.hud_judgment_wrong_title,
-                            subtitleResId = R.string.hud_false_positive_review_subtitle,
-                            onGenerate = { callback ->
-                                sessionManager.previewCurrentJudgmentFalsePositiveRule(
-                                    constraintType = status.type,
-                                    isConditionMatched = status.isConditionMatched,
-                                    onComplete = callback
-                                )
-                            },
-                            onSave = { ruleText, scopeType, callback ->
-                                sessionManager.saveCurrentJudgmentFalsePositiveRule(
-                                    constraintType = status.type,
-                                    isConditionMatched = status.isConditionMatched,
-                                    confirmedRule = ruleText,
-                                    scopeType = scopeType,
-                                    source = "floating_overlay",
-                                    onComplete = callback
-                                )
-                            }
-                        )
-                    }
-                }
-            )
+                )
+            }
         }
     }
 
@@ -639,6 +642,9 @@ class FloatingIndicatorOverlay(
                                 context.getString(R.string.hud_status_timing) else context.getString(R.string.hud_status_not_timing)
                             "${formatConstraintDetailSingleLine(constraint)}${context.getString(R.string.hud_compact_separator)}$status"
                         }
+                        ConstraintType.NO_MONITOR -> {
+                            "${formatConstraintDetailSingleLine(constraint)}${context.getString(R.string.hud_compact_separator)}${context.getString(R.string.hud_status_no_monitor)}"
+                        }
                     }
                 } + if (constraints.size > 2) context.getString(R.string.hud_more_count, constraints.size - 2) else ""
             } else {
@@ -678,6 +684,7 @@ class FloatingIndicatorOverlay(
                     context.getString(R.string.hud_rule_detail_time_cap_no_desc, scopeStr, minText)
                 }
             }
+            ConstraintType.NO_MONITOR -> context.getString(R.string.hud_rule_detail_no_monitor)
         }
     }
 
@@ -713,6 +720,18 @@ class FloatingIndicatorOverlay(
             )
         }
 
+        val noMonitorConstraints = constraints.filter { it.type == ConstraintType.NO_MONITOR }
+        if (noMonitorConstraints.isNotEmpty()) {
+            statuses += RuleTypeStatus(
+                type = ConstraintType.NO_MONITOR,
+                title = context.getString(R.string.hud_rule_type_no_monitor),
+                label = context.getString(R.string.hud_status_no_monitor),
+                isConditionMatched = true,
+                color = subtleTextColor,
+                details = noMonitorConstraints.map { formatConstraintDetail(it) }
+            )
+        }
+
         return statuses
     }
 
@@ -737,6 +756,7 @@ class FloatingIndicatorOverlay(
                 val meta = buildCompactTimeCapMeta(constraint)
                 if (meta.isBlank()) title else "$title\n$meta"
             }
+            ConstraintType.NO_MONITOR -> context.getString(R.string.hud_rule_detail_no_monitor)
         }
     }
 
@@ -764,6 +784,9 @@ class FloatingIndicatorOverlay(
                 val meta = buildCompactTimeCapMeta(constraint)
                 val subtitle = listOf(meta, status).filter { it.isNotBlank() }.joinToString(" · ")
                 "$title\n$subtitle"
+            }
+            ConstraintType.NO_MONITOR -> {
+                "${context.getString(R.string.hud_rule_detail_no_monitor)}\n${context.getString(R.string.hud_status_no_monitor)}"
             }
         }
     }

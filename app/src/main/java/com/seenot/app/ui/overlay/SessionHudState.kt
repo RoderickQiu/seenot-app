@@ -89,6 +89,7 @@ fun getConstraintTypeIcon(type: ConstraintType): String {
     return when (type) {
         ConstraintType.DENY -> "✗"
         ConstraintType.TIME_CAP -> "⏱"
+        ConstraintType.NO_MONITOR -> "–"
     }
 }
 
@@ -101,5 +102,6 @@ fun getConstraintTypeColor(type: ConstraintType, isViolating: Boolean): Color {
     return when (type) {
         ConstraintType.DENY -> Color(0xFFFF9800) // Orange
         ConstraintType.TIME_CAP -> Color(0xFF2196F3) // Blue
+        ConstraintType.NO_MONITOR -> Color(0xFF607D8B) // Blue gray
     }
 }

@@ -119,6 +119,7 @@ class JudgmentFeedbackConfirmOverlay(
                 text = when (constraintType) {
                     ConstraintType.DENY -> context.getString(R.string.judgment_wrong_content_desc)
                     ConstraintType.TIME_CAP -> context.getString(R.string.judgment_wrong_content_timing)
+                    ConstraintType.NO_MONITOR -> context.getString(R.string.hud_judgment_no_monitor)
                 }
                 textSize = 14f
                 setTextColor(secondaryTextColor)

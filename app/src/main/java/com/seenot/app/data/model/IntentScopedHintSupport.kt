@@ -48,6 +48,7 @@ fun buildIntentScopedHintLabel(context: Context?, constraint: SessionConstraint)
     val typeLabel = when (constraint.type) {
         ConstraintType.DENY -> context?.getString(R.string.rule_label_deny) ?: ConstraintType.DENY.name
         ConstraintType.TIME_CAP -> context?.getString(R.string.rule_label_time_cap) ?: ConstraintType.TIME_CAP.name
+        ConstraintType.NO_MONITOR -> context?.getString(R.string.constraint_type_no_monitor) ?: ConstraintType.NO_MONITOR.name
     }
     val extras = buildList {
         constraint.timeLimitMs?.let {

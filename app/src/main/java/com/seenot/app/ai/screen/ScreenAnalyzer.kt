@@ -463,6 +463,7 @@ class ScreenAnalyzer(
                 val isInTargetContent = when (match.constraint.type) {
                     ConstraintType.DENY -> match.isViolation
                     ConstraintType.TIME_CAP -> match.isInScope == true
+                    ConstraintType.NO_MONITOR -> false
                 }
                 sessionManager.updateContentMatchState(match.constraint.id, isInTargetContent)
             }
@@ -494,7 +495,8 @@ class ScreenAnalyzer(
                         // For TIME_CAP: isConditionMatched = isInScope (true = in_scope, false = out_of_scope)
                         val isConditionMatched = when (match.constraint.type) {
                             ConstraintType.TIME_CAP -> match.isInScope == true
-                            else -> !match.isViolation
+                            ConstraintType.NO_MONITOR -> true
+                            ConstraintType.DENY -> !match.isViolation
                         }
 
                         val record = RuleRecord(
@@ -629,7 +631,7 @@ class ScreenAnalyzer(
         // Separate by constraint type
         val violations = matches.filter { it.isViolation }
         val timeCapMatches = matches.filter { it.constraint.type == ConstraintType.TIME_CAP }
-        val denyAllowMatches = matches.filter { it.constraint.type != ConstraintType.TIME_CAP }
+        val denyAllowMatches = matches.filter { it.constraint.type == ConstraintType.DENY }
 
         // Build toast message - always give feedback for any analysis result
         val message = buildString {
@@ -1100,7 +1102,8 @@ class ScreenAnalyzer(
                     // - unknown = no violation (conservative)
                     val isViolation = when (constraint.type) {
                         ConstraintType.TIME_CAP -> false // TIME_CAP never triggers violation
-                        else -> decision == "violates"
+                        ConstraintType.NO_MONITOR -> false
+                        ConstraintType.DENY -> decision == "violates"
                     }
 
                     val isInScope = if (constraint.type == ConstraintType.TIME_CAP) {
@@ -1253,7 +1256,7 @@ class ScreenAnalyzer(
         }
 
         // Group constraints by type
-        val denyAllowConstraints = constraints.filter { it.type != ConstraintType.TIME_CAP }
+        val denyAllowConstraints = constraints.filter { it.type == ConstraintType.DENY }
         val timeCapConstraints = constraints.filter { it.type == ConstraintType.TIME_CAP }
 
         // Build constraint list text
@@ -1261,6 +1264,7 @@ class ScreenAnalyzer(
             val typeLabel = when (constraint.type) {
                 ConstraintType.DENY -> "禁止"
                 ConstraintType.TIME_CAP -> "时间限制"
+                ConstraintType.NO_MONITOR -> "不监控"
             }
             val effectiveDescription = buildEffectiveConstraintDescription(
                 baseDescription = constraint.description,

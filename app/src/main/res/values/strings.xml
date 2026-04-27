@@ -110,6 +110,7 @@
     <!-- ConstraintType labels -->
     <string name="constraint_type_deny">禁止</string>
     <string name="constraint_type_time_cap">时间限制</string>
+    <string name="constraint_type_no_monitor">不监控</string>
 
     <!-- ActionExecutor toast messages -->
     <string name="duration_minutes_seconds">%1$d分%2$d秒</string>
@@ -235,8 +236,11 @@
     <string name="intent_parsed">意图已识别</string>
     <string name="intent_constraint_deny_format">禁止 %s</string>
     <string name="intent_constraint_time_cap_format">限时 %1$s %2$s分</string>
+    <string name="intent_constraint_no_monitor_format">本次不监控</string>
     <string name="intent_constraint_deny_full">禁止: %s</string>
     <string name="intent_constraint_time_cap_full">限时: %1$s %2$s分钟</string>
+    <string name="intent_constraint_no_monitor_full">本次不监控</string>
+    <string name="intent_no_monitor_action">本次不监控</string>
     <string name="intent_time_scope_suffix"> %1$s%2$s分</string>
     <string name="intent_retry">再说一次</string>
     <string name="intent_skip">跳过</string>
@@ -260,17 +264,21 @@
     <string name="hud_status_normal">正常</string>
     <string name="hud_status_timing">计时中</string>
     <string name="hud_status_not_timing">未计时</string>
+    <string name="hud_status_no_monitor">未监控</string>
     <string name="hud_judgment_deny_format">%s</string>
     <string name="hud_judgment_deny_safe">安全</string>
     <string name="hud_judgment_deny_at_risk">风险</string>
     <string name="hud_judgment_time_cap_timing">计时中</string>
     <string name="hud_judgment_time_cap_not_timing">未计时</string>
+    <string name="hud_judgment_no_monitor">本次不会分析或干预</string>
     <string name="hud_false_positive_review_subtitle">告诉我们正确的情况</string>
     <string name="hud_compact_separator"> / </string>
     <string name="hud_more_count">+%d</string>
     <string name="unit_minute">分钟</string>
     <string name="hud_rule_type_time_cap">限时</string>
+    <string name="hud_rule_type_no_monitor">不监控</string>
     <string name="hud_rule_detail_deny">禁止 %1$s</string>
+    <string name="hud_rule_detail_no_monitor">本次不监控</string>
     <string name="hud_rule_detail_time_cap">限时 %1$s %2$s%3$s分</string>
     <string name="hud_rule_detail_time_cap_no_desc">限时 %1$s%2$s分</string>
     <string name="hud_compact_time_limit_prefix">限时</string>
@@ -407,6 +415,7 @@
     <string name="record_timing_active">正在计时</string>
     <string name="record_timing_inactive">当前不计时</string>
     <string name="record_match_status">匹配状态</string>
+    <string name="record_status_unknown">未知</string>
     <string name="record_match_normal">正常 (未违反规则)</string>
     <string name="record_match_violated">违规 (已违反规则)</string>
     <string name="record_intent_scope_label">只对这条意图生效</string>

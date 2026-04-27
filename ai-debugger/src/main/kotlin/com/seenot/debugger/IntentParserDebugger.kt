@@ -68,7 +68,10 @@ class IntentParserDebugger {
 输出：{"constraints":[{"type":"DENY","description":"除消息外的其他内容","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
 
 输入："每天最多10分钟"
-输出：{"constraints":[{"type":"TIME_CAP","description":"每日时间限制","timeLimitMinutes":10,"timeScope":"DAILY_TOTAL","intervention":"STRICT"}]}
+输出：{"constraints":[],"unsupportedMode":"DAILY_TOTAL"}
+
+输入："这次不监控"
+输出：{"constraints":[{"type":"NO_MONITOR","description":"本次不监控","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"GENTLE"}]}
             """.trimIndent()
         } else {
             """
@@ -82,7 +85,10 @@ Input: "only look at messages"
 Output: {"constraints":[{"type":"DENY","description":"all other content except messages","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
 
 Input: "每天最多10分钟"
-Output: {"constraints":[{"type":"TIME_CAP","description":"daily time limit","timeLimitMinutes":10,"timeScope":"DAILY_TOTAL","intervention":"STRICT"}]}
+Output: {"constraints":[],"unsupportedMode":"DAILY_TOTAL"}
+
+Input: "do not monitor this time"
+Output: {"constraints":[{"type":"NO_MONITOR","description":"no monitoring this time","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"GENTLE"}]}
             """.trimIndent()
         }
     }
@@ -237,6 +243,7 @@ Output: {"constraints":[{"type":"TIME_CAP","description":"daily time limit","tim
    - Exclusive / allowlist intent：用户只允许自己看/做某类内容，例如 "只看X"、"只想看X"、"only X"、"just X"、"nothing but X"。由于当前 schema 没有 ALLOW，这类语义也要编码为 DENY，但 description 必须改写成“会触发干预的补集内容”，即“除X外的其他内容”。
    - Blocklist intent：用户不允许某类内容，例如 "不能看X"、"不要看X"、"don't look at X"。这类也使用 DENY，description 直接写被禁止内容。
    - Pure time limit：只有时间限制、没有内容限制时，使用 TIME_CAP。
+   - No-monitor intent：用户明确表示这次/本次/当前会话不要 SeeNot 监控、分析、提醒或干预这个 app，例如“不监控这个 app”、“这次不管我”、“don't monitor this app”。这类使用 NO_MONITOR，表示这是一个合法会话意图，不是解析失败。
 3. 时间限制直接加在约束的 timeLimitMinutes 字段上
 4. 如果既有内容限制又有时间限制，使用 DENY，时间加在同一个约束上
 5. **多条件合并**：如果用户提到多个内容（如"不能看朋友圈和视频号"），将它们合并到一个约束的 description 中
@@ -250,17 +257,19 @@ Output: {"constraints":[{"type":"TIME_CAP","description":"daily time limit","tim
 规则类型:
 - DENY: 黑名单，禁止使用某功能/内容
 - TIME_CAP: 纯时间限制（无内容限制）
+- NO_MONITOR: 本次会话不做屏幕分析、计时判断或干预，但仍记录为用户声明的合法意图
 
 时间范围类型 (timeScope):
 - SESSION: 整个会话计时，无论看什么内容都在倒计时
 - PER_CONTENT: 只有在目标内容时才计时，切换到其他内容时暂停
-- DAILY_TOTAL: 每日累计时间，跨会话持久化（今天总共最多X分钟）
+- CONTINUOUS: 只有在同一内容持续停留时才计时
 
 ⚠️ 如何判断 timeScope：
 - "X只能看Y分钟" → PER_CONTENT（只有看X时才计时）
 - "不能看X，最多Y分钟" → SESSION（整个会话限时，看到X违规）
 - "最多Y分钟" → SESSION（纯时间限制）
-- "每天最多Y分钟" / "今天只能看Y分钟" → DAILY_TOTAL（每日累计）
+- "每天最多Y分钟" / "今天只能看Y分钟" / "today total" / "daily total" 这类“每日累计”语义当前不支持。
+  对这类输入，不要改写成 SESSION 或 PER_CONTENT；返回空 constraints，并额外返回 "unsupportedMode":"DAILY_TOTAL"。
 
 干预级别:
 - GENTLE: 温和提醒
@@ -271,13 +280,14 @@ Output: {"constraints":[{"type":"TIME_CAP","description":"daily time limit","tim
 {
   "constraints": [
     {
-      "type": "DENY|TIME_CAP",
+      "type": "DENY|TIME_CAP|NO_MONITOR",
       "description": "规则描述",
       "timeLimitMinutes": null或数字,
-      "timeScope": "SESSION|PER_CONTENT|DAILY_TOTAL",
+      "timeScope": "SESSION|PER_CONTENT|CONTINUOUS",
       "intervention": "GENTLE|MODERATE|STRICT"
     }
-  ]
+  ],
+  "unsupportedMode": null或"DAILY_TOTAL"
 }
 
 示例：
