@@ -1,7 +1,10 @@
 GEM
   remote: https://rubygems.org/
   specs:
-    CFPropertyList (3.0.9)
+    CFPropertyList (3.0.7)
+      base64
+      nkf
+      rexml
     abbrev (0.1.2)
     addressable (2.9.0)
       public_suffix (>= 2.0.2, < 8.0)
@@ -225,6 +228,7 @@ PLATFORMS
   ruby
 
 DEPENDENCIES
+  CFPropertyList (= 3.0.7)
   fastlane
 
 BUNDLED WITH
