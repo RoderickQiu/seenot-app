@@ -15,9 +15,11 @@ import android.hardware.display.DisplayManager
 import android.view.Display
 import com.seenot.app.R
 import com.seenot.app.utils.Logger
+import com.seenot.app.ui.overlay.FalsePositiveRuleReviewOverlay
 import com.seenot.app.ui.overlay.FloatingIndicatorOverlay
 import com.seenot.app.ui.overlay.InterventionFeedbackDialogOverlay
 import com.seenot.app.ui.overlay.IntentInputDialogOverlay
+import com.seenot.app.ui.overlay.IntentReminderOverlay
 import com.seenot.app.ui.overlay.JudgmentFeedbackConfirmOverlay
 import com.seenot.app.ui.overlay.ToastOverlay
 import com.seenot.app.ui.overlay.VoiceInputOverlay
@@ -307,7 +309,9 @@ class ScreenAnalyzer(
         return when {
             InterventionFeedbackDialogOverlay.isShowing() -> "InterventionFeedbackDialogOverlay"
             IntentInputDialogOverlay.isShowing() -> "IntentInputDialogOverlay"
+            IntentReminderOverlay.isShowing() -> "IntentReminderOverlay"
             JudgmentFeedbackConfirmOverlay.isShowing() -> "JudgmentFeedbackConfirmOverlay"
+            FalsePositiveRuleReviewOverlay.isShowing() -> "FalsePositiveRuleReviewOverlay"
             FloatingIndicatorOverlay.isExpanded() -> "FloatingIndicatorOverlay"
             else -> null
         }

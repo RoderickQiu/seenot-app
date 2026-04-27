@@ -3784,12 +3784,15 @@ fun AddAppDialog(
 ) {
     val context = LocalContext.current
     var installedApps by remember { mutableStateOf<List<AppInfo>>(emptyList()) }
+    var isLoading by remember { mutableStateOf(true) }
     var searchQuery by remember { mutableStateOf("") }
 
     LaunchedEffect(Unit) {
+        isLoading = true
         val allApps = getInstalledApps(context)
         // Filter out already added apps
         installedApps = allApps.filter { it.packageName !in existingAppPackages }
+        isLoading = false
         android.util.Log.d("AppsTab", "Available apps to add: ${installedApps.size}")
     }
 
@@ -3815,7 +3818,22 @@ fun AddAppDialog(
 
                 Spacer(modifier = Modifier.height(16.dp))
 
-                if (installedApps.isEmpty()) {
+                if (isLoading) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.Center
+                    ) {
+                        CircularProgressIndicator()
+                    }
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = stringResource(R.string.processing_label),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                } else if (installedApps.isEmpty()) {
                     Text(
                         text = stringResource(R.string.no_apps_available),
                         style = MaterialTheme.typography.bodyMedium,

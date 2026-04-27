@@ -64,6 +64,8 @@ class FalsePositiveRuleReviewOverlay(
             currentDialog?.dismissInternal()
             currentDialog = null
         }
+
+        fun isShowing(): Boolean = currentDialog?.rootView != null
     }
 
     private var windowManager: WindowManager? = null

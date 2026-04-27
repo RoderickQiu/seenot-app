@@ -593,7 +593,7 @@
 
     <!-- SettingsTab -->
     <string name="screenshot_mode_all">保存所有截图</string>
-    <string name="screenshot_mode_matched_only">只在有相关判断时保存截图</string>
+    <string name="screenshot_mode_matched_only">只在判断违规时保存</string>
     <string name="screenshot_mode_none">不保存截图</string>
     <string name="model_not_set">设置模型</string>
     <string name="clear_records_title">清空记录</string>
