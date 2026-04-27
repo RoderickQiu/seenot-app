@@ -33,6 +33,7 @@ jobs:
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: "3.2"
+          bundler: 2.4.22
           bundler-cache: true
 
       - name: Resolve release version from repository
