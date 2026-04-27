@@ -566,6 +566,8 @@ class SessionManager(private val context: Context) {
             return null
         }
 
+        replaceActiveSessionForSameApp(packageName)
+
         cancelPauseTimeout()
         val startContext = consumePendingSessionStartContext()
         val sessionId = repository.createSession(
@@ -616,6 +618,22 @@ class SessionManager(private val context: Context) {
         _sessionEvents.emit(SessionEvent.SessionStarted(activeSession))
 
         return sessionId
+    }
+
+    private suspend fun replaceActiveSessionForSameApp(packageName: String) {
+        val existingSession = _activeSession.value ?: return
+        if (existingSession.appPackageName != packageName) return
+
+        Logger.d(
+            TAG,
+            "Replacing active session ${existingSession.sessionId} for $packageName before creating a new one"
+        )
+
+        timerJob?.cancel()
+        cancelPauseTimeout()
+        stopScreenAnalysis()
+        repository.endSession(existingSession.sessionId, SessionEndReason.USER_ENDED.name)
+        _activeSession.value = null
     }
 
     /**
