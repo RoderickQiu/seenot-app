@@ -12,3 +12,4 @@
 1. When fixing intent parsing bugs, validate the result through the parser path itself instead of masking the symptom in downstream rendering or post-processing.
 2. Prefer solutions that improve cross-language and cross-app behavior together. If a change only helps one Chinese phrasing or one app family, treat it as incomplete.
 3. Never commit changes without actual testing. If the relevant verification has not been run successfully, do not create a commit.
+4. If Android verification or build tooling updates `app/version.properties` as part of the checked workflow, treat that version bump as part of the change and include it in the commit unless the user explicitly says otherwise.

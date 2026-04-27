@@ -33,6 +33,7 @@ import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.ai.voice.VoiceInputManager
 import com.seenot.app.ai.voice.VoiceRecordingState
 import com.seenot.app.data.model.ConstraintType
+import com.seenot.app.domain.AppEntryIntentMode
 import com.seenot.app.domain.SessionConstraint
 import com.seenot.app.domain.SessionManager
 import kotlinx.coroutines.CoroutineScope
@@ -91,7 +92,7 @@ class IntentInputDialogOverlay(
 
     private enum class Mode { IDLE, RECORDING, PROCESSING, SHOWING_RULES }
     private enum class InputSource { NONE, VOICE, TEXT }
-    private enum class ApplyFeedback { NONE, DEFAULT_RULE, TEXT_INPUT }
+    private enum class ApplyFeedback { NONE, DEFAULT_RULE, LAST_INTENT, TEXT_INPUT }
 
     private var windowManager: WindowManager? = null
     private var voiceInputManager: VoiceInputManager? = null
@@ -147,11 +148,24 @@ class IntentInputDialogOverlay(
         isVoiceInputAvailable = hasAudioPermission && hasUsableVoiceConfig()
 
         if (allowDefaultRuleAutoApply) {
-            val defaultRule = sessionManager.getDefaultRule(packageName)
-            if (defaultRule != null) {
-                pendingConstraints = listOf(defaultRule)
-                confirmAndTransition(ApplyFeedback.DEFAULT_RULE)
-                return
+            when (sessionManager.getAppEntryIntentMode(packageName)) {
+                AppEntryIntentMode.USE_PRESET -> {
+                    val defaultRule = sessionManager.getDefaultRule(packageName)
+                    if (defaultRule != null) {
+                        pendingConstraints = listOf(defaultRule)
+                        confirmAndTransition(ApplyFeedback.DEFAULT_RULE)
+                        return
+                    }
+                }
+                AppEntryIntentMode.USE_LAST_INTENT -> {
+                    val lastIntent = sessionManager.loadLastIntent(packageName)
+                    if (!lastIntent.isNullOrEmpty()) {
+                        pendingConstraints = lastIntent
+                        confirmAndTransition(ApplyFeedback.LAST_INTENT)
+                        return
+                    }
+                }
+                AppEntryIntentMode.ASK_EVERY_TIME -> Unit
             }
         }
 
@@ -953,6 +967,15 @@ class IntentInputDialogOverlay(
                     context,
                     context.getString(
                         R.string.intent_default_rule_toast,
+                        buildConstraintSummary(constraints)
+                    )
+                )
+            }
+            ApplyFeedback.LAST_INTENT -> {
+                ToastOverlay.show(
+                    context,
+                    context.getString(
+                        R.string.intent_last_intent_toast,
                         buildConstraintSummary(constraints)
                     )
                 )

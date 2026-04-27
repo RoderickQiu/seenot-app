@@ -52,6 +52,7 @@ import com.seenot.app.config.selectableProviders
 import com.seenot.app.config.selectableSttProviders
 import com.seenot.app.config.IntentReminderPrefs
 import com.seenot.app.config.RuleRecordingPrefs
+import com.seenot.app.domain.AppEntryIntentMode
 import com.seenot.app.domain.SessionManager
 import com.seenot.app.domain.AppMonitoringPause
 import com.seenot.app.service.SeenotAccessibilityService
@@ -1069,6 +1070,7 @@ fun AppRulesDialog(
     var historyRules by remember { mutableStateOf<List<List<SessionConstraint>>>(emptyList()) }
     var presetRules by remember { mutableStateOf<List<SessionConstraint>>(emptyList()) }
     var lastIntentRules by remember { mutableStateOf<List<SessionConstraint>>(emptyList()) }
+    var appEntryIntentMode by remember { mutableStateOf(sessionManager.getAppEntryIntentMode(app.packageName)) }
     var showAddPresetDialog by remember { mutableStateOf(false) }
     var editingRuleIndex by remember { mutableStateOf<Int?>(null) }
     var editingPresetIndex by remember { mutableStateOf<Int?>(null) }
@@ -1097,6 +1099,7 @@ fun AppRulesDialog(
             fingerprint !in presetFingerprints
         }
         lastIntentRules = sessionManager.loadLastIntent(app.packageName).orEmpty()
+        appEntryIntentMode = sessionManager.getAppEntryIntentMode(app.packageName)
         reloadHints()
     }
 
@@ -1326,6 +1329,41 @@ fun AppRulesDialog(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 item {
+                    AppEntryIntentModeSection(
+                        selectedMode = appEntryIntentMode,
+                        presetRules = presetRules,
+                        onModeSelected = { mode ->
+                            if (mode == AppEntryIntentMode.ASK_EVERY_TIME && presetRules.any { it.isDefault }) {
+                                val newPresets = presetRules.map { it.copy(isDefault = false) }
+                                presetRules = newPresets
+                                sessionManager.savePresetRules(app.packageName, newPresets)
+                            }
+                            if (mode == AppEntryIntentMode.USE_PRESET && presetRules.none { it.isDefault }) {
+                                val firstPreset = presetRules.firstOrNull()
+                                if (firstPreset != null) {
+                                    val newPresets = presetRules.map { rule ->
+                                        rule.copy(isDefault = rule.id == firstPreset.id)
+                                    }
+                                    presetRules = newPresets
+                                    sessionManager.savePresetRules(app.packageName, newPresets)
+                                }
+                            }
+                            appEntryIntentMode = mode
+                            sessionManager.setAppEntryIntentMode(app.packageName, mode)
+                        },
+                        onPresetSelected = { presetId ->
+                            val newPresets = presetRules.map { rule ->
+                                rule.copy(isDefault = rule.id == presetId)
+                            }
+                            presetRules = newPresets
+                            appEntryIntentMode = AppEntryIntentMode.USE_PRESET
+                            sessionManager.savePresetRules(app.packageName, newPresets)
+                            sessionManager.setAppEntryIntentMode(app.packageName, AppEntryIntentMode.USE_PRESET)
+                        }
+                    )
+                }
+
+                item {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
@@ -1391,7 +1429,13 @@ fun AppRulesDialog(
                                             }
                                         }
                                         presetRules = newPresets
+                                        appEntryIntentMode = if (newPresets.any { it.isDefault }) {
+                                            AppEntryIntentMode.USE_PRESET
+                                        } else {
+                                            AppEntryIntentMode.ASK_EVERY_TIME
+                                        }
                                         sessionManager.savePresetRules(app.packageName, newPresets)
+                                        sessionManager.setAppEntryIntentMode(app.packageName, appEntryIntentMode)
                                     },
                                     modifier = Modifier.size(24.dp)
                                 ) {
@@ -1406,6 +1450,10 @@ fun AppRulesDialog(
                                     onClick = {
                                         val newPresets = presetRules.toMutableList().apply { removeAt(index) }
                                         presetRules = newPresets
+                                        if (newPresets.none { it.isDefault } && appEntryIntentMode == AppEntryIntentMode.USE_PRESET) {
+                                            appEntryIntentMode = AppEntryIntentMode.ASK_EVERY_TIME
+                                            sessionManager.setAppEntryIntentMode(app.packageName, appEntryIntentMode)
+                                        }
                                         sessionManager.savePresetRules(app.packageName, newPresets)
                                     },
                                     modifier = Modifier.size(24.dp)
@@ -1700,6 +1748,124 @@ fun AppRulesDialog(
             )
         }
     }
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AppEntryIntentModeSection(
+    selectedMode: AppEntryIntentMode,
+    presetRules: List<SessionConstraint>,
+    onModeSelected: (AppEntryIntentMode) -> Unit,
+    onPresetSelected: (String) -> Unit
+) {
+    var presetMenuExpanded by remember { mutableStateOf(false) }
+    val selectedPreset = presetRules.firstOrNull { it.isDefault } ?: presetRules.firstOrNull()
+
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = stringResource(R.string.app_entry_behavior_title),
+            style = MaterialTheme.typography.titleSmall,
+            color = MaterialTheme.colorScheme.primary
+        )
+        AppEntryIntentModeRow(
+            title = stringResource(R.string.entry_mode_ask),
+            selected = selectedMode == AppEntryIntentMode.ASK_EVERY_TIME,
+            enabled = true,
+            onClick = { onModeSelected(AppEntryIntentMode.ASK_EVERY_TIME) }
+        )
+        AppEntryIntentModeRow(
+            title = stringResource(R.string.entry_mode_preset),
+            selected = selectedMode == AppEntryIntentMode.USE_PRESET,
+            enabled = presetRules.isNotEmpty(),
+            onClick = { onModeSelected(AppEntryIntentMode.USE_PRESET) }
+        )
+        if (presetRules.isEmpty()) {
+            Text(
+                text = stringResource(R.string.no_preset_for_entry_mode),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        } else if (selectedMode == AppEntryIntentMode.USE_PRESET) {
+            ExposedDropdownMenuBox(
+                expanded = presetMenuExpanded,
+                onExpandedChange = { presetMenuExpanded = !presetMenuExpanded }
+            ) {
+                OutlinedTextField(
+                    value = selectedPreset?.let { formatEntryPresetLabel(it) }.orEmpty(),
+                    onValueChange = {},
+                    readOnly = true,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .menuAnchor(),
+                    singleLine = true,
+                    label = { Text(stringResource(R.string.select_default_preset_intent)) },
+                    trailingIcon = {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = presetMenuExpanded)
+                    }
+                )
+                ExposedDropdownMenu(
+                    expanded = presetMenuExpanded,
+                    onDismissRequest = { presetMenuExpanded = false }
+                ) {
+                    presetRules.forEach { preset ->
+                        DropdownMenuItem(
+                            text = { Text(formatEntryPresetLabel(preset)) },
+                            onClick = {
+                                onPresetSelected(preset.id)
+                                presetMenuExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+        }
+        AppEntryIntentModeRow(
+            title = stringResource(R.string.entry_mode_last),
+            selected = selectedMode == AppEntryIntentMode.USE_LAST_INTENT,
+            enabled = true,
+            onClick = { onModeSelected(AppEntryIntentMode.USE_LAST_INTENT) }
+        )
+    }
+}
+
+@Composable
+private fun AppEntryIntentModeRow(
+    title: String,
+    selected: Boolean,
+    enabled: Boolean,
+    onClick: () -> Unit
+) {
+    val contentColor = if (enabled) {
+        MaterialTheme.colorScheme.onSurface
+    } else {
+        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f)
+    }
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = enabled, onClick = onClick)
+            .padding(vertical = 1.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        RadioButton(
+            selected = selected,
+            onClick = onClick,
+            enabled = enabled
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium,
+                color = contentColor
+            )
+        }
+    }
+}
+
+@Composable
+private fun formatEntryPresetLabel(constraint: SessionConstraint): String {
+    return "${stringResource(constraintTypeLabel(constraint.type))}: ${constraint.description}"
 }
 
 private data class HintIntentOption(

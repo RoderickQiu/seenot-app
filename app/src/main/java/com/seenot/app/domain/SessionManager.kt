@@ -40,6 +40,12 @@ import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
 
+enum class AppEntryIntentMode {
+    ASK_EVERY_TIME,
+    USE_PRESET,
+    USE_LAST_INTENT
+}
+
 /**
  * Session Manager - Core component that manages the session lifecycle
  *
@@ -59,6 +65,7 @@ class SessionManager(private val context: Context) {
         private const val KEY_INTENT_HISTORY_PREFIX = "intent_history_"
         private const val KEY_PRESET_RULES_PREFIX = "preset_rules_"
         private const val KEY_DEFAULT_RULE_PREFIX = "default_rule_"
+        private const val KEY_APP_ENTRY_INTENT_MODE_PREFIX = "app_entry_intent_mode_"
         private const val KEY_AUTO_START = "auto_start"
         private const val KEY_PAUSED_APP_MONITORING = "paused_app_monitoring"
         private const val MAX_HISTORY_PER_APP = 10
@@ -1980,6 +1987,26 @@ class SessionManager(private val context: Context) {
      */
     fun hasLastIntent(packageName: String): Boolean {
         return loadLastIntent(packageName) != null
+    }
+
+    fun getAppEntryIntentMode(packageName: String): AppEntryIntentMode {
+        val stored = prefs.getString("${KEY_APP_ENTRY_INTENT_MODE_PREFIX}$packageName", null)
+        if (stored != null) {
+            return runCatching { AppEntryIntentMode.valueOf(stored) }
+                .getOrDefault(AppEntryIntentMode.ASK_EVERY_TIME)
+        }
+        return if (getDefaultRule(packageName) != null) {
+            AppEntryIntentMode.USE_PRESET
+        } else {
+            AppEntryIntentMode.ASK_EVERY_TIME
+        }
+    }
+
+    fun setAppEntryIntentMode(packageName: String, mode: AppEntryIntentMode) {
+        prefs.edit()
+            .putString("${KEY_APP_ENTRY_INTENT_MODE_PREFIX}$packageName", mode.name)
+            .apply()
+        Logger.d(TAG, "Set app entry intent mode for $packageName: $mode")
     }
 
     /**

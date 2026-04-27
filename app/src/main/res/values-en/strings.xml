@@ -245,7 +245,8 @@
     <string name="intent_reminder_set_now">Set now</string>
     <string name="intent_reminder_later">Remind me later</string>
     <string name="intent_apply_toast">Set: %s</string>
-    <string name="intent_default_rule_toast">Default: %s</string>
+    <string name="intent_default_rule_toast">Default intent: %s</string>
+    <string name="intent_last_intent_toast">Continued last intent: %s</string>
     <string name="common_or">Or</string>
     <string name="common_error">Error</string>
 
@@ -537,6 +538,12 @@
     <string name="save">Save</string>
     <string name="close">Close</string>
     <string name="app_intents_title">%s Intents</string>
+    <string name="app_entry_behavior_title">When entering this app</string>
+    <string name="entry_mode_ask">Ask me every time</string>
+    <string name="entry_mode_preset">Automatically use a preset intent</string>
+    <string name="entry_mode_last">Automatically continue last intent</string>
+    <string name="select_default_preset_intent">Select preset intent</string>
+    <string name="no_preset_for_entry_mode">Add a preset intent before using this mode.</string>
     <string name="preset_intents">Preset Intents</string>
     <string name="add_preset_intent">Add</string>
     <string name="no_preset_intents_yet">No preset intents yet. Tap add to create.</string>
