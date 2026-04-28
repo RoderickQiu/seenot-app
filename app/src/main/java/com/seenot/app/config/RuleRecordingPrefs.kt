@@ -13,6 +13,7 @@ object RuleRecordingPrefs {
     private const val KEY_SCREENSHOT_MODE = "rule_record_screenshot_mode"
     private const val KEY_SHOW_HOME_TIMELINE = "show_home_timeline"
     private const val KEY_SHOW_ANALYSIS_RESULT_TOAST = "show_analysis_result_toast"
+    private const val KEY_HIDE_COMPACT_HUD_TEXT = "hide_compact_hud_text"
 
     /**
      * Screenshot save modes:
@@ -77,6 +78,20 @@ object RuleRecordingPrefs {
      */
     fun setHomeTimelineEnabled(context: Context, enabled: Boolean) {
         getPrefs(context).edit().putBoolean(KEY_SHOW_HOME_TIMELINE, enabled).apply()
+    }
+
+    /**
+     * Whether compact status HUD should hide text and only show the color indicator
+     */
+    fun isCompactHudTextHidden(context: Context): Boolean {
+        return getPrefs(context).getBoolean(KEY_HIDE_COMPACT_HUD_TEXT, false)
+    }
+
+    /**
+     * Set compact status HUD text visibility
+     */
+    fun setCompactHudTextHidden(context: Context, hidden: Boolean) {
+        getPrefs(context).edit().putBoolean(KEY_HIDE_COMPACT_HUD_TEXT, hidden).apply()
     }
 
     /**

@@ -612,6 +612,8 @@
     <string name="experience_settings_desc">影响首页展示、启动方式和意图提醒</string>
     <string name="show_today_timeline">首页显示今日时间轴</string>
     <string name="show_today_timeline_desc">关闭后，首页不再显示今日时间轴</string>
+    <string name="compact_hud_indicator_only">收起状态栏时隐藏文字</string>
+    <string name="compact_hud_indicator_only_desc">开启后，收起的状态悬浮窗只保留颜色指示点，减少遮挡</string>
     <string name="auto_start_on_boot">开机时自动启动</string>
     <string name="auto_start_on_boot_desc">系统启动后自动运行 SeeNot</string>
     <string name="intent_reminder_enabled_title">没设意图时提醒我</string>

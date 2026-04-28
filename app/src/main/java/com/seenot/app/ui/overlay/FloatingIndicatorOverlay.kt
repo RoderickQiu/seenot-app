@@ -20,6 +20,7 @@ import android.widget.LinearLayout
 import android.widget.TextView
 import com.seenot.app.R
 import com.seenot.app.config.AppLocalePrefs
+import com.seenot.app.config.RuleRecordingPrefs
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.TimeScope
 import com.seenot.app.domain.ActiveSession
@@ -259,6 +260,9 @@ class FloatingIndicatorOverlay(
     }
 
     private fun render() {
+        val previousX = indicatorParams?.x
+        val previousY = indicatorParams?.y
+
         indicatorView?.let { view ->
             try {
                 windowManager?.removeView(view)
@@ -267,7 +271,10 @@ class FloatingIndicatorOverlay(
         }
 
         indicatorView = buildView()
-        indicatorParams = createLayoutParams()
+        indicatorParams = createLayoutParams().apply {
+            previousX?.let { x = it }
+            previousY?.let { y = it }
+        }
 
         try {
             windowManager?.addView(indicatorView, indicatorParams)
@@ -306,13 +313,18 @@ class FloatingIndicatorOverlay(
 
     @SuppressLint("SetTextI18n")
     private fun buildCompactView(): View {
+        val hideCompactText = RuleRecordingPrefs.isCompactHudTextHidden(context)
         rootContainer = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
             gravity = Gravity.CENTER_VERTICAL
-            setPadding(8.dp(), 5.dp(), 10.dp(), 5.dp())
+            if (hideCompactText) {
+                setPadding(10.dp(), 10.dp(), 10.dp(), 10.dp())
+            } else {
+                setPadding(8.dp(), 5.dp(), 10.dp(), 5.dp())
+            }
             background = GradientDrawable().apply {
                 setColor(surfaceColor)
-                cornerRadius = 16.dp().toFloat()
+                cornerRadius = if (hideCompactText) 999.dp().toFloat() else 16.dp().toFloat()
                 setStroke(1, surfaceBorderColor)
             }
             setOnTouchListener { _, event ->
@@ -322,9 +334,12 @@ class FloatingIndicatorOverlay(
         }
 
         dotView = View(context).apply {
-            layoutParams = LinearLayout.LayoutParams(10.dp(), 10.dp()).apply {
-                marginStart = 4.dp()
-                marginEnd = 6.dp()
+            val dotSize = if (hideCompactText) 12.dp() else 10.dp()
+            layoutParams = LinearLayout.LayoutParams(dotSize, dotSize).apply {
+                if (!hideCompactText) {
+                    marginStart = 4.dp()
+                    marginEnd = 6.dp()
+                }
             }
             background = GradientDrawable().apply {
                 shape = GradientDrawable.OVAL
@@ -333,17 +348,20 @@ class FloatingIndicatorOverlay(
         }
         rootContainer?.addView(dotView)
 
-        statusTextView = TextView(context).apply {
-            text = buildCompactStatusText()
-            textSize = 12f
-            setTextColor(if (this@FloatingIndicatorOverlay.state.isViolating) riskColor else subtleTextColor)
-            val isChineseUi = AppLocalePrefs.getLanguage(context) == AppLocalePrefs.LANG_ZH
-            maxLines = if (isChineseUi) 1 else 4
-            if (!isChineseUi) {
-                setLineSpacing(0f, 1.08f)
+        statusTextView = null
+        if (!hideCompactText) {
+            statusTextView = TextView(context).apply {
+                text = buildCompactStatusText()
+                textSize = 12f
+                setTextColor(if (this@FloatingIndicatorOverlay.state.isViolating) riskColor else subtleTextColor)
+                val isChineseUi = AppLocalePrefs.getLanguage(context) == AppLocalePrefs.LANG_ZH
+                maxLines = if (isChineseUi) 1 else 4
+                if (!isChineseUi) {
+                    setLineSpacing(0f, 1.08f)
+                }
             }
+            rootContainer?.addView(statusTextView)
         }
-        rootContainer?.addView(statusTextView)
 
         return rootContainer!!
     }
@@ -600,9 +618,15 @@ class FloatingIndicatorOverlay(
                 if (deltaX > 10 || deltaY > 10) {
                     isDragging = true
                     indicatorParams?.let { params ->
-                        params.x += event.rawX.toInt() - lastX
-                        params.y += event.rawY.toInt() - lastY
-                        windowManager?.updateViewLayout(rootContainer, params)
+                        val rawDeltaX = event.rawX.toInt() - lastX
+                        val rawDeltaY = event.rawY.toInt() - lastY
+                        val isEndAligned = params.gravity and Gravity.END == Gravity.END
+
+                        params.x += if (isEndAligned) -rawDeltaX else rawDeltaX
+                        params.y += rawDeltaY
+                        indicatorView?.let { view ->
+                            windowManager?.updateViewLayout(view, params)
+                        }
                     }
                     lastX = event.rawX.toInt()
                     lastY = event.rawY.toInt()
@@ -857,7 +881,15 @@ class FloatingIndicatorOverlay(
 
         val width = if (view.width > 0) view.width else params.width
         val height = if (view.height > 0) view.height else params.height
-        val actualWidth = if (width > 0) width else if (state.isExpanded) 260.dp() else 180.dp()
+        val actualWidth = if (width > 0) {
+            width
+        } else if (state.isExpanded) {
+            260.dp()
+        } else if (RuleRecordingPrefs.isCompactHudTextHidden(context)) {
+            36.dp()
+        } else {
+            180.dp()
+        }
         val actualHeight = if (height > 0) height else if (state.isExpanded) 220.dp() else 40.dp()
         val screenWidth = context.resources.displayMetrics.widthPixels
         val left = screenWidth - params.x - actualWidth
@@ -921,6 +953,10 @@ class FloatingIndicatorOverlay(
 
         fun getCurrentOverlayBounds(): android.graphics.Rect? {
             return currentOverlay?.getOverlayBounds()
+        }
+
+        fun refreshCurrentOverlay() {
+            currentOverlay?.render()
         }
     }
 }

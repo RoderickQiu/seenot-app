@@ -206,7 +206,7 @@ class FalsePositiveRuleReviewOverlay(
         card.addView(draftInput)
 
         val buttonRow = LinearLayout(context).apply {
-            orientation = LinearLayout.HORIZONTAL
+            orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
         }
 
@@ -218,8 +218,11 @@ class FalsePositiveRuleReviewOverlay(
             dismiss()
             onCancel?.invoke()
         }.apply {
-            layoutParams = LinearLayout.LayoutParams(0, 48.dp(), 1f).apply {
-                marginEnd = 6.dp()
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = 10.dp()
             }
         }
         buttonRow.addView(cancelButton)
@@ -232,9 +235,11 @@ class FalsePositiveRuleReviewOverlay(
             triggerGeneration()
         }.apply {
             visibility = View.GONE
-            layoutParams = LinearLayout.LayoutParams(0, 48.dp(), 1f).apply {
-                marginStart = 6.dp()
-                marginEnd = 6.dp()
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                bottomMargin = 10.dp()
             }
         }
         buttonRow.addView(regenerateButton)
@@ -261,9 +266,10 @@ class FalsePositiveRuleReviewOverlay(
             }
         }.apply {
             visibility = View.GONE
-            layoutParams = LinearLayout.LayoutParams(0, 48.dp(), 1f).apply {
-                marginStart = 6.dp()
-            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
         }
         buttonRow.addView(saveButton)
 
@@ -326,8 +332,14 @@ class FalsePositiveRuleReviewOverlay(
             textSize = 15f
             setTextColor(textColor)
             typeface = Typeface.DEFAULT_BOLD
-            setSingleLine()
-            ellipsize = android.text.TextUtils.TruncateAt.END
+            isAllCaps = false
+            gravity = Gravity.CENTER
+            setSingleLine(false)
+            maxLines = 2
+            includeFontPadding = false
+            minHeight = 48.dp()
+            minimumHeight = 48.dp()
+            setPadding(8.dp(), 8.dp(), 8.dp(), 8.dp())
             background = GradientDrawable().apply {
                 setColor(backgroundColor)
                 cornerRadius = 14.dp().toFloat()

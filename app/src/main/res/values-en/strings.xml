@@ -606,6 +606,8 @@
     <string name="experience_settings_desc">Affects home display, startup behavior, and intent reminders</string>
     <string name="show_today_timeline">Show today\'s timeline on home</string>
     <string name="show_today_timeline_desc">When off, home screen will not show today\'s timeline</string>
+    <string name="compact_hud_indicator_only">Hide text when status bar is collapsed</string>
+    <string name="compact_hud_indicator_only_desc">When on, the collapsed status HUD keeps only the color indicator to reduce obstruction</string>
     <string name="auto_start_on_boot">Auto start on boot</string>
     <string name="auto_start_on_boot_desc">Automatically run SeeNot when system starts</string>
     <string name="intent_reminder_enabled_title">Remind when no intent is set</string>

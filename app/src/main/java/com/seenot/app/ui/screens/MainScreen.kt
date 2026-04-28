@@ -59,6 +59,7 @@ import com.seenot.app.service.SeenotAccessibilityService
 import com.seenot.app.ai.voice.VoiceInputManager
 import com.seenot.app.ai.voice.VoiceRecordingState
 import com.seenot.app.ai.parser.AppInfo
+import com.seenot.app.ui.overlay.FloatingIndicatorOverlay
 import com.seenot.app.ui.overlay.VoiceInputOverlay
 import com.seenot.app.data.repository.AppHintRepository
 import com.seenot.app.data.repository.RuleRecordRepository
@@ -2767,6 +2768,7 @@ fun SettingsTab(
     var autoStart by remember { mutableStateOf(sessionManager.isAutoStartEnabled()) }
     var saveRuleRecords by remember { mutableStateOf(RuleRecordingPrefs.isEnabled(context)) }
     var showHomeTimeline by remember { mutableStateOf(RuleRecordingPrefs.isHomeTimelineEnabled(context)) }
+    var hideCompactHudText by remember { mutableStateOf(RuleRecordingPrefs.isCompactHudTextHidden(context)) }
     var showAnalysisResultToast by remember { mutableStateOf(RuleRecordingPrefs.isAnalysisResultToastEnabled(context)) }
     var intentReminderEnabled by remember { mutableStateOf(IntentReminderPrefs.isEnabled(context)) }
     var intentReminderDelayMs by remember { mutableLongStateOf(IntentReminderPrefs.getDelayMs(context)) }
@@ -2913,6 +2915,17 @@ fun SettingsTab(
                     showHomeTimeline = it
                     RuleRecordingPrefs.setHomeTimelineEnabled(context, it)
                     onHomeTimelineChanged(it)
+                }
+            )
+            HorizontalDivider()
+            SettingsSwitchRow(
+                title = stringResource(R.string.compact_hud_indicator_only),
+                summary = stringResource(R.string.compact_hud_indicator_only_desc),
+                checked = hideCompactHudText,
+                onCheckedChange = {
+                    hideCompactHudText = it
+                    RuleRecordingPrefs.setCompactHudTextHidden(context, it)
+                    FloatingIndicatorOverlay.refreshCurrentOverlay()
                 }
             )
             HorizontalDivider()
