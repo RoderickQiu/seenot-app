@@ -181,6 +181,7 @@
     <string name="error_no_fp_record">没找到对应的误报记录</string>
     <string name="error_record_fp_failed">记录误报失败</string>
     <string name="error_generate_rule_failed">生成补充规则失败</string>
+    <string name="error_generate_rule_empty">这次没生成出可用的补充规则草稿，请重试</string>
     <string name="error_no_judgment_record">没找到对应的判断记录</string>
     <string name="fp_draft_generated_poor">这次先给了一个不太理想的草稿，你可以直接改，或再试一次</string>
     <string name="fp_rule_generated">补充规则已生成，可直接修改后保存</string>

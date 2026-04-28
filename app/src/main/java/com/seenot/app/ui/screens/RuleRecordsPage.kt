@@ -175,6 +175,7 @@ fun RuleRecordsPage(
     var generatedHintDraft by remember { mutableStateOf("") }
     var generatedHintScopeType by remember { mutableStateOf(AppHintScopeType.INTENT_SPECIFIC) }
     var generatedHintScopeLabel by remember { mutableStateOf("") }  // Set to stringResource(R.string.record_intent_scope_label) when dialog opens
+    var hintGenerationStatusMessage by remember { mutableStateOf("") }
     var isGeneratingHint by remember { mutableStateOf(false) }
     var hintGenerationAttempted by remember { mutableStateOf(false) }
     val sessionManager = remember { SessionManager.getInstance(context) }
@@ -492,6 +493,7 @@ fun RuleRecordsPage(
                 generatedHintDraft = ""
                 generatedHintScopeType = AppHintScopeType.INTENT_SPECIFIC
                 generatedHintScopeLabel = ""  // Will be set when dialog opens
+                hintGenerationStatusMessage = ""
                 isGeneratingHint = false
                 hintGenerationAttempted = false
             },
@@ -531,6 +533,15 @@ fun RuleRecordsPage(
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+                    } else if (hintGenerationStatusMessage.isNotBlank()) {
+                        Text(
+                            text = hintGenerationStatusMessage,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                        if (hintGenerationAttempted) {
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
                     } else if (hintGenerationAttempted) {
                         Text(
                             text = stringResource(R.string.record_scope_suggestion, generatedHintScopeLabel),
@@ -554,17 +565,25 @@ fun RuleRecordsPage(
                     onClick = {
                         if (!hintGenerationAttempted) {
                             isGeneratingHint = true
+                            hintGenerationStatusMessage = ""
                             sessionManager.previewFalsePositiveRule(
                                 record = dialogRecord,
                                 userNote = hintDialogText.takeIf { it.isNotBlank() }
                             ) { result ->
                                 isGeneratingHint = false
-                                hintGenerationAttempted = true
-                                if (result.generatedRule != null) {
+                                if (result.success && !result.generatedRule.isNullOrBlank()) {
+                                    hintGenerationAttempted = true
                                     generatedHintDraft = result.generatedRule
+                                    generatedHintScopeType = result.generatedScopeType
+                                    generatedHintScopeLabel = result.generatedScopeLabel
+                                    hintGenerationStatusMessage = ""
+                                } else {
+                                    hintGenerationAttempted = false
+                                    generatedHintDraft = ""
+                                    generatedHintScopeType = AppHintScopeType.INTENT_SPECIFIC
+                                    generatedHintScopeLabel = ""
+                                    hintGenerationStatusMessage = result.userMessage
                                 }
-                                generatedHintScopeType = result.generatedScopeType
-                                generatedHintScopeLabel = result.generatedScopeLabel
                                 Toast.makeText(context, result.userMessage, Toast.LENGTH_SHORT).show()
                             }
                             return@Button
@@ -592,6 +611,7 @@ fun RuleRecordsPage(
                         generatedHintDraft = ""
                         generatedHintScopeType = AppHintScopeType.INTENT_SPECIFIC
                         generatedHintScopeLabel = ""  // Reset when dismissed
+                        hintGenerationStatusMessage = ""
                         hintGenerationAttempted = false
                     }
                     ,
@@ -606,17 +626,25 @@ fun RuleRecordsPage(
                         TextButton(
                             onClick = {
                                 isGeneratingHint = true
+                                hintGenerationStatusMessage = ""
                                 sessionManager.previewFalsePositiveRule(
                                     record = dialogRecord,
                                     userNote = hintDialogText.takeIf { it.isNotBlank() }
                                 ) { result ->
                                     isGeneratingHint = false
-                                    hintGenerationAttempted = true
-                                    if (result.generatedRule != null) {
+                                    if (result.success && !result.generatedRule.isNullOrBlank()) {
+                                        hintGenerationAttempted = true
                                         generatedHintDraft = result.generatedRule
+                                        generatedHintScopeType = result.generatedScopeType
+                                        generatedHintScopeLabel = result.generatedScopeLabel
+                                        hintGenerationStatusMessage = ""
+                                    } else {
+                                        hintGenerationAttempted = false
+                                        generatedHintDraft = ""
+                                        generatedHintScopeType = AppHintScopeType.INTENT_SPECIFIC
+                                        generatedHintScopeLabel = ""
+                                        hintGenerationStatusMessage = result.userMessage
                                     }
-                                    generatedHintScopeType = result.generatedScopeType
-                                    generatedHintScopeLabel = result.generatedScopeLabel
                                     Toast.makeText(context, result.userMessage, Toast.LENGTH_SHORT).show()
                                 }
                             },
@@ -634,6 +662,7 @@ fun RuleRecordsPage(
                             generatedHintDraft = ""
                             generatedHintScopeType = AppHintScopeType.INTENT_SPECIFIC
                             generatedHintScopeLabel = ""  // Reset when dismissed
+                            hintGenerationStatusMessage = ""
                             hintGenerationAttempted = false
                         }
                     ) {

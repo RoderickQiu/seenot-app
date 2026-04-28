@@ -177,6 +177,7 @@
     <string name="error_no_fp_record">False positive record not found</string>
     <string name="error_record_fp_failed">Failed to record false positive</string>
     <string name="error_generate_rule_failed">Failed to generate supplementary rule</string>
+    <string name="error_generate_rule_empty">No usable supplementary rule draft was generated this time. Please try again.</string>
     <string name="error_no_judgment_record">Judgment record not found</string>
     <string name="fp_draft_generated_poor">Generated a less ideal draft. You can edit it directly or try again.</string>
     <string name="fp_rule_generated">Supplementary rule generated. You can edit and save.</string>

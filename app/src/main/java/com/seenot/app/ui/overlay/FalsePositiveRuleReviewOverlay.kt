@@ -306,12 +306,24 @@ class FalsePositiveRuleReviewOverlay(
         onGenerate { result ->
             isGenerating = false
             progressBar?.visibility = View.GONE
-            draftInput?.visibility = View.VISIBLE
-            regenerateButton?.visibility = View.VISIBLE
-            saveButton?.visibility = View.VISIBLE
             latestScopeType = result.generatedScopeType
-            draftInput?.setText(result.generatedRule.orEmpty())
-            statusText?.text = context.getString(R.string.false_positive_status_format, result.userMessage, result.generatedScopeLabel)
+            if (result.success && !result.generatedRule.isNullOrBlank()) {
+                draftInput?.visibility = View.VISIBLE
+                regenerateButton?.visibility = View.VISIBLE
+                saveButton?.visibility = View.VISIBLE
+                draftInput?.setText(result.generatedRule)
+                statusText?.text = context.getString(
+                    R.string.false_positive_status_format,
+                    result.userMessage,
+                    result.generatedScopeLabel
+                )
+            } else {
+                draftInput?.setText("")
+                draftInput?.visibility = View.GONE
+                regenerateButton?.visibility = View.VISIBLE
+                saveButton?.visibility = View.GONE
+                statusText?.text = result.userMessage
+            }
             updateButtons()
         }
     }

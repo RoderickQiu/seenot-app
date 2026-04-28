@@ -1254,7 +1254,7 @@ class SessionManager(private val context: Context) {
                 )
                 onComplete(
                     FalsePositiveRulePreviewResult(
-                        success = true,
+                        success = !preview.ruleText.isNullOrBlank(),
                         generatedRule = preview.ruleText,
                         generatedScopeType = preview.scopeType,
                         generatedScopeLabel = when (preview.scopeType) {
@@ -1262,7 +1262,7 @@ class SessionManager(private val context: Context) {
                             AppHintScopeType.INTENT_SPECIFIC -> l10n(R.string.scope_intent_specific)
                         },
                         userMessage = if (preview.ruleText.isNullOrBlank())
-                            l10n(R.string.fp_draft_generated_poor)
+                            l10n(R.string.error_generate_rule_empty)
                         else
                             l10n(R.string.fp_rule_generated)
                     )
