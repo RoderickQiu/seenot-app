@@ -169,6 +169,7 @@
     <string name="dialog_btn_back_to_task">Back to task</string>
     <string name="dialog_btn_exit">Exit</string>
     <string name="dialog_btn_continue">I know, continue anyway</string>
+    <string name="dialog_btn_ignore_once">Ignore this time</string>
 
     <!-- False positive review -->
     <string name="false_positive_review_title">False Positive Correction</string>
@@ -581,6 +582,7 @@
     <string name="time_limit_placeholder">e.g., 30 or 0.5</string>
     <string name="time_scope_label">Time scope</string>
     <string name="intervention_level_title">Intervention Level</string>
+    <string name="intervention_level_locked_summary">Fixed to %1$s in Settings</string>
     <string name="scope_label">Scope</string>
     <string name="intent_specific_scope">Only for this intent</string>
     <string name="set_as_default">Set as Default</string>
@@ -615,6 +617,12 @@
     <string name="intent_reminder_enabled_desc">If you stay in a controlled app without setting intent, remind again later</string>
     <string name="intent_reminder_delay_title">Intent reminder delay</string>
     <string name="intent_reminder_delay_desc">Choose from 30 seconds to 10 minutes; turn it off to disable this reminder</string>
+    <string name="non_gentle_allow_ignore_once_title">Allow ignore once in non-gentle modes</string>
+    <string name="non_gentle_allow_ignore_once_desc">When enabled, Moderate and Strict dialogs will also show “Ignore this time” without forcing correction or exit</string>
+    <string name="fixed_intervention_level_title">Fix one intervention level for all rules</string>
+    <string name="fixed_intervention_level_desc">When enabled, both parsed and manually created rules will use the same level</string>
+    <string name="fixed_intervention_level_choice_title">Default intervention level</string>
+    <string name="fixed_intervention_level_choice_desc">Preset intents and newly parsed rules will all use this level</string>
     <string name="intent_reminder_delay_30_seconds">30 seconds</string>
     <string name="intent_reminder_delay_1_minute">1 minute</string>
     <string name="intent_reminder_delay_minutes">%s minutes</string>

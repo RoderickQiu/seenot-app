@@ -173,6 +173,7 @@
     <string name="dialog_btn_back_to_task">回到正事</string>
     <string name="dialog_btn_exit">退出</string>
     <string name="dialog_btn_continue">我知道了，但还是继续</string>
+    <string name="dialog_btn_ignore_once">先忽略这次</string>
 
     <!-- SessionManager false positive review -->
     <string name="false_positive_review_title">误报纠正</string>
@@ -587,6 +588,7 @@
     <string name="time_limit_placeholder">例如：30 或 0.5</string>
     <string name="time_scope_label">时间范围</string>
     <string name="intervention_level_title">干预级别</string>
+    <string name="intervention_level_locked_summary">已在设置中固定为 %1$s</string>
     <string name="scope_label">适用范围</string>
     <string name="intent_specific_scope">只对这条意图生效</string>
     <string name="set_as_default">设为默认</string>
@@ -621,6 +623,12 @@
     <string name="intent_reminder_enabled_desc">进入受控 app 后，如果一直没设置意图，稍后再提醒一次</string>
     <string name="intent_reminder_delay_title">意图提醒延迟</string>
     <string name="intent_reminder_delay_desc">可选 30 秒到 10 分钟；关闭后不再弹出这类提醒</string>
+    <string name="non_gentle_allow_ignore_once_title">非温柔模式也允许先放过一次</string>
+    <string name="non_gentle_allow_ignore_once_desc">开启后，中等和严格模式的提醒里也会出现“先忽略这次”，不用纠正也不用退出</string>
+    <string name="fixed_intervention_level_title">固定所有规则的干预级别</string>
+    <string name="fixed_intervention_level_desc">开启后，语音解析和手动设置出的所有规则都会统一使用同一个级别</string>
+    <string name="fixed_intervention_level_choice_title">默认干预级别</string>
+    <string name="fixed_intervention_level_choice_desc">预设意图和新解析出的规则都会固定成这里选的级别</string>
     <string name="intent_reminder_delay_30_seconds">30 秒</string>
     <string name="intent_reminder_delay_1_minute">1 分钟</string>
     <string name="intent_reminder_delay_minutes">%s 分钟</string>

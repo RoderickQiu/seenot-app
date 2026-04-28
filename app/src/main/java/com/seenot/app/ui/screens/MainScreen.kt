@@ -44,7 +44,9 @@ import com.seenot.app.config.ApiConfig
 import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.config.AiProvider
 import com.seenot.app.config.ApiSettings
+import com.seenot.app.config.InterventionDialogPrefs
 import com.seenot.app.config.recommendedModelPresets
+import com.seenot.app.config.InterventionLevelPrefs
 import com.seenot.app.config.QwenRegion
 import com.seenot.app.config.SttSettings
 import com.seenot.app.config.recommendedSttModelPresets
@@ -2361,6 +2363,9 @@ private fun RuleEditorDialog(
     onDismiss: () -> Unit,
     onConfirm: (SessionConstraint) -> Unit
 ) {
+    val context = LocalContext.current
+    val interventionLevelLocked = remember { InterventionLevelPrefs.isFixedLevelEnabled(context) }
+    val lockedInterventionLevel = remember { InterventionLevelPrefs.getFixedLevel(context) }
     var ruleType by remember(initialConstraint) { mutableStateOf(initialConstraint.type) }
     var description by remember(initialConstraint) { mutableStateOf(initialConstraint.description) }
     var timeLimitMinutes by remember(initialConstraint) {
@@ -2370,7 +2375,9 @@ private fun RuleEditorDialog(
         mutableStateOf(initialConstraint.timeScope ?: TimeScope.SESSION)
     }
     var interventionLevel by remember(initialConstraint) {
-        mutableStateOf(initialConstraint.interventionLevel)
+        mutableStateOf(
+            if (interventionLevelLocked) lockedInterventionLevel else initialConstraint.interventionLevel
+        )
     }
 
     AlertDialog(
@@ -2387,7 +2394,9 @@ private fun RuleEditorDialog(
                 timeScope = timeScope,
                 onTimeScopeChange = { timeScope = it },
                 interventionLevel = interventionLevel,
-                onInterventionLevelChange = { interventionLevel = it }
+                onInterventionLevelChange = { interventionLevel = it },
+                interventionLevelLocked = interventionLevelLocked,
+                lockedInterventionLevel = lockedInterventionLevel
             )
         },
         confirmButton = {
@@ -2399,7 +2408,11 @@ private fun RuleEditorDialog(
                         description = description,
                         timeLimitMinutes = timeLimitMinutes,
                         timeScope = timeScope,
-                        interventionLevel = interventionLevel
+                        interventionLevel = if (interventionLevelLocked) {
+                            lockedInterventionLevel
+                        } else {
+                            interventionLevel
+                        }
                     )?.let(onConfirm)
                 },
                 enabled = description.isNotBlank()
@@ -2426,7 +2439,9 @@ private fun RuleEditorForm(
     timeScope: TimeScope,
     onTimeScopeChange: (TimeScope) -> Unit,
     interventionLevel: InterventionLevel,
-    onInterventionLevelChange: (InterventionLevel) -> Unit
+    onInterventionLevelChange: (InterventionLevel) -> Unit,
+    interventionLevelLocked: Boolean,
+    lockedInterventionLevel: InterventionLevel
 ) {
     Column(
         modifier = Modifier
@@ -2519,6 +2534,18 @@ private fun RuleEditorForm(
         Spacer(modifier = Modifier.height(12.dp))
 
         Text(text = stringResource(R.string.intervention_level_title), style = MaterialTheme.typography.labelMedium)
+        if (interventionLevelLocked) {
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = stringResource(
+                    R.string.intervention_level_locked_summary,
+                    stringResource(interventionLevelLabel(lockedInterventionLevel))
+                ),
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Spacer(modifier = Modifier.height(8.dp))
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -2527,6 +2554,7 @@ private fun RuleEditorForm(
                 FilterChip(
                     selected = interventionLevel == level,
                     onClick = { onInterventionLevelChange(level) },
+                    enabled = !interventionLevelLocked,
                     label = { Text(stringResource(interventionLevelLabel(level))) }
                 )
             }
@@ -2803,6 +2831,12 @@ fun SettingsTab(
     var intentReminderEnabled by remember { mutableStateOf(IntentReminderPrefs.isEnabled(context)) }
     var intentReminderDelayMs by remember { mutableLongStateOf(IntentReminderPrefs.getDelayMs(context)) }
     var intentReminderDropdownExpanded by remember { mutableStateOf(false) }
+    var nonGentleAllowIgnoreOnce by remember {
+        mutableStateOf(InterventionDialogPrefs.isNonGentleAllowIgnoreOnceEnabled(context))
+    }
+    var fixedInterventionEnabled by remember { mutableStateOf(InterventionLevelPrefs.isFixedLevelEnabled(context)) }
+    var fixedInterventionLevel by remember { mutableStateOf(InterventionLevelPrefs.getFixedLevel(context)) }
+    var fixedInterventionDropdownExpanded by remember { mutableStateOf(false) }
     var screenshotMode by remember { mutableStateOf(RuleRecordingPrefs.getScreenshotMode(context)) }
     var screenshotDropdownExpanded by remember { mutableStateOf(false) }
     var showLogExportDialog by remember { mutableStateOf(false) }
@@ -2834,6 +2868,9 @@ fun SettingsTab(
     }
     val selectedIntentReminderDelayLabel = remember(intentReminderDelayMs, context) {
         IntentReminderPrefs.formatDelayLabel(context, intentReminderDelayMs)
+    }
+    val selectedFixedInterventionLabel = remember(fixedInterventionLevel, context) {
+        context.getString(interventionLevelLabel(fixedInterventionLevel))
     }
 
     var selectedLanguage by remember { mutableStateOf(AppLocalePrefs.getLanguage(context)) }
@@ -3002,6 +3039,81 @@ fun SettingsTab(
                                     intentReminderDropdownExpanded = false
                                 }
                             )
+                        }
+                    }
+                }
+            }
+            HorizontalDivider()
+            SettingsSwitchRow(
+                title = stringResource(R.string.non_gentle_allow_ignore_once_title),
+                summary = stringResource(R.string.non_gentle_allow_ignore_once_desc),
+                checked = nonGentleAllowIgnoreOnce,
+                onCheckedChange = {
+                    nonGentleAllowIgnoreOnce = it
+                    InterventionDialogPrefs.setNonGentleAllowIgnoreOnceEnabled(context, it)
+                }
+            )
+            HorizontalDivider()
+            SettingsSwitchRow(
+                title = stringResource(R.string.fixed_intervention_level_title),
+                summary = stringResource(R.string.fixed_intervention_level_desc),
+                checked = fixedInterventionEnabled,
+                onCheckedChange = {
+                    fixedInterventionEnabled = it
+                    InterventionLevelPrefs.setFixedLevelEnabled(context, it)
+                }
+            )
+            if (fixedInterventionEnabled) {
+                HorizontalDivider()
+                Box {
+                    SettingsDropdownRow(
+                        title = stringResource(R.string.fixed_intervention_level_choice_title),
+                        summary = stringResource(R.string.fixed_intervention_level_choice_desc),
+                        value = selectedFixedInterventionLabel,
+                        expanded = fixedInterventionDropdownExpanded,
+                        onClick = { fixedInterventionDropdownExpanded = !fixedInterventionDropdownExpanded }
+                    )
+                    DropdownMenu(
+                        expanded = fixedInterventionDropdownExpanded,
+                        onDismissRequest = { fixedInterventionDropdownExpanded = false },
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        InterventionLevel.entries.forEach { level ->
+                            DropdownMenuItem(
+                                text = { Text(stringResource(interventionLevelLabel(level))) },
+                                onClick = {
+                                    fixedInterventionLevel = level
+                                    InterventionLevelPrefs.setFixedLevel(context, level)
+                                    fixedInterventionDropdownExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+                Spacer(modifier = Modifier.height(12.dp))
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceVariant
+                    )
+                ) {
+                    Column(
+                        modifier = Modifier.padding(12.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        InterventionLevel.entries.forEach { level ->
+                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                Text(
+                                    text = stringResource(interventionLevelLabel(level)),
+                                    style = MaterialTheme.typography.labelMedium,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                                Text(
+                                    text = stringResource(interventionLevelDescription(level)),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
                         }
                     }
                 }

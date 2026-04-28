@@ -6,6 +6,7 @@ import com.seenot.app.utils.Logger
 import com.seenot.app.ai.parser.IntentParser
 import com.seenot.app.ai.parser.ParsedConstraint
 import com.seenot.app.ai.parser.ParsedIntentResult
+import com.seenot.app.config.InterventionLevelPrefs
 import com.seenot.app.ai.stt.AudioFileRecorder
 import com.seenot.app.ai.stt.SttEngine
 import com.seenot.app.ai.stt.SttResult
@@ -292,7 +293,9 @@ class VoiceInputManager(private val context: Context) {
     }
 
     private fun ParsedConstraint.toSessionConstraint(): SessionConstraint {
-        return SessionConstraint(
+        return InterventionLevelPrefs.applyToConstraint(
+            context = context,
+            constraint = SessionConstraint(
             id = id,
             type = type,
             description = description,
@@ -300,6 +303,7 @@ class VoiceInputManager(private val context: Context) {
             timeScope = timeLimit?.scope ?: TimeScope.SESSION,
             interventionLevel = intervention,
             isActive = true
+        )
         )
     }
 

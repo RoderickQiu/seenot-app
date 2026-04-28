@@ -14,6 +14,8 @@ import com.seenot.app.ai.feedback.FalsePositiveRulePreview
 import com.seenot.app.ai.screen.ScreenAnalyzer
 import com.seenot.app.config.ApiConfig
 import com.seenot.app.config.AppLocalePrefs
+import com.seenot.app.config.InterventionDialogPrefs
+import com.seenot.app.config.InterventionLevelPrefs
 import com.seenot.app.data.local.SeenotDatabase
 import com.seenot.app.data.local.entity.IntentConstraintEntity
 import com.seenot.app.data.local.entity.SessionEntity
@@ -583,39 +585,41 @@ class SessionManager(private val context: Context) {
             totalTimeLimitMs = null
         )
 
+        val effectiveConstraints = InterventionLevelPrefs.applyToConstraints(context, constraints)
+
         val activeSession = ActiveSession(
             sessionId = sessionId,
             appPackageName = packageName,
             appDisplayName = displayName,
-            constraints = constraints,
+            constraints = effectiveConstraints,
             startTime = System.currentTimeMillis(),
             isPaused = false,
-            constraintTimeRemaining = constraints.associate { constraint ->
+            constraintTimeRemaining = effectiveConstraints.associate { constraint ->
                 constraint.id to constraint.timeLimitMs
             }
         )
 
         _activeSession.value = activeSession
 
-        resetConstraintMatchStates(constraints)
-        persistSessionConstraints(sessionId, constraints)
+        resetConstraintMatchStates(effectiveConstraints)
+        persistSessionConstraints(sessionId, effectiveConstraints)
 
-        saveLastIntent(packageName, constraints)
+        saveLastIntent(packageName, effectiveConstraints)
         startTimer()
         scope.launch(Dispatchers.IO) {
-            autoApplyCarryOverHints(packageName, displayName, constraints)
+            autoApplyCarryOverHints(packageName, displayName, effectiveConstraints)
         }
 
-        if (ApiConfig.isConfigured() && constraints.any { it.type != ConstraintType.NO_MONITOR }) {
-            startScreenAnalysis(packageName, displayName, constraints)
+        if (ApiConfig.isConfigured() && effectiveConstraints.any { it.type != ConstraintType.NO_MONITOR }) {
+            startScreenAnalysis(packageName, displayName, effectiveConstraints)
         }
 
         logRuntimeEvent(
             eventType = RuntimeEventType.SESSION_STARTED,
             session = activeSession,
             payload = buildMap {
-                put("active_constraint_ids", constraints.map { it.id })
-                put("time_limit_ms", constraints.mapNotNull { it.timeLimitMs }.maxOrNull())
+                put("active_constraint_ids", effectiveConstraints.map { it.id })
+                put("time_limit_ms", effectiveConstraints.mapNotNull { it.timeLimitMs }.maxOrNull())
                 put("trigger_source", startContext?.triggerSource ?: "create_session")
                 put("switch_from_package", startContext?.switchFromPackage)
                 put("switch_to_package", startContext?.switchToPackage ?: packageName)
@@ -789,6 +793,7 @@ class SessionManager(private val context: Context) {
         analysisId: String?
     ) {
         val isGentle = constraint.interventionLevel == InterventionLevel.GENTLE
+        val allowIgnoreOnce = isGentle || InterventionDialogPrefs.isNonGentleAllowIgnoreOnceEnabled(context)
         scope.launch {
             InterventionFeedbackDialogOverlay.show(
                 context = context,
@@ -801,7 +806,13 @@ class SessionManager(private val context: Context) {
                     l10n(R.string.dialog_subtitle_moderate_deviation)
                 },
                 primaryButtonText = if (isGentle) l10n(R.string.dialog_btn_back_to_task) else l10n(R.string.dialog_btn_exit),
-                secondaryButtonText = if (isGentle) l10n(R.string.dialog_btn_continue) else null,
+                secondaryButtonText = if (!allowIgnoreOnce) {
+                    null
+                } else if (isGentle) {
+                    l10n(R.string.dialog_btn_continue)
+                } else {
+                    l10n(R.string.dialog_btn_ignore_once)
+                },
                 onFalsePositive = {
                     logRuntimeEvent(
                         eventType = RuntimeEventType.USER_MARKED_MISUNDERSTAND,
@@ -883,7 +894,7 @@ class SessionManager(private val context: Context) {
                         )
                     }
                 },
-                onSecondaryAction = if (isGentle) {
+                onSecondaryAction = if (allowIgnoreOnce) {
                     {
                         dialogReentryCooldownUntil =
                             System.currentTimeMillis() + DIALOG_REENTRY_COOLDOWN_MS
@@ -2095,7 +2106,9 @@ class SessionManager(private val context: Context) {
      */
     fun loadLastIntent(packageName: String): List<SessionConstraint>? {
         val json = prefs.getString("${KEY_LAST_INTENT_PREFIX}$packageName", null) ?: return null
-        return deserializeConstraints(json)?.takeUnless { it.isNoMonitorOnly() }
+        return deserializeConstraints(json)
+            ?.let { InterventionLevelPrefs.applyToConstraints(context, it) }
+            ?.takeUnless { it.isNoMonitorOnly() }
     }
 
     /**
@@ -2137,6 +2150,7 @@ class SessionManager(private val context: Context) {
             val outerList = gson.fromJson(json, ArrayList::class.java) as ArrayList<ArrayList<Map<String, Any>>>
             dedupeHistoryByName(
                 outerList.mapNotNull { entry -> deserializeConstraintList(entry) }
+                    .map { InterventionLevelPrefs.applyToConstraints(context, it) }
                     .filterNot { it.isNoMonitorOnly() }
             )
         } catch (e: Exception) {
@@ -2219,28 +2233,31 @@ class SessionManager(private val context: Context) {
         return try {
             @Suppress("UNCHECKED_CAST")
             val list = gson.fromJson(json, ArrayList::class.java) as ArrayList<Map<String, Any>>
-            dedupePresetRulesByName(list.mapNotNull { item ->
-                try {
-                    val rawTimeScope = item["timeScope"] as? String
-                    if (rawTimeScope?.uppercase() == "DAILY_TOTAL") {
-                        Logger.w(TAG, "Dropping unsupported preset rule with DAILY_TOTAL scope")
-                        return@mapNotNull null
+            InterventionLevelPrefs.applyToConstraints(
+                context,
+                dedupePresetRulesByName(list.mapNotNull { item ->
+                    try {
+                        val rawTimeScope = item["timeScope"] as? String
+                        if (rawTimeScope?.uppercase() == "DAILY_TOTAL") {
+                            Logger.w(TAG, "Dropping unsupported preset rule with DAILY_TOTAL scope")
+                            return@mapNotNull null
+                        }
+                        SessionConstraint(
+                            id = item["id"] as String,
+                            type = ConstraintType.valueOf(item["type"] as String),
+                            description = item["description"] as String,
+                            timeLimitMs = (item["timeLimitMs"] as? Number)?.toLong(),
+                            timeScope = try { TimeScope.valueOf(rawTimeScope ?: "SESSION") } catch (e: Exception) { TimeScope.SESSION },
+                            interventionLevel = try { InterventionLevel.valueOf(item["interventionLevel"] as? String ?: "MODERATE") } catch (e: Exception) { InterventionLevel.MODERATE },
+                            isActive = item["isActive"] as? Boolean ?: true,
+                            isDefault = item["isDefault"] as? Boolean ?: false
+                        )
+                    } catch (e: Exception) {
+                        Logger.e(TAG, "Failed to parse preset rule", e)
+                        null
                     }
-                    SessionConstraint(
-                        id = item["id"] as String,
-                        type = ConstraintType.valueOf(item["type"] as String),
-                        description = item["description"] as String,
-                        timeLimitMs = (item["timeLimitMs"] as? Number)?.toLong(),
-                        timeScope = try { TimeScope.valueOf(rawTimeScope ?: "SESSION") } catch (e: Exception) { TimeScope.SESSION },
-                        interventionLevel = try { InterventionLevel.valueOf(item["interventionLevel"] as? String ?: "MODERATE") } catch (e: Exception) { InterventionLevel.MODERATE },
-                        isActive = item["isActive"] as? Boolean ?: true,
-                        isDefault = item["isDefault"] as? Boolean ?: false
-                    )
-                } catch (e: Exception) {
-                    Logger.e(TAG, "Failed to parse preset rule", e)
-                    null
-                }
-            }.filter { it.type != ConstraintType.NO_MONITOR })
+                }.filter { it.type != ConstraintType.NO_MONITOR })
+            )
         } catch (e: Exception) {
             Logger.e(TAG, "Failed to load preset rules for $packageName", e)
             emptyList()
