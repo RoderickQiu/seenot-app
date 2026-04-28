@@ -597,7 +597,10 @@
     <string name="edit">编辑</string>
     <string name="intervention_gentle_desc">仅提醒：弹出提示框提醒用户，但不阻止操作。用户可以继续当前行为。</string>
     <string name="intervention_moderate_desc">提醒+返回：弹出提示框，并自动返回上一个界面。适合想要中断但不需要强制禁止的场景。</string>
-    <string name="intervention_strict_desc">强制返回：直接返回主屏幕，强制中断当前行为。适合需要强力遏制的场景。</string>
+    <string name="intervention_strict_desc">强制返回：直接返回系统桌面，强制中断当前行为。适合需要强力遏制的场景。</string>
+    <string name="intervention_gentle_brief_desc">只提醒，不拦截</string>
+    <string name="intervention_moderate_brief_desc">提醒后自动返回</string>
+    <string name="intervention_strict_brief_desc">直接返回系统桌面</string>
     <string name="intervention_dialog_title">先停一下？</string>
     <string name="intervention_dialog_subtitle">看起来你正在偏离刚才的目标</string>
     <string name="intervention_dialog_exit">退出</string>

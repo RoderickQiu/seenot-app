@@ -2636,6 +2636,13 @@ private fun interventionLevelDescription(level: InterventionLevel): Int = when (
     InterventionLevel.STRICT -> R.string.intervention_strict_desc
 }
 
+@StringRes
+private fun interventionLevelBriefDescription(level: InterventionLevel): Int = when (level) {
+    InterventionLevel.GENTLE -> R.string.intervention_gentle_brief_desc
+    InterventionLevel.MODERATE -> R.string.intervention_moderate_brief_desc
+    InterventionLevel.STRICT -> R.string.intervention_strict_brief_desc
+}
+
 /**
  * App Item
  */
@@ -3061,6 +3068,9 @@ fun SettingsTab(
                 onCheckedChange = {
                     fixedInterventionEnabled = it
                     InterventionLevelPrefs.setFixedLevelEnabled(context, it)
+                    scope.launch {
+                        sessionManager.refreshRunningSessionInterventionLevels()
+                    }
                 }
             )
             if (fixedInterventionEnabled) {
@@ -3080,40 +3090,25 @@ fun SettingsTab(
                     ) {
                         InterventionLevel.entries.forEach { level ->
                             DropdownMenuItem(
-                                text = { Text(stringResource(interventionLevelLabel(level))) },
+                                text = {
+                                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                        Text(text = stringResource(interventionLevelLabel(level)))
+                                        Text(
+                                            text = stringResource(interventionLevelBriefDescription(level)),
+                                            style = MaterialTheme.typography.bodySmall,
+                                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        )
+                                    }
+                                },
                                 onClick = {
                                     fixedInterventionLevel = level
                                     InterventionLevelPrefs.setFixedLevel(context, level)
+                                    scope.launch {
+                                        sessionManager.refreshRunningSessionInterventionLevels()
+                                    }
                                     fixedInterventionDropdownExpanded = false
                                 }
                             )
-                        }
-                    }
-                }
-                Spacer(modifier = Modifier.height(12.dp))
-                Card(
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.surfaceVariant
-                    )
-                ) {
-                    Column(
-                        modifier = Modifier.padding(12.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
-                    ) {
-                        InterventionLevel.entries.forEach { level ->
-                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
-                                Text(
-                                    text = stringResource(interventionLevelLabel(level)),
-                                    style = MaterialTheme.typography.labelMedium,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Text(
-                                    text = stringResource(interventionLevelDescription(level)),
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                            }
                         }
                     }
                 }

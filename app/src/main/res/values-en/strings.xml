@@ -591,7 +591,10 @@
     <string name="edit">Edit</string>
     <string name="intervention_gentle_desc">Reminder only: Shows a prompt but does not block. User can continue.</string>
     <string name="intervention_moderate_desc">Remind + Return: Shows a prompt and auto returns to previous screen. Suitable for interrupting without forcing a ban.</string>
-    <string name="intervention_strict_desc">Force return: Returns directly to home screen, forcefully interrupting current behavior. Suitable for strong suppression.</string>
+    <string name="intervention_strict_desc">Force return: Returns directly to the system home screen, forcefully interrupting current behavior. Suitable for strong suppression.</string>
+    <string name="intervention_gentle_brief_desc">Remind only, no blocking</string>
+    <string name="intervention_moderate_brief_desc">Remind, then go back</string>
+    <string name="intervention_strict_brief_desc">Return to system home screen</string>
     <string name="intervention_dialog_title">Hold on?</string>
     <string name="intervention_dialog_subtitle">You seem to be drifting from your goal</string>
     <string name="intervention_dialog_exit">Exit</string>

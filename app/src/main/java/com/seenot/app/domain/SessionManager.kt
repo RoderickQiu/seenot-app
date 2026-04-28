@@ -1769,6 +1769,64 @@ class SessionManager(private val context: Context) {
     }
 
     /**
+     * Re-apply the current fixed intervention-level preference to running sessions.
+     * This makes settings changes take effect immediately without waiting for a new session.
+     */
+    suspend fun refreshRunningSessionInterventionLevels() {
+        var updatedSession: ActiveSession? = null
+        var changed = false
+
+        val active = _activeSession.value
+        if (active != null) {
+            val refreshedConstraints = InterventionLevelPrefs.applyToConstraints(context, active.constraints)
+            if (refreshedConstraints != active.constraints) {
+                updatedSession = active.copy(
+                    constraints = refreshedConstraints,
+                    constraintTimeRemaining = reconcileTimeRemaining(active, refreshedConstraints)
+                )
+                _activeSession.value = updatedSession
+                reconcileConstraintMatchStates(refreshedConstraints)
+                persistSessionConstraints(active.sessionId, refreshedConstraints)
+
+                if (!active.isPaused) {
+                    if (ApiConfig.isConfigured() && refreshedConstraints.any { it.type != ConstraintType.NO_MONITOR }) {
+                        screenAnalyzer?.pauseAnalysis()
+                        startScreenAnalysis(active.appPackageName, active.appDisplayName, refreshedConstraints)
+                    } else {
+                        stopScreenAnalysis()
+                    }
+                }
+                changed = true
+            }
+        }
+
+        suspendedSessions.entries.toList().forEach { (packageName, suspended) ->
+            val (session, pausedAt) = suspended
+            val refreshedConstraints = InterventionLevelPrefs.applyToConstraints(context, session.constraints)
+            if (refreshedConstraints != session.constraints) {
+                val updated = session.copy(
+                    constraints = refreshedConstraints,
+                    constraintTimeRemaining = reconcileTimeRemaining(session, refreshedConstraints)
+                )
+                suspendedSessions[packageName] = updated to pausedAt
+                if (updatedSession?.sessionId != updated.sessionId) {
+                    persistSessionConstraints(updated.sessionId, refreshedConstraints)
+                }
+                changed = true
+            }
+        }
+
+        if (changed) {
+            _sessionEvents.emit(
+                SessionEvent.ConstraintsModified(
+                    updatedSession?.constraints ?: _activeSession.value?.constraints.orEmpty()
+                )
+            )
+            Logger.d(TAG, "Refreshed running session intervention levels from current settings")
+        }
+    }
+
+    /**
      * End session manually (user requested)
      */
     suspend fun endSessionManually() {
