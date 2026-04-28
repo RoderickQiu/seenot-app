@@ -111,6 +111,7 @@
     <string name="constraint_type_deny">禁止</string>
     <string name="constraint_type_time_cap">时间限制</string>
     <string name="constraint_type_no_monitor">不监控</string>
+    <string name="deny_allowlist_usage_tip">“禁止”也可以用来表达“只允许……”。请把它写成会触发干预的内容：例如“只允许回微信消息”可填“除回微信消息以外的其他内容”。</string>
 
     <!-- ActionExecutor toast messages -->
     <string name="duration_minutes_seconds">%1$d分%2$d秒</string>
@@ -387,7 +388,7 @@
     <string name="timeline_prev_day">前一天</string>
     <string name="timeline_next_day">后一天</string>
     <string name="timeline_today_label">今日时间轴</string>
-    <string name="timeline_day_format">M月d日时间轴</string>
+    <string name="timeline_day_format">%s时间轴</string>
     <string name="timeline_unknown_app">未知应用</string>
     <string name="timeline_multi_app">多应用</string>
     <string name="timeline_violation_start">违规开始</string>

@@ -139,7 +139,17 @@ class FloatingIndicatorOverlay(
             var lastPausedState: Boolean? = null
 
             sessionManager.activeSession.collectLatest { session ->
-                val sessionSignature = session?.constraints?.joinToString { it.id } ?: ""
+                val sessionSignature = session?.constraints?.joinToString("|") { constraint ->
+                    listOf(
+                        constraint.id,
+                        constraint.type.name,
+                        constraint.description,
+                        constraint.timeLimitMs?.toString().orEmpty(),
+                        constraint.timeScope?.name.orEmpty(),
+                        constraint.interventionLevel.name,
+                        constraint.isActive.toString()
+                    ).joinToString(":")
+                } ?: ""
                 val isPaused = session?.isPaused ?: true
                 val hasValidConstraints = session != null && session.constraints.isNotEmpty()
                 val shouldShow = if (session != null) {

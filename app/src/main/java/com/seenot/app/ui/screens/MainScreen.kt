@@ -1089,6 +1089,19 @@ fun AppRulesDialog(
         hints = appHintRepo.getHintsForPackage(app.packageName)
     }
 
+    fun savePresetRulesAndSyncSession(rules: List<SessionConstraint>) {
+        val previousRules = presetRules
+        presetRules = rules
+        sessionManager.savePresetRules(app.packageName, rules)
+        uiScope.launch {
+            sessionManager.syncActiveSessionConstraintEditsForApp(
+                packageName = app.packageName,
+                originalConstraints = previousRules,
+                updatedConstraints = rules
+            )
+        }
+    }
+
     LaunchedEffect(app.packageName) {
         val loadedPresetRules = sessionManager.loadPresetRules(app.packageName)
         presetRules = loadedPresetRules
@@ -1336,8 +1349,7 @@ fun AppRulesDialog(
                         onModeSelected = { mode ->
                             if (mode == AppEntryIntentMode.ASK_EVERY_TIME && presetRules.any { it.isDefault }) {
                                 val newPresets = presetRules.map { it.copy(isDefault = false) }
-                                presetRules = newPresets
-                                sessionManager.savePresetRules(app.packageName, newPresets)
+                                savePresetRulesAndSyncSession(newPresets)
                             }
                             if (mode == AppEntryIntentMode.USE_PRESET && presetRules.none { it.isDefault }) {
                                 val firstPreset = presetRules.firstOrNull()
@@ -1345,8 +1357,7 @@ fun AppRulesDialog(
                                     val newPresets = presetRules.map { rule ->
                                         rule.copy(isDefault = rule.id == firstPreset.id)
                                     }
-                                    presetRules = newPresets
-                                    sessionManager.savePresetRules(app.packageName, newPresets)
+                                    savePresetRulesAndSyncSession(newPresets)
                                 }
                             }
                             appEntryIntentMode = mode
@@ -1356,9 +1367,8 @@ fun AppRulesDialog(
                             val newPresets = presetRules.map { rule ->
                                 rule.copy(isDefault = rule.id == presetId)
                             }
-                            presetRules = newPresets
                             appEntryIntentMode = AppEntryIntentMode.USE_PRESET
-                            sessionManager.savePresetRules(app.packageName, newPresets)
+                            savePresetRulesAndSyncSession(newPresets)
                             sessionManager.setAppEntryIntentMode(app.packageName, AppEntryIntentMode.USE_PRESET)
                         }
                     )
@@ -1429,13 +1439,12 @@ fun AppRulesDialog(
                                                 rule.copy(isDefault = false)
                                             }
                                         }
-                                        presetRules = newPresets
                                         appEntryIntentMode = if (newPresets.any { it.isDefault }) {
                                             AppEntryIntentMode.USE_PRESET
                                         } else {
                                             AppEntryIntentMode.ASK_EVERY_TIME
                                         }
-                                        sessionManager.savePresetRules(app.packageName, newPresets)
+                                        savePresetRulesAndSyncSession(newPresets)
                                         sessionManager.setAppEntryIntentMode(app.packageName, appEntryIntentMode)
                                     },
                                     modifier = Modifier.size(24.dp)
@@ -1450,12 +1459,11 @@ fun AppRulesDialog(
                                 IconButton(
                                     onClick = {
                                         val newPresets = presetRules.toMutableList().apply { removeAt(index) }
-                                        presetRules = newPresets
                                         if (newPresets.none { it.isDefault } && appEntryIntentMode == AppEntryIntentMode.USE_PRESET) {
                                             appEntryIntentMode = AppEntryIntentMode.ASK_EVERY_TIME
                                             sessionManager.setAppEntryIntentMode(app.packageName, appEntryIntentMode)
                                         }
-                                        sessionManager.savePresetRules(app.packageName, newPresets)
+                                        savePresetRulesAndSyncSession(newPresets)
                                     },
                                     modifier = Modifier.size(24.dp)
                                 ) {
@@ -1670,8 +1678,7 @@ fun AppRulesDialog(
             onDismiss = { showAddPresetDialog = false },
             onConfirm = { newRule ->
                 val newPresets = presetRules + newRule
-                presetRules = newPresets
-                sessionManager.savePresetRules(app.packageName, newPresets)
+                savePresetRulesAndSyncSession(newPresets)
                 showAddPresetDialog = false
             }
         )
@@ -1702,8 +1709,15 @@ fun AppRulesDialog(
                     }
                     if (constraintsToAdd.isNotEmpty()) {
                         val newPresets = presetRules + constraintsToAdd
-                        presetRules = newPresets
-                        sessionManager.savePresetRules(app.packageName, newPresets)
+                        savePresetRulesAndSyncSession(newPresets)
+                        uiScope.launch {
+                            sessionManager.syncActiveSessionConstraintEditsForApp(
+                                packageName = app.packageName,
+                                originalConstraints = originalConstraints,
+                                updatedConstraints = constraintsToAdd,
+                                allowPositionFallback = true
+                            )
+                        }
                     }
                     uiScope.launch {
                         rebindHintsForEditedConstraints(
@@ -1733,8 +1747,7 @@ fun AppRulesDialog(
                     val newPresets = presetRules.toMutableList().apply {
                         this[index] = updatedConstraint
                     }
-                    presetRules = newPresets
-                    sessionManager.savePresetRules(app.packageName, newPresets)
+                    savePresetRulesAndSyncSession(newPresets)
                     uiScope.launch {
                         rebindHintsForEditedConstraints(
                             appHintRepo = appHintRepo,
@@ -2431,6 +2444,23 @@ private fun RuleEditorForm(
                     selected = ruleType == type,
                     onClick = { onRuleTypeChange(type) },
                     label = { Text(stringResource(constraintTypeLabel(type))) }
+                )
+            }
+        }
+
+        if (ruleType == ConstraintType.DENY) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                colors = CardDefaults.cardColors(
+                    containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.55f)
+                )
+            ) {
+                Text(
+                    text = stringResource(R.string.deny_allowlist_usage_tip),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                    modifier = Modifier.padding(12.dp)
                 )
             }
         }

@@ -1687,6 +1687,77 @@ class SessionManager(private val context: Context) {
     }
 
     /**
+     * Replace the running session constraints for an app after the user edits presets in the main UI.
+     * This keeps a paused/resumed session aligned with the latest app-level intent settings.
+     */
+    suspend fun syncActiveSessionConstraintEditsForApp(
+        packageName: String,
+        originalConstraints: List<SessionConstraint>,
+        updatedConstraints: List<SessionConstraint>,
+        allowPositionFallback: Boolean = false
+    ) {
+        if (originalConstraints.isEmpty()) return
+
+        var updatedSession: ActiveSession? = null
+
+        val active = _activeSession.value
+        if (active?.appPackageName == packageName) {
+            val syncedConstraints = applyConstraintEdits(
+                current = active.constraints,
+                original = originalConstraints,
+                updated = updatedConstraints,
+                allowPositionFallback = allowPositionFallback
+            )
+            if (syncedConstraints == active.constraints) return
+
+            updatedSession = active.copy(
+                constraints = syncedConstraints,
+                constraintTimeRemaining = reconcileTimeRemaining(active, syncedConstraints)
+            )
+            _activeSession.value = updatedSession
+            reconcileConstraintMatchStates(syncedConstraints)
+            persistSessionConstraints(active.sessionId, syncedConstraints)
+
+            if (!active.isPaused) {
+                if (ApiConfig.isConfigured() && syncedConstraints.any { it.type != ConstraintType.NO_MONITOR }) {
+                    screenAnalyzer?.pauseAnalysis()
+                    startScreenAnalysis(active.appPackageName, active.appDisplayName, syncedConstraints)
+                } else {
+                    stopScreenAnalysis()
+                }
+            }
+        }
+
+        val suspended = suspendedSessions[packageName]
+        if (suspended != null) {
+            val (session, pausedAt) = suspended
+            val syncedConstraints = applyConstraintEdits(
+                current = session.constraints,
+                original = originalConstraints,
+                updated = updatedConstraints,
+                allowPositionFallback = allowPositionFallback
+            )
+            if (syncedConstraints == session.constraints) {
+                return
+            }
+            val updated = session.copy(
+                constraints = syncedConstraints,
+                constraintTimeRemaining = reconcileTimeRemaining(session, syncedConstraints)
+            )
+            suspendedSessions[packageName] = updated to pausedAt
+            if (updatedSession?.sessionId != updated.sessionId) {
+                persistSessionConstraints(updated.sessionId, syncedConstraints)
+            }
+        }
+
+        val changed = updatedSession != null || suspended != null
+        if (changed) {
+            _sessionEvents.emit(SessionEvent.ConstraintsModified(updatedSession?.constraints ?: updatedConstraints))
+            Logger.d(TAG, "Synced edited intent constraints into active session for $packageName")
+        }
+    }
+
+    /**
      * End session manually (user requested)
      */
     suspend fun endSessionManually() {
@@ -1715,6 +1786,51 @@ class SessionManager(private val context: Context) {
         validateConstraintMutualExclusion(result)
 
         return result
+    }
+
+    private fun reconcileTimeRemaining(
+        session: ActiveSession,
+        constraints: List<SessionConstraint>
+    ): Map<String, Long?> {
+        return constraints.associate { constraint ->
+            val previousConstraint = session.constraints.firstOrNull { it.id == constraint.id }
+            val previousRemaining = session.constraintTimeRemaining[constraint.id]
+            val remaining = when {
+                constraint.timeLimitMs == null -> null
+                previousConstraint?.timeLimitMs != constraint.timeLimitMs -> constraint.timeLimitMs
+                previousRemaining != null -> previousRemaining
+                else -> constraint.timeLimitMs
+            }
+            constraint.id to remaining
+        }
+    }
+
+    private fun applyConstraintEdits(
+        current: List<SessionConstraint>,
+        original: List<SessionConstraint>,
+        updated: List<SessionConstraint>,
+        allowPositionFallback: Boolean
+    ): List<SessionConstraint> {
+        val originalIds = original.map { it.id }.toSet()
+        val updatedById = updated.associateBy { it.id }
+
+        return current.mapNotNull { constraint ->
+            val replacementById = updatedById[constraint.id]
+            if (replacementById != null) {
+                return@mapNotNull replacementById
+            }
+
+            val originalIndex = original.indexOfFirst { it.id == constraint.id }
+            if (allowPositionFallback && originalIndex >= 0) {
+                return@mapNotNull updated.getOrNull(originalIndex)
+            }
+
+            if (constraint.id in originalIds) {
+                null
+            } else {
+                constraint
+            }
+        }
     }
 
     private fun validateConstraintMutualExclusion(constraints: List<SessionConstraint>) {

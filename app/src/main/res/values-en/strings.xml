@@ -107,6 +107,7 @@
     <string name="constraint_type_deny">Deny</string>
     <string name="constraint_type_time_cap">Time limit</string>
     <string name="constraint_type_no_monitor">No monitoring</string>
+    <string name="deny_allowlist_usage_tip">“Deny” can also express “only allow …”. Write what should trigger intervention: for example, “only check delivery status in a food delivery app” becomes “all other content except checking delivery status”.</string>
 
     <!-- ActionExecutor toast messages -->
     <string name="duration_minutes_seconds">%1$d min %2$d sec</string>
@@ -383,7 +384,7 @@
     <string name="timeline_prev_day">Previous day</string>
     <string name="timeline_next_day">Next day</string>
     <string name="timeline_today_label">Today\'s Timeline</string>
-    <string name="timeline_day_format">M月d日 Timeline</string>
+    <string name="timeline_day_format">%s Timeline</string>
     <string name="timeline_unknown_app">Unknown app</string>
     <string name="timeline_multi_app">Multiple apps</string>
     <string name="timeline_violation_start">Violation start</string>

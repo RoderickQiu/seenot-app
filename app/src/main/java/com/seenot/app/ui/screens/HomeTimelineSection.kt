@@ -55,21 +55,32 @@ fun HomeTimelineSection(
 
     // 0 = today, -1 = yesterday. Positive values are not allowed.
     var dayOffset by remember { mutableIntStateOf(0) }
-    val dayRange = remember(dayOffset) { getDayRange(dayOffset) }
+    val safeDayOffset = dayOffset.coerceAtMost(0)
+    val dayRange = remember(safeDayOffset) { getDayRange(safeDayOffset) }
 
     val recordsFlow = remember(dayRange.first, dayRange.second) {
         repository.getRecordsInRangeFlow(dayRange.first, dayRange.second)
     }
     val records by recordsFlow.collectAsState(initial = emptyList())
+    val allRecords by remember { repository.getAllRecordsFlow() }.collectAsState(initial = emptyList())
+    val oldestRecordTimestamp = remember(allRecords) { allRecords.minOfOrNull { it.timestamp } }
+    val canNavigatePrevious = remember(safeDayOffset, oldestRecordTimestamp) {
+        canNavigateToPreviousDay(safeDayOffset, oldestRecordTimestamp)
+    }
     val events = remember(records, context) { buildTimelineEvents(records, context) }
 
     Column(
         modifier = modifier.fillMaxWidth()
     ) {
         TimelineHeader(
-            dayOffset = dayOffset,
-            onPrevDay = { dayOffset -= 1 },
-            onNextDay = { dayOffset += 1 }
+            dayOffset = safeDayOffset,
+            canNavigatePrevious = canNavigatePrevious,
+            onPrevDay = {
+                if (canNavigatePrevious) dayOffset = safeDayOffset - 1
+            },
+            onNextDay = {
+                if (safeDayOffset < 0) dayOffset = safeDayOffset + 1
+            }
         )
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -81,7 +92,7 @@ fun HomeTimelineSection(
                 )
             ) {
                 Text(
-                    text = if (dayOffset == 0) {
+                    text = if (safeDayOffset == 0) {
                         stringResource(R.string.timeline_no_records_today)
                     } else {
                         stringResource(R.string.timeline_no_records_day)
@@ -116,6 +127,7 @@ fun HomeTimelineSection(
 @Composable
 private fun TimelineHeader(
     dayOffset: Int,
+    canNavigatePrevious: Boolean,
     onPrevDay: () -> Unit,
     onNextDay: () -> Unit
 ) {
@@ -131,7 +143,8 @@ private fun TimelineHeader(
         )
 
         IconButton(
-            onClick = onPrevDay
+            onClick = onPrevDay,
+            enabled = canNavigatePrevious
         ) {
             Icon(
                 Icons.AutoMirrored.Filled.KeyboardArrowLeft,
@@ -156,13 +169,14 @@ private fun dayTitle(dayOffset: Int): String {
     if (dayOffset == 0) return stringResource(R.string.timeline_today_label)
     val cal = Calendar.getInstance()
     cal.add(Calendar.DAY_OF_MONTH, dayOffset)
-    val sdf = SimpleDateFormat(stringResource(R.string.timeline_day_format), Locale.getDefault())
-    return sdf.format(cal.time)
+    val datePattern = if (Locale.getDefault().language == Locale.CHINESE.language) "M月d日" else "MMM d"
+    val dateText = SimpleDateFormat(datePattern, Locale.getDefault()).format(cal.time)
+    return stringResource(R.string.timeline_day_format, dateText)
 }
 
 private fun getDayRange(dayOffset: Int): Pair<Long, Long> {
     val cal = Calendar.getInstance().apply {
-        add(Calendar.DAY_OF_MONTH, dayOffset)
+        add(Calendar.DAY_OF_MONTH, dayOffset.coerceAtMost(0))
         set(Calendar.HOUR_OF_DAY, 0)
         set(Calendar.MINUTE, 0)
         set(Calendar.SECOND, 0)
@@ -172,6 +186,19 @@ private fun getDayRange(dayOffset: Int): Pair<Long, Long> {
     cal.add(Calendar.DAY_OF_MONTH, 1)
     val end = cal.timeInMillis - 1
     return start to end
+}
+
+private fun canNavigateToPreviousDay(dayOffset: Int, oldestRecordTimestamp: Long?): Boolean {
+    val oldestTimestamp = oldestRecordTimestamp ?: return false
+    val selectedDayStart = getDayRange(dayOffset).first
+    val oldestDayStart = Calendar.getInstance().apply {
+        timeInMillis = oldestTimestamp
+        set(Calendar.HOUR_OF_DAY, 0)
+        set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0)
+        set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+    return oldestDayStart < selectedDayStart
 }
 
 private fun resolveAppLabel(context: Context, packageName: String?, fallback: String?): String {
