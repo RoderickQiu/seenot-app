@@ -554,22 +554,13 @@ class IntentInputDialogOverlay(
         presetRules = sessionManager.loadPresetRules(packageName)
             .sortedByDescending { it.isDefault }
 
-        if (presetRules.isEmpty()) {
-            val emptyText = TextView(context).apply {
-                text = context.getString(R.string.intent_no_preset_yet)
-                textSize = 13f
-                setTextColor(subtleTextColor)
-                gravity = Gravity.CENTER
-                setPadding(0, 12.dp(), 0, 12.dp())
+        if (presetRules.isNotEmpty()) {
+            for (constraints in presetRules) {
+                val row = buildPresetRow(constraints)
+                presetContainer?.addView(row)
             }
-            presetContainer?.addView(emptyText)
-            return
         }
-
-        for (constraints in presetRules) {
-            val row = buildPresetRow(constraints)
-            presetContainer?.addView(row)
-        }
+        presetContainer?.addView(buildNoMonitorRow())
     }
 
     private fun buildNoMonitorRow(): View {
@@ -677,13 +668,12 @@ class IntentInputDialogOverlay(
             }
             historyContainer?.addView(emptyText)
         } else {
-            updateHistoryScrollHeight(history.size + 1)
+            updateHistoryScrollHeight(history.size)
             for ((index, constraints) in history.withIndex()) {
                 val row = buildHistoryRow(constraints, isLatest = index == 0)
                 historyContainer?.addView(row)
             }
         }
-        historyContainer?.addView(buildNoMonitorRow())
     }
 
     @SuppressLint("SetTextI18n")
