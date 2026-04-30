@@ -133,6 +133,7 @@ class IntentInputDialogOverlay(
     private var historyScrollView: ScrollView? = null
     private var confirmButton: LinearLayout? = null
     private var confirmText: TextView? = null
+    private var textConfirmButton: TextView? = null
     private var retryVoiceButton: TextView? = null
     private var rulesPreviewText: TextView? = null
     private var textInput: EditText? = null
@@ -331,8 +332,17 @@ class IntentInputDialogOverlay(
         }
         card.addView(statusText)
 
+        val textInputRow = LinearLayout(context).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = 12.dp() }
+        }
+
         textInput = EditText(context).apply {
-            hint = context.getString(R.string.intent_enter_to_confirm)
+            hint = context.getString(R.string.input_intent_hint)
             setPadding(16.dp(), 14.dp(), 16.dp(), 14.dp())
             background = GradientDrawable().apply {
                 cornerRadius = 14.dp().toFloat()
@@ -346,9 +356,10 @@ class IntentInputDialogOverlay(
             imeOptions = EditorInfo.IME_ACTION_DONE
             maxLines = 1
             layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = 12.dp() }
+                0,
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                1f
+            )
             setOnEditorActionListener { _, actionId, event ->
                 val isSubmit = actionId == EditorInfo.IME_ACTION_DONE ||
                     actionId == EditorInfo.IME_ACTION_GO ||
@@ -361,7 +372,28 @@ class IntentInputDialogOverlay(
                 }
             }
         }
-        card.addView(textInput)
+        textInputRow.addView(textInput)
+
+        textConfirmButton = TextView(context).apply {
+            text = context.getString(R.string.confirm)
+            textSize = 14f
+            setTextColor(Color.WHITE)
+            typeface = Typeface.DEFAULT_BOLD
+            gravity = Gravity.CENTER
+            minWidth = 64.dp()
+            setPadding(14.dp(), 14.dp(), 14.dp(), 14.dp())
+            background = GradientDrawable().apply {
+                cornerRadius = 14.dp().toFloat()
+                setColor(primaryColor)
+            }
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { leftMargin = 8.dp() }
+            setOnClickListener { submitTextIntent() }
+        }
+        textInputRow.addView(textConfirmButton)
+        card.addView(textInputRow)
 
         // Rules preview (hidden until parsed)
         rulesPreviewText = TextView(context).apply {
@@ -866,6 +898,8 @@ class IntentInputDialogOverlay(
 
         pendingConstraints = null
         pendingInputSource = InputSource.TEXT
+        mode = Mode.PROCESSING
+        updateUI()
         voiceInputManager?.setCurrentApp(packageName, appName)
         voiceInputManager?.parseTextInput(text, packageName, appName)
     }
@@ -888,6 +922,8 @@ class IntentInputDialogOverlay(
                 confirmButton?.visibility = View.GONE
                 retryVoiceButton?.visibility = View.GONE
                 textInput?.isEnabled = true
+                textConfirmButton?.isEnabled = true
+                textConfirmButton?.alpha = 1f
             }
             Mode.RECORDING -> {
                 micBg?.background = GradientDrawable().apply {
@@ -900,6 +936,8 @@ class IntentInputDialogOverlay(
                 confirmButton?.visibility = View.GONE
                 retryVoiceButton?.visibility = View.GONE
                 textInput?.isEnabled = false
+                textConfirmButton?.isEnabled = false
+                textConfirmButton?.alpha = 0.45f
             }
             Mode.PROCESSING -> {
                 micBg?.background = GradientDrawable().apply {
@@ -912,6 +950,8 @@ class IntentInputDialogOverlay(
                 confirmButton?.visibility = View.GONE
                 retryVoiceButton?.visibility = View.GONE
                 textInput?.isEnabled = false
+                textConfirmButton?.isEnabled = false
+                textConfirmButton?.alpha = 0.45f
             }
             Mode.SHOWING_RULES -> {
                 micBg?.background = GradientDrawable().apply {
@@ -943,6 +983,8 @@ class IntentInputDialogOverlay(
                 retryVoiceButton?.visibility =
                     if (pendingInputSource == InputSource.VOICE && isVoiceInputAvailable) View.VISIBLE else View.GONE
                 textInput?.isEnabled = true
+                textConfirmButton?.isEnabled = true
+                textConfirmButton?.alpha = 1f
             }
         }
         micButton?.isEnabled = isVoiceInputAvailable
