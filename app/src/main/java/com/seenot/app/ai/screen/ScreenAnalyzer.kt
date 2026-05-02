@@ -27,6 +27,7 @@ import com.seenot.app.ai.OpenAiCompatibleClient
 import com.google.gson.Gson
 import com.seenot.app.config.ApiConfig
 import com.seenot.app.config.AppLocalePrefs
+import com.seenot.app.data.builtin.BuiltInAppHintRules
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.RuleRecord
 import com.seenot.app.data.model.AppHint
@@ -933,6 +934,11 @@ class ScreenAnalyzer(
         } else {
             emptyList()
         }
+        val builtInAppGeneralHints = if (packageName.isNotBlank()) {
+            BuiltInAppHintRules.getAppGeneralHints(packageName)
+        } else {
+            emptyList()
+        }
 
         val constraintHints = if (packageName.isNotBlank()) {
             constraints.associate { constraint ->
@@ -965,7 +971,7 @@ class ScreenAnalyzer(
             constraints = constraints,
             appName = appName,
             packageName = packageName,
-            appGeneralHints = appGeneralHints.map(AppHint::hintText),
+            appGeneralHints = builtInAppGeneralHints + appGeneralHints.map(AppHint::hintText),
             constraintHints = constraintHints.mapValues { (_, hints) -> hints.map(AppHint::hintText) }
         )
         Logger.d(TAG, "[AI] Prompt length: ${prompt.length} chars")
