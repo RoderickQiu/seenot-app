@@ -2495,7 +2495,8 @@ private fun RuleEditorForm(
                     color = MaterialTheme.colorScheme.primary
                 )
             },
-            singleLine = true
+            minLines = 1,
+            maxLines = 4
         )
 
         Spacer(modifier = Modifier.height(12.dp))
