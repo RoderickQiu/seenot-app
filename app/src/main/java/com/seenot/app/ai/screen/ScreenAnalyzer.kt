@@ -989,6 +989,7 @@ class ScreenAnalyzer(
             mediaContext = mediaContext
         )
         Logger.d(TAG, "[AI] Prompt length: ${prompt.length} chars")
+        Logger.d(TAG, "[AI] Media context: ${mediaContext.toLogSummary()}")
 
         try {
             if (!ApiConfig.isConfigured()) {
@@ -1447,9 +1448,10 @@ ${fieldLines.joinToString("\n")}
 
 媒体信息使用规则：
 - 上面的媒体信息只来自当前前台应用，不包含后台音乐或其它应用的媒体会话。
-- 它描述当前正在播放/展示的媒体条目，可用于理解全屏视频、黑屏过渡、画面主题暂时偏离的场景。
-- 将媒体标题、作者/频道与截图一起作为当前用户正在消费内容的证据；不要仅凭单帧画面中的局部元素过度判断。
-- 如果媒体信息与截图明显冲突，按用户当前正在消费的内容条目综合判断，并在 `reason` 中用 $outputLanguageName 简短说明。
+- 它描述当前正在播放/展示的媒体条目，是判断内容主题的条目级锚点。
+- 对“只允许/除...外”类约束：如果媒体标题或作者/频道明确指向允许主题，不要仅因单帧截图的局部画面偏离主题就判定违反。
+- 如果媒体信息为空、泛泛、无法支持允许主题，或截图明确显示用户正在消费另一个非允许内容，则按截图中的当前消费行为判断。
+- 如果媒体信息与截图明显冲突，按“当前正在消费的内容条目”综合判断，并在 `reason` 中用 $outputLanguageName 简短说明。
         """.trimIndent()
     }
 
@@ -1464,6 +1466,14 @@ ${fieldLines.joinToString("\n")}
             "duration_ms" to durationMs
         )
     }
+
+    private fun MediaContentContext.toLogSummary(): String {
+        return "status=${status.name}, package=${packageName.orNullLabel()}, " +
+            "state=${playbackState.orNullLabel()}, title=${title.orNullLabel()}, " +
+            "artist=${artist.orNullLabel()}"
+    }
+
+    private fun String?.orNullLabel(): String = this?.takeIf { it.isNotBlank() } ?: "<null>"
 
     /**
      * Parse AI response
