@@ -12,6 +12,7 @@ import android.text.format.DateUtils
 import android.app.NotificationManager
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
@@ -37,6 +38,8 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import androidx.annotation.StringRes
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.window.Dialog
 import com.seenot.app.BuildConfig
 import com.seenot.app.R
@@ -58,6 +61,7 @@ import com.seenot.app.domain.AppEntryIntentMode
 import com.seenot.app.domain.SessionManager
 import com.seenot.app.domain.AppMonitoringPause
 import com.seenot.app.service.SeenotAccessibilityService
+import com.seenot.app.service.MediaSessionProbe
 import com.seenot.app.ai.voice.VoiceInputManager
 import com.seenot.app.ai.voice.VoiceRecordingState
 import com.seenot.app.ai.parser.AppInfo
@@ -101,6 +105,7 @@ fun MainScreen(
     voiceInputPackageName: String? = null
 ) {
     val context = LocalContext.current
+    val lifecycleOwner = LocalLifecycleOwner.current
     val sessionManager = remember { SessionManager.getInstance(context) }
     var showHomeTimeline by remember { mutableStateOf(RuleRecordingPrefs.isHomeTimelineEnabled(context)) }
     var showAiSettingsDialog by remember { mutableStateOf(false) }
@@ -111,6 +116,7 @@ fun MainScreen(
     var isAccessibilityEnabled by remember { mutableStateOf(false) }
     var isOverlayEnabled by remember { mutableStateOf(false) }
     var isNotificationEnabled by remember { mutableStateOf(false) }
+    var isMediaSessionAccessEnabled by remember { mutableStateOf(false) }
     var isMicrophoneEnabled by remember { mutableStateOf(false) }
     var isBatteryOptimizationIgnored by remember { mutableStateOf(false) }
     var showVoiceInput by remember { mutableStateOf(startWithVoiceInput) }
@@ -141,6 +147,12 @@ fun MainScreen(
         isNotificationEnabled = notificationManager?.areNotificationsEnabled() == true
     }
 
+    val mediaSessionAccessLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        isMediaSessionAccessEnabled = MediaSessionProbe.hasNotificationListenerAccess(context)
+    }
+
     // Notification permission launcher
     val notificationPermissionLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.RequestPermission()
@@ -162,6 +174,22 @@ fun MainScreen(
             isNotificationEnabled = notificationManager?.areNotificationsEnabled() == true
         } else {
             isNotificationEnabled = true
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        isMediaSessionAccessEnabled = MediaSessionProbe.hasNotificationListenerAccess(context)
+    }
+
+    DisposableEffect(lifecycleOwner, context) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                isMediaSessionAccessEnabled = MediaSessionProbe.hasNotificationListenerAccess(context)
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
         }
     }
 
@@ -252,6 +280,7 @@ fun MainScreen(
                         isAccessibilityEnabled = isAccessibilityEnabled,
                         isOverlayEnabled = isOverlayEnabled,
                         isNotificationEnabled = isNotificationEnabled,
+                        isMediaSessionAccessEnabled = isMediaSessionAccessEnabled,
                         isBatteryOptimizationIgnored = isBatteryOptimizationIgnored,
                         isMicrophoneEnabled = isMicrophoneEnabled,
                         isAiConfigured = isAiConfigured,
@@ -273,6 +302,9 @@ fun MainScreen(
                             } else {
                                 notificationSettingsLauncher.launch(createNotificationSettingsIntent(context))
                             }
+                        },
+                        onOpenMediaSessionAccessSettings = {
+                            pendingPermissionGuide = PermissionGuideType.MEDIA_SESSION
                         },
                         onRequestMicrophone = {
                             microphonePermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
@@ -367,6 +399,9 @@ fun MainScreen(
                             createBatteryOptimizationIntent(context)
                         )
                     }
+                    PermissionGuideType.MEDIA_SESSION -> {
+                        mediaSessionAccessLauncher.launch(createNotificationListenerSettingsIntent())
+                    }
                 }
             }
         )
@@ -381,6 +416,7 @@ fun HomeTab(
     isAccessibilityEnabled: Boolean,
     isOverlayEnabled: Boolean,
     isNotificationEnabled: Boolean,
+    isMediaSessionAccessEnabled: Boolean,
     isBatteryOptimizationIgnored: Boolean,
     isMicrophoneEnabled: Boolean,
     isAiConfigured: Boolean,
@@ -391,6 +427,7 @@ fun HomeTab(
     onEnableOverlay: () -> Unit,
     onRequestIgnoreBatteryOptimizations: () -> Unit,
     onOpenNotificationSettings: () -> Unit,
+    onOpenMediaSessionAccessSettings: () -> Unit,
     onRequestMicrophone: () -> Unit,
     onOpenAiSettings: () -> Unit,
     onOpenControlledApps: () -> Unit,
@@ -469,6 +506,17 @@ fun HomeTab(
                 description = stringResource(R.string.permission_battery_optimization_desc),
                 isEnabled = isBatteryOptimizationIgnored,
                 onClick = onRequestIgnoreBatteryOptimizations
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            PermissionCard(
+                title = stringResource(R.string.permission_media_session_optional),
+                description = stringResource(R.string.permission_media_session_desc),
+                isEnabled = isMediaSessionAccessEnabled,
+                readyLabel = stringResource(R.string.permission_optional_ready),
+                notReadyLabel = stringResource(R.string.permission_optional_recommended),
+                onClick = onOpenMediaSessionAccessSettings
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -722,6 +770,8 @@ fun PermissionCard(
     title: String,
     description: String,
     isEnabled: Boolean,
+    readyLabel: String? = null,
+    notReadyLabel: String? = null,
     onClick: () -> Unit
 ) {
     Card(
@@ -748,7 +798,11 @@ fun PermissionCard(
                     fontWeight = FontWeight.Medium
                 )
                 Text(
-                    text = if (isEnabled) stringResource(R.string.permission_ready) else stringResource(R.string.permission_not_ready),
+                    text = if (isEnabled) {
+                        readyLabel ?: stringResource(R.string.permission_ready)
+                    } else {
+                        notReadyLabel ?: stringResource(R.string.permission_not_ready)
+                    },
                     style = MaterialTheme.typography.labelSmall,
                     color = if (isEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
                 )
@@ -770,7 +824,8 @@ fun PermissionCard(
 private enum class PermissionGuideType {
     ACCESSIBILITY,
     OVERLAY,
-    BATTERY
+    BATTERY,
+    MEDIA_SESSION
 }
 
 @Composable
@@ -783,6 +838,7 @@ private fun PermissionGuideDialog(
         PermissionGuideType.ACCESSIBILITY -> R.string.permission_guide_accessibility_title to R.string.permission_guide_accessibility_message
         PermissionGuideType.OVERLAY -> R.string.permission_guide_overlay_title to R.string.permission_guide_overlay_message
         PermissionGuideType.BATTERY -> R.string.permission_guide_battery_title to R.string.permission_guide_battery_message
+        PermissionGuideType.MEDIA_SESSION -> R.string.permission_guide_media_session_title to R.string.permission_guide_media_session_message
     }
 
     AlertDialog(
@@ -827,6 +883,10 @@ private fun createNotificationSettingsIntent(context: Context): Intent {
     return Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
         putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
     }
+}
+
+private fun createNotificationListenerSettingsIntent(): Intent {
+    return Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
 }
 
 /**

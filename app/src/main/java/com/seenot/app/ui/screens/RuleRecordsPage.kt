@@ -51,6 +51,8 @@ import androidx.compose.ui.graphics.Color
 import com.seenot.app.R
 import com.seenot.app.data.model.AppHintScopeType
 import com.seenot.app.data.model.ConstraintType
+import com.seenot.app.data.model.MediaContentContext
+import com.seenot.app.data.model.MediaContentStatus
 import com.seenot.app.data.model.RuleRecord
 import com.seenot.app.data.repository.RuleRecordRepository
 import com.seenot.app.domain.SessionManager
@@ -1137,6 +1139,12 @@ private fun RecordDetailDialog(
                         }
                     }
 
+                    record.mediaContext?.takeIf { it.hasDisplayableDetails() }?.let { mediaContext ->
+                        item {
+                            MediaContextCard(mediaContext)
+                        }
+                    }
+
                     // Screenshot
                     record.imagePath?.let { imagePath ->
                         item {
@@ -1273,6 +1281,58 @@ private fun MultiSelectActionBar(
             }
         }
     }
+}
+
+@Composable
+private fun MediaContextCard(mediaContext: MediaContentContext) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
+        )
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.record_media_info),
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.Bold
+            )
+            DetailRow(stringResource(R.string.record_media_status), mediaContext.status.toDisplayText())
+            mediaContext.title?.takeIf { it.isNotBlank() }?.let {
+                DetailRow(stringResource(R.string.record_media_title), it)
+            }
+            mediaContext.artist?.takeIf { it.isNotBlank() }?.let {
+                DetailRow(stringResource(R.string.record_media_artist), it)
+            }
+            mediaContext.album?.takeIf { it.isNotBlank() }?.let {
+                DetailRow(stringResource(R.string.record_media_album), it)
+            }
+            mediaContext.playbackState?.takeIf { it.isNotBlank() }?.let {
+                DetailRow(stringResource(R.string.record_media_playback_state), it)
+            }
+            mediaContext.durationMs?.let {
+                DetailRow(stringResource(R.string.record_media_duration), "${it}ms")
+            }
+        }
+    }
+}
+
+@Composable
+private fun MediaContentStatus.toDisplayText(): String {
+    return when (this) {
+        MediaContentStatus.MATCHED_CURRENT_APP -> stringResource(R.string.record_media_status_matched)
+        MediaContentStatus.NO_MATCHING_SESSION -> stringResource(R.string.record_media_status_no_match)
+        MediaContentStatus.PERMISSION_MISSING -> stringResource(R.string.record_media_status_permission_missing)
+        MediaContentStatus.ERROR -> stringResource(R.string.record_media_status_error)
+    }
+}
+
+private fun MediaContentContext.hasDisplayableDetails(): Boolean {
+    return status == MediaContentStatus.MATCHED_CURRENT_APP ||
+        status == MediaContentStatus.PERMISSION_MISSING ||
+        status == MediaContentStatus.ERROR
 }
 
 @Composable

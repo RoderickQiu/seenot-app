@@ -380,6 +380,7 @@
     <string name="readme_field_airesult">- aiResult: AI 原始响应文本（可选）</string>
     <string name="readme_field_imagepath">- imagePath: 截图路径（在归档中）</string>
     <string name="readme_field_elapsed">- elapsedTimeMs: AI 处理耗时（毫秒，可选）</string>
+    <string name="readme_field_media_context">- mediaContext: 当前前台应用的媒体播放信息（可选），包含 status、title、artist、playbackState、durationMs 等字段</string>
     <string name="readme_field_marked">- isMarked: 是否被用户标记</string>
     <string name="readme_export_time">导出时间: %s</string>
     <string name="readme_note">注意：截图保存在应用内部存储中，不会显示在系统图库中。</string>
@@ -467,6 +468,17 @@
     <string name="record_ai_result">AI 分析结果</string>
     <string name="record_ai_confidence">(置信度: %d%%)</string>
     <string name="record_mark_false_positive">标记误判</string>
+    <string name="record_media_info">媒体信息</string>
+    <string name="record_media_status">状态</string>
+    <string name="record_media_status_matched">已匹配当前应用</string>
+    <string name="record_media_status_no_match">未找到当前应用媒体信息</string>
+    <string name="record_media_status_permission_missing">权限未开启</string>
+    <string name="record_media_status_error">读取失败</string>
+    <string name="record_media_title">标题</string>
+    <string name="record_media_artist">作者/频道</string>
+    <string name="record_media_album">专辑/集合</string>
+    <string name="record_media_playback_state">播放状态</string>
+    <string name="record_media_duration">时长</string>
     <string name="record_screenshot">截图</string>
     <string name="record_screenshot_not_exist">截图文件不存在</string>
     <string name="record_processing_time">处理耗时</string>
@@ -510,8 +522,12 @@
     <string name="permission_battery_optimization_desc">用于请求忽略电池优化，降低系统省电策略杀死 SeeNot 的概率</string>
     <string name="permission_microphone_optional">麦克风权限（可选）</string>
     <string name="permission_microphone_desc">用于语音输入声明意图</string>
+    <string name="permission_media_session_optional">视频播放增强</string>
+    <string name="permission_media_session_desc">读取支持的软件正在播放的视频标题和播放状态，让视频判断更准确</string>
     <string name="permission_ready">已完成</string>
     <string name="permission_not_ready">未完成</string>
+    <string name="permission_optional_ready">已开启</string>
+    <string name="permission_optional_recommended">推荐开启</string>
     <string name="ai_settings">AI 设置</string>
     <string name="ai_configured_tap_to_modify">核心分析已可用，点按修改 provider、模型或 API Key</string>
     <string name="ai_not_configured_tap_to_setup">尚未配置核心分析，点按完成 AI 设置</string>
@@ -690,6 +706,8 @@
     <string name="permission_guide_overlay_message">接下来会打开系统悬浮窗设置。请允许 SeeNot 在其他应用上层显示，这样进入受控应用时才能看到意图输入和状态提示。</string>
     <string name="permission_guide_battery_title">关闭电池限制前先看一下</string>
     <string name="permission_guide_battery_message">接下来会打开系统电池设置。请把 SeeNot 设为后台无限制或忽略优化，避免系统把它杀掉，导致提醒和判断中断。</string>
+    <string name="permission_guide_media_session_title">开启视频播放增强前先看一下</string>
+    <string name="permission_guide_media_session_message">接下来会打开系统“通知使用权”设置。开启后，SeeNot 可读取支持的软件当前播放的媒体标题、作者和播放状态，用于更准确判断视频内容。SeeNot 不需要读取短信、聊天消息或其他通知内容；推荐开启，但不强制。</string>
 
     <!-- AddAppDialog -->
     <string name="add_app_title">添加应用</string>

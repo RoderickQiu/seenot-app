@@ -65,6 +65,7 @@ class SeenotAccessibilityService : AccessibilityService() {
         private const val OVERLAY_WATCHDOG_MIN_EVENTS = 3
         private const val OVERLAY_WATCHDOG_RECOVERY_COOLDOWN_MS = 5000L
         private const val NOISY_WINDOW_EVENT_LOG_INTERVAL_MS = 2000L
+        private const val MEDIA_SESSION_PROBE_LOG_INTERVAL_MS = 5000L
 
         var instance: SeenotAccessibilityService? = null
 
@@ -100,6 +101,8 @@ class SeenotAccessibilityService : AccessibilityService() {
     private var overlayMissingCandidateLastAt: Long = 0L
     private var overlayMissingCandidateEventCount: Int = 0
     private var lastOverlayRecoveryAt: Long = 0L
+    private var lastMediaSessionProbeLogAt: Long = 0L
+    private var lastMediaSessionProbeSignature: String? = null
     private val noisyWindowEventLogTimes = mutableMapOf<String, Long>()
     private lateinit var sessionManager: SessionManager
     private var deviceStateReceiverRegistered = false
@@ -425,6 +428,7 @@ class SeenotAccessibilityService : AccessibilityService() {
                         "Foreground event accepted: package=$packageName, " +
                             "event=${AccessibilityEvent.eventTypeToString(eventType)}"
                     )
+                    logMediaSessionProbe(packageName, now)
                     lastAppSwitchTime = now
                     _currentPackage.value = packageName
                     checkAndShowOverlay(packageName, className)
@@ -440,6 +444,7 @@ class SeenotAccessibilityService : AccessibilityService() {
                 }
             } else {
                 maybeRecoverWeakReentry(packageName, className, eventType)
+                logMediaSessionProbe(packageName, now)
                 logNoisyWindowEvent(
                     key = "same_package:$packageName",
                     now = now,
@@ -463,6 +468,18 @@ class SeenotAccessibilityService : AccessibilityService() {
 
         noisyWindowEventLogTimes[key] = now
         Logger.d(TAG, message)
+    }
+
+    private fun logMediaSessionProbe(packageName: String, now: Long) {
+        val result = MediaSessionProbe.inspect(this)
+        val signature = MediaSessionProbe.signature(result)
+        val changed = signature != lastMediaSessionProbeSignature
+        if (!changed && now - lastMediaSessionProbeLogAt < MEDIA_SESSION_PROBE_LOG_INTERVAL_MS) {
+            return
+        }
+        lastMediaSessionProbeSignature = signature
+        Logger.d(TAG, MediaSessionProbe.formatSummary(packageName, result))
+        lastMediaSessionProbeLogAt = now
     }
 
     private fun maybeRecoverPausedSessionFromEvent(

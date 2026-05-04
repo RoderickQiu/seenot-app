@@ -192,10 +192,11 @@ class RecordExporter(private val context: Context) {
             "denyViolationRecords" to denyRecords.count { !it.isConditionMatched },
             "timeCapInScopeRecords" to timeCapRecords.count { it.isConditionMatched },
             "timeCapOutOfScopeRecords" to timeCapRecords.count { !it.isConditionMatched },
+            "recordsWithMediaContext" to records.count { it.mediaContext != null },
             "uniqueApps" to apps.size,
             "appList" to apps,
             "dateRange" to dateRange,
-            "exportVersion" to "1.1"
+            "exportVersion" to "1.2"
         )
     }
 
@@ -232,6 +233,7 @@ class RecordExporter(private val context: Context) {
             context.getString(R.string.readme_field_airesult),
             context.getString(R.string.readme_field_imagepath),
             context.getString(R.string.readme_field_elapsed),
+            context.getString(R.string.readme_field_media_context),
             context.getString(R.string.readme_field_marked),
             "",
             context.getString(R.string.readme_export_time, formatDate(System.currentTimeMillis())),

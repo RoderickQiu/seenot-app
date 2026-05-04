@@ -376,6 +376,7 @@
     <string name="readme_field_airesult">- aiResult: AI raw response text (optional)</string>
     <string name="readme_field_imagepath">- imagePath: Screenshot path (in archive)</string>
     <string name="readme_field_elapsed">- elapsedTimeMs: AI processing time (milliseconds, optional)</string>
+    <string name="readme_field_media_context">- mediaContext: Current foreground app media playback context (optional), including status, title, artist, playbackState, durationMs, and related fields</string>
     <string name="readme_field_marked">- isMarked: Whether marked by user</string>
     <string name="readme_export_time">Export time: %s</string>
     <string name="readme_note">Note: Screenshots are stored in app internal storage, not in system gallery.</string>
@@ -463,6 +464,17 @@
     <string name="record_ai_result">AI analysis result</string>
     <string name="record_ai_confidence">(Confidence: %d%%)</string>
     <string name="record_mark_false_positive">Mark as false positive</string>
+    <string name="record_media_info">Media info</string>
+    <string name="record_media_status">Status</string>
+    <string name="record_media_status_matched">Matched current app</string>
+    <string name="record_media_status_no_match">No media info for current app</string>
+    <string name="record_media_status_permission_missing">Permission not enabled</string>
+    <string name="record_media_status_error">Read failed</string>
+    <string name="record_media_title">Title</string>
+    <string name="record_media_artist">Creator/channel</string>
+    <string name="record_media_album">Album/collection</string>
+    <string name="record_media_playback_state">Playback state</string>
+    <string name="record_media_duration">Duration</string>
     <string name="record_screenshot">Screenshot</string>
     <string name="record_screenshot_not_exist">Screenshot file does not exist</string>
     <string name="record_processing_time">Processing time</string>
@@ -504,8 +516,12 @@
     <string name="permission_battery_optimization_desc">Requests battery-optimization exemption so the system is less likely to kill SeeNot in the background</string>
     <string name="permission_microphone_optional">Microphone Permission (Optional)</string>
     <string name="permission_microphone_desc">Used for voice input to declare intents</string>
+    <string name="permission_media_session_optional">Video Playback Enhancement</string>
+    <string name="permission_media_session_desc">Uses the current media title and playback state for more accurate video checks</string>
     <string name="permission_ready">Done</string>
     <string name="permission_not_ready">Not done</string>
+    <string name="permission_optional_ready">Enabled</string>
+    <string name="permission_optional_recommended">Recommended</string>
     <string name="ai_settings">AI Settings</string>
     <string name="ai_configured_tap_to_modify">Core analysis is ready. Tap to modify provider, model or API Key</string>
     <string name="ai_not_configured_tap_to_setup">Core analysis is not configured yet. Tap to finish AI setup</string>
@@ -684,6 +700,8 @@
     <string name="permission_guide_overlay_message">Next, the system overlay settings will open. Allow SeeNot to display over other apps so you can see the intent prompt and session status when entering controlled apps.</string>
     <string name="permission_guide_battery_title">Before disabling battery limits</string>
     <string name="permission_guide_battery_message">Next, the system battery settings will open. Set SeeNot to unrestricted or ignore optimization, so the system is less likely to kill it and interrupt reminders or analysis.</string>
+    <string name="permission_guide_media_session_title">Before enabling video playback enhancement</string>
+    <string name="permission_guide_media_session_message">Next, Android Notification Access settings will open. This lets SeeNot read the current media title, creator, and playback state from supported apps for more accurate video checks. SeeNot does not need SMS, chat messages, or other notification content. Recommended, but not required.</string>
 
     <!-- AddAppDialog -->
     <string name="add_app_title">Add App</string>

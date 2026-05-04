@@ -25,6 +25,7 @@ data class RuleRecord(
     val confidence: Double? = null,
     val imagePath: String? = null,
     val elapsedTimeMs: Long? = null,
+    val mediaContext: MediaContentContext? = null,
     val isMarked: Boolean = false,
 
     // Action record

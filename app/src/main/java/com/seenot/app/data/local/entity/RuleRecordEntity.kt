@@ -38,6 +38,7 @@ data class RuleRecordEntity(
     val confidence: Double? = null,
     val imagePath: String? = null,
     val elapsedTimeMs: Long? = null,
+    val mediaContextJson: String? = null,
     val isMarked: Boolean = false,
 
     // Action record

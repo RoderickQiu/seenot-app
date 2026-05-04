@@ -2,9 +2,11 @@ package com.seenot.app.data.repository
 
 import android.content.Context
 import android.graphics.Bitmap
+import com.google.gson.Gson
 import com.seenot.app.data.local.SeenotDatabase
 import com.seenot.app.data.local.entity.RuleRecordEntity
 import com.seenot.app.data.model.ConstraintType
+import com.seenot.app.data.model.MediaContentContext
 import com.seenot.app.data.model.RecordStats
 import com.seenot.app.data.model.RuleRecord
 import com.seenot.app.utils.Logger
@@ -24,6 +26,7 @@ import java.util.*
 class RuleRecordRepository(private val context: Context) {
 
     private val dao = SeenotDatabase.getInstance(context).ruleRecordDao()
+    private val gson = Gson()
 
     private val imagesDir: File = File(context.filesDir, "rule_record_images").apply {
         if (!exists()) mkdirs()
@@ -317,6 +320,9 @@ class RuleRecordRepository(private val context: Context) {
             confidence = confidence,
             imagePath = imagePath,
             elapsedTimeMs = elapsedTimeMs,
+            mediaContext = mediaContextJson?.let { json ->
+                runCatching { gson.fromJson(json, MediaContentContext::class.java) }.getOrNull()
+            },
             isMarked = isMarked,
             actionType = actionType,
             actionReason = actionReason,
@@ -343,6 +349,7 @@ class RuleRecordRepository(private val context: Context) {
             confidence = confidence,
             imagePath = imagePath,
             elapsedTimeMs = elapsedTimeMs,
+            mediaContextJson = mediaContext?.let { gson.toJson(it) },
             isMarked = isMarked,
             actionType = actionType,
             actionReason = actionReason,

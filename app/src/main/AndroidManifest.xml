@@ -74,6 +74,17 @@
                 android:value="attention_management" />
         </service>
 
+        <!-- Optional listener used to inspect active MediaSession metadata in diagnostics. -->
+        <service
+            android:name=".service.SeenotNotificationListenerService"
+            android:exported="true"
+            android:label="@string/app_name"
+            android:permission="android.permission.BIND_NOTIFICATION_LISTENER_SERVICE">
+            <intent-filter>
+                <action android:name="android.service.notification.NotificationListenerService" />
+            </intent-filter>
+        </service>
+
         <!-- Boot Receiver -->
         <receiver
             android:name=".receiver.BootReceiver"

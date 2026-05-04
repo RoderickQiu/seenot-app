@@ -29,6 +29,7 @@ import com.seenot.app.config.ApiConfig
 import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.data.builtin.BuiltInAppHintRules
 import com.seenot.app.data.model.ConstraintType
+import com.seenot.app.data.model.MediaContentContext
 import com.seenot.app.data.model.RuleRecord
 import com.seenot.app.data.model.AppHint
 import com.seenot.app.data.model.buildIntentScopedHintId
@@ -39,6 +40,7 @@ import com.seenot.app.domain.SessionConstraint
 import com.seenot.app.domain.SessionManager
 import com.seenot.app.observability.RuntimeEventLogger
 import com.seenot.app.observability.RuntimeEventType
+import com.seenot.app.service.MediaSessionProbe
 import kotlinx.coroutines.*
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -233,11 +235,13 @@ class ScreenAnalyzer(
 
                 lastQuickHash = quickHash
                 Logger.d(TAG, "🆕 New frame (hash: ${quickHash.take(12)}...), analyzing")
+                val mediaContext = MediaSessionProbe.currentAppMediaContext(context, currentPackageName)
 
                 val result = analyzeScreen(
                     constraints = activeConstraints,
                     preCapturedScreenshot = screenshot,
-                    analysisId = runtimeEventLogger.newEventId()
+                    analysisId = runtimeEventLogger.newEventId(),
+                    mediaContext = mediaContext
                 )
                 _lastAnalysisResult.value = result
 
@@ -352,7 +356,8 @@ class ScreenAnalyzer(
     suspend fun analyzeScreen(
         constraints: List<SessionConstraint>,
         preCapturedScreenshot: Bitmap? = null,
-        analysisId: String = runtimeEventLogger.newEventId()
+        analysisId: String = runtimeEventLogger.newEventId(),
+        mediaContext: MediaContentContext? = null
     ): ScreenAnalysisResult {
         _isAnalyzing.value = true
 
@@ -371,6 +376,8 @@ class ScreenAnalyzer(
             val totalStart = System.currentTimeMillis()
             val sessionManager = com.seenot.app.domain.SessionManager.getInstance(context)
             val sessionId = sessionManager.activeSession.value?.sessionId ?: 0L
+            val currentMediaContext = mediaContext
+                ?: MediaSessionProbe.currentAppMediaContext(context, currentPackageName)
 
             runtimeEventLogger.log(
                 eventType = RuntimeEventType.ANALYSIS_STARTED,
@@ -379,7 +386,8 @@ class ScreenAnalyzer(
                 appDisplayName = currentAppDisplayName,
                 payload = mapOf(
                     "analysis_id" to analysisId,
-                    "constraint_ids" to constraints.map { it.id }
+                    "constraint_ids" to constraints.map { it.id },
+                    "media_context" to currentMediaContext.toRuntimePayload()
                 ),
                 timestamp = totalStart
             )
@@ -431,7 +439,8 @@ class ScreenAnalyzer(
                 constraints = constraints,
                 appName = currentAppDisplayName ?: "",
                 packageName = currentPackageName ?: "",
-                analysisId = analysisId
+                analysisId = analysisId,
+                mediaContext = currentMediaContext
             )
             val aiDuration = System.currentTimeMillis() - aiStart
             Logger.d(TAG, "✅ AI analysis complete (${aiDuration}ms)")
@@ -515,7 +524,8 @@ class ScreenAnalyzer(
                             isConditionMatched = isConditionMatched,
                             aiResult = match.reason,
                             confidence = match.confidence,
-                            elapsedTimeMs = aiDuration
+                            elapsedTimeMs = aiDuration,
+                            mediaContext = currentMediaContext
                         )
                         val savedRecord = ruleRecordRepository.saveRecord(record)
                         savedRecordIds += savedRecord.id
@@ -539,7 +549,8 @@ class ScreenAnalyzer(
                                 "is_condition_matched" to isConditionMatched,
                                 "confidence" to match.confidence,
                                 "reason_text" to match.reason,
-                                "is_in_scope" to match.isInScope
+                                "is_in_scope" to match.isInScope,
+                                "media_context" to currentMediaContext.toRuntimePayload()
                             )
                         )
 
@@ -571,7 +582,8 @@ class ScreenAnalyzer(
                     "total_latency_ms" to totalDuration,
                     "is_violation" to violations.isNotEmpty(),
                     "highest_confidence" to violations.maxOfOrNull { it.confidence },
-                    "violated_constraint_ids" to violations.map { it.constraint.id }
+                    "violated_constraint_ids" to violations.map { it.constraint.id },
+                    "media_context" to currentMediaContext.toRuntimePayload()
                 )
             )
 
@@ -923,7 +935,8 @@ class ScreenAnalyzer(
         constraints: List<SessionConstraint>,
         appName: String = "",
         packageName: String = "",
-        analysisId: String
+        analysisId: String,
+        mediaContext: MediaContentContext
     ): ParsedAiAnalysis = withContext(Dispatchers.IO) {
 
         val imageDataUrl = "data:image/jpeg;base64,${bitmapToBase64(screenshot)}"
@@ -972,7 +985,8 @@ class ScreenAnalyzer(
             appName = appName,
             packageName = packageName,
             appGeneralHints = builtInAppGeneralHints + appGeneralHints.map(AppHint::hintText),
-            constraintHints = constraintHints.mapValues { (_, hints) -> hints.map(AppHint::hintText) }
+            constraintHints = constraintHints.mapValues { (_, hints) -> hints.map(AppHint::hintText) },
+            mediaContext = mediaContext
         )
         Logger.d(TAG, "[AI] Prompt length: ${prompt.length} chars")
 
@@ -1251,7 +1265,8 @@ class ScreenAnalyzer(
         appName: String = "",
         packageName: String = "",
         appGeneralHints: List<String> = emptyList(),
-        constraintHints: Map<String, List<String>> = emptyMap()
+        constraintHints: Map<String, List<String>> = emptyMap(),
+        mediaContext: MediaContentContext? = null
     ): String {
         val outputLanguageName = AppLocalePrefs.getAiOutputLanguageName(context)
         val reasonExample = if (AppLocalePrefs.getLanguage(context) == AppLocalePrefs.LANG_ZH) {
@@ -1328,11 +1343,13 @@ class ScreenAnalyzer(
             if (appName.isNotBlank()) appendLine("- 应用名称：$appName")
             if (packageName.isNotBlank()) appendLine("- 应用包名：$packageName")
         }.trimEnd()
+        val mediaInfo = mediaContext.toPromptBlock(outputLanguageName)
 
         return """
 **当前环境：**
 $envInfo
 - SeeNot 当前界面语言：$outputLanguageName
+$mediaInfo
 
 你是屏幕场景识别AI，判断用户当前行为与约束的关系。
 
@@ -1405,6 +1422,47 @@ $decisionValues
 - 校准原则：80分意味着你给出这个分数时有80%的正确率
 - reason必须简洁，10-20个字或等价英文短语解释置信度，并且必须使用 $outputLanguageName
         """.trimIndent()
+    }
+
+    private fun MediaContentContext?.toPromptBlock(outputLanguageName: String): String {
+        val context = this ?: return ""
+        if (!context.hasUsableMetadata()) {
+            return ""
+        }
+
+        val titleLine = context.title?.takeIf { it.isNotBlank() }?.let { "- 标题：$it" }
+        val artistLine = context.artist?.takeIf { it.isNotBlank() }?.let { "- 作者/频道：$it" }
+        val albumLine = context.album?.takeIf { it.isNotBlank() }?.let { "- 专辑/集合：$it" }
+        val stateLine = context.playbackState?.takeIf { it.isNotBlank() }?.let { "- 播放状态：$it" }
+        val durationLine = context.durationMs?.let { "- 时长：${it}ms" }
+        val fieldLines = listOfNotNull(titleLine, artistLine, albumLine, stateLine, durationLine)
+        if (fieldLines.isEmpty()) {
+            return ""
+        }
+
+        return """
+
+**当前媒体播放信息（仅当前前台应用，若存在）：**
+${fieldLines.joinToString("\n")}
+
+媒体信息使用规则：
+- 上面的媒体信息只来自当前前台应用，不包含后台音乐或其它应用的媒体会话。
+- 它描述当前正在播放/展示的媒体条目，可用于理解全屏视频、黑屏过渡、画面主题暂时偏离的场景。
+- 将媒体标题、作者/频道与截图一起作为当前用户正在消费内容的证据；不要仅凭单帧画面中的局部元素过度判断。
+- 如果媒体信息与截图明显冲突，按用户当前正在消费的内容条目综合判断，并在 `reason` 中用 $outputLanguageName 简短说明。
+        """.trimIndent()
+    }
+
+    private fun MediaContentContext.toRuntimePayload(): Map<String, Any?> {
+        return mapOf(
+            "status" to status.name,
+            "package_name" to packageName,
+            "playback_state" to playbackState,
+            "title" to title,
+            "artist" to artist,
+            "album" to album,
+            "duration_ms" to durationMs
+        )
     }
 
     /**
