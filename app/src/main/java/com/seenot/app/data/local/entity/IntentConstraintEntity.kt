@@ -49,6 +49,9 @@ data class IntentConstraintEntity(
     /** Intervention level for this constraint */
     val interventionLevel: InterventionLevel = InterventionLevel.GENTLE,
 
+    /** Internal semantic representation for analyzer prompts; never shown to users */
+    val effectiveIntentJson: String? = null,
+
     /** Whether this constraint is currently active */
     val isActive: Boolean = true,
 

@@ -59,36 +59,36 @@ class IntentParserDebugger {
         return if (outputLanguageCode() == "zh") {
             """
 输入："刷微信但不能看朋友圈"
-输出：{"constraints":[{"type":"DENY","description":"朋友圈","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
+输出：{"constraints":[{"type":"DENY","description":"朋友圈","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE","effectiveIntent":{"raw":"朋友圈","type":"DENY","prohibitedSet":"朋友圈功能或内容","allowedSet":null,"evaluationScope":"feature_or_behavior","aggregatePagePolicy":"aggregate_container_can_violate","decisionRule":"用户进入或使用朋友圈功能时判定为违反；仅看到朋友圈入口或链接时不判定为违反。"}}]}
 
 输入："只看微信消息"
-输出：{"constraints":[{"type":"DENY","description":"除微信消息外的其他内容","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
+输出：{"constraints":[{"type":"DENY","description":"除微信消息外的其他内容","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE","effectiveIntent":{"raw":"除微信消息外的其他内容","type":"DENY","prohibitedSet":"非微信消息的单个内容或功能","allowedSet":"微信消息","evaluationScope":"feature_or_behavior","aggregatePagePolicy":"follow_constraint_target","decisionRule":"只有当前明确进入非微信消息的功能或正在消费非微信消息内容时才判定违反；缺少微信消息证据本身不构成违反。"}}]}
 
 输入："only look at messages"
-输出：{"constraints":[{"type":"DENY","description":"除消息外的其他内容","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
+输出：{"constraints":[{"type":"DENY","description":"除消息外的其他内容","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE","effectiveIntent":{"raw":"除消息外的其他内容","type":"DENY","prohibitedSet":"非消息的单个内容或功能","allowedSet":"消息","evaluationScope":"feature_or_behavior","aggregatePagePolicy":"follow_constraint_target","decisionRule":"只有当前明确进入非消息功能或正在消费非消息内容时才判定违反；缺少消息证据本身不构成违反。"}}]}
 
 输入："每天最多10分钟"
 输出：{"constraints":[],"unsupportedMode":"DAILY_TOTAL"}
 
 输入："这次不监控"
-输出：{"constraints":[{"type":"NO_MONITOR","description":"本次不监控","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"GENTLE"}]}
+输出：{"constraints":[{"type":"NO_MONITOR","description":"本次不监控","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"GENTLE","effectiveIntent":{"raw":"本次不监控","type":"NO_MONITOR","prohibitedSet":"","allowedSet":null,"evaluationScope":"not_monitored","aggregatePagePolicy":"not_applicable","decisionRule":"本次会话不进行屏幕分析、计时判断或干预。"}}]}
             """.trimIndent()
         } else {
             """
 Input: "刷微信但不能看朋友圈"
-Output: {"constraints":[{"type":"DENY","description":"Moments","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
+Output: {"constraints":[{"type":"DENY","description":"Moments","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE","effectiveIntent":{"raw":"Moments","type":"DENY","prohibitedSet":"Moments feature or content","allowedSet":null,"evaluationScope":"feature_or_behavior","aggregatePagePolicy":"aggregate_container_can_violate","decisionRule":"Violation only when the user enters or uses Moments; merely seeing an entry point or link is safe."}}]}
 
 Input: "只看微信消息"
-Output: {"constraints":[{"type":"DENY","description":"all other content except WeChat messages","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
+Output: {"constraints":[{"type":"DENY","description":"all other content except WeChat messages","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE","effectiveIntent":{"raw":"all other content except WeChat messages","type":"DENY","prohibitedSet":"single content or feature outside WeChat messages","allowedSet":"WeChat messages","evaluationScope":"feature_or_behavior","aggregatePagePolicy":"follow_constraint_target","decisionRule":"Violation only when the current screen clearly enters a non-message feature or actively consumes non-message content; missing message evidence alone is not a violation."}}]}
 
 Input: "only look at messages"
-Output: {"constraints":[{"type":"DENY","description":"all other content except messages","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE"}]}
+Output: {"constraints":[{"type":"DENY","description":"all other content except messages","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"MODERATE","effectiveIntent":{"raw":"all other content except messages","type":"DENY","prohibitedSet":"single content or feature outside messages","allowedSet":"messages","evaluationScope":"feature_or_behavior","aggregatePagePolicy":"follow_constraint_target","decisionRule":"Violation only when the current screen clearly enters a non-message feature or actively consumes non-message content; missing message evidence alone is not a violation."}}]}
 
 Input: "每天最多10分钟"
 Output: {"constraints":[],"unsupportedMode":"DAILY_TOTAL"}
 
 Input: "do not monitor this time"
-Output: {"constraints":[{"type":"NO_MONITOR","description":"no monitoring this time","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"GENTLE"}]}
+Output: {"constraints":[{"type":"NO_MONITOR","description":"no monitoring this time","timeLimitMinutes":null,"timeScope":"SESSION","intervention":"GENTLE","effectiveIntent":{"raw":"no monitoring this time","type":"NO_MONITOR","prohibitedSet":"","allowedSet":null,"evaluationScope":"not_monitored","aggregatePagePolicy":"not_applicable","decisionRule":"Do not analyze, time, or intervene for this session intent."}}]}
             """.trimIndent()
         }
     }
@@ -127,6 +127,7 @@ Output: {"constraints":[{"type":"NO_MONITOR","description":"no monitoring this t
                         val timeScope = obj.get("timeScope")?.asString
                         val intervention = obj.get("intervention")?.asString
                         println("    - [$type] $desc ${if (time != null) "($time 分钟, $timeScope)" else ""} [干预: $intervention]")
+                        printEffectiveIntent(obj, "      ")
                     }
                 }
             } catch (e: Exception) {
@@ -177,6 +178,7 @@ Output: {"constraints":[{"type":"NO_MONITOR","description":"no monitoring this t
                             val timeScope = obj.get("timeScope")?.asString
                             val intervention = obj.get("intervention")?.asString
                             println("  → [$type] $desc ${if (time != null) "(${time}分钟, $timeScope)" else ""} [$intervention]")
+                            printEffectiveIntent(obj, "     ")
                         }
                     } else {
                         println("  → 无约束")
@@ -284,11 +286,27 @@ Output: {"constraints":[{"type":"NO_MONITOR","description":"no monitoring this t
       "description": "规则描述",
       "timeLimitMinutes": null或数字,
       "timeScope": "SESSION|PER_CONTENT|CONTINUOUS",
-      "intervention": "GENTLE|MODERATE|STRICT"
+      "intervention": "GENTLE|MODERATE|STRICT",
+      "effectiveIntent": {
+        "raw": "与 description 完全一致的用户可见规则",
+        "type": "DENY|TIME_CAP|NO_MONITOR",
+        "prohibitedSet": "会触发干预或计入范围的功能、内容类型、主题或行为",
+        "allowedSet": "允许的功能、内容类型、主题或行为；没有则为 null",
+        "evaluationScope": "single_content_only|aggregate_container|feature_or_behavior|session|not_monitored|...",
+        "aggregatePagePolicy": "candidate_exposure_is_safe|aggregate_container_can_violate|follow_constraint_target|not_applicable",
+        "decisionRule": "给屏幕分析器使用的简短操作规则"
+      }
     }
   ],
   "unsupportedMode": null或"DAILY_TOTAL"
 }
+
+effectiveIntent 是内部语义表示，用户不会看到：
+- 不要用它改写 description；description 仍是唯一用户可见规则。
+- 如果 DENY 约束禁止的是候选内容/主题/内容类型，聚合页/推荐页/列表页只曝光候选卡片时 aggregatePagePolicy 应为 candidate_exposure_is_safe；只有进入单个详情、播放、文章、商品等内容页并明确落入 prohibitedSet 时才违反。
+- 如果 DENY 约束禁止的是聚合容器、推荐列表、信息流、某个功能模块本身，aggregatePagePolicy 应为 aggregate_container_can_violate。
+- 如果 DENY 是“只允许 X / 除 X 外都不看”的补集语义，allowedSet 写 X，decisionRule 必须保守：不能仅因缺少 X 的证据就判定违反。
+- TIME_CAP 只表达 in_scope/out_of_scope 计时范围，不表达 violates/safe。
 
 示例：
 $examples
@@ -310,6 +328,31 @@ $examples
 
         val result = generation.call(param)
         result.output.choices[0].message.content
+    }
+
+    private fun printEffectiveIntent(constraintObject: com.google.gson.JsonObject, indent: String) {
+        val effective = constraintObject.getAsJsonObject("effectiveIntent")
+            ?: constraintObject.getAsJsonObject("effective_intent")
+            ?: run {
+                println("${indent}effectiveIntent: <missing>")
+                return
+            }
+        val prohibitedSet = effective.get("prohibitedSet")?.takeIf { !it.isJsonNull }?.asString
+            ?: effective.get("prohibited_set")?.takeIf { !it.isJsonNull }?.asString
+        val allowedSet = effective.get("allowedSet")?.takeIf { !it.isJsonNull }?.asString
+            ?: effective.get("allowed_set")?.takeIf { !it.isJsonNull }?.asString
+        val evaluationScope = effective.get("evaluationScope")?.takeIf { !it.isJsonNull }?.asString
+            ?: effective.get("evaluation_scope")?.takeIf { !it.isJsonNull }?.asString
+        val aggregatePolicy = effective.get("aggregatePagePolicy")?.takeIf { !it.isJsonNull }?.asString
+            ?: effective.get("aggregate_page_policy")?.takeIf { !it.isJsonNull }?.asString
+        val decisionRule = effective.get("decisionRule")?.takeIf { !it.isJsonNull }?.asString
+            ?: effective.get("decision_rule")?.takeIf { !it.isJsonNull }?.asString
+        println("${indent}effectiveIntent:")
+        println("${indent}  prohibitedSet: $prohibitedSet")
+        println("${indent}  allowedSet: ${allowedSet ?: "null"}")
+        println("${indent}  evaluationScope: $evaluationScope")
+        println("${indent}  aggregatePagePolicy: $aggregatePolicy")
+        println("${indent}  decisionRule: $decisionRule")
     }
 
     data class TestResult(

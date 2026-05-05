@@ -11,6 +11,7 @@ import com.seenot.app.R
 import com.seenot.app.ai.feedback.FalsePositiveRuleGenerator
 import com.seenot.app.ai.feedback.GeneratedFalsePositiveRuleResult
 import com.seenot.app.ai.feedback.FalsePositiveRulePreview
+import com.seenot.app.ai.parser.EffectiveIntentMigrator
 import com.seenot.app.ai.screen.ScreenAnalyzer
 import com.seenot.app.config.ApiConfig
 import com.seenot.app.config.AppLocalePrefs
@@ -21,6 +22,7 @@ import com.seenot.app.data.local.entity.IntentConstraintEntity
 import com.seenot.app.data.local.entity.SessionEntity
 import com.seenot.app.data.model.AppHintScopeType
 import com.seenot.app.data.model.ConstraintType
+import com.seenot.app.data.model.EffectiveIntent
 import com.seenot.app.data.model.InterventionLevel
 import com.seenot.app.data.model.RuleRecord
 import com.seenot.app.data.model.TimeScope
@@ -57,7 +59,10 @@ enum class AppEntryIntentMode {
  * - Coordinate ScreenAnalyzer for AI vision
  * - Handle intent stacking and modification
  */
-class SessionManager(private val context: Context) {
+class SessionManager(
+    private val context: Context,
+    private val effectiveIntentMigrator: EffectiveIntentMigrator = EffectiveIntentMigrator({ context })
+) {
 
     companion object {
         private const val TAG = "SessionManager"
@@ -585,7 +590,10 @@ class SessionManager(private val context: Context) {
             totalTimeLimitMs = null
         )
 
-        val effectiveConstraints = InterventionLevelPrefs.applyToConstraints(context, constraints)
+        val effectiveConstraints = prepareConstraintsForUse(
+            packageName = packageName,
+            constraints = InterventionLevelPrefs.applyToConstraints(context, constraints)
+        )
 
         val activeSession = ActiveSession(
             sessionId = sessionId,
@@ -1530,6 +1538,79 @@ class SessionManager(private val context: Context) {
         )
     }
 
+    private suspend fun prepareConstraintsForUse(
+        packageName: String,
+        constraints: List<SessionConstraint>
+    ): List<SessionConstraint> {
+        if (constraints.isEmpty()) return constraints
+
+        var migratedAny = false
+        val prepared = constraints.map { constraint ->
+            if (constraint.effectiveIntent != null) {
+                constraint
+            } else {
+                migratedAny = true
+                constraint.copy(
+                    effectiveIntent = effectiveIntentMigrator.migrate(
+                        type = constraint.type,
+                        description = constraint.description,
+                        timeLimitMs = constraint.timeLimitMs,
+                        timeScope = constraint.timeScope
+                    )
+                )
+            }
+        }
+
+        if (migratedAny) {
+            cacheMigratedStoredConstraints(packageName, prepared)
+        }
+
+        return prepared
+    }
+
+    private fun cacheMigratedStoredConstraints(
+        packageName: String,
+        migratedConstraints: List<SessionConstraint>
+    ) {
+        cacheMigratedPresetRules(packageName, migratedConstraints)
+        cacheMigratedIntentHistory(packageName, migratedConstraints)
+    }
+
+    private fun cacheMigratedPresetRules(packageName: String, migratedConstraints: List<SessionConstraint>) {
+        val rules = loadPresetRules(packageName)
+        if (rules.isEmpty()) return
+        val updatedRules = mergeMigratedConstraintsIntoFlatList(rules, migratedConstraints)
+        if (updatedRules != rules) {
+            savePresetRules(packageName, updatedRules)
+        }
+    }
+
+    private fun cacheMigratedIntentHistory(packageName: String, migratedConstraints: List<SessionConstraint>) {
+        val history = loadIntentHistory(packageName)
+        if (history.isEmpty()) return
+        val updatedHistory = history.map { entry ->
+            mergeMigratedConstraintsIntoFlatList(entry, migratedConstraints)
+        }
+        if (updatedHistory != history) {
+            saveIntentHistory(packageName, updatedHistory)
+        }
+    }
+
+    private fun mergeMigratedConstraintsIntoFlatList(
+        stored: List<SessionConstraint>,
+        migrated: List<SessionConstraint>
+    ): List<SessionConstraint> {
+        val migratedByName = migrated.associateBy { constraintNameKey(it) }
+        return stored.map { constraint ->
+            val match = migratedByName[constraintNameKey(constraint)]
+            if (match?.effectiveIntent != null && constraint.effectiveIntent == null) {
+                constraint.copy(effectiveIntent = match.effectiveIntent)
+            } else {
+                constraint
+            }
+        }
+    }
+
     private fun buildFalsePositiveFeedbackResult(
         record: RuleRecord,
         generated: GeneratedFalsePositiveRuleResult,
@@ -1674,7 +1755,10 @@ class SessionManager(private val context: Context) {
         val session = _activeSession.value ?: return
 
         // Merge with existing constraints
-        val merged = mergeConstraints(session.constraints, newConstraints)
+        val preparedNewConstraints = prepareConstraintsForUse(session.appPackageName, newConstraints)
+
+        // Merge with existing constraints
+        val merged = mergeConstraints(session.constraints, preparedNewConstraints)
 
         // Update constraint time tracking
         val updatedTimeRemaining = session.constraintTimeRemaining.toMutableMap()
@@ -1708,6 +1792,7 @@ class SessionManager(private val context: Context) {
         allowPositionFallback: Boolean = false
     ) {
         if (originalConstraints.isEmpty()) return
+        val preparedUpdatedConstraints = prepareConstraintsForUse(packageName, updatedConstraints)
 
         var updatedSession: ActiveSession? = null
 
@@ -1716,7 +1801,7 @@ class SessionManager(private val context: Context) {
             val syncedConstraints = applyConstraintEdits(
                 current = active.constraints,
                 original = originalConstraints,
-                updated = updatedConstraints,
+                updated = preparedUpdatedConstraints,
                 allowPositionFallback = allowPositionFallback
             )
             if (syncedConstraints == active.constraints) return
@@ -1745,7 +1830,7 @@ class SessionManager(private val context: Context) {
             val syncedConstraints = applyConstraintEdits(
                 current = session.constraints,
                 original = originalConstraints,
-                updated = updatedConstraints,
+                updated = preparedUpdatedConstraints,
                 allowPositionFallback = allowPositionFallback
             )
             if (syncedConstraints == session.constraints) {
@@ -2251,7 +2336,8 @@ class SessionManager(private val context: Context) {
                 "timeLimitMs" to constraint.timeLimitMs,
                 "timeScope" to (constraint.timeScope?.name ?: "SESSION"),
                 "interventionLevel" to constraint.interventionLevel.name,
-                "isActive" to constraint.isActive
+                "isActive" to constraint.isActive,
+                "effectiveIntent" to effectiveIntentToMap(constraint.effectiveIntent)
             )
         }
         history.add(0, newEntry)
@@ -2276,7 +2362,8 @@ class SessionManager(private val context: Context) {
                 "timeScope" to (constraint.timeScope?.name ?: "SESSION"),
                 "interventionLevel" to constraint.interventionLevel.name,
                 "isActive" to constraint.isActive,
-                "isDefault" to constraint.isDefault
+                "isDefault" to constraint.isDefault,
+                "effectiveIntent" to effectiveIntentToMap(constraint.effectiveIntent)
             )
         })
         prefs.edit().putString("${KEY_PRESET_RULES_PREFIX}$packageName", json).apply()
@@ -2308,7 +2395,8 @@ class SessionManager(private val context: Context) {
                             timeScope = try { TimeScope.valueOf(rawTimeScope ?: "SESSION") } catch (e: Exception) { TimeScope.SESSION },
                             interventionLevel = try { InterventionLevel.valueOf(item["interventionLevel"] as? String ?: "MODERATE") } catch (e: Exception) { InterventionLevel.MODERATE },
                             isActive = item["isActive"] as? Boolean ?: true,
-                            isDefault = item["isDefault"] as? Boolean ?: false
+                            isDefault = item["isDefault"] as? Boolean ?: false,
+                            effectiveIntent = effectiveIntentFromAny(item["effectiveIntent"])
                         )
                     } catch (e: Exception) {
                         Logger.e(TAG, "Failed to parse preset rule", e)
@@ -2369,7 +2457,8 @@ class SessionManager(private val context: Context) {
                     "timeScope" to (constraint.timeScope?.name ?: "SESSION"),
                     "interventionLevel" to constraint.interventionLevel.name,
                     "isActive" to constraint.isActive,
-                    "isDefault" to constraint.isDefault
+                    "isDefault" to constraint.isDefault,
+                    "effectiveIntent" to effectiveIntentToMap(constraint.effectiveIntent)
                 )
             }
         })
@@ -2411,6 +2500,45 @@ class SessionManager(private val context: Context) {
         return isNotEmpty() && all { it.type == ConstraintType.NO_MONITOR }
     }
 
+    private fun effectiveIntentToMap(effectiveIntent: EffectiveIntent?): Map<String, Any?>? {
+        if (effectiveIntent == null) return null
+        return mapOf(
+            "raw" to effectiveIntent.raw,
+            "type" to effectiveIntent.type.name,
+            "prohibitedSet" to effectiveIntent.prohibitedSet,
+            "allowedSet" to effectiveIntent.allowedSet,
+            "evaluationScope" to effectiveIntent.evaluationScope,
+            "aggregatePagePolicy" to effectiveIntent.aggregatePagePolicy,
+            "decisionRule" to effectiveIntent.decisionRule
+        )
+    }
+
+    private fun effectiveIntentFromAny(value: Any?): EffectiveIntent? {
+        val map = value as? Map<*, *> ?: return null
+        val type = (map["type"] as? String)
+            ?.let { runCatching { ConstraintType.valueOf(it.uppercase()) }.getOrNull() }
+            ?: return null
+        val raw = map["raw"] as? String ?: return null
+        val prohibitedSet = map["prohibitedSet"] as? String
+            ?: map["prohibited_set"] as? String
+            ?: return null
+        return EffectiveIntent(
+            raw = raw,
+            type = type,
+            prohibitedSet = prohibitedSet,
+            allowedSet = map["allowedSet"] as? String ?: map["allowed_set"] as? String,
+            evaluationScope = map["evaluationScope"] as? String
+                ?: map["evaluation_scope"] as? String
+                ?: "",
+            aggregatePagePolicy = map["aggregatePagePolicy"] as? String
+                ?: map["aggregate_page_policy"] as? String
+                ?: "",
+            decisionRule = map["decisionRule"] as? String
+                ?: map["decision_rule"] as? String
+                ?: ""
+        )
+    }
+
     private fun constraintNameKey(constraint: SessionConstraint): String {
         return listOf(
             constraint.type.name,
@@ -2445,7 +2573,8 @@ class SessionManager(private val context: Context) {
                 "timeLimitMs" to constraint.timeLimitMs,
                 "timeScope" to (constraint.timeScope?.name ?: "SESSION"),
                 "interventionLevel" to constraint.interventionLevel.name,
-                "isActive" to constraint.isActive
+                "isActive" to constraint.isActive,
+                "effectiveIntent" to effectiveIntentToMap(constraint.effectiveIntent)
             )
         })
     }
@@ -2478,7 +2607,8 @@ class SessionManager(private val context: Context) {
                         timeScope = try { TimeScope.valueOf(rawTimeScope ?: "SESSION") } catch (e: Exception) { TimeScope.SESSION },
                         interventionLevel = try { InterventionLevel.valueOf(item["interventionLevel"] as? String ?: "MODERATE") } catch (e: Exception) { InterventionLevel.MODERATE },
                         isActive = item["isActive"] as? Boolean ?: true,
-                        isDefault = item["isDefault"] as? Boolean ?: false
+                        isDefault = item["isDefault"] as? Boolean ?: false,
+                        effectiveIntent = effectiveIntentFromAny(item["effectiveIntent"])
                     )
                 } catch (e: Exception) {
                     Logger.e(TAG, "Failed to parse constraint", e)
@@ -2611,7 +2741,8 @@ data class SessionConstraint(
     val timeScope: TimeScope? = null,
     val interventionLevel: InterventionLevel = InterventionLevel.MODERATE,
     val isActive: Boolean = true,
-    val isDefault: Boolean = false
+    val isDefault: Boolean = false,
+    val effectiveIntent: EffectiveIntent? = null
 )
 
 private fun SessionConstraint.toEntity(sessionId: Long): IntentConstraintEntity {
@@ -2623,6 +2754,7 @@ private fun SessionConstraint.toEntity(sessionId: Long): IntentConstraintEntity 
         timeLimitMs = timeLimitMs,
         timeScope = timeScope,
         interventionLevel = interventionLevel,
+        effectiveIntentJson = effectiveIntent?.let { Gson().toJson(it) },
         isActive = isActive
     )
 }
@@ -2635,7 +2767,10 @@ private fun IntentConstraintEntity.toSessionConstraint(): SessionConstraint {
         timeLimitMs = timeLimitMs,
         timeScope = timeScope,
         interventionLevel = interventionLevel,
-        isActive = isActive
+        isActive = isActive,
+        effectiveIntent = effectiveIntentJson?.let { json ->
+            runCatching { Gson().fromJson(json, EffectiveIntent::class.java) }.getOrNull()
+        }
     )
 }
 

@@ -113,7 +113,8 @@ class SessionRepository(
         contentPattern: String?,
         timeLimitMs: Long?,
         timeScope: TimeScope?,
-        interventionLevel: InterventionLevel
+        interventionLevel: InterventionLevel,
+        effectiveIntentJson: String? = null
     ): Long {
         val constraint = IntentConstraintEntity(
             sessionId = sessionId,
@@ -122,7 +123,8 @@ class SessionRepository(
             contentPattern = contentPattern,
             timeLimitMs = timeLimitMs,
             timeScope = timeScope,
-            interventionLevel = interventionLevel
+            interventionLevel = interventionLevel,
+            effectiveIntentJson = effectiveIntentJson
         )
         return intentConstraintDao.insert(constraint)
     }

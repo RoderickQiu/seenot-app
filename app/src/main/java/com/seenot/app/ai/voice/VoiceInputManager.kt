@@ -296,14 +296,15 @@ class VoiceInputManager(private val context: Context) {
         return InterventionLevelPrefs.applyToConstraint(
             context = context,
             constraint = SessionConstraint(
-            id = id,
-            type = type,
-            description = description,
-            timeLimitMs = timeLimit?.let { it.durationMinutes * 60 * 1000L },
-            timeScope = timeLimit?.scope ?: TimeScope.SESSION,
-            interventionLevel = intervention,
-            isActive = true
-        )
+                id = id,
+                type = type,
+                description = description,
+                timeLimitMs = timeLimit?.let { it.durationMinutes * 60 * 1000L },
+                timeScope = timeLimit?.scope ?: TimeScope.SESSION,
+                interventionLevel = intervention,
+                isActive = true,
+                effectiveIntent = effectiveIntent
+            )
         )
     }
 

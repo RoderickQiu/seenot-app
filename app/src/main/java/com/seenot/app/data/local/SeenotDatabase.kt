@@ -31,7 +31,7 @@ import com.seenot.app.data.local.entity.SessionIntentEntity
         RuleRecordEntity::class,
         AppHintEntity::class
     ],
-    version = 7,
+    version = 8,
     exportSchema = false
 )
 abstract class SeenotDatabase : RoomDatabase() {
@@ -60,6 +60,12 @@ abstract class SeenotDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_7_8 = object : Migration(7, 8) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE intent_constraints ADD COLUMN effectiveIntentJson TEXT")
+            }
+        }
+
         @Volatile
         private var INSTANCE: SeenotDatabase? = null
 
@@ -70,7 +76,7 @@ abstract class SeenotDatabase : RoomDatabase() {
                     SeenotDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7)
+                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
                     .build()
                 INSTANCE = instance
                 instance

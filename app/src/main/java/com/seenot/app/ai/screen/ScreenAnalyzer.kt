@@ -1258,10 +1258,25 @@ class ScreenAnalyzer(
         return "$base。$hintText"
     }
 
+    private fun buildEffectiveIntentText(constraint: SessionConstraint): String {
+        val effective = constraint.effectiveIntent ?: return ""
+        return buildString {
+            appendLine("   effective_intent（内部语义，优先于对规则字面的猜测）：")
+            appendLine("   - raw: ${effective.raw}")
+            appendLine("   - type: ${effective.type.name}")
+            appendLine("   - prohibited_set: ${effective.prohibitedSet}")
+            appendLine("   - allowed_set: ${effective.allowedSet ?: "null"}")
+            appendLine("   - evaluation_scope: ${effective.evaluationScope}")
+            appendLine("   - aggregate_page_policy: ${effective.aggregatePagePolicy}")
+            append("   - decision_rule: ${effective.decisionRule}")
+        }
+    }
+
     /**
      * Build analysis prompt with constraints
      */
-    private fun buildAnalysisPrompt(
+    @Suppress("MemberVisibilityCanBePrivate")
+    internal fun buildAnalysisPrompt(
         constraints: List<SessionConstraint>,
         appName: String = "",
         packageName: String = "",
@@ -1296,7 +1311,14 @@ class ScreenAnalyzer(
                 baseDescription = constraint.description,
                 hints = appGeneralHints + constraintHints[constraint.id].orEmpty()
             )
-            "${index + 1}. [$typeLabel] $effectiveDescription"
+            buildString {
+                append("${index + 1}. [$typeLabel] $effectiveDescription")
+                val effectiveIntentText = buildEffectiveIntentText(constraint)
+                if (effectiveIntentText.isNotBlank()) {
+                    appendLine()
+                    append(effectiveIntentText)
+                }
+            }
         }.joinToString("\n")
 
         // Build type-specific rules
@@ -1304,14 +1326,19 @@ class ScreenAnalyzer(
             if (denyAllowConstraints.isNotEmpty()) {
                 appendLine("3. **违规判断规则（针对 [禁止] 约束）：**")
                 appendLine("   - [禁止] 约束：用户在被禁止的功能 → violates")
+                appendLine("   - [禁止] 约束的目标可能是功能模块、内容类型、内容主题、聚合容器或用户行为；必须先按 effective_intent 判断约束到底禁止哪一种对象")
                 appendLine("     例：[禁止] QQ空间 → 只有在QQ空间才违规，QQ群聊不违规")
                 appendLine("   - **多条件约束（OR逻辑）**：如果约束描述包含多个条件（如\"朋友圈和视频号\"），判断屏幕是否包含**任一**条件")
                 appendLine("     例：[禁止] 朋友圈和视频号 → 在朋友圈违规，在视频号也违规，在聊天界面不违规")
                 appendLine("   - 必须精确匹配功能名称，不要泛化")
                 appendLine("   - **若约束本身是排除式/补集式表达**：必须保守判定。只有看到足够明确的正向语义证据，才能判定当前内容落在被排除集合中")
                 appendLine("   - 不要因为“没看到目标主题”就反推“当前一定属于非目标主题”；缺少目标证据不等于反向成立")
-                appendLine("   - 如果只是首页信息流、发现页卡片、封面、缩略图、短标题或推荐曝光，且语义不足以稳定判断，优先返回 safe，不要猜测")
-                appendLine("   - 必须先识别当前正在消费的具体主题，再判断它是否明显落在被排除集合中；语义模糊时优先 safe")
+                appendLine("   - **聚合页/候选曝光规则**：先判断约束禁止的是“聚合容器本身”还是“候选条目的内容/主题/类型”")
+                appendLine("     - 如果 effective_intent.aggregate_page_policy = aggregate_container_can_violate，且当前屏幕就是被禁止的聚合容器/列表/信息流/推荐面，则可判 violates")
+                appendLine("     - 如果 effective_intent.aggregate_page_policy = candidate_exposure_is_safe，当前只是首页信息流、发现页卡片、封面、缩略图、短标题或推荐曝光，优先返回 safe")
+                appendLine("     - 只有进入单个详情页、播放页、文章页、商品页或明确正在消费某个单项内容时，才判断该单项是否落入 prohibited_set")
+                appendLine("   - 不要把“推荐列表里出现许多候选内容”当作用户正在主动消费这些候选内容；但如果约束明确禁止推荐列表/信息流本身，则按容器规则判断")
+                appendLine("   - 只有确认当前不是候选聚合页、而是在消费单个内容后，才识别当前正在消费的具体主题；语义模糊时优先 safe")
                 if (timeCapConstraints.isNotEmpty()) appendLine()
             }
 
@@ -1373,7 +1400,7 @@ $mediaInfo
    - QQ群聊 ≠ QQ空间（完全不同的功能）
    - 微信群聊 ≠ 微信朋友圈 ≠ 微信公众号
    - 小红书图文 ≠ 小红书短视频
-   - 必须准确识别当前界面属于哪个具体功能
+   - 必须准确识别当前界面属于哪个具体功能；如果约束针对内容主题或内容类型，也要识别当前是否已经进入单个内容消费场景
 
 2. **区分"入口" vs "使用中"**：
    - 看到入口/图标 → 不算使用
@@ -1381,8 +1408,9 @@ $mediaInfo
    - 例外：抖音/快手首页本身就是短视频流，算使用
 
 3. **流量推荐类判断：**
-   - 信息流/推荐列表中出现某内容：不算违规（用户无主动意图，是系统推荐的内容）
-   - 用户主动点击并浏览该内容：才算违规（用户有主动意图，是用户主动选择的内容）
+   - 如果约束禁止的是候选内容/主题/内容类型：信息流/推荐列表中出现某内容不算违规（用户无主动消费意图，是系统候选曝光）
+   - 如果约束禁止的是信息流/推荐列表/聚合容器本身：进入该容器可以算违规
+   - 用户主动点击并浏览某个单项内容后，才按该单项内容主题或类型判断是否违规
 
 $typeSpecificRules
 

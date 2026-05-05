@@ -7,6 +7,7 @@ import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.utils.Logger
 import com.google.gson.JsonParser
 import com.seenot.app.data.model.ConstraintType
+import com.seenot.app.data.model.EffectiveIntent
 import com.seenot.app.data.model.InterventionLevel
 import com.seenot.app.data.model.TimeScope
 import kotlinx.coroutines.Dispatchers
@@ -16,6 +17,7 @@ import java.util.UUID
 class IntentParser(private val contextRef: () -> Context) {
     companion object { private const val TAG = "IntentParser" }
     private val llmClient = OpenAiCompatibleClient()
+    private val effectiveIntentMigrator = EffectiveIntentMigrator(contextRef, llmClient)
     private class IntentParseFormatException(message: String, cause: Throwable? = null) : Exception(message, cause)
 
     private fun buildLanguageAwareExamples(languageCode: String): String {
@@ -133,11 +135,27 @@ Output: {"constraints":[{"type":"NO_MONITOR","description":"no monitoring this t
       "description": "规则描述",
       "timeLimitMinutes": null或数字,
       "timeScope": "SESSION|PER_CONTENT|CONTINUOUS",
-      "intervention": "GENTLE|MODERATE|STRICT"
+      "intervention": "GENTLE|MODERATE|STRICT",
+      "effectiveIntent": {
+        "raw": "与 description 完全一致的用户可见规则",
+        "type": "DENY|TIME_CAP|NO_MONITOR",
+        "prohibitedSet": "会触发干预或计入范围的功能、内容类型、主题或行为",
+        "allowedSet": "允许的功能、内容类型、主题或行为；没有则为 null",
+        "evaluationScope": "single_content_only|aggregate_container|feature_or_behavior|session|not_monitored|...",
+        "aggregatePagePolicy": "candidate_exposure_is_safe|aggregate_container_can_violate|follow_constraint_target|not_applicable",
+        "decisionRule": "给屏幕分析器使用的简短操作规则"
+      }
     }
   ],
   "unsupportedMode": null或"DAILY_TOTAL"
 }
+
+effectiveIntent 是内部语义表示，用户不会看到：
+- 不要用它改写 description；description 仍是唯一用户可见规则。
+- 如果 DENY 约束禁止的是候选内容/主题/内容类型，聚合页/推荐页/列表页只曝光候选卡片时 aggregatePagePolicy 应为 candidate_exposure_is_safe；只有进入单个详情、播放、文章、商品等内容页并明确落入 prohibitedSet 时才违反。
+- 如果 DENY 约束禁止的是聚合容器、推荐列表、信息流、某个功能模块本身，aggregatePagePolicy 应为 aggregate_container_can_violate。
+- 如果 DENY 是“只允许 X / 除 X 外都不看”的补集语义，allowedSet 写 X，decisionRule 必须保守：不能仅因缺少 X 的证据就判定违反。
+- TIME_CAP 只表达 in_scope/out_of_scope 计时范围，不表达 violates/safe。
 
 示例：
 $examples
@@ -167,7 +185,13 @@ $examples
                             timeLimit = it.timeLimitMinutes?.let { mins ->
                                 TimeLimitData(mins, it.timeScope ?: TimeScope.SESSION)
                             },
-                            intervention = it.intervention
+                            intervention = it.intervention,
+                            effectiveIntent = it.effectiveIntent
+                                ?: effectiveIntentMigrator.buildFallback(
+                                    type = it.type,
+                                    description = it.description,
+                                    timeScope = it.timeScope
+                                )
                         )
                     },
                     rawUtterance = utterance,
@@ -190,7 +214,8 @@ $examples
         val description: String,
         val timeLimitMinutes: Int?,
         val timeScope: TimeScope?,
-        val intervention: InterventionLevel
+        val intervention: InterventionLevel,
+        val effectiveIntent: EffectiveIntent?
     )
 
     private data class ParsePayload(
@@ -241,7 +266,8 @@ $examples
                         description = c.get("description")?.asString ?: "",
                         timeLimitMinutes = c.get("timeLimitMinutes")?.takeIf { !it.isJsonNull }?.asInt,
                         timeScope = timeScope,
-                        intervention = intervention
+                        intervention = intervention,
+                        effectiveIntent = parseEffectiveIntent(c, type, c.get("description")?.asString ?: "", timeScope)
                     )
                 )
             }
@@ -253,6 +279,60 @@ $examples
             Logger.w(TAG, "Failed to parse constraints from JSON", e)
             throw IntentParseFormatException("Invalid parser JSON", e)
         }
+    }
+
+    private fun parseEffectiveIntent(
+        constraintObject: com.google.gson.JsonObject,
+        fallbackType: ConstraintType,
+        fallbackDescription: String,
+        fallbackTimeScope: TimeScope
+    ): EffectiveIntent? {
+        val obj = constraintObject.getObject("effectiveIntent")
+            ?: constraintObject.getObject("effective_intent")
+            ?: return null
+        return runCatching {
+            val type = obj.getString("type")
+                ?.let { runCatching { ConstraintType.valueOf(it.uppercase()) }.getOrNull() }
+                ?: fallbackType
+            EffectiveIntent(
+                raw = obj.getString("raw") ?: fallbackDescription,
+                type = type,
+                prohibitedSet = obj.getString("prohibitedSet")
+                    ?: obj.getString("prohibited_set")
+                    ?: fallbackDescription,
+                allowedSet = obj.getNullableString("allowedSet")
+                    ?: obj.getNullableString("allowed_set"),
+                evaluationScope = obj.getString("evaluationScope")
+                    ?: obj.getString("evaluation_scope")
+                    ?: fallbackTimeScope.name,
+                aggregatePagePolicy = obj.getString("aggregatePagePolicy")
+                    ?: obj.getString("aggregate_page_policy")
+                    ?: "follow_constraint_target",
+                decisionRule = obj.getString("decisionRule")
+                    ?: obj.getString("decision_rule")
+                    ?: "Follow the effective intent when judging the current screen."
+            )
+        }.onFailure { e ->
+            Logger.w(TAG, "Failed to parse effectiveIntent from parser output: ${e.message}")
+        }.getOrNull()
+    }
+
+    private fun com.google.gson.JsonObject.getObject(name: String): com.google.gson.JsonObject? {
+        val value = get(name) ?: return null
+        if (!value.isJsonObject) return null
+        return value.asJsonObject
+    }
+
+    private fun com.google.gson.JsonObject.getString(name: String): String? {
+        val value = get(name) ?: return null
+        if (value.isJsonNull) return null
+        return value.asString.trim().takeIf { it.isNotBlank() }
+    }
+
+    private fun com.google.gson.JsonObject.getNullableString(name: String): String? {
+        val value = get(name) ?: return null
+        if (value.isJsonNull) return null
+        return value.asString.trim().takeIf { it.isNotBlank() }
     }
 
     private fun extractJsonObject(response: String): String {
@@ -294,6 +374,13 @@ sealed class ParsedIntentResult {
     data class Error(val message: String) : ParsedIntentResult()
 }
 
-data class ParsedConstraint(val id: String, val type: ConstraintType, val description: String, val timeLimit: TimeLimitData?, val intervention: InterventionLevel)
+data class ParsedConstraint(
+    val id: String,
+    val type: ConstraintType,
+    val description: String,
+    val timeLimit: TimeLimitData?,
+    val intervention: InterventionLevel,
+    val effectiveIntent: EffectiveIntent? = null
+)
 data class TimeLimitData(val durationMinutes: Int, val scope: TimeScope)
 enum class UtteranceSource { VOICE, TEXT }
