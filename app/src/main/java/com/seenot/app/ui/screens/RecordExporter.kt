@@ -192,7 +192,7 @@ class RecordExporter(private val context: Context) {
             "denyViolationRecords" to denyRecords.count { !it.isConditionMatched },
             "timeCapInScopeRecords" to timeCapRecords.count { it.isConditionMatched },
             "timeCapOutOfScopeRecords" to timeCapRecords.count { !it.isConditionMatched },
-            "recordsWithMediaContext" to records.count { it.mediaContext != null },
+            "recordsWithMediaContext" to records.count { it.mediaContext?.hasUsableMetadata() == true },
             "uniqueApps" to apps.size,
             "appList" to apps,
             "dateRange" to dateRange,

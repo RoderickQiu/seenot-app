@@ -83,7 +83,11 @@ object MediaSessionProbe {
         }
     }
 
-    fun formatSummary(foregroundPackage: String?, result: Result): String {
+    fun formatSummary(
+        foregroundPackage: String?,
+        result: Result,
+        includeMetadata: Boolean = false
+    ): String {
         val foreground = foregroundPackage?.takeIf { it.isNotBlank() } ?: "<unknown>"
         val detail = when (result) {
             Result.PermissionMissing -> "notification listener access is not enabled"
@@ -98,10 +102,12 @@ object MediaSessionProbe {
                             append(" | #${index + 1} ")
                             append("package=${session.packageName}")
                             append(", state=${session.playbackState.orNullLabel()}")
-                            append(", title=${session.title.orNullLabel()}")
-                            append(", artist=${session.artist.orNullLabel()}")
-                            append(", album=${session.album.orNullLabel()}")
                             append(", durationMs=${session.durationMs?.toString() ?: "<null>"}")
+                            if (includeMetadata) {
+                                append(", title=${session.title.orNullLabel()}")
+                                append(", artist=${session.artist.orNullLabel()}")
+                                append(", album=${session.album.orNullLabel()}")
+                            }
                         }
                     }
                 }

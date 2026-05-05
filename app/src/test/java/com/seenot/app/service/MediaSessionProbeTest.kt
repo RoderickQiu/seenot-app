@@ -36,7 +36,7 @@ class MediaSessionProbeTest {
         assertEquals(
             "MediaSession probe for foreground=tv.danmaku.bili: " +
                 "activeSessions=1 | #1 package=tv.danmaku.bili, state=STATE_PLAYING, " +
-                "title=Video title, artist=Uploader, album=<null>, durationMs=123000",
+                "durationMs=123000",
             summary
         )
     }

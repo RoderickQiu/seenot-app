@@ -471,15 +471,17 @@ class SeenotAccessibilityService : AccessibilityService() {
     }
 
     private fun logMediaSessionProbe(packageName: String, now: Long) {
+        if (now - lastMediaSessionProbeLogAt < MEDIA_SESSION_PROBE_LOG_INTERVAL_MS) {
+            return
+        }
         val result = MediaSessionProbe.inspect(this)
         val signature = MediaSessionProbe.signature(result)
         val changed = signature != lastMediaSessionProbeSignature
-        if (!changed && now - lastMediaSessionProbeLogAt < MEDIA_SESSION_PROBE_LOG_INTERVAL_MS) {
-            return
-        }
         lastMediaSessionProbeSignature = signature
-        Logger.d(TAG, MediaSessionProbe.formatSummary(packageName, result))
         lastMediaSessionProbeLogAt = now
+        if (changed) {
+            Logger.d(TAG, MediaSessionProbe.formatSummary(packageName, result, includeMetadata = false))
+        }
     }
 
     private fun maybeRecoverPausedSessionFromEvent(

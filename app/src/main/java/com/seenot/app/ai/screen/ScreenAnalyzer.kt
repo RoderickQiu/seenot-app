@@ -387,7 +387,7 @@ class ScreenAnalyzer(
                 payload = mapOf(
                     "analysis_id" to analysisId,
                     "constraint_ids" to constraints.map { it.id },
-                    "media_context" to currentMediaContext.toRuntimePayload()
+                    "media_context" to currentMediaContext.toRuntimePayload(includeMetadata = false)
                 ),
                 timestamp = totalStart
             )
@@ -550,7 +550,7 @@ class ScreenAnalyzer(
                                 "confidence" to match.confidence,
                                 "reason_text" to match.reason,
                                 "is_in_scope" to match.isInScope,
-                                "media_context" to currentMediaContext.toRuntimePayload()
+                                "media_context" to currentMediaContext.toRuntimePayload(includeMetadata = true)
                             )
                         )
 
@@ -583,7 +583,7 @@ class ScreenAnalyzer(
                     "is_violation" to violations.isNotEmpty(),
                     "highest_confidence" to violations.maxOfOrNull { it.confidence },
                     "violated_constraint_ids" to violations.map { it.constraint.id },
-                    "media_context" to currentMediaContext.toRuntimePayload()
+                    "media_context" to currentMediaContext.toRuntimePayload(includeMetadata = true)
                 )
             )
 
@@ -989,7 +989,7 @@ class ScreenAnalyzer(
             mediaContext = mediaContext
         )
         Logger.d(TAG, "[AI] Prompt length: ${prompt.length} chars")
-        Logger.d(TAG, "[AI] Media context: ${mediaContext.toLogSummary()}")
+        Logger.d(TAG, "[AI] Media context: ${mediaContext.toLogSummary(includeMetadata = false)}")
 
         try {
             if (!ApiConfig.isConfigured()) {
@@ -1455,22 +1455,30 @@ ${fieldLines.joinToString("\n")}
         """.trimIndent()
     }
 
-    private fun MediaContentContext.toRuntimePayload(): Map<String, Any?> {
-        return mapOf(
+    private fun MediaContentContext.toRuntimePayload(includeMetadata: Boolean): Map<String, Any?> {
+        val basePayload = mapOf(
             "status" to status.name,
             "package_name" to packageName,
             "playback_state" to playbackState,
+            "duration_ms" to durationMs
+        )
+        if (!includeMetadata) {
+            return basePayload
+        }
+        return basePayload + mapOf(
             "title" to title,
             "artist" to artist,
-            "album" to album,
-            "duration_ms" to durationMs
+            "album" to album
         )
     }
 
-    private fun MediaContentContext.toLogSummary(): String {
-        return "status=${status.name}, package=${packageName.orNullLabel()}, " +
-            "state=${playbackState.orNullLabel()}, title=${title.orNullLabel()}, " +
-            "artist=${artist.orNullLabel()}"
+    private fun MediaContentContext.toLogSummary(includeMetadata: Boolean): String {
+        val baseSummary = "status=${status.name}, package=${packageName.orNullLabel()}, " +
+            "state=${playbackState.orNullLabel()}, durationMs=${durationMs?.toString() ?: "<null>"}"
+        if (!includeMetadata) {
+            return baseSummary
+        }
+        return "$baseSummary, title=${title.orNullLabel()}, artist=${artist.orNullLabel()}"
     }
 
     private fun String?.orNullLabel(): String = this?.takeIf { it.isNotBlank() } ?: "<null>"
