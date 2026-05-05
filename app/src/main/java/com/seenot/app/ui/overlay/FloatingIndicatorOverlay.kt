@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
@@ -885,7 +886,7 @@ class FloatingIndicatorOverlay(
 
     fun isExpandedInternal(): Boolean = state.isExpanded
 
-    fun getOverlayBounds(): android.graphics.Rect? {
+    fun getOverlayBounds(): Rect? {
         val view = indicatorView ?: return null
         val params = indicatorParams ?: return null
 
@@ -901,10 +902,22 @@ class FloatingIndicatorOverlay(
             180.dp()
         }
         val actualHeight = if (height > 0) height else if (state.isExpanded) 220.dp() else 40.dp()
+
+        if (view.isLaidOut) {
+            val location = IntArray(2)
+            view.getLocationOnScreen(location)
+            return Rect(
+                location[0],
+                location[1],
+                location[0] + actualWidth,
+                location[1] + actualHeight
+            )
+        }
+
         val screenWidth = context.resources.displayMetrics.widthPixels
         val left = screenWidth - params.x - actualWidth
 
-        return android.graphics.Rect(
+        return Rect(
             left,
             params.y,
             left + actualWidth,

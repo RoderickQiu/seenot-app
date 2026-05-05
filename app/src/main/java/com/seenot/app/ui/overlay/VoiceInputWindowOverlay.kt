@@ -8,6 +8,7 @@ import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Color
 import android.graphics.PixelFormat
+import android.graphics.Rect
 import android.graphics.drawable.GradientDrawable
 import android.graphics.drawable.StateListDrawable
 import android.os.Handler
@@ -799,42 +800,54 @@ class VoiceInputOverlay(
     /**
      * Get overlay position and size for masking in screenshots
      */
-    fun getOverlayBounds(): android.graphics.Rect? {
+    fun getOverlayBounds(): Rect? {
         val view = overlayView ?: return null
         val layoutParams = params ?: return null
 
         val width = if (view.width > 0) view.width else layoutParams.width
         val height = if (view.height > 0) view.height else layoutParams.height
 
-        val screenWidth = context.resources.displayMetrics.widthPixels
-        val screenHeight = context.resources.displayMetrics.heightPixels
-
-        // Calculate actual left position based on gravity
-        val gravity = layoutParams.gravity and android.view.Gravity.HORIZONTAL_GRAVITY_MASK
-        val left = when (gravity) {
-            android.view.Gravity.END -> screenWidth - layoutParams.x - width
-            android.view.Gravity.CENTER_HORIZONTAL -> (screenWidth - width) / 2 + layoutParams.x
-            else -> layoutParams.x // START or default
-        }
-
         if (width <= 0 || height <= 0) {
             // Estimate based on typical voice input overlay size
             val estimatedWidth = (280 * density).toInt()
             val estimatedHeight = (200 * density).toInt()
-            return android.graphics.Rect(
-                left,
+            val fallbackLeft = fallbackLeft(layoutParams, estimatedWidth)
+            return Rect(
+                fallbackLeft,
                 layoutParams.y,
-                left + estimatedWidth,
+                fallbackLeft + estimatedWidth,
                 layoutParams.y + estimatedHeight
             )
         }
 
-        return android.graphics.Rect(
-            left,
+        if (view.isLaidOut) {
+            val location = IntArray(2)
+            view.getLocationOnScreen(location)
+            return Rect(
+                location[0],
+                location[1],
+                location[0] + width,
+                location[1] + height
+            )
+        }
+
+        val fallbackLeft = fallbackLeft(layoutParams, width)
+        return Rect(
+            fallbackLeft,
             layoutParams.y,
-            left + width,
+            fallbackLeft + width,
             layoutParams.y + height
         )
+    }
+
+    private fun fallbackLeft(layoutParams: WindowManager.LayoutParams, width: Int): Int {
+        val screenWidth = context.resources.displayMetrics.widthPixels
+        val gravity = layoutParams.gravity and Gravity.HORIZONTAL_GRAVITY_MASK
+        return when (gravity) {
+            Gravity.END -> screenWidth - layoutParams.x - width
+            Gravity.CENTER_HORIZONTAL -> (screenWidth - width) / 2 + layoutParams.x
+            else -> layoutParams.x
+        }
     }
 
     companion object {
