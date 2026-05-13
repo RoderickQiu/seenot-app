@@ -2,6 +2,7 @@ package com.seenot.app.ui.overlay
 
 import android.Manifest
 import android.annotation.SuppressLint
+import android.content.ComponentCallbacks
 import android.content.Context
 import android.content.pm.PackageManager
 import android.content.res.Configuration
@@ -97,6 +98,7 @@ class IntentInputDialogOverlay(
     private var windowManager: WindowManager? = null
     private var voiceInputManager: VoiceInputManager? = null
     private var rootView: View? = null
+    private var configurationCallback: ComponentCallbacks? = null
     private var mode = Mode.IDLE
     private var pendingConstraints: List<SessionConstraint>? = null
     private var pendingInputSource = InputSource.NONE
@@ -223,10 +225,6 @@ class IntentInputDialogOverlay(
 
     @SuppressLint("ClickableViewAccessibility", "SetTextI18n")
     private fun renderDialog() {
-        val screenWidth = context.resources.displayMetrics.widthPixels
-        val dialogWidth = (screenWidth * dialogWidthFraction()).toInt()
-        val dialogMaxHeight = (screenHeight * 0.9f).roundToInt()
-
         // Dim background (full screen overlay)
         val dimBg = FrameLayout(context).apply {
             setBackgroundColor(dimColor)
@@ -238,7 +236,7 @@ class IntentInputDialogOverlay(
 
         val card = FrameLayout(context).apply {
             layoutParams = FrameLayout.LayoutParams(
-                dialogWidth,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT
             ).apply {
                 gravity = Gravity.CENTER
@@ -557,14 +555,12 @@ class IntentInputDialogOverlay(
 
         contentScroll.addView(cardContent)
         card.addView(contentScroll)
-        contentScroll.post {
-            val measuredHeight = contentScroll.getChildAt(0)?.measuredHeight ?: 0
-            if (measuredHeight > dialogMaxHeight) {
-                contentScroll.layoutParams = (contentScroll.layoutParams as FrameLayout.LayoutParams).apply {
-                    height = dialogMaxHeight
-                }
-            }
-        }
+        OverlayDialogSizer.apply(context, card, contentScroll, dialogWidthFraction())
+        configurationCallback = OverlayDialogSizer.registerConfigurationCallback(
+            context,
+            card,
+            contentScroll
+        ) { dialogWidthFraction() }
 
         dimBg.addView(card)
         rootView = dimBg
@@ -1089,21 +1085,23 @@ class IntentInputDialogOverlay(
         voiceInputManager?.release()
         voiceInputManager = null
         scope.cancel()
+        OverlayDialogSizer.unregisterConfigurationCallback(context, configurationCallback)
+        configurationCallback = null
         rootView?.let { view ->
             try { windowManager?.removeView(view) } catch (e: Exception) { /* ignore */ }
         }
         rootView = null
     }
 
-    private fun dialogWidthFraction(): Double {
+    private fun dialogWidthFraction(): Float {
         val configuration = context.resources.configuration
         val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
         val isLargeFont = configuration.fontScale >= 1.2f
         return when {
-            isLandscape && isLargeFont -> 0.96
-            isLandscape -> 0.92
-            isLargeFont -> 0.9
-            else -> 0.85
+            isLandscape && isLargeFont -> 0.96f
+            isLandscape -> 0.92f
+            isLargeFont -> 0.9f
+            else -> 0.85f
         }
     }
 

@@ -1,6 +1,7 @@
 package com.seenot.app.ui.overlay
 
 import android.annotation.SuppressLint
+import android.content.ComponentCallbacks
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Color
@@ -24,7 +25,6 @@ import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.domain.FalsePositiveFeedbackResult
 import com.seenot.app.domain.FalsePositiveRulePreviewResult
 import com.seenot.app.utils.Logger
-import kotlin.math.roundToInt
 
 class FalsePositiveRuleReviewOverlay(
     private val context: Context,
@@ -72,6 +72,7 @@ class FalsePositiveRuleReviewOverlay(
 
     private var windowManager: WindowManager? = null
     private var rootView: View? = null
+    private var configurationCallback: ComponentCallbacks? = null
     private var draftInput: EditText? = null
     private var statusText: TextView? = null
     private var progressBar: ProgressBar? = null
@@ -97,11 +98,6 @@ class FalsePositiveRuleReviewOverlay(
     fun show() {
         windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
-        val screenWidth = context.resources.displayMetrics.widthPixels
-        val screenHeight = context.resources.displayMetrics.heightPixels
-        val dialogWidth = (screenWidth * dialogWidthFraction()).toInt()
-        val dialogMaxHeight = (screenHeight * 0.9f).roundToInt()
-
         val dimBg = FrameLayout(context).apply {
             setBackgroundColor(Color.parseColor("#80000000"))
             setOnClickListener { }
@@ -109,7 +105,7 @@ class FalsePositiveRuleReviewOverlay(
 
         val card = FrameLayout(context).apply {
             layoutParams = FrameLayout.LayoutParams(
-                dialogWidth,
+                FrameLayout.LayoutParams.WRAP_CONTENT,
                 FrameLayout.LayoutParams.WRAP_CONTENT
             ).apply {
                 gravity = Gravity.CENTER
@@ -297,14 +293,12 @@ class FalsePositiveRuleReviewOverlay(
         content.addView(buttonRow)
         contentScroll.addView(content)
         card.addView(contentScroll)
-        contentScroll.post {
-            val measuredHeight = contentScroll.getChildAt(0)?.measuredHeight ?: 0
-            if (measuredHeight > dialogMaxHeight) {
-                contentScroll.layoutParams = (contentScroll.layoutParams as FrameLayout.LayoutParams).apply {
-                    height = dialogMaxHeight
-                }
-            }
-        }
+        OverlayDialogSizer.apply(context, card, contentScroll, dialogWidthFraction())
+        configurationCallback = OverlayDialogSizer.registerConfigurationCallback(
+            context,
+            card,
+            contentScroll
+        ) { dialogWidthFraction() }
         dimBg.addView(card)
         rootView = dimBg
 
@@ -394,10 +388,12 @@ class FalsePositiveRuleReviewOverlay(
     private fun dismissInternal() {
         val view = rootView ?: return
         try {
+            OverlayDialogSizer.unregisterConfigurationCallback(context, configurationCallback)
             windowManager?.removeView(view)
         } catch (e: Exception) {
             Logger.w(TAG, "Failed to dismiss false-positive rule review overlay", e)
         } finally {
+            configurationCallback = null
             rootView = null
         }
     }
