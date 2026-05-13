@@ -130,7 +130,6 @@ class IntentInputDialogOverlay(
     private var statusText: TextView? = null
     private var presetContainer: LinearLayout? = null
     private var historyContainer: LinearLayout? = null
-    private var historyScrollView: ScrollView? = null
     private var confirmButton: LinearLayout? = null
     private var confirmText: TextView? = null
     private var textConfirmButton: TextView? = null
@@ -225,7 +224,8 @@ class IntentInputDialogOverlay(
     @SuppressLint("ClickableViewAccessibility", "SetTextI18n")
     private fun renderDialog() {
         val screenWidth = context.resources.displayMetrics.widthPixels
-        val dialogWidth = (screenWidth * 0.85).toInt()
+        val dialogWidth = (screenWidth * dialogWidthFraction()).toInt()
+        val dialogMaxHeight = (screenHeight * 0.9f).roundToInt()
 
         // Dim background (full screen overlay)
         val dimBg = FrameLayout(context).apply {
@@ -236,11 +236,7 @@ class IntentInputDialogOverlay(
             }
         }
 
-        // Card
-        val card = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER_HORIZONTAL
-            setPadding(24.dp(), 28.dp(), 24.dp(), 20.dp())
+        val card = FrameLayout(context).apply {
             layoutParams = FrameLayout.LayoutParams(
                 dialogWidth,
                 FrameLayout.LayoutParams.WRAP_CONTENT
@@ -256,6 +252,26 @@ class IntentInputDialogOverlay(
             setOnClickListener { }
         }
 
+        val contentScroll = ScrollView(context).apply {
+            isFillViewport = true
+            isVerticalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                dialogMaxHeight
+            )
+        }
+
+        val cardContent = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER_HORIZONTAL
+            setPadding(24.dp(), 28.dp(), 24.dp(), 20.dp())
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
         // Title - app name
         val titleText = TextView(context).apply {
             text = appName
@@ -268,7 +284,7 @@ class IntentInputDialogOverlay(
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { bottomMargin = 4.dp() }
         }
-        card.addView(titleText)
+        cardContent.addView(titleText)
 
         // Subtitle
         val subtitle = TextView(context).apply {
@@ -285,7 +301,7 @@ class IntentInputDialogOverlay(
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { bottomMargin = 24.dp() }
         }
-        card.addView(subtitle)
+        cardContent.addView(subtitle)
 
         if (hasAudioPermission) {
             // Mic button container
@@ -316,7 +332,7 @@ class IntentInputDialogOverlay(
             micButton?.addView(micIcon)
 
             micButton?.setOnClickListener { handleMicClick() }
-            card.addView(micButton)
+            cardContent.addView(micButton)
         }
 
         // Status text
@@ -330,7 +346,7 @@ class IntentInputDialogOverlay(
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { bottomMargin = 8.dp() }
         }
-        card.addView(statusText)
+        cardContent.addView(statusText)
 
         val textInputRow = LinearLayout(context).apply {
             orientation = LinearLayout.HORIZONTAL
@@ -393,7 +409,7 @@ class IntentInputDialogOverlay(
             setOnClickListener { submitTextIntent() }
         }
         textInputRow.addView(textConfirmButton)
-        card.addView(textInputRow)
+        cardContent.addView(textInputRow)
 
         // Rules preview (hidden until parsed)
         rulesPreviewText = TextView(context).apply {
@@ -409,7 +425,7 @@ class IntentInputDialogOverlay(
                 bottomMargin = 8.dp()
             }
         }
-        card.addView(rulesPreviewText)
+        cardContent.addView(rulesPreviewText)
 
         // Confirm button (hidden until rules are parsed)
         confirmButton = LinearLayout(context).apply {
@@ -434,7 +450,7 @@ class IntentInputDialogOverlay(
             typeface = Typeface.DEFAULT_BOLD
         }
         confirmButton?.addView(confirmText)
-        card.addView(confirmButton)
+        cardContent.addView(confirmButton)
 
         retryVoiceButton = TextView(context).apply {
             text = context.getString(R.string.intent_retry)
@@ -449,7 +465,7 @@ class IntentInputDialogOverlay(
             )
             setOnClickListener { restartVoiceInput() }
         }
-        card.addView(retryVoiceButton)
+        cardContent.addView(retryVoiceButton)
 
         // Divider
         val divider = View(context).apply {
@@ -461,7 +477,7 @@ class IntentInputDialogOverlay(
             }
             setBackgroundColor(cardBorderColor)
         }
-        card.addView(divider)
+        cardContent.addView(divider)
 
         // Preset rules section title
         val presetTitle = TextView(context).apply {
@@ -473,16 +489,7 @@ class IntentInputDialogOverlay(
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { bottomMargin = 8.dp() }
         }
-        card.addView(presetTitle)
-
-        // Preset rules list (scrollable)
-        val presetScrollView = ScrollView(context).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            isVerticalScrollBarEnabled = false
-        }
+        cardContent.addView(presetTitle)
 
         presetContainer = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -491,8 +498,7 @@ class IntentInputDialogOverlay(
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
         }
-        presetScrollView.addView(presetContainer)
-        card.addView(presetScrollView)
+        cardContent.addView(presetContainer)
 
         // Divider between preset and history
         val divider2 = View(context).apply {
@@ -504,7 +510,7 @@ class IntentInputDialogOverlay(
             }
             setBackgroundColor(cardBorderColor)
         }
-        card.addView(divider2)
+        cardContent.addView(divider2)
 
         // History section title
         val historyTitle = TextView(context).apply {
@@ -516,17 +522,7 @@ class IntentInputDialogOverlay(
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { bottomMargin = 8.dp() }
         }
-        card.addView(historyTitle)
-
-        // History list (scrollable)
-        val scrollView = ScrollView(context).apply {
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            isVerticalScrollBarEnabled = false
-        }
-        historyScrollView = scrollView
+        cardContent.addView(historyTitle)
 
         historyContainer = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -535,8 +531,7 @@ class IntentInputDialogOverlay(
                 LinearLayout.LayoutParams.WRAP_CONTENT
             )
         }
-        scrollView.addView(historyContainer)
-        card.addView(scrollView)
+        cardContent.addView(historyContainer)
 
         // Populate preset and history
         populatePresets()
@@ -558,7 +553,10 @@ class IntentInputDialogOverlay(
                 onDismissed()
             }
         }
-        card.addView(skipButton)
+        cardContent.addView(skipButton)
+
+        contentScroll.addView(cardContent)
+        card.addView(contentScroll)
 
         dimBg.addView(card)
         rootView = dimBg
@@ -873,11 +871,12 @@ class IntentInputDialogOverlay(
     }
 
     private fun updateHistoryScrollHeight(itemCount: Int) {
+        val container = historyContainer ?: return
         val targetHeight = when {
             itemCount <= 0 -> LinearLayout.LayoutParams.WRAP_CONTENT
             else -> minOf(itemCount * 72.dp(), getHistoryMaxHeightPx())
         }
-        historyScrollView?.layoutParams = (historyScrollView?.layoutParams as? LinearLayout.LayoutParams)
+        container.layoutParams = (container.layoutParams as? LinearLayout.LayoutParams)
             ?.apply { height = targetHeight }
     }
 
@@ -1086,6 +1085,18 @@ class IntentInputDialogOverlay(
             try { windowManager?.removeView(view) } catch (e: Exception) { /* ignore */ }
         }
         rootView = null
+    }
+
+    private fun dialogWidthFraction(): Double {
+        val configuration = context.resources.configuration
+        val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        val isLargeFont = configuration.fontScale >= 1.2f
+        return when {
+            isLandscape && isLargeFont -> 0.96
+            isLandscape -> 0.92
+            isLargeFont -> 0.9
+            else -> 0.85
+        }
     }
 
     private fun Int.dp() = (this * density).roundToInt()

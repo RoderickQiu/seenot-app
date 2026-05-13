@@ -13,11 +13,13 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import com.seenot.app.R
 import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.utils.Logger
+import kotlin.math.roundToInt
 
 class JudgmentFeedbackConfirmOverlay(
     private val context: Context,
@@ -73,16 +75,16 @@ class JudgmentFeedbackConfirmOverlay(
         windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
         val screenWidth = context.resources.displayMetrics.widthPixels
-        val dialogWidth = (screenWidth * 0.86f).toInt()
+        val screenHeight = context.resources.displayMetrics.heightPixels
+        val dialogWidth = (screenWidth * dialogWidthFraction()).toInt()
+        val dialogMaxHeight = (screenHeight * 0.9f).roundToInt()
 
         val dimBg = FrameLayout(context).apply {
             setBackgroundColor(Color.parseColor("#80000000"))
             setOnClickListener { }
         }
 
-        val card = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(24.dp(), 24.dp(), 24.dp(), 20.dp())
+        val card = FrameLayout(context).apply {
             layoutParams = FrameLayout.LayoutParams(
                 dialogWidth,
                 FrameLayout.LayoutParams.WRAP_CONTENT
@@ -98,7 +100,26 @@ class JudgmentFeedbackConfirmOverlay(
             setOnClickListener { }
         }
 
-        card.addView(
+        val contentScroll = ScrollView(context).apply {
+            isFillViewport = true
+            isVerticalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                dialogMaxHeight
+            )
+        }
+
+        val content = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24.dp(), 24.dp(), 24.dp(), 20.dp())
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
+        content.addView(
             TextView(context).apply {
                 text = context.getString(R.string.judgment_wrong_title)
                 textSize = 20f
@@ -114,7 +135,7 @@ class JudgmentFeedbackConfirmOverlay(
             }
         )
 
-        card.addView(
+        content.addView(
             TextView(context).apply {
                 text = when (constraintType) {
                     ConstraintType.DENY -> context.getString(R.string.judgment_wrong_content_desc)
@@ -167,7 +188,9 @@ class JudgmentFeedbackConfirmOverlay(
             }
         )
 
-        card.addView(buttonRow)
+        content.addView(buttonRow)
+        contentScroll.addView(content)
+        card.addView(contentScroll)
         dimBg.addView(card)
         rootView = dimBg
 
@@ -220,6 +243,18 @@ class JudgmentFeedbackConfirmOverlay(
     private fun dismiss() {
         dismissInternal()
         currentDialog = null
+    }
+
+    private fun dialogWidthFraction(): Float {
+        val configuration = context.resources.configuration
+        val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        val isLargeFont = configuration.fontScale >= 1.2f
+        return when {
+            isLandscape && isLargeFont -> 0.96f
+            isLandscape -> 0.92f
+            isLargeFont -> 0.9f
+            else -> 0.86f
+        }
     }
 
     private fun Int.dp(): Int = (this * context.resources.displayMetrics.density).toInt()

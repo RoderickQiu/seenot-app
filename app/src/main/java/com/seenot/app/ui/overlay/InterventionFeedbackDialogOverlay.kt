@@ -15,10 +15,12 @@ import android.view.WindowManager
 import android.widget.Button
 import android.widget.FrameLayout
 import android.widget.LinearLayout
+import android.widget.ScrollView
 import android.widget.TextView
 import com.seenot.app.R
 import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.utils.Logger
+import kotlin.math.roundToInt
 
 /**
  * Lightweight intervention confirmation dialog shown before forced actions.
@@ -102,7 +104,9 @@ class InterventionFeedbackDialogOverlay(
         windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
 
         val screenWidth = context.resources.displayMetrics.widthPixels
-        val dialogWidth = (screenWidth * 0.86f).toInt()
+        val screenHeight = context.resources.displayMetrics.heightPixels
+        val dialogWidth = (screenWidth * dialogWidthFraction()).toInt()
+        val dialogMaxHeight = (screenHeight * 0.9f).roundToInt()
 
         val dimBg = FrameLayout(context).apply {
             setBackgroundColor(Color.parseColor("#80000000"))
@@ -110,9 +114,7 @@ class InterventionFeedbackDialogOverlay(
             setOnClickListener { }
         }
 
-        val card = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(24.dp(), 24.dp(), 24.dp(), 20.dp())
+        val card = FrameLayout(context).apply {
             layoutParams = FrameLayout.LayoutParams(
                 dialogWidth,
                 FrameLayout.LayoutParams.WRAP_CONTENT
@@ -128,6 +130,25 @@ class InterventionFeedbackDialogOverlay(
             setOnClickListener { }
         }
 
+        val contentScroll = ScrollView(context).apply {
+            isFillViewport = true
+            isVerticalScrollBarEnabled = false
+            overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                dialogMaxHeight
+            )
+        }
+
+        val content = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(24.dp(), 24.dp(), 24.dp(), 20.dp())
+            layoutParams = FrameLayout.LayoutParams(
+                FrameLayout.LayoutParams.MATCH_PARENT,
+                FrameLayout.LayoutParams.WRAP_CONTENT
+            )
+        }
+
         val appLabel = TextView(context).apply {
             text = appName
             textSize = 14f
@@ -140,7 +161,7 @@ class InterventionFeedbackDialogOverlay(
                 bottomMargin = 8.dp()
             }
         }
-        card.addView(appLabel)
+        content.addView(appLabel)
 
         val title = TextView(context).apply {
             text = titleText
@@ -155,7 +176,7 @@ class InterventionFeedbackDialogOverlay(
                 bottomMargin = 10.dp()
             }
         }
-        card.addView(title)
+        content.addView(title)
 
         val subtitle = TextView(context).apply {
             text = subtitleText
@@ -169,7 +190,7 @@ class InterventionFeedbackDialogOverlay(
                 bottomMargin = 10.dp()
             }
         }
-        card.addView(subtitle)
+        content.addView(subtitle)
 
         val detail = TextView(context).apply {
             text = constraintDescription
@@ -183,7 +204,7 @@ class InterventionFeedbackDialogOverlay(
                 bottomMargin = 20.dp()
             }
         }
-        card.addView(detail)
+        content.addView(detail)
 
         val falsePositiveButton = buildButton(
             text = context.getString(R.string.judgment_false_positive),
@@ -193,7 +214,7 @@ class InterventionFeedbackDialogOverlay(
             dismiss()
             onFalsePositive()
         }
-        card.addView(falsePositiveButton)
+        content.addView(falsePositiveButton)
 
         if (!secondaryButtonText.isNullOrBlank()) {
             val secondaryButton = buildButton(
@@ -206,7 +227,7 @@ class InterventionFeedbackDialogOverlay(
             }.apply {
                 (layoutParams as LinearLayout.LayoutParams).topMargin = 10.dp()
             }
-            card.addView(secondaryButton)
+            content.addView(secondaryButton)
         }
 
         val primaryButton = buildButton(
@@ -221,7 +242,10 @@ class InterventionFeedbackDialogOverlay(
         }.apply {
             (layoutParams as LinearLayout.LayoutParams).topMargin = 10.dp()
         }
-        card.addView(primaryButton)
+        content.addView(primaryButton)
+
+        contentScroll.addView(content)
+        card.addView(contentScroll)
 
         dimBg.addView(card)
         rootView = dimBg
@@ -279,6 +303,18 @@ class InterventionFeedbackDialogOverlay(
     private fun dismiss() {
         dismissInternal()
         currentDialog = null
+    }
+
+    private fun dialogWidthFraction(): Float {
+        val configuration = context.resources.configuration
+        val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
+        val isLargeFont = configuration.fontScale >= 1.2f
+        return when {
+            isLandscape && isLargeFont -> 0.96f
+            isLandscape -> 0.92f
+            isLargeFont -> 0.9f
+            else -> 0.86f
+        }
     }
 
     private fun Int.dp(): Int = (this * context.resources.displayMetrics.density).toInt()
