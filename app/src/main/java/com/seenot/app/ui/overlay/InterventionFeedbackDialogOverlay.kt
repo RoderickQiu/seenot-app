@@ -136,7 +136,7 @@ class InterventionFeedbackDialogOverlay(
             overScrollMode = View.OVER_SCROLL_IF_CONTENT_SCROLLS
             layoutParams = FrameLayout.LayoutParams(
                 FrameLayout.LayoutParams.MATCH_PARENT,
-                dialogMaxHeight
+                FrameLayout.LayoutParams.WRAP_CONTENT
             )
         }
 
@@ -246,6 +246,14 @@ class InterventionFeedbackDialogOverlay(
 
         contentScroll.addView(content)
         card.addView(contentScroll)
+        contentScroll.post {
+            val measuredHeight = contentScroll.getChildAt(0)?.measuredHeight ?: 0
+            if (measuredHeight > dialogMaxHeight) {
+                contentScroll.layoutParams = (contentScroll.layoutParams as FrameLayout.LayoutParams).apply {
+                    height = dialogMaxHeight
+                }
+            }
+        }
 
         dimBg.addView(card)
         rootView = dimBg
