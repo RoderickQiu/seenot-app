@@ -1,7 +1,6 @@
 package com.seenot.app.ui.overlay
 
 import android.annotation.SuppressLint
-import android.content.ComponentCallbacks
 import android.content.Context
 import android.content.res.Configuration
 import android.graphics.Color
@@ -87,7 +86,7 @@ class InterventionFeedbackDialogOverlay(
 
     private var windowManager: WindowManager? = null
     private var rootView: View? = null
-    private var configurationCallback: ComponentCallbacks? = null
+    private var layoutChangeListener: View.OnLayoutChangeListener? = null
 
     private val isDarkMode: Boolean
         get() = (context.resources.configuration.uiMode and Configuration.UI_MODE_NIGHT_MASK) ==
@@ -242,12 +241,15 @@ class InterventionFeedbackDialogOverlay(
 
         contentScroll.addView(content)
         card.addView(contentScroll)
-        OverlayDialogSizer.apply(context, card, contentScroll, dialogWidthFraction())
-        configurationCallback = OverlayDialogSizer.registerConfigurationCallback(
+        OverlayDialogSizer.apply(context, dimBg, card, contentScroll, 0.86f, 0.9f)
+        layoutChangeListener = OverlayDialogSizer.registerLayoutChangeCallback(
             context,
+            dimBg,
             card,
-            contentScroll
-        ) { dialogWidthFraction() }
+            contentScroll,
+            portraitWidthFraction = 0.86f,
+            largeFontPortraitWidthFraction = 0.9f
+        )
 
         dimBg.addView(card)
         rootView = dimBg
@@ -294,12 +296,12 @@ class InterventionFeedbackDialogOverlay(
     private fun dismissInternal() {
         val view = rootView ?: return
         try {
-            OverlayDialogSizer.unregisterConfigurationCallback(context, configurationCallback)
+            OverlayDialogSizer.unregisterLayoutChangeCallback(rootView, layoutChangeListener)
             windowManager?.removeView(view)
         } catch (e: Exception) {
             Logger.w(TAG, "Failed to dismiss intervention dialog overlay", e)
         } finally {
-            configurationCallback = null
+            layoutChangeListener = null
             rootView = null
         }
     }
@@ -307,18 +309,6 @@ class InterventionFeedbackDialogOverlay(
     private fun dismiss() {
         dismissInternal()
         currentDialog = null
-    }
-
-    private fun dialogWidthFraction(): Float {
-        val configuration = context.resources.configuration
-        val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        val isLargeFont = configuration.fontScale >= 1.2f
-        return when {
-            isLandscape && isLargeFont -> 0.96f
-            isLandscape -> 0.92f
-            isLargeFont -> 0.9f
-            else -> 0.86f
-        }
     }
 
     private fun Int.dp(): Int = (this * context.resources.displayMetrics.density).toInt()

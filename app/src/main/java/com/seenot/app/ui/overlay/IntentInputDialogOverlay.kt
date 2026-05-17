@@ -2,7 +2,6 @@ package com.seenot.app.ui.overlay
 
 import android.Manifest
 import android.annotation.SuppressLint
-import android.content.ComponentCallbacks
 import android.content.Context
 import android.content.pm.PackageManager
 import android.content.res.Configuration
@@ -98,7 +97,7 @@ class IntentInputDialogOverlay(
     private var windowManager: WindowManager? = null
     private var voiceInputManager: VoiceInputManager? = null
     private var rootView: View? = null
-    private var configurationCallback: ComponentCallbacks? = null
+    private var layoutChangeListener: View.OnLayoutChangeListener? = null
     private var mode = Mode.IDLE
     private var pendingConstraints: List<SessionConstraint>? = null
     private var pendingInputSource = InputSource.NONE
@@ -555,12 +554,15 @@ class IntentInputDialogOverlay(
 
         contentScroll.addView(cardContent)
         card.addView(contentScroll)
-        OverlayDialogSizer.apply(context, card, contentScroll, dialogWidthFraction())
-        configurationCallback = OverlayDialogSizer.registerConfigurationCallback(
+        OverlayDialogSizer.apply(context, dimBg, card, contentScroll, 0.85f, 0.9f)
+        layoutChangeListener = OverlayDialogSizer.registerLayoutChangeCallback(
             context,
+            dimBg,
             card,
-            contentScroll
-        ) { dialogWidthFraction() }
+            contentScroll,
+            portraitWidthFraction = 0.85f,
+            largeFontPortraitWidthFraction = 0.9f
+        )
 
         dimBg.addView(card)
         rootView = dimBg
@@ -1085,24 +1087,12 @@ class IntentInputDialogOverlay(
         voiceInputManager?.release()
         voiceInputManager = null
         scope.cancel()
-        OverlayDialogSizer.unregisterConfigurationCallback(context, configurationCallback)
-        configurationCallback = null
+        OverlayDialogSizer.unregisterLayoutChangeCallback(rootView, layoutChangeListener)
+        layoutChangeListener = null
         rootView?.let { view ->
             try { windowManager?.removeView(view) } catch (e: Exception) { /* ignore */ }
         }
         rootView = null
-    }
-
-    private fun dialogWidthFraction(): Float {
-        val configuration = context.resources.configuration
-        val isLandscape = configuration.orientation == Configuration.ORIENTATION_LANDSCAPE
-        val isLargeFont = configuration.fontScale >= 1.2f
-        return when {
-            isLandscape && isLargeFont -> 0.96f
-            isLandscape -> 0.92f
-            isLargeFont -> 0.9f
-            else -> 0.85f
-        }
     }
 
     private fun Int.dp() = (this * density).roundToInt()
