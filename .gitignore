@@ -67,6 +67,9 @@ ai-debugger/bin/
 !PRD.md
 !AGENTS.md
 
+# plans
+*.html
+
 # docs
 .astro
 dist

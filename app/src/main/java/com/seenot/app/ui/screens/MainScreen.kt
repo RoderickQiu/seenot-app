@@ -352,22 +352,6 @@ fun MainScreen(
                         accountState = accountState,
                         onOpenAiSettings = { showAiSettingsDialog = true },
                         onOpenAccount = { openSeenotAccountPage(context) },
-                        onUseSeenotAi = {
-                            mainScope.launch {
-                                enableSeenotAi(
-                                    context = context,
-                                    accountApi = accountApi,
-                                    onEnabled = {
-                                        aiSettingsRefreshKey++
-                                        accountRefreshKey++
-                                    }
-                                )
-                            }
-                        },
-                        onUseOwnKey = {
-                            ApiConfig.preferBringYourOwnKey()
-                            aiSettingsRefreshKey++
-                        },
                         onHomeTimelineChanged = { showHomeTimeline = it },
                         onOpenRuleRecords = { showRuleRecordsPage = true }
                     )
@@ -932,6 +916,13 @@ private enum class PermissionGuideType {
 private fun openSeenotAccountPage(context: Context) {
     val language = AppLocalePrefs.getLanguage(context)
     val path = if (language == AppLocalePrefs.LANG_ZH) "/zh/account/" else "/account/"
+    val url = BuildConfig.SEENOT_WEBSITE_BASE_URL.trimEnd('/') + path
+    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+}
+
+private fun openSeenotPlusPage(context: Context) {
+    val language = AppLocalePrefs.getLanguage(context)
+    val path = if (language == AppLocalePrefs.LANG_ZH) "/zh/#seenot-plus" else "/#seenot-plus"
     val url = BuildConfig.SEENOT_WEBSITE_BASE_URL.trimEnd('/') + path
     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
 }
@@ -3017,8 +3008,6 @@ fun SettingsTab(
     accountState: SeenotAccountState = SeenotAccountState.SignedOut,
     onOpenAiSettings: () -> Unit = {},
     onOpenAccount: () -> Unit = {},
-    onUseSeenotAi: () -> Unit = {},
-    onUseOwnKey: () -> Unit = {},
     onHomeTimelineChanged: (Boolean) -> Unit = {},
     onOpenRuleRecords: () -> Unit = {}
 ) {
@@ -3130,10 +3119,8 @@ fun SettingsTab(
             aiButtonLabel = aiButtonLabel,
             isAiConfigured = ApiConfig.isVisionConfigured(),
             onOpenAccount = onOpenAccount,
-            onUseSeenotAi = onUseSeenotAi,
-            onUseOwnKey = onUseOwnKey,
             onOpenAiSettings = onOpenAiSettings,
-            onOpenAccountDetails = onOpenAccount
+            onOpenPlus = { openSeenotPlusPage(context) }
         )
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -3484,14 +3471,13 @@ private fun ServiceStatusSection(
     aiButtonLabel: String,
     isAiConfigured: Boolean,
     onOpenAccount: () -> Unit,
-    onUseSeenotAi: () -> Unit,
-    onUseOwnKey: () -> Unit,
     onOpenAiSettings: () -> Unit,
-    onOpenAccountDetails: () -> Unit
+    onOpenPlus: () -> Unit
 ) {
     val snapshot = (accountState as? SeenotAccountState.Ready)?.snapshot
     val isPlus = snapshot?.hasPlus == true
     val usesSeenotAi = ApiConfig.getAiSource() == AiSource.SEENOT_AI && ApiConfig.isManagedAiActive()
+    val usesOwnSetup = isAiConfigured && !usesSeenotAi
 
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
@@ -3518,7 +3504,7 @@ private fun ServiceStatusSection(
                 Spacer(modifier = Modifier.width(12.dp))
                 Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = stringResource(R.string.service_status_title),
+                        text = primaryServiceTitle(usesSeenotAi, usesOwnSetup),
                         style = MaterialTheme.typography.titleMedium,
                         fontWeight = FontWeight.SemiBold
                     )
@@ -3528,13 +3514,15 @@ private fun ServiceStatusSection(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                ServicePill(
-                    label = when {
-                        isPlus -> stringResource(R.string.plus_badge)
-                        snapshot != null -> stringResource(R.string.free_badge)
-                        else -> stringResource(R.string.local_mode_badge)
-                    }
-                )
+                val topBadgeLabel = when {
+                    isPlus -> stringResource(R.string.plus_badge)
+                    snapshot != null -> stringResource(R.string.free_badge)
+                    else -> null
+                }
+                if (topBadgeLabel != null) {
+                    Spacer(modifier = Modifier.width(12.dp))
+                    ServicePill(label = topBadgeLabel)
+                }
             }
 
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -3542,77 +3530,39 @@ private fun ServiceStatusSection(
                     icon = Icons.Default.AccountCircle,
                     title = stringResource(R.string.account_status_label),
                     value = accountStatusLabel(accountState),
-                    supporting = accountStatusSupporting(accountState)
+                    supporting = accountStatusSupporting(accountState),
+                    actionLabel = if (accountState is SeenotAccountState.SignedOut) stringResource(R.string.sign_in_account_action) else null,
+                    onActionClick = onOpenAccount
                 )
                 HorizontalDivider()
                 ServiceStatusRow(
                     icon = Icons.Default.AutoAwesome,
-                    title = stringResource(R.string.ai_source_label),
+                    title = stringResource(R.string.ai_plan_label),
                     value = aiSourceLabel(usesSeenotAi, isAiConfigured),
                     supporting = aiSourceSupporting(usesSeenotAi, isAiConfigured, aiButtonLabel)
                 )
             }
 
-            when {
-                usesSeenotAi -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    OutlinedButton(
-                        onClick = onUseOwnKey,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(stringResource(R.string.switch_to_own_key_action))
+            OutlinedButton(
+                onClick = onOpenAiSettings,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(
+                    when {
+                        usesSeenotAi -> stringResource(R.string.adjust_seenot_ai_action)
+                        else -> stringResource(R.string.adjust_local_setup_action)
                     }
-                    OutlinedButton(
-                        onClick = onOpenAccountDetails,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(stringResource(R.string.open_account_details_action))
-                    }
-                }
-                isPlus -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = onUseSeenotAi,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(stringResource(R.string.use_seenot_ai_action))
-                    }
-                    OutlinedButton(
-                        onClick = onOpenAiSettings,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(stringResource(R.string.use_own_api_key_action))
-                    }
-                }
-                snapshot != null -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = onOpenAccount,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(stringResource(R.string.open_plus_no_config_action))
-                    }
-                    OutlinedButton(
-                        onClick = onOpenAiSettings,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(stringResource(R.string.use_own_api_key_action))
-                    }
-                }
-                else -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Button(
-                        onClick = onOpenAccount,
-                        modifier = Modifier.weight(1f),
-                        enabled = accountState !is SeenotAccountState.Loading
-                    ) {
-                        Text(stringResource(R.string.open_plus_no_config_action))
-                    }
-                    OutlinedButton(
-                        onClick = onOpenAiSettings,
-                        modifier = Modifier.weight(1f)
-                    ) {
-                        Text(stringResource(R.string.use_own_api_key_action))
-                    }
-                }
+                )
             }
         }
+    }
+
+    if (!isPlus) {
+        Spacer(modifier = Modifier.height(12.dp))
+        PlusUpgradeHintCard(
+            onOpenPlus = onOpenPlus,
+            enabled = accountState !is SeenotAccountState.Loading
+        )
     }
 }
 
@@ -3621,7 +3571,9 @@ private fun ServiceStatusRow(
     icon: ImageVector,
     title: String,
     value: String,
-    supporting: String
+    supporting: String,
+    actionLabel: String? = null,
+    onActionClick: (() -> Unit)? = null
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -3637,13 +3589,20 @@ private fun ServiceStatusRow(
             Text(text = title, style = MaterialTheme.typography.labelLarge)
             Text(text = supporting, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        Spacer(modifier = Modifier.width(12.dp))
-        Text(
-            text = value,
-            style = MaterialTheme.typography.bodyMedium,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.primary
-        )
+        if (!actionLabel.isNullOrBlank() && onActionClick != null) {
+            Spacer(modifier = Modifier.width(12.dp))
+            Button(onClick = onActionClick) {
+                Text(text = actionLabel)
+            }
+        } else {
+            Spacer(modifier = Modifier.width(12.dp))
+            Text(
+                text = value,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.primary
+            )
+        }
     }
 }
 
@@ -3664,6 +3623,15 @@ private fun ServicePill(label: String) {
 }
 
 @Composable
+private fun primaryServiceTitle(usesSeenotAi: Boolean, usesOwnSetup: Boolean): String {
+    return when {
+        usesSeenotAi -> stringResource(R.string.seenot_ai_enabled_title)
+        usesOwnSetup -> stringResource(R.string.local_setup_active_title)
+        else -> stringResource(R.string.choose_ai_plan_title)
+    }
+}
+
+@Composable
 private fun serviceStatusDescription(
     accountState: SeenotAccountState,
     usesSeenotAi: Boolean,
@@ -3679,10 +3647,55 @@ private fun serviceStatusDescription(
 }
 
 @Composable
+private fun PlusUpgradeHintCard(
+    onOpenPlus: () -> Unit,
+    enabled: Boolean
+) {
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(
+                imageVector = Icons.Default.WorkspacePremium,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = stringResource(R.string.plus_hint_title),
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.SemiBold
+                )
+                Text(
+                    text = stringResource(R.string.plus_hint_desc),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            TextButton(
+                onClick = onOpenPlus,
+                enabled = enabled
+            ) {
+                Text(stringResource(R.string.learn_plus_action))
+            }
+        }
+    }
+}
+
+@Composable
 private fun accountStatusLabel(accountState: SeenotAccountState): String {
     return when (accountState) {
         SeenotAccountState.Loading -> stringResource(R.string.status_loading)
-        SeenotAccountState.SignedOut -> stringResource(R.string.local_mode_badge)
+        SeenotAccountState.SignedOut -> ""
         is SeenotAccountState.Error -> stringResource(R.string.status_needs_refresh)
         is SeenotAccountState.Ready -> if (accountState.snapshot.hasPlus) stringResource(R.string.plus_badge) else stringResource(R.string.free_badge)
     }
