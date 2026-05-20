@@ -1,6 +1,7 @@
 package com.seenot.app
 
 import android.app.Application
+import com.seenot.app.account.SeenotAccountSession
 import com.seenot.app.config.ApiConfig
 import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.config.AiProvider
@@ -25,6 +26,7 @@ class SeeNotApplication : Application() {
 
         // Initialize API Config
         ApiConfig.init(this)
+        SeenotAccountSession.init(this)
 
         // Apply stored language preference
         AppLocalePrefs.applyStoredLanguage(this)

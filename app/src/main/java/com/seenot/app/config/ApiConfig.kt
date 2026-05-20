@@ -27,6 +27,11 @@ object ApiConfig {
     private const val KEY_STT_BASE_URL = "stt_base_url"
     private const val KEY_DEV_DASHSCOPE_KEY = "dev_dashscope_injected_key"
     private const val KEY_DEV_DASHSCOPE_VALID_UNTIL_MS = "dev_dashscope_injected_valid_until_ms"
+    private const val KEY_AI_SOURCE = "ai_source"
+    private const val KEY_MANAGED_AI_API_KEY = "managed_ai_api_key"
+    private const val KEY_MANAGED_AI_BASE_URL = "managed_ai_base_url"
+    private const val KEY_MANAGED_AI_MODEL = "managed_ai_model"
+    private const val KEY_MANAGED_AI_VALID_UNTIL_MS = "managed_ai_valid_until_ms"
 
     private var prefs: SharedPreferences? = null
 
@@ -44,7 +49,14 @@ object ApiConfig {
         )
     }
 
+    fun clearForTest() {
+        prefs?.edit()?.clear()?.commit()
+    }
+
     fun getApiKey(provider: AiProvider = getProvider()): String {
+        if (provider == AiProvider.DASHSCOPE) {
+            getManagedAiSettingsIfActive()?.let { return it.apiKey }
+        }
         return prefs?.getString("$KEY_API_KEY_PREFIX${provider.name}", "") ?: ""
     }
 
@@ -63,6 +75,9 @@ object ApiConfig {
     }
 
     fun getBaseUrl(provider: AiProvider = getProvider()): String {
+        if (provider == AiProvider.DASHSCOPE) {
+            getManagedAiSettingsIfActive()?.let { return it.baseUrl }
+        }
         val fallback = if (provider == AiProvider.DASHSCOPE) {
             getQwenRegion().baseUrl
         } else {
@@ -93,6 +108,7 @@ object ApiConfig {
     }
 
     fun getModel(): String {
+        getManagedAiSettingsIfActive()?.let { return it.model }
         return prefs?.getString(KEY_MODEL, getProvider().defaultModel)
             ?: getProvider().defaultModel
     }
@@ -126,16 +142,25 @@ object ApiConfig {
     }
 
     fun getSettings(): ApiSettings {
+        getManagedAiSettingsIfActive()?.let { return it }
+        return getOwnKeySettings()
+    }
+
+    fun getOwnKeySettings(): ApiSettings {
         val provider = getProvider()
         return ApiSettings(
             provider = provider,
-            apiKey = getApiKey(provider),
-            baseUrl = getBaseUrl(provider),
-            model = getModel(),
+            apiKey = getOwnApiKey(provider),
+            baseUrl = getOwnBaseUrl(provider),
+            model = getStoredModel(),
             feedbackModel = getFeedbackModel(),
             qwenRegion = getQwenRegion()
         )
     }
+
+    fun getOwnApiKey(provider: AiProvider): String = getStoredApiKey(provider)
+
+    fun getOwnBaseUrl(provider: AiProvider): String = getStoredBaseUrl(provider)
 
     fun saveSettings(settings: ApiSettings) {
         prefs?.edit()
@@ -143,9 +168,97 @@ object ApiConfig {
             ?.putString(KEY_MODEL, settings.model.trim())
             ?.putString(KEY_FEEDBACK_MODEL, settings.feedbackModel.trim())
             ?.putString(KEY_QWEN_REGION, settings.qwenRegion.name)
+            ?.putString(KEY_AI_SOURCE, AiSource.BRING_YOUR_OWN_KEY.name)
             ?.apply()
         setApiKey(settings.provider, settings.apiKey.trim())
         setBaseUrl(settings.provider, settings.baseUrl.trim())
+    }
+
+    fun getAiSource(): AiSource {
+        val raw = prefs?.getString(KEY_AI_SOURCE, AiSource.BRING_YOUR_OWN_KEY.name)
+        return raw?.let { value ->
+            AiSource.entries.firstOrNull { it.name == value }
+        } ?: AiSource.BRING_YOUR_OWN_KEY
+    }
+
+    fun preferBringYourOwnKey() {
+        prefs?.edit()
+            ?.putString(KEY_AI_SOURCE, AiSource.BRING_YOUR_OWN_KEY.name)
+            ?.apply()
+        clearManagedAiSession()
+    }
+
+    fun saveManagedAiSession(
+        apiKey: String,
+        baseUrl: String,
+        model: String,
+        expiresAtEpochSeconds: Long
+    ) {
+        prefs?.edit()
+            ?.putString(KEY_AI_SOURCE, AiSource.SEENOT_AI.name)
+            ?.putString(KEY_MANAGED_AI_API_KEY, apiKey.trim())
+            ?.putString(KEY_MANAGED_AI_BASE_URL, baseUrl.trim())
+            ?.putString(KEY_MANAGED_AI_MODEL, model.trim())
+            ?.putLong(KEY_MANAGED_AI_VALID_UNTIL_MS, expiresAtEpochSeconds * 1000L)
+            ?.apply()
+    }
+
+    fun clearManagedAiSession() {
+        prefs?.edit()
+            ?.remove(KEY_MANAGED_AI_API_KEY)
+            ?.remove(KEY_MANAGED_AI_BASE_URL)
+            ?.remove(KEY_MANAGED_AI_MODEL)
+            ?.remove(KEY_MANAGED_AI_VALID_UNTIL_MS)
+            ?.apply()
+    }
+
+    fun isManagedAiActive(nowEpochMs: Long = System.currentTimeMillis()): Boolean {
+        return getManagedAiSettingsIfActive(nowEpochMs) != null
+    }
+
+    private fun getManagedAiSettingsIfActive(nowEpochMs: Long = System.currentTimeMillis()): ApiSettings? {
+        if (getAiSource() != AiSource.SEENOT_AI) return null
+        val apiKey = prefs?.getString(KEY_MANAGED_AI_API_KEY, "")?.trim().orEmpty()
+        val baseUrl = prefs?.getString(KEY_MANAGED_AI_BASE_URL, "")?.trim().orEmpty()
+        val model = prefs?.getString(KEY_MANAGED_AI_MODEL, "")?.trim().orEmpty()
+        val validUntilMs = prefs?.getLong(KEY_MANAGED_AI_VALID_UNTIL_MS, 0L) ?: 0L
+        if (apiKey.isBlank() || baseUrl.isBlank() || model.isBlank() || validUntilMs <= nowEpochMs) {
+            clearManagedAiSession()
+            prefs?.edit()
+                ?.putString(KEY_AI_SOURCE, AiSource.BRING_YOUR_OWN_KEY.name)
+                ?.apply()
+            return null
+        }
+        return ApiSettings(
+            provider = AiProvider.DASHSCOPE,
+            apiKey = apiKey,
+            baseUrl = baseUrl,
+            model = model,
+            feedbackModel = model,
+            qwenRegion = getQwenRegion()
+        )
+    }
+
+    private fun getStoredApiKey(provider: AiProvider): String {
+        return prefs?.getString("$KEY_API_KEY_PREFIX${provider.name}", "") ?: ""
+    }
+
+    private fun getStoredBaseUrl(provider: AiProvider): String {
+        val fallback = if (provider == AiProvider.DASHSCOPE) {
+            getQwenRegion().baseUrl
+        } else {
+            provider.defaultBaseUrl
+        }
+        val providerScoped = prefs?.getString("$KEY_BASE_URL_PREFIX${provider.name}", null)?.trim()
+        if (!providerScoped.isNullOrBlank()) return providerScoped
+
+        val legacy = prefs?.getString(KEY_BASE_URL_LEGACY, null)?.trim()
+        return if (!legacy.isNullOrBlank() && provider == getProvider()) legacy else fallback
+    }
+
+    private fun getStoredModel(): String {
+        return prefs?.getString(KEY_MODEL, getProvider().defaultModel)
+            ?: getProvider().defaultModel
     }
 
     fun getSttProvider(): AiProvider {
@@ -223,6 +336,7 @@ object ApiConfig {
     }
 
     fun isVoiceConfigured(): Boolean {
+        if (isManagedAiActive()) return true
         val settings = getSttSettings()
         val providerSupported = when (settings.provider) {
             AiProvider.DASHSCOPE,
@@ -401,6 +515,11 @@ enum class AiProvider(
         defaultModel = "",
         displayNameResId = R.string.provider_custom
     )
+}
+
+enum class AiSource {
+    SEENOT_AI,
+    BRING_YOUR_OWN_KEY
 }
 
 fun selectableProviders(current: AiProvider? = null): List<AiProvider> {

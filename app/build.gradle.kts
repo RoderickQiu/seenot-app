@@ -33,6 +33,8 @@ val hasReleaseSigningConfig = listOf(
     releaseKeyPassword
 ).all { !it.isNullOrBlank() }
 
+fun String.asBuildConfigString(): String = "\"" + replace("\\", "\\\\").replace("\"", "\\\"") + "\""
+
 android {
     namespace = "com.seenot.app"
     compileSdk = 35
@@ -69,6 +71,24 @@ android {
             "boolean",
             "ENABLE_RUNTIME_EVENT_LOGGING",
             runtimeEventLoggingEnabled.toString()
+        )
+        val seenotBackendApiBaseUrl =
+            (project.findProperty("SEENOT_BACKEND_API_BASE_URL") as? String)
+                ?.takeIf { it.isNotBlank() }
+                ?: "https://backend.seenot.site/api/v1"
+        buildConfigField(
+            "String",
+            "SEENOT_BACKEND_API_BASE_URL",
+            seenotBackendApiBaseUrl.asBuildConfigString()
+        )
+        val seenotWebsiteBaseUrl =
+            (project.findProperty("SEENOT_WEBSITE_BASE_URL") as? String)
+                ?.takeIf { it.isNotBlank() }
+                ?: "https://seenot.site"
+        buildConfigField(
+            "String",
+            "SEENOT_WEBSITE_BASE_URL",
+            seenotWebsiteBaseUrl.asBuildConfigString()
         )
 
         testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"

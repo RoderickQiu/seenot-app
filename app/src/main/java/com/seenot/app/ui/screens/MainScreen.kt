@@ -10,6 +10,10 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.text.format.DateUtils
 import android.app.NotificationManager
+import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalLifecycleOwner
@@ -31,6 +35,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -43,7 +48,10 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.compose.ui.window.Dialog
 import com.seenot.app.BuildConfig
 import com.seenot.app.R
+import com.seenot.app.account.SeenotAccountApi
+import com.seenot.app.account.SeenotAccountState
 import com.seenot.app.config.ApiConfig
+import com.seenot.app.config.AiSource
 import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.config.AiProvider
 import com.seenot.app.config.ApiSettings
@@ -83,7 +91,6 @@ import com.seenot.app.data.model.buildIntentScopedHintLabel
 import com.seenot.app.domain.SessionConstraint
 import com.seenot.app.observability.RuntimeEventLogger
 import android.widget.Toast
-import kotlinx.coroutines.MainScope
 import kotlinx.coroutines.launch
 import com.seenot.app.ui.overlay.VoiceInputState
 import com.seenot.app.ui.overlay.VoiceInputStatus
@@ -107,8 +114,13 @@ fun MainScreen(
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val sessionManager = remember { SessionManager.getInstance(context) }
+    val accountApi = remember { SeenotAccountApi(context) }
+    val mainScope = rememberCoroutineScope()
     var showHomeTimeline by remember { mutableStateOf(RuleRecordingPrefs.isHomeTimelineEnabled(context)) }
     var showAiSettingsDialog by remember { mutableStateOf(false) }
+    var accountState by remember { mutableStateOf<SeenotAccountState>(SeenotAccountState.Loading) }
+    var accountRefreshKey by remember { mutableIntStateOf(0) }
+    var aiSettingsRefreshKey by remember { mutableIntStateOf(0) }
     var pendingPermissionGuide by remember { mutableStateOf<PermissionGuideType?>(null) }
 
     // State
@@ -224,14 +236,19 @@ fun MainScreen(
         }
     }
 
+    LaunchedEffect(accountRefreshKey) {
+        accountState = SeenotAccountState.Loading
+        accountState = accountApi.loadAccount()
+    }
+
     // Determine if required permissions are granted. Microphone is optional because text input works.
     val allPermissionsGranted =
         isAccessibilityEnabled &&
             isOverlayEnabled &&
             isNotificationEnabled &&
             isBatteryOptimizationIgnored
-    val isAiConfigured = remember(showAiSettingsDialog) { ApiConfig.isVisionConfigured() }
-    val isVoiceConfigured = remember(showAiSettingsDialog) { ApiConfig.isVoiceConfigured() }
+    val isAiConfigured = remember(showAiSettingsDialog, aiSettingsRefreshKey) { ApiConfig.isVisionConfigured() }
+    val isVoiceConfigured = remember(showAiSettingsDialog, aiSettingsRefreshKey) { ApiConfig.isVoiceConfigured() }
     val hasControlledApps = controlledAppCount > 0
     val isHomeReady = allPermissionsGranted && isAiConfigured && hasControlledApps
 
@@ -310,15 +327,47 @@ fun MainScreen(
                             microphonePermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
                         },
                         onOpenAiSettings = { showAiSettingsDialog = true },
+                        onOpenAccount = { openSeenotAccountPage(context) },
+                        onUseSeenotAi = {
+                            mainScope.launch {
+                                enableSeenotAi(
+                                    context = context,
+                                    accountApi = accountApi,
+                                    onEnabled = {
+                                        aiSettingsRefreshKey++
+                                        accountRefreshKey++
+                                    }
+                                )
+                            }
+                        },
                         onOpenControlledApps = { selectedTab = 1 },
+                        accountState = accountState,
                         showHomeTimeline = showHomeTimeline,
                         modifier = Modifier.padding(padding)
                     )
                     1 -> AppsTab(modifier = Modifier.padding(padding))
                     2 -> SettingsTab(
                         modifier = Modifier.padding(padding),
-                        aiSettingsRefreshKey = showAiSettingsDialog,
+                        aiSettingsRefreshKey = showAiSettingsDialog || aiSettingsRefreshKey % 2 == 1,
+                        accountState = accountState,
                         onOpenAiSettings = { showAiSettingsDialog = true },
+                        onOpenAccount = { openSeenotAccountPage(context) },
+                        onUseSeenotAi = {
+                            mainScope.launch {
+                                enableSeenotAi(
+                                    context = context,
+                                    accountApi = accountApi,
+                                    onEnabled = {
+                                        aiSettingsRefreshKey++
+                                        accountRefreshKey++
+                                    }
+                                )
+                            }
+                        },
+                        onUseOwnKey = {
+                            ApiConfig.preferBringYourOwnKey()
+                            aiSettingsRefreshKey++
+                        },
                         onHomeTimelineChanged = { showHomeTimeline = it },
                         onOpenRuleRecords = { showRuleRecordsPage = true }
                     )
@@ -346,7 +395,7 @@ fun MainScreen(
                                 pkgName
                             }
 
-                            MainScope().launch {
+                            mainScope.launch {
                                 try {
                                     android.util.Log.d("MainScreen", ">>> Calling createSession for $appName")
                                     val sessionId = sessionManager.createSession(
@@ -375,7 +424,10 @@ fun MainScreen(
 
     if (showAiSettingsDialog) {
         AiModelSettingsDialog(
-            onDismiss = { showAiSettingsDialog = false }
+            onDismiss = {
+                showAiSettingsDialog = false
+                aiSettingsRefreshKey++
+            }
         )
     }
 
@@ -430,7 +482,10 @@ fun HomeTab(
     onOpenMediaSessionAccessSettings: () -> Unit,
     onRequestMicrophone: () -> Unit,
     onOpenAiSettings: () -> Unit,
+    onOpenAccount: () -> Unit,
+    onUseSeenotAi: () -> Unit,
     onOpenControlledApps: () -> Unit,
+    accountState: SeenotAccountState,
     showHomeTimeline: Boolean,
     modifier: Modifier = Modifier
 ) {
@@ -535,70 +590,21 @@ fun HomeTab(
 
         if (!isHomeReady || showCompletedConfigDetails) {
             Text(
-                text = stringResource(R.string.ai_settings),
+                text = stringResource(R.string.ai_capability_title),
                 style = MaterialTheme.typography.titleMedium,
                 fontWeight = FontWeight.Bold
             )
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onOpenAiSettings() }
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        if (isAiConfigured) Icons.Default.CheckCircle else Icons.Default.Tune,
-                        contentDescription = null,
-                        tint = if (isAiConfigured) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.secondary
-                        }
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.ai_settings),
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = if (isAiConfigured) {
-                                stringResource(R.string.ai_configured_tap_to_modify)
-                            } else {
-                                stringResource(R.string.ai_not_configured_tap_to_setup)
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        if (isAiConfigured) {
-                            Spacer(modifier = Modifier.height(4.dp))
-                            Text(
-                                text = if (isVoiceConfigured) {
-                                    stringResource(R.string.ai_voice_optional_configured)
-                                } else {
-                                    stringResource(R.string.ai_voice_optional_not_configured)
-                                },
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Icon(
-                        Icons.Default.ChevronRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
+            HomeAiChoiceCard(
+                isAiConfigured = isAiConfigured,
+                isVoiceConfigured = isVoiceConfigured,
+                accountState = accountState,
+                onOpenAiSettings = onOpenAiSettings,
+                onOpenAccount = onOpenAccount,
+                onUseSeenotAi = onUseSeenotAi
+            )
 
             Spacer(modifier = Modifier.height(24.dp))
 
@@ -821,11 +827,137 @@ fun PermissionCard(
     }
 }
 
+@Composable
+private fun HomeAiChoiceCard(
+    isAiConfigured: Boolean,
+    isVoiceConfigured: Boolean,
+    accountState: SeenotAccountState,
+    onOpenAiSettings: () -> Unit,
+    onOpenAccount: () -> Unit,
+    onUseSeenotAi: () -> Unit
+) {
+    val isPlus = (accountState as? SeenotAccountState.Ready)?.snapshot?.hasPlus == true
+    val usesSeenotAi = ApiConfig.getAiSource() == AiSource.SEENOT_AI && ApiConfig.isManagedAiActive()
+    val title = when {
+        usesSeenotAi -> stringResource(R.string.seenot_ai_enabled_title)
+        isAiConfigured -> stringResource(R.string.own_key_ready_title)
+        else -> stringResource(R.string.choose_ai_plan_title)
+    }
+    val description = when {
+        usesSeenotAi -> stringResource(R.string.seenot_ai_enabled_desc)
+        isPlus && !isAiConfigured -> stringResource(R.string.plus_can_enable_seenot_ai_desc)
+        isAiConfigured -> stringResource(R.string.own_key_ready_home_desc)
+        else -> stringResource(R.string.choose_ai_plan_home_desc)
+    }
+
+    Card(modifier = Modifier.fillMaxWidth()) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = if (isAiConfigured) Icons.Default.CheckCircle else Icons.Default.AutoAwesome,
+                    contentDescription = null,
+                    tint = if (isAiConfigured) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = title,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            if (isAiConfigured) {
+                AssistChip(
+                    onClick = onOpenAiSettings,
+                    label = {
+                        Text(
+                            if (isVoiceConfigured) {
+                                stringResource(R.string.ai_voice_optional_configured)
+                            } else {
+                                stringResource(R.string.ai_voice_optional_not_configured)
+                            }
+                        )
+                    },
+                    leadingIcon = { Icon(Icons.Default.Mic, contentDescription = null) }
+                )
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                Button(
+                    onClick = if (isPlus) onUseSeenotAi else onOpenAccount,
+                    modifier = Modifier.weight(1f),
+                    enabled = accountState !is SeenotAccountState.Loading
+                ) {
+                    Text(
+                        if (isPlus) {
+                            stringResource(R.string.use_seenot_ai_action)
+                        } else {
+                            stringResource(R.string.open_plus_no_config_action)
+                        }
+                    )
+                }
+                OutlinedButton(
+                    onClick = onOpenAiSettings,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Text(stringResource(R.string.use_own_api_key_action))
+                }
+            }
+        }
+    }
+}
+
 private enum class PermissionGuideType {
     ACCESSIBILITY,
     OVERLAY,
     BATTERY,
     MEDIA_SESSION
+}
+
+private fun openSeenotAccountPage(context: Context) {
+    val language = AppLocalePrefs.getLanguage(context)
+    val path = if (language == AppLocalePrefs.LANG_ZH) "/zh/account/" else "/account/"
+    val url = BuildConfig.SEENOT_WEBSITE_BASE_URL.trimEnd('/') + path
+    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+}
+
+private suspend fun enableSeenotAi(
+    context: Context,
+    accountApi: SeenotAccountApi,
+    onEnabled: () -> Unit
+) {
+    runCatching {
+        val session = accountApi.createManagedAiSession()
+        ApiConfig.saveManagedAiSession(
+            apiKey = session.apiKey,
+            baseUrl = session.baseUrl,
+            model = session.model,
+            expiresAtEpochSeconds = session.expiresAt
+        )
+        onEnabled()
+        Toast.makeText(context, context.getString(R.string.seenot_ai_enabled_toast), Toast.LENGTH_SHORT).show()
+    }.onFailure {
+        Toast.makeText(
+            context,
+            context.getString(R.string.seenot_ai_enable_failed),
+            Toast.LENGTH_LONG
+        ).show()
+    }
 }
 
 @Composable
@@ -2882,7 +3014,11 @@ private fun formatMonitoringPauseStatus(context: Context, pause: AppMonitoringPa
 fun SettingsTab(
     modifier: Modifier = Modifier,
     aiSettingsRefreshKey: Boolean = false,
+    accountState: SeenotAccountState = SeenotAccountState.SignedOut,
     onOpenAiSettings: () -> Unit = {},
+    onOpenAccount: () -> Unit = {},
+    onUseSeenotAi: () -> Unit = {},
+    onUseOwnKey: () -> Unit = {},
     onHomeTimelineChanged: (Boolean) -> Unit = {},
     onOpenRuleRecords: () -> Unit = {}
 ) {
@@ -2909,7 +3045,7 @@ fun SettingsTab(
     var screenshotDropdownExpanded by remember { mutableStateOf(false) }
     var showLogExportDialog by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
-    val aiSettings = remember(aiSettingsRefreshKey) { ApiConfig.getSettings() }
+    val aiSettings = remember(aiSettingsRefreshKey) { ApiConfig.getOwnKeySettings() }
     val aiPresetLabel = remember(aiSettings) {
         recommendedModelPresets(aiSettings.provider, aiSettings.qwenRegion)
             .firstOrNull { it.model == aiSettings.model }
@@ -2989,19 +3125,16 @@ fun SettingsTab(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        SettingsSectionCard(
-            title = stringResource(R.string.settings_ai_title),
-            description = stringResource(R.string.settings_model_desc)
-        ) {
-            OutlinedButton(
-                onClick = onOpenAiSettings,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Default.Tune, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(aiButtonLabel)
-            }
-        }
+        ServiceStatusSection(
+            accountState = accountState,
+            aiButtonLabel = aiButtonLabel,
+            isAiConfigured = ApiConfig.isVisionConfigured(),
+            onOpenAccount = onOpenAccount,
+            onUseSeenotAi = onUseSeenotAi,
+            onUseOwnKey = onUseOwnKey,
+            onOpenAiSettings = onOpenAiSettings,
+            onOpenAccountDetails = onOpenAccount
+        )
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -3281,6 +3414,22 @@ fun SettingsTab(
         Spacer(modifier = Modifier.height(24.dp))
 
         SettingsSectionCard(
+            title = stringResource(R.string.advanced_ai_settings_title),
+            description = stringResource(R.string.advanced_ai_settings_desc)
+        ) {
+            OutlinedButton(
+                onClick = onOpenAiSettings,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.Default.Tune, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(aiButtonLabel)
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        SettingsSectionCard(
             title = stringResource(R.string.about_section),
             description = null
         ) {
@@ -3326,6 +3475,267 @@ private fun SettingsSectionCard(
             }
             content()
         }
+    }
+}
+
+@Composable
+private fun ServiceStatusSection(
+    accountState: SeenotAccountState,
+    aiButtonLabel: String,
+    isAiConfigured: Boolean,
+    onOpenAccount: () -> Unit,
+    onUseSeenotAi: () -> Unit,
+    onUseOwnKey: () -> Unit,
+    onOpenAiSettings: () -> Unit,
+    onOpenAccountDetails: () -> Unit
+) {
+    val snapshot = (accountState as? SeenotAccountState.Ready)?.snapshot
+    val isPlus = snapshot?.hasPlus == true
+    val usesSeenotAi = ApiConfig.getAiSource() == AiSource.SEENOT_AI && ApiConfig.isManagedAiActive()
+
+    ElevatedCard(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.elevatedCardColors(
+            containerColor = if (isPlus) {
+                MaterialTheme.colorScheme.primaryContainer
+            } else {
+                MaterialTheme.colorScheme.surface
+            }
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = if (isPlus) Icons.Default.WorkspacePremium else Icons.Default.Person,
+                    contentDescription = null,
+                    tint = if (isPlus) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = stringResource(R.string.service_status_title),
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = serviceStatusDescription(accountState, usesSeenotAi, isAiConfigured),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                ServicePill(
+                    label = when {
+                        isPlus -> stringResource(R.string.plus_badge)
+                        snapshot != null -> stringResource(R.string.free_badge)
+                        else -> stringResource(R.string.local_mode_badge)
+                    }
+                )
+            }
+
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                ServiceStatusRow(
+                    icon = Icons.Default.AccountCircle,
+                    title = stringResource(R.string.account_status_label),
+                    value = accountStatusLabel(accountState),
+                    supporting = accountStatusSupporting(accountState)
+                )
+                HorizontalDivider()
+                ServiceStatusRow(
+                    icon = Icons.Default.AutoAwesome,
+                    title = stringResource(R.string.ai_source_label),
+                    value = aiSourceLabel(usesSeenotAi, isAiConfigured),
+                    supporting = aiSourceSupporting(usesSeenotAi, isAiConfigured, aiButtonLabel)
+                )
+            }
+
+            when {
+                usesSeenotAi -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedButton(
+                        onClick = onUseOwnKey,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(stringResource(R.string.switch_to_own_key_action))
+                    }
+                    OutlinedButton(
+                        onClick = onOpenAccountDetails,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(stringResource(R.string.open_account_details_action))
+                    }
+                }
+                isPlus -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = onUseSeenotAi,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(stringResource(R.string.use_seenot_ai_action))
+                    }
+                    OutlinedButton(
+                        onClick = onOpenAiSettings,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(stringResource(R.string.use_own_api_key_action))
+                    }
+                }
+                snapshot != null -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = onOpenAccount,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(stringResource(R.string.open_plus_no_config_action))
+                    }
+                    OutlinedButton(
+                        onClick = onOpenAiSettings,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(stringResource(R.string.use_own_api_key_action))
+                    }
+                }
+                else -> Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    Button(
+                        onClick = onOpenAccount,
+                        modifier = Modifier.weight(1f),
+                        enabled = accountState !is SeenotAccountState.Loading
+                    ) {
+                        Text(stringResource(R.string.open_plus_no_config_action))
+                    }
+                    OutlinedButton(
+                        onClick = onOpenAiSettings,
+                        modifier = Modifier.weight(1f)
+                    ) {
+                        Text(stringResource(R.string.use_own_api_key_action))
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ServiceStatusRow(
+    icon: ImageVector,
+    title: String,
+    value: String,
+    supporting: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.width(12.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Text(text = title, style = MaterialTheme.typography.labelLarge)
+            Text(text = supporting, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = value,
+            style = MaterialTheme.typography.bodyMedium,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.primary
+        )
+    }
+}
+
+@Composable
+private fun ServicePill(label: String) {
+    Surface(
+        shape = MaterialTheme.shapes.small,
+        color = MaterialTheme.colorScheme.secondaryContainer,
+        contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+    ) {
+        Text(
+            text = label,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 5.dp),
+            style = MaterialTheme.typography.labelMedium,
+            fontWeight = FontWeight.SemiBold
+        )
+    }
+}
+
+@Composable
+private fun serviceStatusDescription(
+    accountState: SeenotAccountState,
+    usesSeenotAi: Boolean,
+    isAiConfigured: Boolean
+): String {
+    return when {
+        usesSeenotAi -> stringResource(R.string.service_status_seenot_ai_desc)
+        (accountState as? SeenotAccountState.Ready)?.snapshot?.hasPlus == true -> stringResource(R.string.service_status_plus_desc)
+        isAiConfigured -> stringResource(R.string.service_status_own_key_desc)
+        accountState is SeenotAccountState.Loading -> stringResource(R.string.service_status_loading_desc)
+        else -> stringResource(R.string.service_status_local_desc)
+    }
+}
+
+@Composable
+private fun accountStatusLabel(accountState: SeenotAccountState): String {
+    return when (accountState) {
+        SeenotAccountState.Loading -> stringResource(R.string.status_loading)
+        SeenotAccountState.SignedOut -> stringResource(R.string.local_mode_badge)
+        is SeenotAccountState.Error -> stringResource(R.string.status_needs_refresh)
+        is SeenotAccountState.Ready -> if (accountState.snapshot.hasPlus) stringResource(R.string.plus_badge) else stringResource(R.string.free_badge)
+    }
+}
+
+@Composable
+private fun accountStatusSupporting(accountState: SeenotAccountState): String {
+    return when (accountState) {
+        SeenotAccountState.Loading -> stringResource(R.string.account_status_loading_desc)
+        SeenotAccountState.SignedOut -> stringResource(R.string.account_status_signed_out_desc)
+        is SeenotAccountState.Error -> stringResource(R.string.account_status_update_problem_desc)
+        is SeenotAccountState.Ready -> {
+            val entitlement = accountState.snapshot.entitlement
+            if (accountState.snapshot.hasPlus) {
+                entitlement?.currentPeriodEnd?.let {
+                    stringResource(R.string.account_status_plus_until_desc, formatEntitlementDate(it))
+                } ?: stringResource(R.string.account_status_plus_desc)
+            } else if (entitlement != null) {
+                stringResource(
+                    R.string.account_status_free_with_devices_desc,
+                    entitlement.linkedDeviceCount,
+                    entitlement.deviceLimit
+                )
+            } else {
+                stringResource(R.string.account_status_free_desc)
+            }
+        }
+    }
+}
+
+private fun formatEntitlementDate(value: String): String {
+    val instant = runCatching { Instant.parse(value) }.getOrNull() ?: return value
+    return DateTimeFormatter
+        .ofLocalizedDate(FormatStyle.MEDIUM)
+        .withZone(ZoneId.systemDefault())
+        .format(instant)
+}
+
+@Composable
+private fun aiSourceLabel(usesSeenotAi: Boolean, isAiConfigured: Boolean): String {
+    return when {
+        usesSeenotAi -> stringResource(R.string.seenot_ai_label)
+        isAiConfigured -> stringResource(R.string.own_api_key_label)
+        else -> stringResource(R.string.not_enabled_label)
+    }
+}
+
+@Composable
+private fun aiSourceSupporting(usesSeenotAi: Boolean, isAiConfigured: Boolean, aiButtonLabel: String): String {
+    return when {
+        usesSeenotAi -> stringResource(R.string.ai_source_seenot_ai_desc)
+        isAiConfigured -> stringResource(R.string.ai_source_own_key_desc, aiButtonLabel)
+        else -> stringResource(R.string.ai_source_missing_desc)
     }
 }
 
@@ -3411,7 +3821,7 @@ private fun AiModelSettingsDialog(
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    val initialSettings = remember { ApiConfig.getSettings() }
+    val initialSettings = remember { ApiConfig.getOwnKeySettings() }
     val initialSttSettings = remember { ApiConfig.getSttSettings() }
 
     var provider by remember { mutableStateOf(initialSettings.provider) }
@@ -3501,14 +3911,14 @@ private fun AiModelSettingsDialog(
 
     fun applyProviderDefaults(target: AiProvider) {
         val defaults = ApiSettings.defaults(target)
-        val savedBaseUrl = ApiConfig.getBaseUrl(target)
+        val savedBaseUrl = ApiConfig.getOwnBaseUrl(target)
         val nextRegion = if (target == AiProvider.DASHSCOPE) {
             QwenRegion.entries.firstOrNull { it.baseUrl == savedBaseUrl } ?: ApiConfig.getQwenRegion()
         } else {
             defaults.qwenRegion
         }
         val nextBaseUrl = savedBaseUrl
-        val nextApiKey = ApiConfig.getApiKey(target)
+        val nextApiKey = ApiConfig.getOwnApiKey(target)
 
         provider = target
         qwenRegion = nextRegion
