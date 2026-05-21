@@ -427,10 +427,19 @@ fun MainScreen(
                             }
                         },
                         onSignOutAccount = {
-                            SeenotAccountSession.clear()
-                            ApiConfig.preferBringYourOwnKey()
-                            accountRefreshKey++
-                            Toast.makeText(context, context.getString(R.string.account_signed_out_toast), Toast.LENGTH_SHORT).show()
+                            mainScope.launch {
+                                runCatching {
+                                    accountApi.revokeCurrentDevice()
+                                }
+                                SeenotAccountSession.clearAccount()
+                                ApiConfig.preferBringYourOwnKey()
+                                accountRefreshKey++
+                                Toast.makeText(
+                                    context,
+                                    context.getString(R.string.account_signed_out_toast),
+                                    Toast.LENGTH_SHORT
+                                ).show()
+                            }
                         },
                         onRefreshAccount = { accountRefreshKey++ },
                         isAccountLoginInFlight = isAccountLoginInFlight,

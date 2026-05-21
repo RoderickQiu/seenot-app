@@ -32,6 +32,11 @@ data class SeenotDevicesResponse(
     val devices: List<SeenotDeviceResponse>
 )
 
+data class SeenotRevokeDeviceResponse(
+    @SerializedName("device_id") val deviceId: String,
+    val revoked: Boolean
+)
+
 data class SeenotEntitlementResponse(
     val tier: String,
     val status: String,

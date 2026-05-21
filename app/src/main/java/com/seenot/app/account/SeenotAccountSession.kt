@@ -62,7 +62,17 @@ object SeenotAccountSession {
         prefs?.edit()?.putString(KEY_DEVICE_ID, deviceId.trim())?.apply()
     }
 
+    fun clearAccount() {
+        prefs?.edit()
+            ?.remove(KEY_ACCESS_TOKEN)
+            ?.remove(KEY_REFRESH_TOKEN)
+            ?.remove(KEY_USER_ID)
+            ?.remove(KEY_USER_STATUS)
+            ?.remove(KEY_DEVICE_ID)
+            ?.apply()
+    }
+
     fun clear() {
-        prefs?.edit()?.clear()?.apply()
+        clearAccount()
     }
 }

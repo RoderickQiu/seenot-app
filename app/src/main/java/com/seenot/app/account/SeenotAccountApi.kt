@@ -126,6 +126,33 @@ class SeenotAccountApi(
         }
     }
 
+    suspend fun revokeCurrentDevice() = withContext(Dispatchers.IO) {
+        val deviceId = SeenotAccountSession.getDeviceId()
+        val accessToken = SeenotAccountSession.getAccessToken()
+        if (deviceId.isBlank() || accessToken.isBlank()) return@withContext
+
+        runCatching {
+            postJson(
+                path = "/devices/$deviceId/revoke",
+                body = JsonObject(),
+                token = accessToken,
+                responseClass = SeenotRevokeDeviceResponse::class.java
+            )
+        }.recoverCatching { error ->
+            if (error is SeenotAuthException) {
+                val refreshed = refresh()
+                postJson(
+                    path = "/devices/$deviceId/revoke",
+                    body = JsonObject(),
+                    token = refreshed.accessToken,
+                    responseClass = SeenotRevokeDeviceResponse::class.java
+                )
+            } else {
+                throw error
+            }
+        }
+    }
+
     private fun refresh(): SeenotAuthTokenResponse {
         val refreshToken = SeenotAccountSession.getRefreshToken()
         if (refreshToken.isBlank()) throw SeenotAuthException("Missing refresh token.")
