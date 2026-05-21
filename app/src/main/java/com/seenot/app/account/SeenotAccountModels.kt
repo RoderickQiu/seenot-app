@@ -28,6 +28,10 @@ data class SeenotDeviceResponse(
     @SerializedName("revoked_at") val revokedAt: String?
 )
 
+data class SeenotDevicesResponse(
+    val devices: List<SeenotDeviceResponse>
+)
+
 data class SeenotEntitlementResponse(
     val tier: String,
     val status: String,
@@ -50,6 +54,12 @@ data class SeenotManagedAiSessionResponse(
     @SerializedName("expires_at") val expiresAt: Long,
     @SerializedName("expires_in") val expiresIn: Int,
     @SerializedName("fair_use_state") val fairUseState: String
+)
+
+data class SeenotAppLoginStartResponse(
+    @SerializedName("request_id") val requestId: String,
+    @SerializedName("login_url") val loginUrl: String,
+    @SerializedName("expires_at") val expiresAt: String
 )
 
 data class SeenotAccountSnapshot(

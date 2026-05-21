@@ -14,3 +14,9 @@
 3. Never commit changes without actual testing. If the relevant verification has not been run successfully, do not create a commit.
 4. If Android verification or build tooling updates `app/version.properties` as part of the checked workflow, treat that version bump as part of the change and include it in the commit unless the user explicitly says otherwise.
 5. Unless the user explicitly asks for a feature branch or says not to, commit directly to `main` in this repo.
+
+## Design Expectations
+
+1. For user-facing home or settings surfaces, avoid implementation-centric technical wording unless the screen is explicitly an advanced configuration surface. Prefer ordinary product language over terms like model maintenance, API keys, or provider internals.
+2. Style lower-priority maintenance or configuration actions with weaker visual emphasis so they do not compete with primary actions or current-state information.
+3. Design UI and write copy with the judgment of someone with strong product design and UX ability. Favor clear hierarchy, accurate semantics, realistic product behavior, and user-facing language that feels intentional rather than merely functional.

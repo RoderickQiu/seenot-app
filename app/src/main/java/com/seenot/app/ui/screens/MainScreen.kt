@@ -49,6 +49,7 @@ import androidx.compose.ui.window.Dialog
 import com.seenot.app.BuildConfig
 import com.seenot.app.R
 import com.seenot.app.account.SeenotAccountApi
+import com.seenot.app.account.SeenotAccountSession
 import com.seenot.app.account.SeenotAccountState
 import com.seenot.app.config.ApiConfig
 import com.seenot.app.config.AiSource
@@ -109,7 +110,9 @@ import kotlinx.coroutines.flow.collectLatest
 @Composable
 fun MainScreen(
     startWithVoiceInput: Boolean = false,
-    voiceInputPackageName: String? = null
+    voiceInputPackageName: String? = null,
+    authCallbackUri: Uri? = null,
+    onAuthCallbackConsumed: () -> Unit = {}
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
@@ -122,6 +125,8 @@ fun MainScreen(
     var accountRefreshKey by remember { mutableIntStateOf(0) }
     var aiSettingsRefreshKey by remember { mutableIntStateOf(0) }
     var pendingPermissionGuide by remember { mutableStateOf<PermissionGuideType?>(null) }
+    var isAccountLoginInFlight by remember { mutableStateOf(false) }
+    var isAccountRefreshInFlight by remember { mutableStateOf(false) }
 
     // State
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -237,8 +242,58 @@ fun MainScreen(
     }
 
     LaunchedEffect(accountRefreshKey) {
+        isAccountRefreshInFlight = true
         accountState = SeenotAccountState.Loading
         accountState = accountApi.loadAccount()
+        isAccountRefreshInFlight = false
+    }
+
+    LaunchedEffect(authCallbackUri) {
+        val callbackUri = authCallbackUri ?: return@LaunchedEffect
+        val requestId = callbackUri.getQueryParameter("request_id").orEmpty()
+        val exchangeCode = callbackUri.getQueryParameter("code").orEmpty()
+        if (requestId.isBlank() || exchangeCode.isBlank()) {
+            onAuthCallbackConsumed()
+            Toast.makeText(context, context.getString(R.string.account_login_callback_invalid), Toast.LENGTH_LONG).show()
+            return@LaunchedEffect
+        }
+
+        isAccountLoginInFlight = true
+        accountState = SeenotAccountState.Loading
+        val exchangedState = accountApi.exchangeAppLogin(requestId = requestId, exchangeCode = exchangeCode)
+        accountState = exchangedState
+        isAccountLoginInFlight = false
+
+        when (exchangedState) {
+            is SeenotAccountState.Ready -> {
+                if (exchangedState.snapshot.hasPlus) {
+                    runCatching {
+                        val session = accountApi.createManagedAiSession()
+                        ApiConfig.saveManagedAiSession(
+                            apiKey = session.apiKey,
+                            baseUrl = session.baseUrl,
+                            model = session.model,
+                            expiresAtEpochSeconds = session.expiresAt
+                        )
+                    }
+                }
+                selectedTab = 2
+                Toast.makeText(context, context.getString(R.string.account_login_success_toast), Toast.LENGTH_SHORT).show()
+                accountRefreshKey++
+            }
+            is SeenotAccountState.Error -> {
+                Toast.makeText(
+                    context,
+                    exchangedState.message.ifBlank { context.getString(R.string.account_login_failed_toast) },
+                    Toast.LENGTH_LONG
+                ).show()
+            }
+            SeenotAccountState.SignedOut -> {
+                Toast.makeText(context, context.getString(R.string.account_login_failed_toast), Toast.LENGTH_LONG).show()
+            }
+            SeenotAccountState.Loading -> Unit
+        }
+        onAuthCallbackConsumed()
     }
 
     // Determine if required permissions are granted. Microphone is optional because text input works.
@@ -327,7 +382,17 @@ fun MainScreen(
                             microphonePermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
                         },
                         onOpenAiSettings = { showAiSettingsDialog = true },
-                        onOpenAccount = { openSeenotAccountPage(context) },
+                        onOpenAccount = {
+                            mainScope.launch {
+                                openSeenotAccountPage(
+                                    context = context,
+                                    accountApi = accountApi,
+                                    accountState = accountState,
+                                    isAccountLoginInFlight = isAccountLoginInFlight,
+                                    onLoginStarted = { isAccountLoginInFlight = it }
+                                )
+                            }
+                        },
                         onUseSeenotAi = {
                             mainScope.launch {
                                 enableSeenotAi(
@@ -348,10 +413,28 @@ fun MainScreen(
                     1 -> AppsTab(modifier = Modifier.padding(padding))
                     2 -> SettingsTab(
                         modifier = Modifier.padding(padding),
-                        aiSettingsRefreshKey = showAiSettingsDialog || aiSettingsRefreshKey % 2 == 1,
                         accountState = accountState,
                         onOpenAiSettings = { showAiSettingsDialog = true },
-                        onOpenAccount = { openSeenotAccountPage(context) },
+                        onOpenAccount = {
+                            mainScope.launch {
+                                openSeenotAccountPage(
+                                    context = context,
+                                    accountApi = accountApi,
+                                    accountState = accountState,
+                                    isAccountLoginInFlight = isAccountLoginInFlight,
+                                    onLoginStarted = { isAccountLoginInFlight = it }
+                                )
+                            }
+                        },
+                        onSignOutAccount = {
+                            SeenotAccountSession.clear()
+                            ApiConfig.preferBringYourOwnKey()
+                            accountRefreshKey++
+                            Toast.makeText(context, context.getString(R.string.account_signed_out_toast), Toast.LENGTH_SHORT).show()
+                        },
+                        onRefreshAccount = { accountRefreshKey++ },
+                        isAccountLoginInFlight = isAccountLoginInFlight,
+                        isAccountRefreshInFlight = isAccountRefreshInFlight,
                         onHomeTimelineChanged = { showHomeTimeline = it },
                         onOpenRuleRecords = { showRuleRecordsPage = true }
                     )
@@ -408,6 +491,7 @@ fun MainScreen(
 
     if (showAiSettingsDialog) {
         AiModelSettingsDialog(
+            accountState = accountState,
             onDismiss = {
                 showAiSettingsDialog = false
                 aiSettingsRefreshKey++
@@ -913,11 +997,56 @@ private enum class PermissionGuideType {
     MEDIA_SESSION
 }
 
-private fun openSeenotAccountPage(context: Context) {
-    val language = AppLocalePrefs.getLanguage(context)
-    val path = if (language == AppLocalePrefs.LANG_ZH) "/zh/account/" else "/account/"
-    val url = BuildConfig.SEENOT_WEBSITE_BASE_URL.trimEnd('/') + path
-    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+private const val SEENOT_APP_LOGIN_REDIRECT_URI = "seenot://auth/callback"
+
+private suspend fun openSeenotAccountPage(
+    context: Context,
+    accountApi: SeenotAccountApi,
+    accountState: SeenotAccountState,
+    isAccountLoginInFlight: Boolean,
+    onLoginStarted: (Boolean) -> Unit
+) {
+    if (accountState !is SeenotAccountState.SignedOut) {
+        val language = AppLocalePrefs.getLanguage(context)
+        val path = if (language == AppLocalePrefs.LANG_ZH) "/zh/account/" else "/account/"
+        val url = BuildConfig.SEENOT_WEBSITE_BASE_URL.trimEnd('/') + path
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+        return
+    }
+    if (isAccountLoginInFlight) return
+
+    onLoginStarted(true)
+    runCatching {
+        val started = accountApi.startAppLogin(redirectUri = SEENOT_APP_LOGIN_REDIRECT_URI)
+        context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(started.loginUrl)))
+    }.onFailure {
+        Toast.makeText(
+            context,
+            context.getString(R.string.account_login_start_failed_toast),
+            Toast.LENGTH_LONG
+        ).show()
+    }
+    onLoginStarted(false)
+}
+
+private fun openSeenotAccountManagementPage(
+    context: Context,
+    accountState: SeenotAccountState
+) {
+    val manageUrl = (accountState as? SeenotAccountState.Ready)
+        ?.snapshot
+        ?.entitlement
+        ?.manageUrl
+        ?.trim()
+        .orEmpty()
+    val targetUrl = if (manageUrl.isNotBlank()) {
+        manageUrl
+    } else {
+        val language = AppLocalePrefs.getLanguage(context)
+        val path = if (language == AppLocalePrefs.LANG_ZH) "/zh/account/" else "/account/"
+        BuildConfig.SEENOT_WEBSITE_BASE_URL.trimEnd('/') + path
+    }
+    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(targetUrl)))
 }
 
 private fun openSeenotPlusPage(context: Context) {
@@ -3004,10 +3133,13 @@ private fun formatMonitoringPauseStatus(context: Context, pause: AppMonitoringPa
 @Composable
 fun SettingsTab(
     modifier: Modifier = Modifier,
-    aiSettingsRefreshKey: Boolean = false,
     accountState: SeenotAccountState = SeenotAccountState.SignedOut,
     onOpenAiSettings: () -> Unit = {},
     onOpenAccount: () -> Unit = {},
+    onSignOutAccount: () -> Unit = {},
+    onRefreshAccount: () -> Unit = {},
+    isAccountLoginInFlight: Boolean = false,
+    isAccountRefreshInFlight: Boolean = false,
     onHomeTimelineChanged: (Boolean) -> Unit = {},
     onOpenRuleRecords: () -> Unit = {}
 ) {
@@ -3034,13 +3166,6 @@ fun SettingsTab(
     var screenshotDropdownExpanded by remember { mutableStateOf(false) }
     var showLogExportDialog by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
-    val aiSettings = remember(aiSettingsRefreshKey) { ApiConfig.getOwnKeySettings() }
-    val aiPresetLabel = remember(aiSettings) {
-        recommendedModelPresets(aiSettings.provider, aiSettings.qwenRegion)
-            .firstOrNull { it.model == aiSettings.model }
-            ?.model
-            ?: aiSettings.model
-    }
     val screenshotModeOptions = listOf(
         RuleRecordingPrefs.ScreenshotMode.ALL to R.string.screenshot_mode_all,
         RuleRecordingPrefs.ScreenshotMode.MATCHED_ONLY to R.string.screenshot_mode_matched_only,
@@ -3048,12 +3173,18 @@ fun SettingsTab(
     )
     val selectedScreenshotLabel = screenshotModeOptions.find { it.first == screenshotMode }?.second?.let { context.getString(it) }
         ?: context.getString(screenshotModeOptions.first().second)
-    val aiButtonLabel = remember(aiSettings) {
+    val ownAiSettings = remember { ApiConfig.getOwnKeySettings() }
+    val ownAiPresetLabel = remember(ownAiSettings) {
+        recommendedModelPresets(ownAiSettings.provider, ownAiSettings.qwenRegion)
+            .firstOrNull { it.model == ownAiSettings.model }
+            ?.model
+            ?: ownAiSettings.model
+    }
+    val aiButtonLabel = remember(ownAiSettings, ownAiPresetLabel, context) {
         when {
-            aiSettings.model.isBlank() -> context.getString(R.string.model_not_set)
-            aiSettings.provider == AiProvider.DASHSCOPE ->
-                "Qwen · $aiPresetLabel"
-            else -> "${context.getString(aiSettings.provider.displayNameResId)} · $aiPresetLabel"
+            ownAiSettings.model.isBlank() -> context.getString(R.string.model_not_set)
+            ownAiSettings.provider == AiProvider.DASHSCOPE -> "Qwen · $ownAiPresetLabel"
+            else -> "${context.getString(ownAiSettings.provider.displayNameResId)} · $ownAiPresetLabel"
         }
     }
     val intentReminderOptions = remember {
@@ -3074,7 +3205,6 @@ fun SettingsTab(
     )
     val selectedLanguageLabel = languageOptions.find { it.first == selectedLanguage }?.second?.let { context.getString(it) }
         ?: context.getString(R.string.language_option_zh)
-
     if (showDeleteConfirm) {
         AlertDialog(
             onDismissRequest = { showDeleteConfirm = false },
@@ -3118,7 +3248,11 @@ fun SettingsTab(
             accountState = accountState,
             aiButtonLabel = aiButtonLabel,
             isAiConfigured = ApiConfig.isVisionConfigured(),
+            onSignOutAccount = onSignOutAccount,
             onOpenAccount = onOpenAccount,
+            onRefreshAccount = onRefreshAccount,
+            isAccountLoginInFlight = isAccountLoginInFlight,
+            isAccountRefreshInFlight = isAccountRefreshInFlight,
             onOpenAiSettings = onOpenAiSettings,
             onOpenPlus = { openSeenotPlusPage(context) }
         )
@@ -3401,22 +3535,6 @@ fun SettingsTab(
         Spacer(modifier = Modifier.height(24.dp))
 
         SettingsSectionCard(
-            title = stringResource(R.string.advanced_ai_settings_title),
-            description = stringResource(R.string.advanced_ai_settings_desc)
-        ) {
-            OutlinedButton(
-                onClick = onOpenAiSettings,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Icon(Icons.Default.Tune, contentDescription = null)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(aiButtonLabel)
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        SettingsSectionCard(
             title = stringResource(R.string.about_section),
             description = null
         ) {
@@ -3470,7 +3588,11 @@ private fun ServiceStatusSection(
     accountState: SeenotAccountState,
     aiButtonLabel: String,
     isAiConfigured: Boolean,
+    onSignOutAccount: () -> Unit,
     onOpenAccount: () -> Unit,
+    onRefreshAccount: () -> Unit,
+    isAccountLoginInFlight: Boolean,
+    isAccountRefreshInFlight: Boolean,
     onOpenAiSettings: () -> Unit,
     onOpenPlus: () -> Unit
 ) {
@@ -3478,6 +3600,7 @@ private fun ServiceStatusSection(
     val isPlus = snapshot?.hasPlus == true
     val usesSeenotAi = ApiConfig.getAiSource() == AiSource.SEENOT_AI && ApiConfig.isManagedAiActive()
     val usesOwnSetup = isAiConfigured && !usesSeenotAi
+    var accountMenuExpanded by remember { mutableStateOf(false) }
 
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
@@ -3531,29 +3654,73 @@ private fun ServiceStatusSection(
                     title = stringResource(R.string.account_status_label),
                     value = accountStatusLabel(accountState),
                     supporting = accountStatusSupporting(accountState),
-                    actionLabel = if (accountState is SeenotAccountState.SignedOut) stringResource(R.string.sign_in_account_action) else null,
-                    onActionClick = onOpenAccount
+                    actionContent = {
+                        if (accountState is SeenotAccountState.SignedOut) {
+                            Button(
+                                onClick = onOpenAccount,
+                                enabled = !isAccountLoginInFlight
+                            ) {
+                                Text(
+                                    text = if (isAccountLoginInFlight) {
+                                        stringResource(R.string.account_login_starting_action)
+                                    } else {
+                                        stringResource(R.string.sign_in_account_action)
+                                    }
+                                )
+                            }
+                        } else if (accountState is SeenotAccountState.Error) {
+                            Button(
+                                onClick = onRefreshAccount,
+                                enabled = !isAccountRefreshInFlight
+                            ) {
+                                Text(
+                                    text = if (isAccountRefreshInFlight) {
+                                        stringResource(R.string.account_refreshing_action)
+                                    } else {
+                                        stringResource(R.string.account_refresh_action)
+                                    }
+                                )
+                            }
+                        } else if (accountState is SeenotAccountState.Ready) {
+                            Box {
+                                Button(onClick = { accountMenuExpanded = true }) {
+                                    Text(text = stringResource(R.string.account_actions_action))
+                                }
+                                DropdownMenu(
+                                    expanded = accountMenuExpanded,
+                                    onDismissRequest = { accountMenuExpanded = false }
+                                ) {
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.manage_or_delete_account_action)) },
+                                        onClick = {
+                                            accountMenuExpanded = false
+                                            onOpenAccount
+                                                .invoke()
+                                        }
+                                    )
+                                    DropdownMenuItem(
+                                        text = { Text(stringResource(R.string.sign_out_local_account_action)) },
+                                        onClick = {
+                                            accountMenuExpanded = false
+                                            onSignOutAccount()
+                                        }
+                                    )
+                                }
+                            }
+                        }
+                    }
                 )
                 HorizontalDivider()
                 ServiceStatusRow(
                     icon = Icons.Default.AutoAwesome,
                     title = stringResource(R.string.ai_plan_label),
-                    value = aiSourceLabel(usesSeenotAi, isAiConfigured),
-                    supporting = aiSourceSupporting(usesSeenotAi, isAiConfigured, aiButtonLabel)
+                    value = "",
+                    supporting = aiSourceSupporting(usesSeenotAi, isAiConfigured, aiButtonLabel),
+                    actionLabel = stringResource(R.string.adjust_ai_setup_action),
+                    onActionClick = onOpenAiSettings
                 )
             }
 
-            OutlinedButton(
-                onClick = onOpenAiSettings,
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                Text(
-                    when {
-                        usesSeenotAi -> stringResource(R.string.adjust_seenot_ai_action)
-                        else -> stringResource(R.string.adjust_local_setup_action)
-                    }
-                )
-            }
         }
     }
 
@@ -3573,7 +3740,8 @@ private fun ServiceStatusRow(
     value: String,
     supporting: String,
     actionLabel: String? = null,
-    onActionClick: (() -> Unit)? = null
+    onActionClick: (() -> Unit)? = null,
+    actionContent: (@Composable () -> Unit)? = null
 ) {
     Row(
         modifier = Modifier.fillMaxWidth(),
@@ -3589,7 +3757,10 @@ private fun ServiceStatusRow(
             Text(text = title, style = MaterialTheme.typography.labelLarge)
             Text(text = supporting, style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
-        if (!actionLabel.isNullOrBlank() && onActionClick != null) {
+        if (actionContent != null) {
+            Spacer(modifier = Modifier.width(12.dp))
+            actionContent()
+        } else if (!actionLabel.isNullOrBlank() && onActionClick != null) {
             Spacer(modifier = Modifier.width(12.dp))
             Button(onClick = onActionClick) {
                 Text(text = actionLabel)
@@ -3706,7 +3877,10 @@ private fun accountStatusSupporting(accountState: SeenotAccountState): String {
     return when (accountState) {
         SeenotAccountState.Loading -> stringResource(R.string.account_status_loading_desc)
         SeenotAccountState.SignedOut -> stringResource(R.string.account_status_signed_out_desc)
-        is SeenotAccountState.Error -> stringResource(R.string.account_status_update_problem_desc)
+        is SeenotAccountState.Error -> {
+            val fallback = stringResource(R.string.account_status_update_problem_desc)
+            accountState.message.takeIf { it.isNotBlank() } ?: fallback
+        }
         is SeenotAccountState.Ready -> {
             val entitlement = accountState.snapshot.entitlement
             if (accountState.snapshot.hasPlus) {
@@ -3831,11 +4005,30 @@ private fun SettingsDropdownRow(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 private fun AiModelSettingsDialog(
+    accountState: SeenotAccountState,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
+    val accountApi = remember { SeenotAccountApi(context) }
+    val scope = rememberCoroutineScope()
     val initialSettings = remember { ApiConfig.getOwnKeySettings() }
     val initialSttSettings = remember { ApiConfig.getSttSettings() }
+    val hasPlus = (accountState as? SeenotAccountState.Ready)?.snapshot?.hasPlus == true
+    val hasOwnVisionSetup = initialSettings.apiKey.isNotBlank() &&
+        initialSettings.baseUrl.isNotBlank() &&
+        initialSettings.model.isNotBlank()
+    val managedAiActive = ApiConfig.isManagedAiActive()
+    var preferredAiSource by remember {
+        mutableStateOf(
+            if (ApiConfig.getAiSource() == AiSource.SEENOT_AI && managedAiActive) {
+                AiSource.SEENOT_AI
+            } else {
+                AiSource.BRING_YOUR_OWN_KEY
+            }
+        )
+    }
+    val canToggleAiSource = hasPlus && hasOwnVisionSetup
+    var isSaving by remember { mutableStateOf(false) }
 
     var provider by remember { mutableStateOf(initialSettings.provider) }
     var apiKey by remember { mutableStateOf(initialSettings.apiKey) }
@@ -4004,6 +4197,34 @@ private fun AiModelSettingsDialog(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+
+                    if (canToggleAiSource) {
+                        Text(
+                            text = stringResource(R.string.ai_source_selector_title),
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Medium
+                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        ) {
+                            FilterChip(
+                                selected = preferredAiSource == AiSource.SEENOT_AI,
+                                onClick = { preferredAiSource = AiSource.SEENOT_AI },
+                                label = { Text(stringResource(R.string.ai_source_selector_seenot)) }
+                            )
+                            FilterChip(
+                                selected = preferredAiSource == AiSource.BRING_YOUR_OWN_KEY,
+                                onClick = { preferredAiSource = AiSource.BRING_YOUR_OWN_KEY },
+                                label = { Text(stringResource(R.string.ai_source_selector_local)) }
+                            )
+                        }
+                        Text(
+                            text = stringResource(R.string.ai_source_selector_desc),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
 
                     if (isDevDashscopeKeyActive) {
                         Text(
@@ -4435,66 +4656,102 @@ private fun AiModelSettingsDialog(
         confirmButton = {
             Button(
                 onClick = {
-                    val normalizedRegion = if (provider == AiProvider.DASHSCOPE) {
-                        QwenRegion.entries.firstOrNull { it.baseUrl == baseUrl.trim() } ?: qwenRegion
-                    } else {
-                        qwenRegion
-                    }
-                    val normalizedSttRegion = if (sttProvider == AiProvider.DASHSCOPE) {
-                        QwenRegion.entries.firstOrNull { it.baseUrl == sttBaseUrl.trim() }
-                    } else {
-                        null
-                    }
-
-                    ApiConfig.saveSettings(
-                        ApiSettings(
-                            provider = provider,
-                            apiKey = apiKey.trim(),
-                            baseUrl = baseUrl.trim(),
-                            model = model.trim(),
-                            feedbackModel = feedbackModel.trim().ifBlank { model.trim() },
-                            qwenRegion = normalizedRegion
-                        )
-                    )
-
-                    if (sttProvider != AiProvider.CUSTOM) {
-                        ApiConfig.setApiKey(sttProvider, sttApiKey.trim())
-                        ApiConfig.setBaseUrl(sttProvider, sttBaseUrl.trim())
-                        normalizedSttRegion?.let(ApiConfig::setQwenRegion)
-                    }
-
-                    ApiConfig.saveSttSettings(
-                        SttSettings(
-                            provider = sttProvider,
-                            model = when (sttProvider) {
-                                AiProvider.DASHSCOPE -> "fun-asr-realtime"
-                                AiProvider.GEMINI -> "gemini-2.5-flash-preview-tts"
-                                else -> sttModel.trim()
-                            },
-                            apiKey = sttApiKey.trim(),
-                            baseUrl = sttBaseUrl.trim()
-                        )
-                    )
-
-                    Toast.makeText(
-                        context,
-                        context.getString(
-                            if (ApiConfig.isVoiceConfigured()) {
-                                R.string.save_ai_settings_ready
+                    scope.launch {
+                        isSaving = true
+                        runCatching {
+                            val normalizedRegion = if (provider == AiProvider.DASHSCOPE) {
+                                QwenRegion.entries.firstOrNull { it.baseUrl == baseUrl.trim() } ?: qwenRegion
                             } else {
-                                R.string.save_ai_settings_ready_voice_missing
+                                qwenRegion
                             }
-                        ),
-                        Toast.LENGTH_SHORT
-                    ).show()
-                    onDismiss()
+                            val normalizedSttRegion = if (sttProvider == AiProvider.DASHSCOPE) {
+                                QwenRegion.entries.firstOrNull { it.baseUrl == sttBaseUrl.trim() }
+                            } else {
+                                null
+                            }
+
+                            ApiConfig.saveSettings(
+                                ApiSettings(
+                                    provider = provider,
+                                    apiKey = apiKey.trim(),
+                                    baseUrl = baseUrl.trim(),
+                                    model = model.trim(),
+                                    feedbackModel = feedbackModel.trim().ifBlank { model.trim() },
+                                    qwenRegion = normalizedRegion
+                                )
+                            )
+
+                            if (sttProvider != AiProvider.CUSTOM) {
+                                ApiConfig.setApiKey(sttProvider, sttApiKey.trim())
+                                ApiConfig.setBaseUrl(sttProvider, sttBaseUrl.trim())
+                                normalizedSttRegion?.let(ApiConfig::setQwenRegion)
+                            }
+
+                            ApiConfig.saveSttSettings(
+                                SttSettings(
+                                    provider = sttProvider,
+                                    model = when (sttProvider) {
+                                        AiProvider.DASHSCOPE -> "fun-asr-realtime"
+                                        AiProvider.GEMINI -> "gemini-2.5-flash-preview-tts"
+                                        else -> sttModel.trim()
+                                    },
+                                    apiKey = sttApiKey.trim(),
+                                    baseUrl = sttBaseUrl.trim()
+                                )
+                            )
+
+                            if (canToggleAiSource) {
+                                when (preferredAiSource) {
+                                    AiSource.SEENOT_AI -> {
+                                        if (!ApiConfig.isManagedAiActive()) {
+                                            val session = accountApi.createManagedAiSession()
+                                            ApiConfig.saveManagedAiSession(
+                                                apiKey = session.apiKey,
+                                                baseUrl = session.baseUrl,
+                                                model = session.model,
+                                                expiresAtEpochSeconds = session.expiresAt
+                                            )
+                                        }
+                                    }
+                                    AiSource.BRING_YOUR_OWN_KEY -> ApiConfig.preferBringYourOwnKey()
+                                }
+                            }
+                        }.onSuccess {
+                            Toast.makeText(
+                                context,
+                                context.getString(
+                                    if (ApiConfig.isVoiceConfigured()) {
+                                        R.string.save_ai_settings_ready
+                                    } else {
+                                        R.string.save_ai_settings_ready_voice_missing
+                                    }
+                                ),
+                                Toast.LENGTH_SHORT
+                            ).show()
+                            onDismiss()
+                        }.onFailure {
+                            Toast.makeText(
+                                context,
+                                it.message ?: context.getString(R.string.seenot_ai_enable_failed),
+                                Toast.LENGTH_LONG
+                            ).show()
+                        }
+                        isSaving = false
+                    }
                 },
-                enabled = apiKey.isNotBlank() &&
+                enabled = !isSaving &&
+                    apiKey.isNotBlank() &&
                     baseUrl.isNotBlank() &&
                     model.isNotBlank() &&
                     feedbackModel.isNotBlank()
             ) {
-                Text(stringResource(R.string.save))
+                Text(
+                    if (isSaving) {
+                        stringResource(R.string.status_loading)
+                    } else {
+                        stringResource(R.string.save)
+                    }
+                )
             }
         },
         dismissButton = {

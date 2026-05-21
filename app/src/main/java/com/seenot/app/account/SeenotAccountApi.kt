@@ -6,6 +6,7 @@ import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.seenot.app.BuildConfig
 import com.seenot.app.config.AppLocalePrefs
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import okhttp3.MediaType.Companion.toMediaType
@@ -39,6 +40,7 @@ class SeenotAccountApi(
 
         runCatching {
             val auth = refresh()
+            ensureCurrentInstallationIfMissing(auth.accessToken, auth.device?.deviceId)
             val entitlement = getEntitlement(auth.accessToken)
             SeenotAccountState.Ready(SeenotAccountSnapshot(auth = auth, entitlement = entitlement))
         }.getOrElse { error ->
@@ -58,6 +60,8 @@ class SeenotAccountApi(
                 addProperty("app_version", BuildConfig.VERSION_NAME)
                 addProperty("device_name", buildDeviceName())
                 addProperty("locale", AppLocalePrefs.getLanguage(appContext))
+                addProperty("installation_id", SeenotAccountSession.getInstallationId())
+                SeenotAccountSession.getDeviceId().ifBlank { null }?.let { addProperty("device_id", it) }
             }
             val auth = postJson(
                 path = "/auth/device",
@@ -73,13 +77,58 @@ class SeenotAccountApi(
         }
     }
 
-    suspend fun createManagedAiSession(): SeenotManagedAiSessionResponse = withContext(Dispatchers.IO) {
+    suspend fun startAppLogin(redirectUri: String): SeenotAppLoginStartResponse = withContext(Dispatchers.IO) {
+        val body = JsonObject().apply {
+            addProperty("platform", "android")
+            addProperty("app_version", BuildConfig.VERSION_NAME)
+            addProperty("device_name", buildDeviceName())
+            addProperty("locale", AppLocalePrefs.getLanguage(appContext))
+            addProperty("installation_id", SeenotAccountSession.getInstallationId())
+            addProperty("redirect_uri", redirectUri)
+        }
         postJson(
-            path = "/managed-ai/session",
-            body = JsonObject(),
-            token = SeenotAccountSession.getAccessToken(),
-            responseClass = SeenotManagedAiSessionResponse::class.java
+            path = "/auth/app-login/start",
+            body = body,
+            token = null,
+            responseClass = SeenotAppLoginStartResponse::class.java
         )
+    }
+
+    suspend fun exchangeAppLogin(requestId: String, exchangeCode: String): SeenotAccountState = withContext(Dispatchers.IO) {
+        runCatching {
+            val body = JsonObject().apply {
+                addProperty("request_id", requestId)
+                addProperty("exchange_code", exchangeCode)
+            }
+            val auth = postJson(
+                path = "/auth/app-login/exchange",
+                body = body,
+                token = null,
+                responseClass = SeenotAuthTokenResponse::class.java
+            )
+            SeenotAccountSession.save(auth)
+            ensureDevice(auth.accessToken)
+            val entitlement = getEntitlement(auth.accessToken)
+            SeenotAccountState.Ready(SeenotAccountSnapshot(auth = auth, entitlement = entitlement))
+        }.getOrElse { error ->
+            if (error is SeenotAuthException) {
+                SeenotAccountSession.clear()
+                SeenotAccountState.SignedOut
+            } else {
+                SeenotAccountState.Error(error.message ?: "Could not complete app login.")
+            }
+        }
+    }
+
+    suspend fun createManagedAiSession(): SeenotManagedAiSessionResponse = withContext(Dispatchers.IO) {
+        retryOnceOnTransientClose {
+            postJson(
+                path = "/managed-ai/session",
+                body = JsonObject(),
+                token = SeenotAccountSession.getAccessToken(),
+                responseClass = SeenotManagedAiSessionResponse::class.java
+            )
+        }
     }
 
     private fun refresh(): SeenotAuthTokenResponse {
@@ -102,6 +151,42 @@ class SeenotAccountApi(
             token = token,
             responseClass = SeenotEntitlementResponse::class.java
         )
+    }
+
+    private fun listDevices(token: String): SeenotDevicesResponse {
+        return getJson(
+            path = "/devices",
+            token = token,
+            responseClass = SeenotDevicesResponse::class.java
+        )
+    }
+
+    private fun ensureCurrentInstallationIfMissing(token: String, currentDeviceId: String?) {
+        val devices = listDevices(token).devices
+        val targetDeviceId = currentDeviceId ?: SeenotAccountSession.getDeviceId()
+        val exists = targetDeviceId.isNotBlank() && devices.any { it.deviceId == targetDeviceId }
+        if (!exists) {
+            ensureDevice(token)
+        }
+    }
+
+    private fun ensureDevice(token: String): SeenotDeviceResponse {
+        val body = JsonObject().apply {
+            addProperty("platform", "android")
+            addProperty("app_version", BuildConfig.VERSION_NAME)
+            addProperty("device_name", buildDeviceName())
+            addProperty("locale", AppLocalePrefs.getLanguage(appContext))
+            addProperty("installation_id", SeenotAccountSession.getInstallationId())
+            SeenotAccountSession.getDeviceId().ifBlank { null }?.let { addProperty("device_id", it) }
+        }
+        val device = postJson(
+            path = "/auth/device/ensure",
+            body = body,
+            token = token,
+            responseClass = SeenotDeviceResponse::class.java
+        )
+        SeenotAccountSession.saveDeviceId(device.deviceId)
+        return device
     }
 
     private fun <T> getJson(path: String, token: String, responseClass: Class<T>): T {
@@ -162,6 +247,21 @@ class SeenotAccountApi(
             .distinct()
             .joinToString(" ")
             .ifBlank { "Android device" }
+    }
+
+    private suspend fun <T> retryOnceOnTransientClose(block: () -> T): T {
+        return try {
+            block()
+        } catch (error: IOException) {
+            if (!error.isTransientConnectionClose()) throw error
+            delay(250)
+            block()
+        }
+    }
+
+    private fun IOException.isTransientConnectionClose(): Boolean {
+        val normalized = message?.lowercase().orEmpty()
+        return "connection closed" in normalized || "unexpected end of stream" in normalized
     }
 }
 
