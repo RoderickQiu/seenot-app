@@ -122,12 +122,7 @@ class SeenotAccountApi(
 
     suspend fun createManagedAiSession(): SeenotManagedAiSessionResponse = withContext(Dispatchers.IO) {
         retryOnceOnTransientClose {
-            postJson(
-                path = "/managed-ai/session",
-                body = JsonObject(),
-                token = SeenotAccountSession.getAccessToken(),
-                responseClass = SeenotManagedAiSessionResponse::class.java
-            )
+            createManagedAiSessionWithFreshAccessToken()
         }
     }
 
@@ -143,6 +138,15 @@ class SeenotAccountApi(
             token = null,
             responseClass = SeenotAuthTokenResponse::class.java
         ).also(SeenotAccountSession::save)
+    }
+
+    private fun createManagedAiSessionWithFreshAccessToken(): SeenotManagedAiSessionResponse {
+        return try {
+            postManagedAiSession(SeenotAccountSession.getAccessToken())
+        } catch (error: SeenotAuthException) {
+            val refreshed = refresh()
+            postManagedAiSession(refreshed.accessToken)
+        }
     }
 
     private fun getEntitlement(token: String): SeenotEntitlementResponse {
@@ -207,6 +211,15 @@ class SeenotAccountApi(
             builder.header("Authorization", "Bearer $token")
         }
         return execute(builder.build(), responseClass)
+    }
+
+    private fun postManagedAiSession(token: String): SeenotManagedAiSessionResponse {
+        return postJson(
+            path = "/managed-ai/session",
+            body = JsonObject(),
+            token = token,
+            responseClass = SeenotManagedAiSessionResponse::class.java
+        )
     }
 
     private fun <T> execute(request: Request, responseClass: Class<T>): T {
