@@ -16,7 +16,7 @@ import java.util.UUID
 
 class IntentParser(private val contextRef: () -> Context) {
     companion object { private const val TAG = "IntentParser" }
-    private val llmClient = OpenAiCompatibleClient()
+    private val llmClient = OpenAiCompatibleClient(contextRef())
     private val effectiveIntentMigrator = EffectiveIntentMigrator(contextRef, llmClient)
     private class IntentParseFormatException(message: String, cause: Throwable? = null) : Exception(message, cause)
 

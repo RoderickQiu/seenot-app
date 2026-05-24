@@ -17,7 +17,7 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.io.IOException
 import java.util.concurrent.TimeUnit
 
-class SeenotAccountApi(
+open class SeenotAccountApi(
     private val context: Context,
     private val baseUrl: String = BuildConfig.SEENOT_BACKEND_API_BASE_URL
 ) {
@@ -121,7 +121,7 @@ class SeenotAccountApi(
         }
     }
 
-    suspend fun createManagedAiSession(): SeenotManagedAiSessionResponse = withContext(Dispatchers.IO) {
+    open suspend fun createManagedAiSession(): SeenotManagedAiSessionResponse = withContext(Dispatchers.IO) {
         retryOnceOnTransientClose {
             createManagedAiSessionWithFreshAccessToken()
         }

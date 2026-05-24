@@ -678,6 +678,11 @@
     <string name="account_refreshing_action">刷新中</string>
     <string name="manage_or_delete_account_action">管理或删除账号</string>
     <string name="sign_out_local_account_action">退出本机登录</string>
+    <string name="plus_sync_status_label">同步</string>
+    <string name="plus_sync_last_synced_desc">上次同步：%s</string>
+    <string name="plus_sync_never_desc">还没有完成过同步。</string>
+    <string name="plus_sync_now_action">立即同步</string>
+    <string name="plus_syncing_action">同步中</string>
     <string name="account_login_start_failed_toast">暂时无法打开网页登录，请稍后重试。</string>
     <string name="account_login_failed_toast">网页登录未完成，请回到 App 重试。</string>
     <string name="account_login_success_toast">账号已登录。</string>

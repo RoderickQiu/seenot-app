@@ -91,7 +91,7 @@ class ScreenAnalyzer(
     private val gson = Gson()
     private val appHintRepository = AppHintRepository(context)
     private val runtimeEventLogger = RuntimeEventLogger.getInstance(context)
-    private val llmClient = OpenAiCompatibleClient()
+    private val llmClient = OpenAiCompatibleClient(context)
 
     private val scope = CoroutineScope(Dispatchers.IO + SupervisorJob())
 

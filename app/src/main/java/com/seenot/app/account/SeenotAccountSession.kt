@@ -17,6 +17,7 @@ object SeenotAccountSession {
     private const val KEY_SYNC_PROFILE_VERSION = "sync_profile_version"
     private const val KEY_SYNC_DIRTY = "sync_dirty"
     private const val KEY_SYNC_DELETED_PACKAGES = "sync_deleted_packages"
+    private const val KEY_LAST_SYNCED_AT_MS = "last_synced_at_ms"
 
     private var prefs: SharedPreferences? = null
 
@@ -71,8 +72,11 @@ object SeenotAccountSession {
         prefs?.edit()
             ?.putInt(KEY_SYNC_PROFILE_VERSION, version.coerceAtLeast(0))
             ?.putBoolean(KEY_SYNC_DIRTY, false)
+            ?.putLong(KEY_LAST_SYNCED_AT_MS, System.currentTimeMillis())
             ?.apply()
     }
+
+    fun getLastSyncedAtMs(): Long = prefs?.getLong(KEY_LAST_SYNCED_AT_MS, 0L)?.takeIf { it > 0L } ?: 0L
 
     fun markSyncDirty() {
         prefs?.edit()?.putBoolean(KEY_SYNC_DIRTY, true)?.apply()
@@ -117,6 +121,7 @@ object SeenotAccountSession {
             ?.remove(KEY_SYNC_PROFILE_VERSION)
             ?.remove(KEY_SYNC_DIRTY)
             ?.remove(KEY_SYNC_DELETED_PACKAGES)
+            ?.remove(KEY_LAST_SYNCED_AT_MS)
             ?.apply()
     }
 

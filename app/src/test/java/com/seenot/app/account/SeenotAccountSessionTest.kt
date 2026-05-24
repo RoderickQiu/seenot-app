@@ -45,4 +45,20 @@ class SeenotAccountSessionTest {
         assertEquals("", SeenotAccountSession.getDeviceId())
         assertEquals(installationId, SeenotAccountSession.getInstallationId())
     }
+
+    @Test
+    fun savingSyncProfileVersionRecordsLastSyncTimeAndClearRemovesIt() {
+        SeenotAccountSession.init(ApplicationProvider.getApplicationContext())
+        SeenotAccountSession.clear()
+
+        SeenotAccountSession.saveSyncProfileVersion(3)
+
+        assertEquals(3, SeenotAccountSession.getSyncProfileVersion())
+        assertTrue(SeenotAccountSession.getLastSyncedAtMs() > 0L)
+
+        SeenotAccountSession.clearAccount()
+
+        assertEquals(0, SeenotAccountSession.getSyncProfileVersion())
+        assertEquals(0L, SeenotAccountSession.getLastSyncedAtMs())
+    }
 }

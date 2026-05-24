@@ -47,7 +47,7 @@ class FalsePositiveRuleGenerator(private val context: Context) {
 
     private val appHintRepository = AppHintRepository(context)
     private val runtimeEventLogger = RuntimeEventLogger.getInstance(context)
-    private val llmClient = OpenAiCompatibleClient()
+    private val llmClient = OpenAiCompatibleClient(context)
 
     suspend fun generateRulePreview(
         packageName: String,

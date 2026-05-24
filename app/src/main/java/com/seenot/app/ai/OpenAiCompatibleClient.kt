@@ -5,6 +5,7 @@ import com.google.gson.JsonElement
 import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.seenot.app.R
+import com.seenot.app.account.SeenotManagedAiCredentialProvider
 import com.seenot.app.config.ApiConfig
 import com.seenot.app.config.ApiSettings
 import com.seenot.app.utils.Logger
@@ -17,8 +18,14 @@ import okhttp3.RequestBody.Companion.toRequestBody
 import java.util.concurrent.TimeUnit
 
 class OpenAiCompatibleClient(
-    private val settingsProvider: () -> ApiSettings = { ApiConfig.getSettings() }
+    private val settingsProvider: suspend () -> ApiSettings = { ApiConfig.getSettings() }
 ) {
+    constructor(context: android.content.Context) : this(
+        settingsProvider = {
+            SeenotManagedAiCredentialProvider(context).getSettingsWithFreshManagedCredential()
+        }
+    )
+
     companion object {
         private const val TAG = "OpenAiCompatClient"
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()

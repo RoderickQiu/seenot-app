@@ -15,7 +15,7 @@ import kotlinx.coroutines.withContext
 
 open class EffectiveIntentMigrator(
     private val contextRef: () -> Context,
-    private val llmClient: OpenAiCompatibleClient = OpenAiCompatibleClient()
+    private val llmClient: OpenAiCompatibleClient = OpenAiCompatibleClient(contextRef())
 ) {
     companion object {
         private const val TAG = "EffectiveIntentMigrator"

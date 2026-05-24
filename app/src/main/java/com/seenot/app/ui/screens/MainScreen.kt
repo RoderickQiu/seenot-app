@@ -456,6 +456,12 @@ fun MainScreen(
                             }
                         },
                         onRefreshAccount = { accountRefreshKey++ },
+                        onManualSync = { onComplete ->
+                            mainScope.launch {
+                                syncCoordinator.syncNowIfPlus(accountState)
+                                onComplete()
+                            }
+                        },
                         isAccountLoginInFlight = isAccountLoginInFlight,
                         isAccountRefreshInFlight = isAccountRefreshInFlight,
                         onHomeTimelineChanged = { showHomeTimeline = it },
@@ -3175,6 +3181,7 @@ fun SettingsTab(
     onOpenAccount: () -> Unit = {},
     onSignOutAccount: () -> Unit = {},
     onRefreshAccount: () -> Unit = {},
+    onManualSync: (onComplete: () -> Unit) -> Unit = { onComplete -> onComplete() },
     isAccountLoginInFlight: Boolean = false,
     isAccountRefreshInFlight: Boolean = false,
     onHomeTimelineChanged: (Boolean) -> Unit = {},
@@ -3288,6 +3295,7 @@ fun SettingsTab(
             onSignOutAccount = onSignOutAccount,
             onOpenAccount = onOpenAccount,
             onRefreshAccount = onRefreshAccount,
+            onManualSync = onManualSync,
             isAccountLoginInFlight = isAccountLoginInFlight,
             isAccountRefreshInFlight = isAccountRefreshInFlight,
             onOpenAiSettings = onOpenAiSettings,
@@ -3628,6 +3636,7 @@ private fun ServiceStatusSection(
     onSignOutAccount: () -> Unit,
     onOpenAccount: () -> Unit,
     onRefreshAccount: () -> Unit,
+    onManualSync: (onComplete: () -> Unit) -> Unit,
     isAccountLoginInFlight: Boolean,
     isAccountRefreshInFlight: Boolean,
     onOpenAiSettings: () -> Unit,
@@ -3638,6 +3647,11 @@ private fun ServiceStatusSection(
     val usesSeenotAi = ApiConfig.getAiSource() == AiSource.SEENOT_AI && ApiConfig.isManagedAiActive()
     val usesOwnSetup = isAiConfigured && !usesSeenotAi
     var accountMenuExpanded by remember { mutableStateOf(false) }
+    var syncRefreshTicker by remember { mutableIntStateOf(0) }
+    var manualSyncInFlight by remember { mutableStateOf(false) }
+    val lastSyncedAtMs = remember(syncRefreshTicker, accountState) {
+        SeenotAccountSession.getLastSyncedAtMs()
+    }
 
     ElevatedCard(
         modifier = Modifier.fillMaxWidth(),
@@ -3748,6 +3762,35 @@ private fun ServiceStatusSection(
                     }
                 )
                 HorizontalDivider()
+                if (isPlus) {
+                    ServiceStatusRow(
+                        icon = Icons.Default.Sync,
+                        title = stringResource(R.string.plus_sync_status_label),
+                        value = "",
+                        supporting = syncStatusSupporting(lastSyncedAtMs),
+                        actionContent = {
+                            Button(
+                                onClick = {
+                                    manualSyncInFlight = true
+                                    onManualSync {
+                                        manualSyncInFlight = false
+                                        syncRefreshTicker++
+                                    }
+                                },
+                                enabled = !manualSyncInFlight
+                            ) {
+                                Text(
+                                    text = if (manualSyncInFlight) {
+                                        stringResource(R.string.plus_syncing_action)
+                                    } else {
+                                        stringResource(R.string.plus_sync_now_action)
+                                    }
+                                )
+                            }
+                        }
+                    )
+                    HorizontalDivider()
+                }
                 ServiceStatusRow(
                     icon = Icons.Default.AutoAwesome,
                     title = stringResource(R.string.ai_plan_label),
@@ -3935,6 +3978,23 @@ private fun accountStatusSupporting(accountState: SeenotAccountState): String {
             }
         }
     }
+}
+
+@Composable
+private fun syncStatusSupporting(lastSyncedAtMs: Long): String {
+    if (lastSyncedAtMs <= 0L) {
+        return stringResource(R.string.plus_sync_never_desc)
+    }
+    val context = LocalContext.current
+    val formattedTime = DateUtils.formatDateTime(
+        context,
+        lastSyncedAtMs,
+        DateUtils.FORMAT_SHOW_DATE or
+            DateUtils.FORMAT_SHOW_TIME or
+            DateUtils.FORMAT_ABBREV_MONTH or
+            DateUtils.FORMAT_ABBREV_RELATIVE
+    )
+    return stringResource(R.string.plus_sync_last_synced_desc, formattedTime)
 }
 
 private fun formatEntitlementDate(value: String): String {

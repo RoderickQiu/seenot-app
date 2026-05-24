@@ -54,7 +54,7 @@ class ApiConfigManagedAiTest {
     }
 
     @Test
-    fun expiredManagedAiSessionFallsBackToOwnKeyConfig() {
+    fun expiredManagedAiSessionKeepsSeenotAiSelectedWhileClearingStaleCredential() {
         ApiConfig.saveSettings(
             ApiSettings.defaults(AiProvider.DASHSCOPE).copy(
                 apiKey = "own-dashscope-key"
@@ -69,7 +69,9 @@ class ApiConfigManagedAiTest {
 
         assertFalse(ApiConfig.isManagedAiActive(nowEpochMs = 1_800_000_000_000L))
         assertEquals("own-dashscope-key", ApiConfig.getSettings().apiKey)
-        assertEquals(AiSource.BRING_YOUR_OWN_KEY, ApiConfig.getAiSource())
+        assertEquals(AiSource.SEENOT_AI, ApiConfig.getAiSource())
+        assertTrue(ApiConfig.isVisionConfigured())
+        assertTrue(ApiConfig.isVoiceConfigured())
     }
 
     @Test
