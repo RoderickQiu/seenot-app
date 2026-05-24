@@ -51,6 +51,7 @@ import com.seenot.app.R
 import com.seenot.app.account.SeenotAccountApi
 import com.seenot.app.account.SeenotAccountSession
 import com.seenot.app.account.SeenotAccountState
+import com.seenot.app.account.SeenotSyncCoordinator
 import com.seenot.app.config.ApiConfig
 import com.seenot.app.config.AiSource
 import com.seenot.app.config.AppLocalePrefs
@@ -118,6 +119,7 @@ fun MainScreen(
     val lifecycleOwner = LocalLifecycleOwner.current
     val sessionManager = remember { SessionManager.getInstance(context) }
     val accountApi = remember { SeenotAccountApi(context) }
+    val syncCoordinator = remember { SeenotSyncCoordinator(context, accountApi, sessionManager) }
     val mainScope = rememberCoroutineScope()
     var showHomeTimeline by remember { mutableStateOf(RuleRecordingPrefs.isHomeTimelineEnabled(context)) }
     var showAiSettingsDialog by remember { mutableStateOf(false) }
@@ -127,6 +129,7 @@ fun MainScreen(
     var pendingPermissionGuide by remember { mutableStateOf<PermissionGuideType?>(null) }
     var isAccountLoginInFlight by remember { mutableStateOf(false) }
     var isAccountRefreshInFlight by remember { mutableStateOf(false) }
+    var syncRefreshKey by remember { mutableIntStateOf(0) }
 
     // State
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -245,7 +248,14 @@ fun MainScreen(
         isAccountRefreshInFlight = true
         accountState = SeenotAccountState.Loading
         accountState = accountApi.loadAccount()
+        syncCoordinator.syncNowIfPlus(accountState)
         isAccountRefreshInFlight = false
+    }
+
+    LaunchedEffect(syncRefreshKey) {
+        if (syncRefreshKey > 0) {
+            syncCoordinator.syncNowIfPlus(accountState)
+        }
     }
 
     LaunchedEffect(authCallbackUri) {
@@ -266,6 +276,7 @@ fun MainScreen(
 
         when (exchangedState) {
             is SeenotAccountState.Ready -> {
+                syncCoordinator.syncNowIfPlus(exchangedState)
                 if (exchangedState.snapshot.hasPlus) {
                     runCatching {
                         val session = accountApi.createManagedAiSession()
@@ -410,7 +421,10 @@ fun MainScreen(
                         showHomeTimeline = showHomeTimeline,
                         modifier = Modifier.padding(padding)
                     )
-                    1 -> AppsTab(modifier = Modifier.padding(padding))
+                    1 -> AppsTab(
+                        modifier = Modifier.padding(padding),
+                        onSyncNeeded = { syncRefreshKey++ }
+                    )
                     2 -> SettingsTab(
                         modifier = Modifier.padding(padding),
                         accountState = accountState,
@@ -1177,7 +1191,10 @@ fun StepItem(number: Int, text: String) {
  */
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun AppsTab(modifier: Modifier = Modifier) {
+fun AppsTab(
+    modifier: Modifier = Modifier,
+    onSyncNeeded: () -> Unit = {}
+) {
     val context = LocalContext.current
 
     // Get SessionManager instance
@@ -1317,6 +1334,7 @@ fun AppsTab(modifier: Modifier = Modifier) {
             onDismiss = { showAddAppDialog = false },
             onAppSelected = { packageName ->
                 sessionManager.addControlledApp(packageName)
+                onSyncNeeded()
                 showAddAppDialog = false
             }
         )
@@ -1327,6 +1345,7 @@ fun AppsTab(modifier: Modifier = Modifier) {
         AppRulesDialog(
             app = app,
             sessionManager = sessionManager,
+            onSyncNeeded = onSyncNeeded,
             onDismiss = { selectedAppForRules = null }
         )
     }
@@ -1359,6 +1378,7 @@ fun AppsTab(modifier: Modifier = Modifier) {
                 TextButton(
                     onClick = {
                         sessionManager.removeControlledApp(app.packageName)
+                        onSyncNeeded()
                         selectedAppForDelete = null
                     }
                 ) {
@@ -1385,6 +1405,7 @@ fun AppsTab(modifier: Modifier = Modifier) {
 fun AppRulesDialog(
     app: AppInfo,
     sessionManager: SessionManager,
+    onSyncNeeded: () -> Unit = {},
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
@@ -1422,6 +1443,7 @@ fun AppRulesDialog(
                 originalConstraints = previousRules,
                 updatedConstraints = rules
             )
+            onSyncNeeded()
         }
     }
 
@@ -1685,6 +1707,7 @@ fun AppRulesDialog(
                             }
                             appEntryIntentMode = mode
                             sessionManager.setAppEntryIntentMode(app.packageName, mode)
+                            onSyncNeeded()
                         },
                         onPresetSelected = { presetId ->
                             val newPresets = presetRules.map { rule ->
@@ -1693,6 +1716,7 @@ fun AppRulesDialog(
                             appEntryIntentMode = AppEntryIntentMode.USE_PRESET
                             savePresetRulesAndSyncSession(newPresets)
                             sessionManager.setAppEntryIntentMode(app.packageName, AppEntryIntentMode.USE_PRESET)
+                            onSyncNeeded()
                         }
                     )
                 }
@@ -1769,6 +1793,7 @@ fun AppRulesDialog(
                                         }
                                         savePresetRulesAndSyncSession(newPresets)
                                         sessionManager.setAppEntryIntentMode(app.packageName, appEntryIntentMode)
+                                        onSyncNeeded()
                                     },
                                     modifier = Modifier.size(24.dp)
                                 ) {
@@ -1785,6 +1810,7 @@ fun AppRulesDialog(
                                         if (newPresets.none { it.isDefault } && appEntryIntentMode == AppEntryIntentMode.USE_PRESET) {
                                             appEntryIntentMode = AppEntryIntentMode.ASK_EVERY_TIME
                                             sessionManager.setAppEntryIntentMode(app.packageName, appEntryIntentMode)
+                                            onSyncNeeded()
                                         }
                                         savePresetRulesAndSyncSession(newPresets)
                                     },
@@ -1847,6 +1873,7 @@ fun AppRulesDialog(
                                     val newHistory = historyRules.toMutableList().apply { removeAt(index) }
                                     historyRules = newHistory
                                     sessionManager.saveIntentHistory(app.packageName, newHistory)
+                                    onSyncNeeded()
                                 },
                                 modifier = Modifier.size(24.dp)
                             ) {
@@ -2054,6 +2081,7 @@ fun AppRulesDialog(
                     val newHistory = historyRules.toMutableList().apply { removeAt(index) }
                     historyRules = newHistory
                     sessionManager.saveIntentHistory(app.packageName, newHistory)
+                    onSyncNeeded()
                     editingRuleIndex = null
                 }
             )

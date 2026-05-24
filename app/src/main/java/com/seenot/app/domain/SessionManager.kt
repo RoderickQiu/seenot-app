@@ -11,6 +11,10 @@ import com.seenot.app.R
 import com.seenot.app.ai.feedback.FalsePositiveRuleGenerator
 import com.seenot.app.ai.feedback.GeneratedFalsePositiveRuleResult
 import com.seenot.app.ai.feedback.FalsePositiveRulePreview
+import com.seenot.app.account.SeenotAccountSession
+import com.seenot.app.account.SeenotSyncScheduler
+import com.seenot.app.account.SyncAppConfig
+import com.seenot.app.account.SyncProfileDocument
 import com.seenot.app.ai.parser.EffectiveIntentMigrator
 import com.seenot.app.ai.screen.ScreenAnalyzer
 import com.seenot.app.config.ApiConfig
@@ -118,6 +122,10 @@ class SessionManager(
     private val alarmManager = context.getSystemService(Context.ALARM_SERVICE) as AlarmManager
 
     private val gson = Gson()
+
+    init {
+        SeenotAccountSession.init(context)
+    }
 
     // Current active session
     private val _activeSession = MutableStateFlow<ActiveSession?>(null)
@@ -2278,6 +2286,7 @@ class SessionManager(
         prefs.edit()
             .putString("${KEY_APP_ENTRY_INTENT_MODE_PREFIX}$packageName", mode.name)
             .apply()
+        markSyncDirty()
         Logger.d(TAG, "Set app entry intent mode for $packageName: $mode")
     }
 
@@ -2345,6 +2354,7 @@ class SessionManager(
         // Cap at MAX_HISTORY_PER_APP
         val trimmed = history.take(MAX_HISTORY_PER_APP)
         prefs.edit().putString("${KEY_INTENT_HISTORY_PREFIX}$packageName", gson.toJson(trimmed)).apply()
+        markSyncDirty()
         Logger.d(TAG, "Updated intent history for $packageName, now ${trimmed.size} entries")
     }
 
@@ -2367,6 +2377,7 @@ class SessionManager(
             )
         })
         prefs.edit().putString("${KEY_PRESET_RULES_PREFIX}$packageName", json).apply()
+        markSyncDirty()
         Logger.d(TAG, "Saved ${dedupedRules.size} preset rules for $packageName")
     }
 
@@ -2463,6 +2474,7 @@ class SessionManager(
             }
         })
         prefs.edit().putString("${KEY_INTENT_HISTORY_PREFIX}$packageName", json).apply()
+        markSyncDirty()
         Logger.d(TAG, "Saved intent history for $packageName, ${trimmed.size} entries")
     }
 
@@ -2628,6 +2640,7 @@ class SessionManager(
     fun setControlledApps(apps: Set<String>) {
         _controlledApps.value = apps
         saveControlledApps(apps)
+        markSyncDirty()
     }
 
     /**
@@ -2637,6 +2650,7 @@ class SessionManager(
         val newApps = _controlledApps.value + packageName
         _controlledApps.value = newApps
         saveControlledApps(newApps)
+        markSyncDirty()
         Logger.d(TAG, "Added controlled app: $packageName")
     }
 
@@ -2653,11 +2667,45 @@ class SessionManager(
             savePausedMonitoringApps(updatedPausedApps)
             cancelAppMonitoringResume(packageName)
         }
+        SeenotAccountSession.markSyncPackageDeleted(packageName)
+        markSyncDirty()
         Logger.d(TAG, "Removed controlled app: $packageName")
     }
 
     fun getControlledAppsSnapshot(): Set<String> {
         return _controlledApps.value.toSet()
+    }
+
+    fun buildSyncProfileSnapshot(): SyncProfileDocument {
+        val appConfigs = getControlledAppsSnapshot()
+            .sorted()
+            .associateWith { packageName ->
+                SyncAppConfig(
+                    entryMode = getAppEntryIntentMode(packageName),
+                    lastIntent = loadLastIntent(packageName),
+                    presetRules = loadPresetRules(packageName),
+                    intentHistory = loadIntentHistory(packageName)
+                )
+            }
+        return SyncProfileDocument(apps = appConfigs)
+    }
+
+    fun applySyncProfileSnapshot(profile: SyncProfileDocument) {
+        val packageNames = profile.apps.keys.filter { it.isNotBlank() }.toSet()
+        profile.apps.forEach { (packageName, appConfig) ->
+            if (packageName.isBlank()) return@forEach
+            savePresetRules(packageName, appConfig.presetRules)
+            replaceLastIntent(packageName, appConfig.lastIntent.orEmpty())
+            saveIntentHistory(packageName, appConfig.intentHistory)
+            appConfig.entryMode?.let { setAppEntryIntentMode(packageName, it) }
+        }
+        setControlledApps(getControlledAppsSnapshot() + packageNames)
+        SeenotAccountSession.saveSyncProfileVersion(SeenotAccountSession.getSyncProfileVersion())
+    }
+
+    private fun markSyncDirty() {
+        SeenotAccountSession.markSyncDirty()
+        SeenotSyncScheduler.enqueue(context)
     }
 
     /**

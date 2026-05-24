@@ -4,6 +4,7 @@ import android.content.Context
 import android.os.Build
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import com.google.gson.JsonParser
 import com.seenot.app.BuildConfig
 import com.seenot.app.config.AppLocalePrefs
 import kotlinx.coroutines.delay
@@ -126,6 +127,18 @@ class SeenotAccountApi(
         }
     }
 
+    suspend fun readSyncProfile(): SyncProfileResponse = withContext(Dispatchers.IO) {
+        retryOnceOnTransientClose {
+            readSyncProfileWithFreshAccessToken()
+        }
+    }
+
+    suspend fun writeSyncProfile(profileVersion: Int, profile: SyncProfileDocument): SyncProfileResponse = withContext(Dispatchers.IO) {
+        retryOnceOnTransientClose {
+            writeSyncProfileWithFreshAccessToken(profileVersion, profile)
+        }
+    }
+
     suspend fun revokeCurrentDevice() = withContext(Dispatchers.IO) {
         val deviceId = SeenotAccountSession.getDeviceId()
         val accessToken = SeenotAccountSession.getAccessToken()
@@ -173,6 +186,27 @@ class SeenotAccountApi(
         } catch (error: SeenotAuthException) {
             val refreshed = refresh()
             postManagedAiSession(refreshed.accessToken)
+        }
+    }
+
+    private fun readSyncProfileWithFreshAccessToken(): SyncProfileResponse {
+        return try {
+            getSyncProfile(SeenotAccountSession.getAccessToken())
+        } catch (error: SeenotAuthException) {
+            val refreshed = refresh()
+            getSyncProfile(refreshed.accessToken)
+        }
+    }
+
+    private fun writeSyncProfileWithFreshAccessToken(
+        profileVersion: Int,
+        profile: SyncProfileDocument
+    ): SyncProfileResponse {
+        return try {
+            putSyncProfile(SeenotAccountSession.getAccessToken(), profileVersion, profile)
+        } catch (error: SeenotAuthException) {
+            val refreshed = refresh()
+            putSyncProfile(refreshed.accessToken, profileVersion, profile)
         }
     }
 
@@ -249,10 +283,45 @@ class SeenotAccountApi(
         )
     }
 
+    private fun getSyncProfile(token: String): SyncProfileResponse {
+        return getJson(
+            path = "/sync/profile",
+            token = token,
+            responseClass = SyncProfileResponse::class.java
+        )
+    }
+
+    private fun putSyncProfile(
+        token: String,
+        profileVersion: Int,
+        profile: SyncProfileDocument
+    ): SyncProfileResponse {
+        val body = gson.toJsonTree(SyncProfilePutRequest(profileVersion = profileVersion, profile = profile)).asJsonObject
+        return putJson(
+            path = "/sync/profile",
+            body = body,
+            token = token,
+            responseClass = SyncProfileResponse::class.java
+        )
+    }
+
+    private fun <T> putJson(path: String, body: JsonObject, token: String, responseClass: Class<T>): T {
+        val request = Request.Builder()
+            .url(apiUrl(path))
+            .header("Content-Type", "application/json")
+            .header("Authorization", "Bearer $token")
+            .put(body.toString().toRequestBody(JSON_MEDIA_TYPE))
+            .build()
+        return execute(request, responseClass)
+    }
+
     private fun <T> execute(request: Request, responseClass: Class<T>): T {
         httpClient.newCall(request).execute().use { response ->
             val responseText = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
+                if (response.code == 409) {
+                    parseSyncConflict(responseText)?.let { throw it }
+                }
                 if (response.code == 401 || response.code == 403) {
                     throw SeenotAuthException(extractErrorMessage(responseText) ?: "Please sign in again.")
                 }
@@ -260,6 +329,26 @@ class SeenotAccountApi(
             }
             return gson.fromJson(responseText, responseClass)
         }
+    }
+
+    private fun parseSyncConflict(responseText: String): SeenotSyncConflictException? {
+        return runCatching {
+            val detail = JsonParser.parseString(responseText)
+                .asJsonObject
+                .get("detail")
+                ?.asJsonObject
+                ?: return null
+            val code = detail.get("code")?.asString
+            if (code != "SYNC_PROFILE_VERSION_CONFLICT") return null
+            val currentVersion = detail.get("current_profile_version")?.asInt ?: 0
+            val profile = detail.get("profile")?.let { gson.fromJson(it, SyncProfileDocument::class.java) }
+                ?: SyncProfileDocument()
+            SeenotSyncConflictException(
+                message = detail.get("message")?.asString ?: "Sync profile version conflict.",
+                currentProfileVersion = currentVersion,
+                serverProfile = profile
+            )
+        }.getOrNull()
     }
 
     private fun apiUrl(path: String): String {

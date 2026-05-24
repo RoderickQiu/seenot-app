@@ -224,6 +224,9 @@ object ApiConfig {
         val validUntilMs = prefs?.getLong(KEY_MANAGED_AI_VALID_UNTIL_MS, 0L) ?: 0L
         if (apiKey.isBlank() || baseUrl.isBlank() || model.isBlank() || validUntilMs <= nowEpochMs) {
             clearManagedAiSession()
+            prefs?.edit()
+                ?.putString(KEY_AI_SOURCE, AiSource.BRING_YOUR_OWN_KEY.name)
+                ?.apply()
             return null
         }
         return ApiSettings(
