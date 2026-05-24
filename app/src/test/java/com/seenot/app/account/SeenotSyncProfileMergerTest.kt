@@ -130,6 +130,47 @@ class SeenotSyncProfileMergerTest {
         assertTrue(merged.apps.getValue("com.kept").presetRules.any { it.description == "Local kept" })
     }
 
+    @Test
+    fun syncSuccessLogSummaryKeepsImportantNonRuleContent() {
+        val response = SyncProfileResponse(
+            profileVersion = 7,
+            updatedAt = "2026-05-25T12:00:00+08:00",
+            updatedByDeviceId = "device-2",
+            profile = SyncProfileDocument(
+                apps = mapOf(
+                    "com.chat" to SyncAppConfig(
+                        presetRules = listOf(rule(id = "chat-rule", description = "Keep chat focused")),
+                        intentHistory = listOf(listOf(rule(id = "chat-history", description = "Only reply to messages")))
+                    ),
+                    "com.video" to SyncAppConfig(
+                        presetRules = listOf(
+                            rule(id = "video-rule-1", description = "No shorts"),
+                            rule(id = "video-rule-2", description = "Learning only")
+                        )
+                    )
+                )
+            )
+        )
+
+        val summary = SyncProfileLogSummary.from(
+            response = response,
+            uploaded = true,
+            deletedPackageCount = 1
+        )
+
+        assertEquals(7, summary.profileVersion)
+        assertEquals("2026-05-25T12:00:00+08:00", summary.updatedAt)
+        assertEquals("device-2", summary.updatedByDeviceId)
+        assertEquals(2, summary.appCount)
+        assertEquals(listOf("com.chat", "com.video"), summary.packages)
+        assertEquals(3, summary.presetRuleCount)
+        assertEquals(1, summary.intentHistoryCount)
+        assertEquals(true, summary.uploaded)
+        assertEquals(1, summary.deletedPackageCount)
+        assertTrue(summary.toLogMessage().contains("profileVersion=7"))
+        assertTrue(summary.toLogMessage().contains("packages=com.chat,com.video"))
+    }
+
     private fun rule(
         id: String,
         description: String,

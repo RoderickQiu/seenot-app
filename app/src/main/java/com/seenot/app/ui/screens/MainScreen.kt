@@ -458,7 +458,13 @@ fun MainScreen(
                         onRefreshAccount = { accountRefreshKey++ },
                         onManualSync = { onComplete ->
                             mainScope.launch {
-                                syncCoordinator.syncNowIfPlus(accountState)
+                                val result = syncCoordinator.syncNowIfPlus(accountState)
+                                val message = if (result.isSuccess) {
+                                    context.getString(R.string.plus_sync_success_toast)
+                                } else {
+                                    context.getString(R.string.plus_sync_failed_toast)
+                                }
+                                Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                                 onComplete()
                             }
                         },

@@ -32,6 +32,67 @@ data class SyncAppConfig(
     @SerializedName("intent_history") val intentHistory: List<List<SessionConstraint>> = emptyList()
 )
 
+data class SyncProfileLogSummary(
+    val profileVersion: Int,
+    val updatedAt: String?,
+    val updatedByDeviceId: String?,
+    val appCount: Int,
+    val packages: List<String>,
+    val presetRuleCount: Int,
+    val intentHistoryCount: Int,
+    val uploaded: Boolean,
+    val deletedPackageCount: Int
+) {
+    fun toLogMessage(): String {
+        return "Sync profile succeeded: " +
+            "profileVersion=$profileVersion, " +
+            "updatedAt=${updatedAt.orEmpty()}, " +
+            "updatedByDeviceId=${updatedByDeviceId.orEmpty()}, " +
+            "appCount=$appCount, " +
+            "presetRuleCount=$presetRuleCount, " +
+            "intentHistoryCount=$intentHistoryCount, " +
+            "uploaded=$uploaded, " +
+            "deletedPackageCount=$deletedPackageCount, " +
+            "packages=${packages.joinToString(",")}"
+    }
+
+    fun toEventPayload(): Map<String, Any?> = mapOf(
+        "profile_version" to profileVersion,
+        "updated_at" to updatedAt,
+        "updated_by_device_id" to updatedByDeviceId,
+        "app_count" to appCount,
+        "packages" to packages,
+        "preset_rule_count" to presetRuleCount,
+        "intent_history_count" to intentHistoryCount,
+        "uploaded" to uploaded,
+        "deleted_package_count" to deletedPackageCount
+    )
+
+    companion object {
+        fun from(
+            response: SyncProfileResponse,
+            uploaded: Boolean,
+            deletedPackageCount: Int
+        ): SyncProfileLogSummary {
+            val packages = response.profile.apps.keys
+                .filter { it.isNotBlank() }
+                .sorted()
+            val appConfigs = response.profile.apps.values
+            return SyncProfileLogSummary(
+                profileVersion = response.profileVersion,
+                updatedAt = response.updatedAt,
+                updatedByDeviceId = response.updatedByDeviceId,
+                appCount = packages.size,
+                packages = packages,
+                presetRuleCount = appConfigs.sumOf { it.presetRules.size },
+                intentHistoryCount = appConfigs.sumOf { it.intentHistory.size },
+                uploaded = uploaded,
+                deletedPackageCount = deletedPackageCount.coerceAtLeast(0)
+            )
+        }
+    }
+}
+
 class SeenotSyncConflictException(
     message: String,
     val currentProfileVersion: Int,
