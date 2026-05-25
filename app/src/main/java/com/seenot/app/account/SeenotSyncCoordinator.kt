@@ -34,7 +34,10 @@ class SeenotSyncCoordinator(
             val deletedPackages = SeenotAccountSession.getSyncDeletedPackages()
             val shouldUpload = SeenotSyncDecision.shouldUpload(
                 isDirty = SeenotAccountSession.isSyncDirty(),
-                deletedPackages = deletedPackages
+                deletedPackages = deletedPackages,
+                localProfileVersion = SeenotAccountSession.getSyncProfileVersion(),
+                server = server.profile,
+                local = local
             )
 
             val profileToUpload = if (shouldUpload) {

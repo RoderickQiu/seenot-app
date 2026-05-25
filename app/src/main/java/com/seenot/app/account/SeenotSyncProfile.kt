@@ -216,8 +216,74 @@ object SeenotSyncProfileMerger {
 object SeenotSyncDecision {
     fun shouldUpload(
         isDirty: Boolean,
-        deletedPackages: Set<String>
+        deletedPackages: Set<String>,
+        localProfileVersion: Int,
+        server: SyncProfileDocument,
+        local: SyncProfileDocument
     ): Boolean {
-        return isDirty || deletedPackages.isNotEmpty()
+        return isDirty ||
+            deletedPackages.isNotEmpty() ||
+            (localProfileVersion <= 0 && local.hasSyncableContent()) ||
+            local.hasContentMissingFrom(server)
+    }
+
+    private fun SyncProfileDocument.hasSyncableContent(): Boolean {
+        return globalPreferences.isNotEmpty() ||
+            apps.any { (packageName, appConfig) ->
+                packageName.isNotBlank() && appConfig.hasSyncableContent()
+            }
+    }
+
+    private fun SyncAppConfig.hasSyncableContent(): Boolean {
+        return entryMode != null ||
+            !lastIntent.isNullOrEmpty() ||
+            !defaultRuleId.isNullOrBlank() ||
+            presetRules.isNotEmpty() ||
+            intentHistory.isNotEmpty() ||
+            supplementalHints.isNotEmpty()
+    }
+
+    private fun SyncProfileDocument.hasContentMissingFrom(server: SyncProfileDocument): Boolean {
+        if (globalPreferences.keys.any { it !in server.globalPreferences }) return true
+        return apps.any { (packageName, localApp) ->
+            if (packageName.isBlank()) return@any false
+            val serverApp = server.apps[packageName] ?: return@any localApp.hasSyncableContent()
+            localApp.hasContentMissingFrom(serverApp)
+        }
+    }
+
+    private fun SyncAppConfig.hasContentMissingFrom(server: SyncAppConfig): Boolean {
+        return (entryMode != null && server.entryMode == null) ||
+            (!lastIntent.isNullOrEmpty() && server.lastIntent.isNullOrEmpty()) ||
+            (!defaultRuleId.isNullOrBlank() && server.defaultRuleId.isNullOrBlank()) ||
+            presetRules.any { localRule -> server.presetRules.none { it.id == localRule.id } } ||
+            intentHistory.any { localHistory -> server.intentHistory.none { historyFingerprint(it) == historyFingerprint(localHistory) } } ||
+            supplementalHints.any { localHint -> server.supplementalHints.none { hintKey(it) == hintKey(localHint) } }
+    }
+
+    private fun historyFingerprint(constraints: List<SessionConstraint>): String {
+        return constraints
+            .sortedWith(compareBy<SessionConstraint> { it.type.name }.thenBy { it.description.trim().lowercase() })
+            .joinToString(";") { constraint ->
+                listOf(
+                    constraint.type.name,
+                    constraint.description.trim().replace(Regex("\\s+"), " ").lowercase(),
+                    constraint.timeLimitMs?.toString().orEmpty(),
+                    constraint.timeScope?.name.orEmpty(),
+                    constraint.interventionLevel.name,
+                    constraint.isActive.toString()
+                ).joinToString("|")
+            }
+    }
+
+    private fun hintKey(hint: SyncAppHint): String {
+        return hint.id.ifBlank {
+            listOf(
+                hint.scopeType,
+                hint.scopeKey,
+                hint.intentId,
+                hint.hintText.trim().lowercase()
+            ).joinToString("|")
+        }
     }
 }

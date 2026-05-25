@@ -16,7 +16,22 @@ class SeenotSyncProfileMergerTest {
             false,
             SeenotSyncDecision.shouldUpload(
                 isDirty = false,
-                deletedPackages = emptySet()
+                deletedPackages = emptySet(),
+                localProfileVersion = 3,
+                server = SyncProfileDocument(
+                    apps = mapOf(
+                        "com.synced" to SyncAppConfig(
+                            presetRules = listOf(rule(id = "synced-rule", description = "Already synced"))
+                        )
+                    )
+                ),
+                local = SyncProfileDocument(
+                    apps = mapOf(
+                        "com.synced" to SyncAppConfig(
+                            presetRules = listOf(rule(id = "synced-rule", description = "Already synced"))
+                        )
+                    )
+                )
             )
         )
     }
@@ -27,7 +42,10 @@ class SeenotSyncProfileMergerTest {
             true,
             SeenotSyncDecision.shouldUpload(
                 isDirty = true,
-                deletedPackages = emptySet()
+                deletedPackages = emptySet(),
+                localProfileVersion = 3,
+                server = SyncProfileDocument(),
+                local = SyncProfileDocument()
             )
         )
     }
@@ -38,7 +56,69 @@ class SeenotSyncProfileMergerTest {
             true,
             SeenotSyncDecision.shouldUpload(
                 isDirty = false,
-                deletedPackages = setOf("com.removed")
+                deletedPackages = setOf("com.removed"),
+                localProfileVersion = 3,
+                server = SyncProfileDocument(),
+                local = SyncProfileDocument()
+            )
+        )
+    }
+
+    @Test
+    fun firstSyncUploadsExistingLocalConfigurationEvenWithoutDirtyFlag() {
+        val local = SyncProfileDocument(
+            apps = mapOf(
+                "com.existing" to SyncAppConfig(
+                    presetRules = listOf(rule(id = "existing-rule", description = "Existing config"))
+                )
+            )
+        )
+
+        assertEquals(
+            true,
+            SeenotSyncDecision.shouldUpload(
+                isDirty = false,
+                deletedPackages = emptySet(),
+                localProfileVersion = 0,
+                server = SyncProfileDocument(),
+                local = local
+            )
+        )
+    }
+
+    @Test
+    fun localConfigurationMissingFromServerUploadsEvenAfterPreviousDownloadOnlySync() {
+        val local = SyncProfileDocument(
+            apps = mapOf(
+                "com.existing" to SyncAppConfig(
+                    entryMode = AppEntryIntentMode.USE_PRESET,
+                    presetRules = listOf(rule(id = "existing-rule", description = "Existing config"))
+                )
+            )
+        )
+
+        assertEquals(
+            true,
+            SeenotSyncDecision.shouldUpload(
+                isDirty = false,
+                deletedPackages = emptySet(),
+                localProfileVersion = 5,
+                server = SyncProfileDocument(),
+                local = local
+            )
+        )
+    }
+
+    @Test
+    fun firstSyncWithEmptyLocalConfigurationDownloadsOnly() {
+        assertEquals(
+            false,
+            SeenotSyncDecision.shouldUpload(
+                isDirty = false,
+                deletedPackages = emptySet(),
+                localProfileVersion = 0,
+                server = SyncProfileDocument(),
+                local = SyncProfileDocument()
             )
         )
     }
