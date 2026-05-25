@@ -18,6 +18,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -949,6 +950,7 @@ private fun HomeAiChoiceCard(
     val description = when {
         usesSeenotAi -> stringResource(R.string.seenot_ai_enabled_desc)
         isPlus && !isAiConfigured -> stringResource(R.string.plus_can_enable_seenot_ai_desc)
+        isAiConfigured && isVoiceConfigured -> stringResource(R.string.own_key_ready_home_desc_with_voice)
         isAiConfigured -> stringResource(R.string.own_key_ready_home_desc)
         else -> stringResource(R.string.choose_ai_plan_home_desc)
     }
@@ -980,23 +982,6 @@ private fun HomeAiChoiceCard(
                     )
                 }
             }
-
-            if (isAiConfigured) {
-                AssistChip(
-                    onClick = onOpenAiSettings,
-                    label = {
-                        Text(
-                            if (isVoiceConfigured) {
-                                stringResource(R.string.ai_voice_optional_configured)
-                            } else {
-                                stringResource(R.string.ai_voice_optional_not_configured)
-                            }
-                        )
-                    },
-                    leadingIcon = { Icon(Icons.Default.Mic, contentDescription = null) }
-                )
-            }
-
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -3739,6 +3724,10 @@ private fun ServiceStatusSection(
                                 )
                             }
                         } else if (accountState is SeenotAccountState.Ready) {
+                            val accountEmail = accountState.snapshot.auth.user.email
+                                ?.trim()
+                                ?.takeIf { it.isNotBlank() }
+                                ?: stringResource(R.string.account_email_unavailable)
                             Box {
                                 Button(onClick = { accountMenuExpanded = true }) {
                                     Text(text = stringResource(R.string.account_actions_action))
@@ -3747,6 +3736,21 @@ private fun ServiceStatusSection(
                                     expanded = accountMenuExpanded,
                                     onDismissRequest = { accountMenuExpanded = false }
                                 ) {
+                                    DropdownMenuItem(
+                                        text = {
+                                            Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                                                Text(stringResource(R.string.account_email_label))
+                                                Text(
+                                                    text = accountEmail,
+                                                    style = MaterialTheme.typography.bodySmall,
+                                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                                )
+                                            }
+                                        },
+                                        onClick = {},
+                                        enabled = false
+                                    )
+                                    HorizontalDivider()
                                     DropdownMenuItem(
                                         text = { Text(stringResource(R.string.manage_or_delete_account_action)) },
                                         onClick = {
@@ -3908,10 +3912,14 @@ private fun PlusUpgradeHintCard(
     onOpenPlus: () -> Unit,
     enabled: Boolean
 ) {
-    ElevatedCard(
+    Card(
         modifier = Modifier.fillMaxWidth(),
-        colors = CardDefaults.elevatedCardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(
+            1.dp,
+            MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.8f)
         )
     ) {
         Row(
@@ -3929,7 +3937,7 @@ private fun PlusUpgradeHintCard(
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = stringResource(R.string.plus_hint_title),
-                    style = MaterialTheme.typography.titleSmall,
+                    style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.SemiBold
                 )
                 Text(

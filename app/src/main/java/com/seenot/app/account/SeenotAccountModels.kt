@@ -12,6 +12,7 @@ data class SeenotAuthTokenResponse(
 
 data class SeenotUserResponse(
     @SerializedName("user_id") val userId: String,
+    val email: String?,
     val status: String,
     @SerializedName("display_name") val displayName: String?,
     val locale: String?,
