@@ -25,6 +25,7 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.filled.OpenInNew
 import androidx.compose.material.icons.automirrored.filled.Send
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material.icons.filled.PauseCircle
@@ -1079,6 +1080,17 @@ private fun openSeenotPlusPage(context: Context) {
     val language = AppLocalePrefs.getLanguage(context)
     val path = if (language == AppLocalePrefs.LANG_ZH) "/zh/#seenot-plus" else "/#seenot-plus"
     val url = BuildConfig.SEENOT_WEBSITE_BASE_URL.trimEnd('/') + path
+    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+}
+
+private fun openSeenotOfficialSitePage(context: Context) {
+    val language = AppLocalePrefs.getLanguage(context)
+    val path = if (language == AppLocalePrefs.LANG_ZH) "/zh/" else "/"
+    val url = BuildConfig.SEENOT_WEBSITE_BASE_URL.trimEnd('/') + path
+    context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
+}
+
+private fun openExternalUrl(context: Context, url: String) {
     context.startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(url)))
 }
 
@@ -3588,16 +3600,99 @@ fun SettingsTab(
             title = stringResource(R.string.about_section),
             description = null
         ) {
+            AboutSection(
+                onOpenOfficialSite = { openSeenotOfficialSitePage(context) },
+                onOpenGithub = { openExternalUrl(context, "https://github.com/RoderickQiu/seenot-app") },
+                onOpenCreatorHomepage = { openExternalUrl(context, "https://r-q.name/") }
+            )
+        }
+    }
+}
+
+@Composable
+private fun AboutSection(
+    onOpenOfficialSite: () -> Unit,
+    onOpenGithub: () -> Unit,
+    onOpenCreatorHomepage: () -> Unit
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
             Text(
-                text = "SeeNot v1.0.0",
-                style = MaterialTheme.typography.bodyMedium
+                text = stringResource(R.string.about_app_version, BuildConfig.VERSION_NAME),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.SemiBold
             )
             Text(
-                text = "AI-powered attention management",
+                text = stringResource(R.string.about_app_desc),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
+    }
+
+    HorizontalDivider()
+
+    AboutLinkRow(
+        icon = Icons.Filled.Public,
+        title = stringResource(R.string.about_official_site),
+        subtitle = "seenot.site",
+        onClick = onOpenOfficialSite
+    )
+    AboutLinkRow(
+        icon = Icons.Filled.Code,
+        title = stringResource(R.string.about_github),
+        subtitle = stringResource(R.string.about_github_desc),
+        onClick = onOpenGithub
+    )
+    AboutLinkRow(
+        icon = Icons.Filled.Person,
+        title = stringResource(R.string.about_creator_homepage),
+        subtitle = "r-q.name",
+        onClick = onOpenCreatorHomepage
+    )
+}
+
+@Composable
+private fun AboutLinkRow(
+    icon: ImageVector,
+    title: String,
+    subtitle: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = subtitle,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 

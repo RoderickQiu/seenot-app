@@ -688,6 +688,10 @@
     <string name="account_login_success_toast">Account signed in.</string>
     <string name="account_login_callback_invalid">The sign-in callback was incomplete. Start sign-in again.</string>
     <string name="account_signed_out_toast">Signed out on this device.</string>
+    <string name="account_refresh_failed_message">Could not refresh the account right now. Please try again.</string>
+    <string name="account_connect_device_failed_message">Could not connect this device right now. Please try again.</string>
+    <string name="account_login_complete_failed_message">Could not finish sign-in right now. Return to the app and try again.</string>
+    <string name="account_device_limit_reached_message">This account has reached its device limit. Open your account page on the web, disconnect an older device, and then try again.</string>
     <string name="seenot_ai_label">SeeNot AI</string>
     <string name="own_api_key_label">On-device AI setup</string>
     <string name="not_enabled_label">Not enabled</string>
@@ -737,6 +741,12 @@
     <string name="export_section_desc">Import or export configuration, and share logs or runtime events</string>
     <string name="export_data">Open Data Tools</string>
     <string name="about_section">About</string>
+    <string name="about_app_version">SeeNot %s</string>
+    <string name="about_app_desc">Helps you keep attention boundaries on your phone.</string>
+    <string name="about_official_site">Official Site</string>
+    <string name="about_github">GitHub</string>
+    <string name="about_github_desc">Source code, releases, and issue tracking</string>
+    <string name="about_creator_homepage">Creator Homepage</string>
     <string name="edit_intent">Edit Intent</string>
 
     <!-- AiModelSettingsDialog -->

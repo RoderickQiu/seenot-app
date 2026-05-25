@@ -4,7 +4,9 @@ import android.content.Context
 import android.os.Build
 import com.google.gson.Gson
 import com.google.gson.JsonObject
+import com.google.gson.JsonPrimitive
 import com.seenot.app.BuildConfig
+import com.seenot.app.R
 import com.seenot.app.config.AppLocalePrefs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
@@ -48,7 +50,7 @@ open class SeenotAccountApi(
                 SeenotAccountSession.clear()
                 SeenotAccountState.SignedOut
             } else {
-                SeenotAccountState.Error(error.message ?: "Could not refresh account.")
+                SeenotAccountState.Error(accountErrorMessage(error, R.string.account_refresh_failed_message))
             }
         }
     }
@@ -73,7 +75,7 @@ open class SeenotAccountApi(
             val entitlement = getEntitlement(auth.accessToken)
             SeenotAccountState.Ready(SeenotAccountSnapshot(auth = auth, entitlement = entitlement))
         }.getOrElse { error ->
-            SeenotAccountState.Error(error.message ?: "Could not connect this device.")
+            SeenotAccountState.Error(accountErrorMessage(error, R.string.account_connect_device_failed_message))
         }
     }
 
@@ -115,7 +117,7 @@ open class SeenotAccountApi(
                 SeenotAccountSession.clear()
                 SeenotAccountState.SignedOut
             } else {
-                SeenotAccountState.Error(error.message ?: "Could not complete app login.")
+                SeenotAccountState.Error(accountErrorMessage(error, R.string.account_login_complete_failed_message))
             }
         }
     }
@@ -340,10 +342,14 @@ open class SeenotAccountApi(
         httpClient.newCall(request).execute().use { response ->
             val responseText = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
+                val errorDetail = extractErrorDetail(responseText)
                 if (response.code == 401 || response.code == 403) {
-                    throw SeenotAuthException(extractErrorMessage(responseText) ?: "Please sign in again.")
+                    throw SeenotAuthException(errorDetail?.message ?: "Please sign in again.")
                 }
-                throw IOException(extractErrorMessage(responseText) ?: "HTTP ${response.code}")
+                if (errorDetail?.code == DEVICE_LIMIT_REACHED_CODE) {
+                    throw SeenotDeviceLimitReachedException(errorDetail.deviceLimit)
+                }
+                throw IOException(errorDetail?.message ?: "HTTP ${response.code}")
             }
             return gson.fromJson(responseText, responseClass)
         }
@@ -353,17 +359,41 @@ open class SeenotAccountApi(
         return "${baseUrl.trimEnd('/')}/${path.trimStart('/')}"
     }
 
-    private fun extractErrorMessage(responseText: String): String? {
+    private fun accountErrorMessage(error: Throwable, fallbackResId: Int): String {
+        return when (error) {
+            is SeenotDeviceLimitReachedException -> appContext.getString(R.string.account_device_limit_reached_message)
+            else -> error.message?.takeIf { it.isNotBlank() } ?: appContext.getString(fallbackResId)
+        }
+    }
+
+    private fun extractErrorDetail(responseText: String): ApiErrorDetail? {
         return runCatching {
             val root = gson.fromJson(responseText, JsonObject::class.java)
             val detail = root.get("detail")
             when {
                 detail == null || detail.isJsonNull -> null
-                detail.isJsonPrimitive -> detail.asString
-                detail.isJsonObject -> detail.asJsonObject.get("message")?.asString
-                else -> detail.toString()
+                detail.isJsonPrimitive -> ApiErrorDetail(message = detail.asString)
+                detail.isJsonObject -> {
+                    val detailObject = detail.asJsonObject
+                    ApiErrorDetail(
+                        code = detailObject.getStringOrNull("code"),
+                        message = detailObject.getStringOrNull("message"),
+                        deviceLimit = detailObject.getIntOrNull("device_limit")
+                    )
+                }
+                else -> ApiErrorDetail(message = detail.toString())
             }
         }.getOrNull()
+    }
+
+    private fun JsonObject.getStringOrNull(name: String): String? {
+        val value = get(name) as? JsonPrimitive ?: return null
+        return if (value.isString) value.asString else null
+    }
+
+    private fun JsonObject.getIntOrNull(name: String): Int? {
+        val value = get(name) as? JsonPrimitive ?: return null
+        return if (value.isNumber) value.asInt else null
     }
 
     private fun buildDeviceName(): String {
@@ -390,6 +420,15 @@ open class SeenotAccountApi(
         val normalized = message?.lowercase().orEmpty()
         return "connection closed" in normalized || "unexpected end of stream" in normalized
     }
+
+    private data class ApiErrorDetail(
+        val code: String? = null,
+        val message: String? = null,
+        val deviceLimit: Int? = null
+    )
 }
 
 private class SeenotAuthException(message: String) : RuntimeException(message)
+private class SeenotDeviceLimitReachedException(val deviceLimit: Int?) : IOException("Device limit reached.")
+
+private const val DEVICE_LIMIT_REACHED_CODE = "DEVICE_LIMIT_REACHED"
