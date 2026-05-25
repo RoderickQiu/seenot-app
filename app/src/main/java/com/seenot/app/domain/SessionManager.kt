@@ -14,6 +14,7 @@ import com.seenot.app.ai.feedback.FalsePositiveRulePreview
 import com.seenot.app.account.SeenotAccountSession
 import com.seenot.app.account.SeenotSyncScheduler
 import com.seenot.app.account.SyncAppConfig
+import com.seenot.app.account.SyncAppHint
 import com.seenot.app.account.SyncProfileDocument
 import com.seenot.app.ai.parser.EffectiveIntentMigrator
 import com.seenot.app.ai.screen.ScreenAnalyzer
@@ -21,9 +22,11 @@ import com.seenot.app.config.ApiConfig
 import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.config.InterventionDialogPrefs
 import com.seenot.app.config.InterventionLevelPrefs
+import com.seenot.app.config.RuleRecordingPrefs
 import com.seenot.app.data.local.SeenotDatabase
 import com.seenot.app.data.local.entity.IntentConstraintEntity
 import com.seenot.app.data.local.entity.SessionEntity
+import com.seenot.app.data.model.AppHint
 import com.seenot.app.data.model.AppHintScopeType
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.EffectiveIntent
@@ -145,6 +148,7 @@ class SessionManager(
 
     // Timer job
     private var timerJob: Job? = null
+    private var applyingSyncProfile = false
     private var pauseTimeoutJob: Job? = null
 
     // Screen analyzer for AI vision
@@ -2683,27 +2687,132 @@ class SessionManager(
                 SyncAppConfig(
                     entryMode = getAppEntryIntentMode(packageName),
                     lastIntent = loadLastIntent(packageName),
+                    defaultRuleId = getDefaultRule(packageName)?.id,
                     presetRules = loadPresetRules(packageName),
-                    intentHistory = loadIntentHistory(packageName)
+                    intentHistory = loadIntentHistory(packageName),
+                    supplementalHints = kotlinx.coroutines.runBlocking {
+                        appHintRepository.getHintsForPackage(packageName).map { it.toSyncAppHint() }
+                    }
                 )
             }
-        return SyncProfileDocument(apps = appConfigs)
+        return SyncProfileDocument(
+            globalPreferences = buildSyncGlobalPreferences(),
+            apps = appConfigs
+        )
     }
 
     fun applySyncProfileSnapshot(profile: SyncProfileDocument) {
-        val packageNames = profile.apps.keys.filter { it.isNotBlank() }.toSet()
-        profile.apps.forEach { (packageName, appConfig) ->
-            if (packageName.isBlank()) return@forEach
-            savePresetRules(packageName, appConfig.presetRules)
-            replaceLastIntent(packageName, appConfig.lastIntent.orEmpty())
-            saveIntentHistory(packageName, appConfig.intentHistory)
-            appConfig.entryMode?.let { setAppEntryIntentMode(packageName, it) }
+        applyingSyncProfile = true
+        try {
+            applySyncGlobalPreferences(profile.globalPreferences)
+            val packageNames = profile.apps.keys.filter { it.isNotBlank() }.toSet()
+            profile.apps.forEach { (packageName, appConfig) ->
+                if (packageName.isBlank()) return@forEach
+                savePresetRules(packageName, appConfig.presetRules)
+                replaceLastIntent(packageName, appConfig.lastIntent.orEmpty())
+                saveIntentHistory(packageName, appConfig.intentHistory)
+                if (appConfig.defaultRuleId.isNullOrBlank()) {
+                    clearDefaultRule(packageName)
+                } else {
+                    setDefaultRule(packageName, appConfig.defaultRuleId)
+                }
+                kotlinx.coroutines.runBlocking {
+                    appHintRepository.deleteHintsForPackage(packageName)
+                    appConfig.supplementalHints.forEach { hint ->
+                        appHintRepository.saveHint(hint.toAppHint(packageName))
+                    }
+                }
+                appConfig.entryMode?.let { setAppEntryIntentMode(packageName, it) }
+            }
+            setControlledApps(getControlledAppsSnapshot() + packageNames)
+        } finally {
+            applyingSyncProfile = false
         }
-        setControlledApps(getControlledAppsSnapshot() + packageNames)
         SeenotAccountSession.saveSyncProfileVersion(SeenotAccountSession.getSyncProfileVersion())
     }
 
+    private fun buildSyncGlobalPreferences(): Map<String, Any?> {
+        return linkedMapOf(
+            "auto_start" to isAutoStartEnabled(),
+            "rule_recording_enabled" to RuleRecordingPrefs.isEnabled(context),
+            "rule_recording_screenshot_mode" to RuleRecordingPrefs.getScreenshotMode(context).value,
+            "show_home_timeline" to RuleRecordingPrefs.isHomeTimelineEnabled(context),
+            "hide_compact_hud_text" to RuleRecordingPrefs.isCompactHudTextHidden(context),
+            "analysis_result_toast" to RuleRecordingPrefs.isAnalysisResultToastEnabled(context),
+            "fixed_intervention_level_enabled" to InterventionLevelPrefs.isFixedLevelEnabled(context),
+            "fixed_intervention_level" to InterventionLevelPrefs.getFixedLevel(context).name,
+            "non_gentle_allow_ignore_once" to InterventionDialogPrefs.isNonGentleAllowIgnoreOnceEnabled(context)
+        )
+    }
+
+    private fun applySyncGlobalPreferences(preferences: Map<String, Any?>) {
+        booleanPreference(preferences["auto_start"])?.let { setAutoStartEnabled(it) }
+        booleanPreference(preferences["rule_recording_enabled"])?.let { RuleRecordingPrefs.setEnabled(context, it) }
+        stringPreference(preferences["rule_recording_screenshot_mode"])
+            ?.let { RuleRecordingPrefs.setScreenshotMode(context, RuleRecordingPrefs.ScreenshotMode.fromValue(it)) }
+        booleanPreference(preferences["show_home_timeline"])?.let { RuleRecordingPrefs.setHomeTimelineEnabled(context, it) }
+        booleanPreference(preferences["hide_compact_hud_text"])?.let { RuleRecordingPrefs.setCompactHudTextHidden(context, it) }
+        booleanPreference(preferences["analysis_result_toast"])?.let { RuleRecordingPrefs.setAnalysisResultToastEnabled(context, it) }
+        booleanPreference(preferences["fixed_intervention_level_enabled"])?.let { InterventionLevelPrefs.setFixedLevelEnabled(context, it) }
+        stringPreference(preferences["fixed_intervention_level"])?.let { raw ->
+            runCatching { InterventionLevel.valueOf(raw) }
+                .getOrNull()
+                ?.let { InterventionLevelPrefs.setFixedLevel(context, it) }
+        }
+        booleanPreference(preferences["non_gentle_allow_ignore_once"])?.let {
+            InterventionDialogPrefs.setNonGentleAllowIgnoreOnceEnabled(context, it)
+        }
+    }
+
+    private fun booleanPreference(value: Any?): Boolean? {
+        return when (value) {
+            is Boolean -> value
+            is String -> value.toBooleanStrictOrNull()
+            else -> null
+        }
+    }
+
+    private fun stringPreference(value: Any?): String? {
+        return value as? String
+    }
+
+    private fun AppHint.toSyncAppHint(): SyncAppHint {
+        return SyncAppHint(
+            id = id,
+            scopeType = scopeType.name,
+            scopeKey = scopeKey,
+            intentId = intentId,
+            intentLabel = intentLabel,
+            hintText = hintText,
+            source = source,
+            sourceHintId = sourceHintId,
+            isActive = isActive,
+            createdAt = createdAt,
+            updatedAt = updatedAt
+        )
+    }
+
+    private fun SyncAppHint.toAppHint(packageName: String): AppHint {
+        val resolvedScopeType = runCatching { AppHintScopeType.valueOf(scopeType) }
+            .getOrDefault(AppHintScopeType.INTENT_SPECIFIC)
+        return AppHint(
+            id = id,
+            packageName = packageName,
+            scopeType = resolvedScopeType,
+            scopeKey = scopeKey,
+            intentId = intentId,
+            intentLabel = intentLabel,
+            hintText = hintText,
+            source = source ?: "sync",
+            sourceHintId = sourceHintId,
+            isActive = isActive,
+            createdAt = createdAt.takeIf { it > 0L } ?: System.currentTimeMillis(),
+            updatedAt = updatedAt.takeIf { it > 0L } ?: System.currentTimeMillis()
+        )
+    }
+
     private fun markSyncDirty() {
+        if (applyingSyncProfile) return
         SeenotAccountSession.markSyncDirty()
         SeenotSyncScheduler.enqueue(context)
     }

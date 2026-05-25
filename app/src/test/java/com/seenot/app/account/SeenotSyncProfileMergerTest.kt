@@ -107,6 +107,64 @@ class SeenotSyncProfileMergerTest {
     }
 
     @Test
+    fun localDirtySettingsMergeGlobalPreferencesAndPerAppSettings() {
+        val serverRule = rule(id = "same-rule", description = "Server default")
+        val localRule = rule(id = "same-rule", description = "Local default")
+        val serverHint = SyncAppHint(
+            id = "server-hint",
+            scopeType = "APP_GENERAL",
+            scopeKey = "app:com.social",
+            intentId = "app:com.social",
+            intentLabel = "Whole app",
+            hintText = "Server hint"
+        )
+        val localHint = SyncAppHint(
+            id = "local-hint",
+            scopeType = "INTENT_SPECIFIC",
+            scopeKey = "intent:focus",
+            intentId = "intent:focus",
+            intentLabel = "Focus",
+            hintText = "Local hint"
+        )
+        val server = SyncProfileDocument(
+            globalPreferences = mapOf(
+                "show_home_timeline" to true,
+                "fixed_intervention_level" to "GENTLE"
+            ),
+            apps = mapOf(
+                "com.social" to SyncAppConfig(
+                    defaultRuleId = serverRule.id,
+                    presetRules = listOf(serverRule),
+                    supplementalHints = listOf(serverHint)
+                )
+            )
+        )
+        val local = SyncProfileDocument(
+            globalPreferences = mapOf(
+                "fixed_intervention_level" to "STRICT",
+                "analysis_result_toast" to true
+            ),
+            apps = mapOf(
+                "com.social" to SyncAppConfig(
+                    defaultRuleId = localRule.id,
+                    presetRules = listOf(localRule),
+                    supplementalHints = listOf(localHint)
+                )
+            )
+        )
+
+        val merged = SeenotSyncProfileMerger.merge(server = server, local = local)
+        val app = merged.apps.getValue("com.social")
+
+        assertEquals(true, merged.globalPreferences["show_home_timeline"])
+        assertEquals("STRICT", merged.globalPreferences["fixed_intervention_level"])
+        assertEquals(true, merged.globalPreferences["analysis_result_toast"])
+        assertEquals(localRule.id, app.defaultRuleId)
+        assertEquals(localRule, app.presetRules.single())
+        assertEquals(listOf(serverHint, localHint), app.supplementalHints)
+    }
+
+    @Test
     fun deletedLocalAppsAreNotResurrectedFromServerDuringMerge() {
         val server = SyncProfileDocument(
             apps = mapOf(

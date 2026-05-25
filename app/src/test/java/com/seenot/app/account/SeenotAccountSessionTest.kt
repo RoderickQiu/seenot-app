@@ -22,6 +22,7 @@ class SeenotAccountSessionTest {
                 expiresIn = 3600,
                 user = SeenotUserResponse(
                     userId = "user_1",
+                    email = "user@example.com",
                     status = "active",
                     displayName = null,
                     locale = null,

@@ -28,8 +28,24 @@ data class SyncProfileDocument(
 data class SyncAppConfig(
     @SerializedName("entry_mode") val entryMode: AppEntryIntentMode? = null,
     @SerializedName("last_intent") val lastIntent: List<SessionConstraint>? = null,
+    @SerializedName("default_rule_id") val defaultRuleId: String? = null,
     @SerializedName("preset_rules") val presetRules: List<SessionConstraint> = emptyList(),
-    @SerializedName("intent_history") val intentHistory: List<List<SessionConstraint>> = emptyList()
+    @SerializedName("intent_history") val intentHistory: List<List<SessionConstraint>> = emptyList(),
+    @SerializedName("supplemental_hints") val supplementalHints: List<SyncAppHint> = emptyList()
+)
+
+data class SyncAppHint(
+    val id: String,
+    @SerializedName("scope_type") val scopeType: String,
+    @SerializedName("scope_key") val scopeKey: String,
+    @SerializedName("intent_id") val intentId: String,
+    @SerializedName("intent_label") val intentLabel: String,
+    @SerializedName("hint_text") val hintText: String,
+    val source: String? = null,
+    @SerializedName("source_hint_id") val sourceHintId: String? = null,
+    @SerializedName("is_active") val isActive: Boolean = true,
+    @SerializedName("created_at") val createdAt: Long = 0L,
+    @SerializedName("updated_at") val updatedAt: Long = 0L
 )
 
 data class SyncProfileLogSummary(
@@ -127,8 +143,10 @@ object SeenotSyncProfileMerger {
             SyncAppConfig(
                 entryMode = local.entryMode ?: server.entryMode,
                 lastIntent = local.lastIntent ?: server.lastIntent,
+                defaultRuleId = local.defaultRuleId ?: server.defaultRuleId,
                 presetRules = mergeRulesById(server.presetRules, local.presetRules),
-                intentHistory = dedupeHistory(local.intentHistory + server.intentHistory)
+                intentHistory = dedupeHistory(local.intentHistory + server.intentHistory),
+                supplementalHints = mergeHints(server.supplementalHints, local.supplementalHints)
             )
         )
     }
@@ -151,6 +169,24 @@ object SeenotSyncProfileMerger {
         val deduped = linkedMapOf<String, SessionConstraint>()
         rules.forEach { deduped[it.id] = it }
         return deduped.values.toList()
+    }
+
+    private fun mergeHints(server: List<SyncAppHint>, local: List<SyncAppHint>): List<SyncAppHint> {
+        val merged = linkedMapOf<String, SyncAppHint>()
+        server.forEach { merged[hintKey(it)] = it }
+        local.forEach { merged[hintKey(it)] = it }
+        return merged.values.toList()
+    }
+
+    private fun hintKey(hint: SyncAppHint): String {
+        return hint.id.ifBlank {
+            listOf(
+                hint.scopeType,
+                hint.scopeKey,
+                hint.intentId,
+                hint.hintText.trim().lowercase()
+            ).joinToString("|")
+        }
     }
 
     private fun dedupeHistory(history: List<List<SessionConstraint>>): List<List<SessionConstraint>> {
