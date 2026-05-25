@@ -55,7 +55,7 @@ class OpenAiCompatibleClient(
             userPrompt = userPrompt,
             imageDataUrl = null
         )
-        execute(settings, requestBody)
+        executeWithManagedCredentialRetry(settings, requestBody)
     }
 
     suspend fun completeVision(
@@ -77,7 +77,24 @@ class OpenAiCompatibleClient(
             userPrompt = userPrompt,
             imageDataUrl = imageDataUrl
         )
-        execute(settings, requestBody)
+        executeWithManagedCredentialRetry(settings, requestBody)
+    }
+
+    private suspend fun executeWithManagedCredentialRetry(settings: ApiSettings, body: JsonObject): String {
+        return try {
+            execute(settings, body)
+        } catch (error: ModelAuthException) {
+            if (ApiConfig.getAiSource() != com.seenot.app.config.AiSource.SEENOT_AI) {
+                throw error
+            }
+            Logger.w(TAG, "Managed AI credential rejected by model provider; refreshing and retrying once")
+            ApiConfig.clearManagedAiSession()
+            val refreshedSettings = settingsProvider()
+            if (refreshedSettings.apiKey.trim().isBlank() || refreshedSettings.apiKey == settings.apiKey) {
+                throw error
+            }
+            execute(refreshedSettings, body)
+        }
     }
 
     private fun buildRequestBody(
@@ -150,11 +167,16 @@ class OpenAiCompatibleClient(
             val responseText = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
                 Logger.e(TAG, "HTTP ${response.code}: $responseText")
+                if (response.code == 401 || response.code == 403) {
+                    throw ModelAuthException(response.code)
+                }
                 throw IllegalStateException("模型请求失败 (${response.code})")
             }
             return extractAssistantText(responseText)
         }
     }
+
+    private class ModelAuthException(val statusCode: Int) : IllegalStateException("模型请求失败 ($statusCode)")
 
     private fun extractAssistantText(responseText: String): String {
         val root = JsonParser.parseString(responseText).asJsonObject

@@ -75,6 +75,31 @@ class ApiConfigManagedAiTest {
     }
 
     @Test
+    fun savingOwnKeySettingsDoesNotSwitchAwayFromExpiredSeenotAiPreference() {
+        ApiConfig.saveSettings(
+            ApiSettings.defaults(AiProvider.DASHSCOPE).copy(
+                apiKey = "own-dashscope-key"
+            )
+        )
+        ApiConfig.saveManagedAiSession(
+            apiKey = "expired-managed-key",
+            baseUrl = "https://dashscope.aliyuncs.com/compatible-mode/v1",
+            model = "qwen-vl-plus",
+            expiresAtEpochSeconds = 1_700_000_000L
+        )
+
+        assertFalse(ApiConfig.isManagedAiActive(nowEpochMs = 1_800_000_000_000L))
+
+        ApiConfig.saveSettings(
+            ApiSettings.defaults(AiProvider.OPENAI).copy(
+                apiKey = "own-openai-key"
+            )
+        )
+
+        assertEquals(AiSource.SEENOT_AI, ApiConfig.getAiSource())
+    }
+
+    @Test
     fun ownKeySettingsRemainReadableWhileManagedAiIsActive() {
         ApiConfig.saveSettings(
             ApiSettings(

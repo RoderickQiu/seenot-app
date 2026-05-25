@@ -948,7 +948,7 @@ private fun HomeAiChoiceCard(
     onUseSeenotAi: () -> Unit
 ) {
     val isPlus = (accountState as? SeenotAccountState.Ready)?.snapshot?.hasPlus == true
-    val usesSeenotAi = ApiConfig.getAiSource() == AiSource.SEENOT_AI && ApiConfig.isManagedAiActive()
+    val usesSeenotAi = ApiConfig.getAiSource() == AiSource.SEENOT_AI
     val title = when {
         usesSeenotAi -> stringResource(R.string.seenot_ai_enabled_title)
         isAiConfigured -> stringResource(R.string.own_key_ready_title)
@@ -3744,7 +3744,7 @@ private fun ServiceStatusSection(
 ) {
     val snapshot = (accountState as? SeenotAccountState.Ready)?.snapshot
     val isPlus = snapshot?.hasPlus == true
-    val usesSeenotAi = ApiConfig.getAiSource() == AiSource.SEENOT_AI && ApiConfig.isManagedAiActive()
+    val usesSeenotAi = ApiConfig.getAiSource() == AiSource.SEENOT_AI
     val usesOwnSetup = isAiConfigured && !usesSeenotAi
     var accountMenuExpanded by remember { mutableStateOf(false) }
     var syncRefreshTicker by remember { mutableIntStateOf(0) }
@@ -4237,10 +4237,9 @@ private fun AiModelSettingsDialog(
     val hasOwnVisionSetup = initialSettings.apiKey.isNotBlank() &&
         initialSettings.baseUrl.isNotBlank() &&
         initialSettings.model.isNotBlank()
-    val managedAiActive = ApiConfig.isManagedAiActive()
     var preferredAiSource by remember {
         mutableStateOf(
-            if (ApiConfig.getAiSource() == AiSource.SEENOT_AI && managedAiActive) {
+            if (ApiConfig.getAiSource() == AiSource.SEENOT_AI) {
                 AiSource.SEENOT_AI
             } else {
                 AiSource.BRING_YOUR_OWN_KEY

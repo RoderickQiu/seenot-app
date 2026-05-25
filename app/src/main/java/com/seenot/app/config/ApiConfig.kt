@@ -168,7 +168,6 @@ object ApiConfig {
             ?.putString(KEY_MODEL, settings.model.trim())
             ?.putString(KEY_FEEDBACK_MODEL, settings.feedbackModel.trim())
             ?.putString(KEY_QWEN_REGION, settings.qwenRegion.name)
-            ?.putString(KEY_AI_SOURCE, AiSource.BRING_YOUR_OWN_KEY.name)
             ?.apply()
         setApiKey(settings.provider, settings.apiKey.trim())
         setBaseUrl(settings.provider, settings.baseUrl.trim())
