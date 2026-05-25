@@ -4,7 +4,6 @@ import android.content.Context
 import android.os.Build
 import com.google.gson.Gson
 import com.google.gson.JsonObject
-import com.google.gson.JsonParser
 import com.seenot.app.BuildConfig
 import com.seenot.app.config.AppLocalePrefs
 import kotlinx.coroutines.delay
@@ -127,15 +126,25 @@ open class SeenotAccountApi(
         }
     }
 
-    suspend fun readSyncProfile(): SyncProfileResponse = withContext(Dispatchers.IO) {
+    suspend fun readSyncChanges(since: Long, limit: Int = 200): SyncChangesResponse = withContext(Dispatchers.IO) {
         retryOnceOnTransientClose {
-            readSyncProfileWithFreshAccessToken()
+            readSyncChangesWithFreshAccessToken(since, limit)
         }
     }
 
-    suspend fun writeSyncProfile(profileVersion: Int, profile: SyncProfileDocument): SyncProfileResponse = withContext(Dispatchers.IO) {
+    suspend fun readSyncEntities(
+        entityType: String? = null,
+        entityIds: List<String> = emptyList(),
+        includeDeleted: Boolean = true
+    ): SyncEntitySnapshotResponse = withContext(Dispatchers.IO) {
         retryOnceOnTransientClose {
-            writeSyncProfileWithFreshAccessToken(profileVersion, profile)
+            readSyncEntitiesWithFreshAccessToken(entityType, entityIds, includeDeleted)
+        }
+    }
+
+    suspend fun writeSyncOps(ops: List<SyncOpRequest>): SyncOpsResponse = withContext(Dispatchers.IO) {
+        retryOnceOnTransientClose {
+            writeSyncOpsWithFreshAccessToken(ops)
         }
     }
 
@@ -189,24 +198,34 @@ open class SeenotAccountApi(
         }
     }
 
-    private fun readSyncProfileWithFreshAccessToken(): SyncProfileResponse {
+    private fun readSyncChangesWithFreshAccessToken(since: Long, limit: Int): SyncChangesResponse {
         return try {
-            getSyncProfile(SeenotAccountSession.getAccessToken())
+            getSyncChanges(SeenotAccountSession.getAccessToken(), since, limit)
         } catch (error: SeenotAuthException) {
             val refreshed = refresh()
-            getSyncProfile(refreshed.accessToken)
+            getSyncChanges(refreshed.accessToken, since, limit)
         }
     }
 
-    private fun writeSyncProfileWithFreshAccessToken(
-        profileVersion: Int,
-        profile: SyncProfileDocument
-    ): SyncProfileResponse {
+    private fun readSyncEntitiesWithFreshAccessToken(
+        entityType: String?,
+        entityIds: List<String>,
+        includeDeleted: Boolean
+    ): SyncEntitySnapshotResponse {
         return try {
-            putSyncProfile(SeenotAccountSession.getAccessToken(), profileVersion, profile)
+            getSyncEntities(SeenotAccountSession.getAccessToken(), entityType, entityIds, includeDeleted)
         } catch (error: SeenotAuthException) {
             val refreshed = refresh()
-            putSyncProfile(refreshed.accessToken, profileVersion, profile)
+            getSyncEntities(refreshed.accessToken, entityType, entityIds, includeDeleted)
+        }
+    }
+
+    private fun writeSyncOpsWithFreshAccessToken(ops: List<SyncOpRequest>): SyncOpsResponse {
+        return try {
+            postSyncOps(SeenotAccountSession.getAccessToken(), ops)
+        } catch (error: SeenotAuthException) {
+            val refreshed = refresh()
+            postSyncOps(refreshed.accessToken, ops)
         }
     }
 
@@ -283,45 +302,44 @@ open class SeenotAccountApi(
         )
     }
 
-    private fun getSyncProfile(token: String): SyncProfileResponse {
+    private fun getSyncChanges(token: String, since: Long, limit: Int): SyncChangesResponse {
         return getJson(
-            path = "/sync/profile",
+            path = "/sync/changes?since=${since.coerceAtLeast(0L)}&limit=${limit.coerceIn(1, 500)}",
             token = token,
-            responseClass = SyncProfileResponse::class.java
+            responseClass = SyncChangesResponse::class.java
         )
     }
 
-    private fun putSyncProfile(
+    private fun getSyncEntities(
         token: String,
-        profileVersion: Int,
-        profile: SyncProfileDocument
-    ): SyncProfileResponse {
-        val body = gson.toJsonTree(SyncProfilePutRequest(profileVersion = profileVersion, profile = profile)).asJsonObject
-        return putJson(
-            path = "/sync/profile",
+        entityType: String?,
+        entityIds: List<String>,
+        includeDeleted: Boolean
+    ): SyncEntitySnapshotResponse {
+        val params = mutableListOf("include_deleted=$includeDeleted")
+        entityType?.takeIf { it.isNotBlank() }?.let { params += "entity_type=$it" }
+        if (entityIds.isNotEmpty()) params += "entity_ids=${entityIds.joinToString(",")}"
+        return getJson(
+            path = "/sync/entities?${params.joinToString("&")}",
+            token = token,
+            responseClass = SyncEntitySnapshotResponse::class.java
+        )
+    }
+
+    private fun postSyncOps(token: String, ops: List<SyncOpRequest>): SyncOpsResponse {
+        val body = gson.toJsonTree(SyncOpsRequest(ops = ops)).asJsonObject
+        return postJson(
+            path = "/sync/ops",
             body = body,
             token = token,
-            responseClass = SyncProfileResponse::class.java
+            responseClass = SyncOpsResponse::class.java
         )
-    }
-
-    private fun <T> putJson(path: String, body: JsonObject, token: String, responseClass: Class<T>): T {
-        val request = Request.Builder()
-            .url(apiUrl(path))
-            .header("Content-Type", "application/json")
-            .header("Authorization", "Bearer $token")
-            .put(body.toString().toRequestBody(JSON_MEDIA_TYPE))
-            .build()
-        return execute(request, responseClass)
     }
 
     private fun <T> execute(request: Request, responseClass: Class<T>): T {
         httpClient.newCall(request).execute().use { response ->
             val responseText = response.body?.string().orEmpty()
             if (!response.isSuccessful) {
-                if (response.code == 409) {
-                    parseSyncConflict(responseText)?.let { throw it }
-                }
                 if (response.code == 401 || response.code == 403) {
                     throw SeenotAuthException(extractErrorMessage(responseText) ?: "Please sign in again.")
                 }
@@ -329,26 +347,6 @@ open class SeenotAccountApi(
             }
             return gson.fromJson(responseText, responseClass)
         }
-    }
-
-    private fun parseSyncConflict(responseText: String): SeenotSyncConflictException? {
-        return runCatching {
-            val detail = JsonParser.parseString(responseText)
-                .asJsonObject
-                .get("detail")
-                ?.asJsonObject
-                ?: return null
-            val code = detail.get("code")?.asString
-            if (code != "SYNC_PROFILE_VERSION_CONFLICT") return null
-            val currentVersion = detail.get("current_profile_version")?.asInt ?: 0
-            val profile = detail.get("profile")?.let { gson.fromJson(it, SyncProfileDocument::class.java) }
-                ?: SyncProfileDocument()
-            SeenotSyncConflictException(
-                message = detail.get("message")?.asString ?: "Sync profile version conflict.",
-                currentProfileVersion = currentVersion,
-                serverProfile = profile
-            )
-        }.getOrNull()
     }
 
     private fun apiUrl(path: String): String {

@@ -460,8 +460,14 @@ fun MainScreen(
                         onManualSync = { onComplete ->
                             mainScope.launch {
                                 val result = syncCoordinator.syncNowIfPlus(accountState)
-                                val message = if (result.isSuccess) {
-                                    context.getString(R.string.plus_sync_success_toast)
+                                val summary = result.getOrNull()
+                                val message = if (summary != null) {
+                                    context.getString(
+                                        R.string.plus_sync_result_toast,
+                                        summary.uploaded,
+                                        summary.downloaded,
+                                        summary.pending
+                                    )
                                 } else {
                                     context.getString(R.string.plus_sync_failed_toast)
                                 }
@@ -3339,6 +3345,7 @@ fun SettingsTab(
                 onCheckedChange = {
                     showHomeTimeline = it
                     RuleRecordingPrefs.setHomeTimelineEnabled(context, it)
+                    sessionManager.enqueueGlobalPreferencesSync()
                     onHomeTimelineChanged(it)
                 }
             )
@@ -3350,6 +3357,7 @@ fun SettingsTab(
                 onCheckedChange = {
                     hideCompactHudText = it
                     RuleRecordingPrefs.setCompactHudTextHidden(context, it)
+                    sessionManager.enqueueGlobalPreferencesSync()
                     FloatingIndicatorOverlay.refreshCurrentOverlay()
                 }
             )
@@ -3409,6 +3417,7 @@ fun SettingsTab(
                 onCheckedChange = {
                     nonGentleAllowIgnoreOnce = it
                     InterventionDialogPrefs.setNonGentleAllowIgnoreOnceEnabled(context, it)
+                    sessionManager.enqueueGlobalPreferencesSync()
                 }
             )
             HorizontalDivider()
@@ -3419,6 +3428,7 @@ fun SettingsTab(
                 onCheckedChange = {
                     fixedInterventionEnabled = it
                     InterventionLevelPrefs.setFixedLevelEnabled(context, it)
+                    sessionManager.enqueueGlobalPreferencesSync()
                     scope.launch {
                         sessionManager.refreshRunningSessionInterventionLevels()
                     }
@@ -3454,6 +3464,7 @@ fun SettingsTab(
                                 onClick = {
                                     fixedInterventionLevel = level
                                     InterventionLevelPrefs.setFixedLevel(context, level)
+                                    sessionManager.enqueueGlobalPreferencesSync()
                                     scope.launch {
                                         sessionManager.refreshRunningSessionInterventionLevels()
                                     }
@@ -3479,6 +3490,7 @@ fun SettingsTab(
                 onCheckedChange = {
                     saveRuleRecords = it
                     RuleRecordingPrefs.setEnabled(context, it)
+                    sessionManager.enqueueGlobalPreferencesSync()
                 }
             )
             if (saveRuleRecords) {
@@ -3502,6 +3514,7 @@ fun SettingsTab(
                                 onClick = {
                                     screenshotMode = mode
                                     RuleRecordingPrefs.setScreenshotMode(context, mode)
+                                    sessionManager.enqueueGlobalPreferencesSync()
                                     screenshotDropdownExpanded = false
                                 }
                             )
@@ -3517,6 +3530,7 @@ fun SettingsTab(
                 onCheckedChange = {
                     showAnalysisResultToast = it
                     RuleRecordingPrefs.setAnalysisResultToastEnabled(context, it)
+                    sessionManager.enqueueGlobalPreferencesSync()
                 }
             )
             HorizontalDivider()

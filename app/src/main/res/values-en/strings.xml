@@ -681,6 +681,7 @@
     <string name="plus_sync_now_action">Sync now</string>
     <string name="plus_syncing_action">Syncing</string>
     <string name="plus_sync_success_toast">Sync complete</string>
+    <string name="plus_sync_result_toast">Sync complete: uploaded %1$d, downloaded %2$d, pending %3$d</string>
     <string name="plus_sync_failed_toast">Sync failed. Please try again.</string>
     <string name="account_login_start_failed_toast">Could not open web sign-in right now. Please try again.</string>
     <string name="account_login_failed_toast">Web sign-in did not finish. Return to the app and try again.</string>

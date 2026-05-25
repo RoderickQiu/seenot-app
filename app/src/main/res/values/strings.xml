@@ -687,6 +687,7 @@
     <string name="plus_sync_now_action">立即同步</string>
     <string name="plus_syncing_action">同步中</string>
     <string name="plus_sync_success_toast">同步已完成</string>
+    <string name="plus_sync_result_toast">同步完成：上传 %1$d，下载 %2$d，待处理 %3$d</string>
     <string name="plus_sync_failed_toast">同步失败，请稍后重试</string>
     <string name="account_login_start_failed_toast">暂时无法打开网页登录，请稍后重试。</string>
     <string name="account_login_failed_toast">网页登录未完成，请回到 App 重试。</string>

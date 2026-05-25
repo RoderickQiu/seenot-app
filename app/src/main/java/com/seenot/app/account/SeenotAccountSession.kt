@@ -14,9 +14,6 @@ object SeenotAccountSession {
     private const val KEY_DEVICE_ID = "device_id"
     private const val KEY_USER_STATUS = "user_status"
     private const val KEY_INSTALLATION_ID = "installation_id"
-    private const val KEY_SYNC_PROFILE_VERSION = "sync_profile_version"
-    private const val KEY_SYNC_DIRTY = "sync_dirty"
-    private const val KEY_SYNC_DELETED_PACKAGES = "sync_deleted_packages"
     private const val KEY_LAST_SYNCED_AT_MS = "last_synced_at_ms"
 
     private var prefs: SharedPreferences? = null
@@ -66,50 +63,11 @@ object SeenotAccountSession {
         prefs?.edit()?.putString(KEY_DEVICE_ID, deviceId.trim())?.apply()
     }
 
-    fun getSyncProfileVersion(): Int = prefs?.getInt(KEY_SYNC_PROFILE_VERSION, 0) ?: 0
-
-    fun saveSyncProfileVersion(version: Int) {
-        prefs?.edit()
-            ?.putInt(KEY_SYNC_PROFILE_VERSION, version.coerceAtLeast(0))
-            ?.putBoolean(KEY_SYNC_DIRTY, false)
-            ?.putLong(KEY_LAST_SYNCED_AT_MS, System.currentTimeMillis())
-            ?.apply()
+    fun saveLastSyncedAtNow() {
+        prefs?.edit()?.putLong(KEY_LAST_SYNCED_AT_MS, System.currentTimeMillis())?.apply()
     }
 
     fun getLastSyncedAtMs(): Long = prefs?.getLong(KEY_LAST_SYNCED_AT_MS, 0L)?.takeIf { it > 0L } ?: 0L
-
-    fun markSyncDirty() {
-        prefs?.edit()?.putBoolean(KEY_SYNC_DIRTY, true)?.apply()
-    }
-
-    fun isSyncDirty(): Boolean = prefs?.getBoolean(KEY_SYNC_DIRTY, false) ?: false
-
-    fun markSyncPackageDeleted(packageName: String) {
-        val normalized = packageName.trim()
-        if (normalized.isBlank()) return
-        val updated = getSyncDeletedPackages() + normalized
-        prefs?.edit()
-            ?.putString(KEY_SYNC_DELETED_PACKAGES, updated.sorted().joinToString(","))
-            ?.putBoolean(KEY_SYNC_DIRTY, true)
-            ?.apply()
-    }
-
-    fun getSyncDeletedPackages(): Set<String> {
-        return prefs?.getString(KEY_SYNC_DELETED_PACKAGES, "")
-            ?.split(",")
-            ?.map { it.trim() }
-            ?.filter { it.isNotBlank() }
-            ?.toSet()
-            ?: emptySet()
-    }
-
-    fun clearSyncDeletedPackages(packages: Set<String>) {
-        if (packages.isEmpty()) return
-        val remaining = getSyncDeletedPackages() - packages
-        prefs?.edit()
-            ?.putString(KEY_SYNC_DELETED_PACKAGES, remaining.sorted().joinToString(","))
-            ?.apply()
-    }
 
     fun clearAccount() {
         prefs?.edit()
@@ -118,9 +76,6 @@ object SeenotAccountSession {
             ?.remove(KEY_USER_ID)
             ?.remove(KEY_USER_STATUS)
             ?.remove(KEY_DEVICE_ID)
-            ?.remove(KEY_SYNC_PROFILE_VERSION)
-            ?.remove(KEY_SYNC_DIRTY)
-            ?.remove(KEY_SYNC_DELETED_PACKAGES)
             ?.remove(KEY_LAST_SYNCED_AT_MS)
             ?.apply()
     }

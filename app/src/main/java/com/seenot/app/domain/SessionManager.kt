@@ -13,9 +13,10 @@ import com.seenot.app.ai.feedback.GeneratedFalsePositiveRuleResult
 import com.seenot.app.ai.feedback.FalsePositiveRulePreview
 import com.seenot.app.account.SeenotAccountSession
 import com.seenot.app.account.SeenotSyncScheduler
-import com.seenot.app.account.SyncAppConfig
-import com.seenot.app.account.SyncAppHint
-import com.seenot.app.account.SyncProfileDocument
+import com.seenot.app.account.SeenotSyncCoordinator
+import com.seenot.app.account.SyncChange
+import com.seenot.app.account.SyncEntityType
+import com.seenot.app.account.SyncOperation
 import com.seenot.app.ai.parser.EffectiveIntentMigrator
 import com.seenot.app.ai.screen.ScreenAnalyzer
 import com.seenot.app.config.ApiConfig
@@ -118,6 +119,7 @@ class SessionManager(
     private val appHintRepository = AppHintRepository(context)
     private val falsePositiveRuleGenerator = FalsePositiveRuleGenerator(context)
     private val runtimeEventLogger = RuntimeEventLogger.getInstance(context)
+    private val syncCoordinator by lazy { SeenotSyncCoordinator(context.applicationContext, sessionManager = this) }
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
 
@@ -148,7 +150,7 @@ class SessionManager(
 
     // Timer job
     private var timerJob: Job? = null
-    private var applyingSyncProfile = false
+    private var applyingSyncChange = false
     private var pauseTimeoutJob: Job? = null
 
     // Screen analyzer for AI vision
@@ -2290,7 +2292,7 @@ class SessionManager(
         prefs.edit()
             .putString("${KEY_APP_ENTRY_INTENT_MODE_PREFIX}$packageName", mode.name)
             .apply()
-        markSyncDirty()
+        enqueueAppConfigSync(packageName)
         Logger.d(TAG, "Set app entry intent mode for $packageName: $mode")
     }
 
@@ -2358,7 +2360,7 @@ class SessionManager(
         // Cap at MAX_HISTORY_PER_APP
         val trimmed = history.take(MAX_HISTORY_PER_APP)
         prefs.edit().putString("${KEY_INTENT_HISTORY_PREFIX}$packageName", gson.toJson(trimmed)).apply()
-        markSyncDirty()
+        enqueueIntentHistorySync(packageName)
         Logger.d(TAG, "Updated intent history for $packageName, now ${trimmed.size} entries")
     }
 
@@ -2381,7 +2383,7 @@ class SessionManager(
             )
         })
         prefs.edit().putString("${KEY_PRESET_RULES_PREFIX}$packageName", json).apply()
-        markSyncDirty()
+        enqueueAppRulesSync(packageName)
         Logger.d(TAG, "Saved ${dedupedRules.size} preset rules for $packageName")
     }
 
@@ -2478,7 +2480,7 @@ class SessionManager(
             }
         })
         prefs.edit().putString("${KEY_INTENT_HISTORY_PREFIX}$packageName", json).apply()
-        markSyncDirty()
+        enqueueIntentHistorySync(packageName)
         Logger.d(TAG, "Saved intent history for $packageName, ${trimmed.size} entries")
     }
 
@@ -2644,7 +2646,9 @@ class SessionManager(
     fun setControlledApps(apps: Set<String>) {
         _controlledApps.value = apps
         saveControlledApps(apps)
-        markSyncDirty()
+        if (!applyingSyncChange) {
+            apps.forEach(::enqueueMonitoredAppUpsert)
+        }
     }
 
     /**
@@ -2654,7 +2658,7 @@ class SessionManager(
         val newApps = _controlledApps.value + packageName
         _controlledApps.value = newApps
         saveControlledApps(newApps)
-        markSyncDirty()
+        enqueueMonitoredAppUpsert(packageName)
         Logger.d(TAG, "Added controlled app: $packageName")
     }
 
@@ -2671,8 +2675,9 @@ class SessionManager(
             savePausedMonitoringApps(updatedPausedApps)
             cancelAppMonitoringResume(packageName)
         }
-        SeenotAccountSession.markSyncPackageDeleted(packageName)
-        markSyncDirty()
+        if (!applyingSyncChange) {
+            syncCoordinator.enqueueMonitoredAppDelete(packageName)
+        }
         Logger.d(TAG, "Removed controlled app: $packageName")
     }
 
@@ -2680,69 +2685,61 @@ class SessionManager(
         return _controlledApps.value.toSet()
     }
 
-    fun buildSyncProfileSnapshot(): SyncProfileDocument {
-        val appConfigs = getControlledAppsSnapshot()
-            .sorted()
-            .associateWith { packageName ->
-                SyncAppConfig(
-                    entryMode = getAppEntryIntentMode(packageName),
-                    lastIntent = loadLastIntent(packageName),
-                    defaultRuleId = getDefaultRule(packageName)?.id,
-                    presetRules = loadPresetRules(packageName),
-                    intentHistory = loadIntentHistory(packageName),
-                    supplementalHints = kotlinx.coroutines.runBlocking {
-                        appHintRepository.getHintsForPackage(packageName).map { it.toSyncAppHint() }
-                    }
-                )
-            }
-        return SyncProfileDocument(
-            globalPreferences = buildSyncGlobalPreferences(),
-            apps = appConfigs
-        )
-    }
-
-    fun applySyncProfileSnapshot(profile: SyncProfileDocument) {
-        applyingSyncProfile = true
+    fun applySyncChange(change: SyncChange) {
+        applyingSyncChange = true
         try {
-            applySyncGlobalPreferences(profile.globalPreferences)
-            val packageNames = profile.apps.keys.filter { it.isNotBlank() }.toSet()
-            profile.apps.forEach { (packageName, appConfig) ->
-                if (packageName.isBlank()) return@forEach
-                savePresetRules(packageName, appConfig.presetRules)
-                replaceLastIntent(packageName, appConfig.lastIntent.orEmpty())
-                saveIntentHistory(packageName, appConfig.intentHistory)
-                if (appConfig.defaultRuleId.isNullOrBlank()) {
-                    clearDefaultRule(packageName)
-                } else {
-                    setDefaultRule(packageName, appConfig.defaultRuleId)
-                }
-                kotlinx.coroutines.runBlocking {
-                    appHintRepository.deleteHintsForPackage(packageName)
-                    appConfig.supplementalHints.forEach { hint ->
-                        appHintRepository.saveHint(hint.toAppHint(packageName))
+            when (change.entityType) {
+                SyncEntityType.GLOBAL_PREF.value -> {
+                    if (change.operation == SyncOperation.UPSERT) {
+                        applySyncGlobalPreferences(change.payload.orEmpty())
                     }
                 }
-                appConfig.entryMode?.let { setAppEntryIntentMode(packageName, it) }
+                SyncEntityType.MONITORED_APP.value -> applyMonitoredAppSyncChange(change)
+                SyncEntityType.APP_RULES.value -> {
+                    if (change.operation == SyncOperation.UPSERT) {
+                        savePresetRules(change.entityId, constraintsFromPayloadList(change.payload?.get("preset_rules")))
+                    }
+                }
+                SyncEntityType.INTENT_HISTORY.value -> {
+                    if (change.operation == SyncOperation.UPSERT) {
+                        saveIntentHistory(change.entityId, historyFromPayload(change.payload?.get("intent_history")))
+                    }
+                }
+                SyncEntityType.APP_HINTS.value -> applyAppHintsSyncChange(change)
             }
-            setControlledApps(getControlledAppsSnapshot() + packageNames)
         } finally {
-            applyingSyncProfile = false
+            applyingSyncChange = false
         }
-        SeenotAccountSession.saveSyncProfileVersion(SeenotAccountSession.getSyncProfileVersion())
     }
 
-    private fun buildSyncGlobalPreferences(): Map<String, Any?> {
-        return linkedMapOf(
-            "auto_start" to isAutoStartEnabled(),
-            "rule_recording_enabled" to RuleRecordingPrefs.isEnabled(context),
-            "rule_recording_screenshot_mode" to RuleRecordingPrefs.getScreenshotMode(context).value,
-            "show_home_timeline" to RuleRecordingPrefs.isHomeTimelineEnabled(context),
-            "hide_compact_hud_text" to RuleRecordingPrefs.isCompactHudTextHidden(context),
-            "analysis_result_toast" to RuleRecordingPrefs.isAnalysisResultToastEnabled(context),
-            "fixed_intervention_level_enabled" to InterventionLevelPrefs.isFixedLevelEnabled(context),
-            "fixed_intervention_level" to InterventionLevelPrefs.getFixedLevel(context).name,
-            "non_gentle_allow_ignore_once" to InterventionDialogPrefs.isNonGentleAllowIgnoreOnceEnabled(context)
-        )
+    private fun applyMonitoredAppSyncChange(change: SyncChange) {
+        val packageName = change.entityId
+        if (packageName.isBlank()) return
+        if (change.operation == SyncOperation.DELETE || change.deletedAt != null) {
+            val newApps = _controlledApps.value - packageName
+            _controlledApps.value = newApps
+            saveControlledApps(newApps)
+            return
+        }
+        val newApps = _controlledApps.value + packageName
+        _controlledApps.value = newApps
+        saveControlledApps(newApps)
+        val payload = change.payload.orEmpty()
+        (payload["entry_mode"] as? String)
+            ?.let { runCatching { AppEntryIntentMode.valueOf(it) }.getOrNull() }
+            ?.let { mode ->
+                prefs.edit().putString("${KEY_APP_ENTRY_INTENT_MODE_PREFIX}$packageName", mode.name).apply()
+            }
+    }
+
+    private fun applyAppHintsSyncChange(change: SyncChange) {
+        if (change.operation != SyncOperation.UPSERT) return
+        kotlinx.coroutines.runBlocking {
+            appHintRepository.deleteHintsForPackage(change.entityId)
+            hintPayloads(change.payload?.get("supplemental_hints")).forEach { hint ->
+                appHintRepository.saveHint(hint.toAppHint(change.entityId))
+            }
+        }
     }
 
     private fun applySyncGlobalPreferences(preferences: Map<String, Any?>) {
@@ -2776,23 +2773,117 @@ class SessionManager(
         return value as? String
     }
 
-    private fun AppHint.toSyncAppHint(): SyncAppHint {
-        return SyncAppHint(
-            id = id,
-            scopeType = scopeType.name,
-            scopeKey = scopeKey,
-            intentId = intentId,
-            intentLabel = intentLabel,
-            hintText = hintText,
-            source = source,
-            sourceHintId = sourceHintId,
-            isActive = isActive,
-            createdAt = createdAt,
-            updatedAt = updatedAt
+    private fun enqueueMonitoredAppUpsert(packageName: String) {
+        if (applyingSyncChange || packageName.isBlank()) return
+        syncCoordinator.enqueueMonitoredAppUpsert(packageName, buildMonitoredAppPayload(packageName))
+    }
+
+    private fun enqueueAppConfigSync(packageName: String) {
+        enqueueMonitoredAppUpsert(packageName)
+    }
+
+    private fun enqueueAppRulesSync(packageName: String) {
+        if (applyingSyncChange || packageName.isBlank()) return
+        syncCoordinator.enqueueEntityUpsert(
+            entityType = SyncEntityType.APP_RULES,
+            entityId = packageName,
+            payload = mapOf("preset_rules" to loadPresetRules(packageName).map { it.toSyncMap() })
         )
     }
 
-    private fun SyncAppHint.toAppHint(packageName: String): AppHint {
+    private fun enqueueIntentHistorySync(packageName: String) {
+        if (applyingSyncChange || packageName.isBlank()) return
+        syncCoordinator.enqueueEntityUpsert(
+            entityType = SyncEntityType.INTENT_HISTORY,
+            entityId = packageName,
+            payload = mapOf("intent_history" to loadIntentHistory(packageName).map { entry -> entry.map { it.toSyncMap() } })
+        )
+    }
+
+    private fun buildMonitoredAppPayload(packageName: String): Map<String, Any?> {
+        return linkedMapOf(
+            "package_name" to packageName,
+            "entry_mode" to getAppEntryIntentMode(packageName).name,
+            "default_rule_id" to getDefaultRule(packageName)?.id,
+            "last_intent" to loadLastIntent(packageName)?.map { it.toSyncMap() }
+        )
+    }
+
+    private fun buildSyncGlobalPreferences(): Map<String, Any?> {
+        return linkedMapOf(
+            "auto_start" to isAutoStartEnabled(),
+            "rule_recording_enabled" to RuleRecordingPrefs.isEnabled(context),
+            "rule_recording_screenshot_mode" to RuleRecordingPrefs.getScreenshotMode(context).value,
+            "show_home_timeline" to RuleRecordingPrefs.isHomeTimelineEnabled(context),
+            "hide_compact_hud_text" to RuleRecordingPrefs.isCompactHudTextHidden(context),
+            "analysis_result_toast" to RuleRecordingPrefs.isAnalysisResultToastEnabled(context),
+            "fixed_intervention_level_enabled" to InterventionLevelPrefs.isFixedLevelEnabled(context),
+            "fixed_intervention_level" to InterventionLevelPrefs.getFixedLevel(context).name,
+            "non_gentle_allow_ignore_once" to InterventionDialogPrefs.isNonGentleAllowIgnoreOnceEnabled(context)
+        )
+    }
+
+    private fun SessionConstraint.toSyncMap(): Map<String, Any?> {
+        return mapOf(
+            "id" to id,
+            "type" to type.name,
+            "description" to description,
+            "timeLimitMs" to timeLimitMs,
+            "timeScope" to (timeScope?.name ?: "SESSION"),
+            "interventionLevel" to interventionLevel.name,
+            "isActive" to isActive,
+            "isDefault" to isDefault,
+            "effectiveIntent" to effectiveIntentToMap(effectiveIntent)
+        )
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun constraintsFromPayloadList(value: Any?): List<SessionConstraint> {
+        val list = value as? List<Map<String, Any>> ?: return emptyList()
+        return deserializeConstraintList(list).orEmpty()
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun historyFromPayload(value: Any?): List<List<SessionConstraint>> {
+        val entries = value as? List<List<Map<String, Any>>> ?: return emptyList()
+        return entries.mapNotNull { deserializeConstraintList(it) }
+    }
+
+    @Suppress("UNCHECKED_CAST")
+    private fun hintPayloads(value: Any?): List<SyncHintPayload> {
+        val hints = value as? List<Map<String, Any?>> ?: return emptyList()
+        return hints.mapNotNull { raw ->
+            SyncHintPayload(
+                id = raw["id"] as? String ?: return@mapNotNull null,
+                scopeType = raw["scope_type"] as? String ?: raw["scopeType"] as? String ?: return@mapNotNull null,
+                scopeKey = raw["scope_key"] as? String ?: raw["scopeKey"] as? String ?: return@mapNotNull null,
+                intentId = raw["intent_id"] as? String ?: raw["intentId"] as? String ?: return@mapNotNull null,
+                intentLabel = raw["intent_label"] as? String ?: raw["intentLabel"] as? String ?: return@mapNotNull null,
+                hintText = raw["hint_text"] as? String ?: raw["hintText"] as? String ?: return@mapNotNull null,
+                source = raw["source"] as? String,
+                sourceHintId = raw["source_hint_id"] as? String ?: raw["sourceHintId"] as? String,
+                isActive = raw["is_active"] as? Boolean ?: raw["isActive"] as? Boolean ?: true,
+                createdAt = (raw["created_at"] as? Number)?.toLong() ?: (raw["createdAt"] as? Number)?.toLong() ?: 0L,
+                updatedAt = (raw["updated_at"] as? Number)?.toLong() ?: (raw["updatedAt"] as? Number)?.toLong() ?: 0L
+            )
+        }
+    }
+
+    private data class SyncHintPayload(
+        val id: String,
+        val scopeType: String,
+        val scopeKey: String,
+        val intentId: String,
+        val intentLabel: String,
+        val hintText: String,
+        val source: String? = null,
+        val sourceHintId: String? = null,
+        val isActive: Boolean = true,
+        val createdAt: Long = 0L,
+        val updatedAt: Long = 0L
+    )
+
+    private fun SyncHintPayload.toAppHint(packageName: String): AppHint {
         val resolvedScopeType = runCatching { AppHintScopeType.valueOf(scopeType) }
             .getOrDefault(AppHintScopeType.INTENT_SPECIFIC)
         return AppHint(
@@ -2811,12 +2902,6 @@ class SessionManager(
         )
     }
 
-    private fun markSyncDirty() {
-        if (applyingSyncProfile) return
-        SeenotAccountSession.markSyncDirty()
-        SeenotSyncScheduler.enqueue(context)
-    }
-
     /**
      * Get auto-start setting
      */
@@ -2829,7 +2914,17 @@ class SessionManager(
      */
     fun setAutoStartEnabled(enabled: Boolean) {
         prefs.edit().putBoolean(KEY_AUTO_START, enabled).apply()
+        enqueueGlobalPreferencesSync()
         Logger.d(TAG, "Auto-start set to: $enabled")
+    }
+
+    fun enqueueGlobalPreferencesSync() {
+        if (applyingSyncChange) return
+        syncCoordinator.enqueueEntityUpsert(
+            entityType = SyncEntityType.GLOBAL_PREF,
+            entityId = "global",
+            payload = buildSyncGlobalPreferences()
+        )
     }
 
     /**
