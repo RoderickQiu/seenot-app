@@ -62,6 +62,15 @@ data class SeenotManagedAiSessionResponse(
     @SerializedName("fair_use_state") val fairUseState: String
 )
 
+data class SeenotVersionCheckResponse(
+    @SerializedName("update_available") val updateAvailable: Boolean,
+    @SerializedName("latest_version") val latestVersion: String,
+    @SerializedName("minimum_supported_version") val minimumSupportedVersion: String?,
+    @SerializedName("download_url") val downloadUrl: String?,
+    @SerializedName("published_at") val publishedAt: String?,
+    val message: String?
+)
+
 data class SeenotAppLoginStartResponse(
     @SerializedName("request_id") val requestId: String,
     @SerializedName("login_url") val loginUrl: String,

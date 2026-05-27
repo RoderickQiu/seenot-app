@@ -54,6 +54,8 @@ import com.seenot.app.account.SeenotAccountApi
 import com.seenot.app.account.SeenotAccountSession
 import com.seenot.app.account.SeenotAccountState
 import com.seenot.app.account.SeenotSyncCoordinator
+import com.seenot.app.account.SeenotVersionCheckPrefs
+import com.seenot.app.account.SeenotVersionCheckResponse
 import com.seenot.app.config.ApiConfig
 import com.seenot.app.config.AiSource
 import com.seenot.app.config.AppLocalePrefs
@@ -132,6 +134,9 @@ fun MainScreen(
     var isAccountLoginInFlight by remember { mutableStateOf(false) }
     var isAccountRefreshInFlight by remember { mutableStateOf(false) }
     var syncRefreshKey by remember { mutableIntStateOf(0) }
+    var automaticVersionCheckEnabled by remember { mutableStateOf(SeenotVersionCheckPrefs.isAutomaticCheckEnabled(context)) }
+    var versionCheckResponse by remember { mutableStateOf<SeenotVersionCheckResponse?>(null) }
+    var isVersionCheckInFlight by remember { mutableStateOf(false) }
 
     // State
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -189,6 +194,43 @@ fun MainScreen(
         isMicrophoneEnabled = isGranted
     }
 
+    fun runVersionCheck(isAutomatic: Boolean) {
+        if (isVersionCheckInFlight) return
+        isVersionCheckInFlight = true
+        mainScope.launch {
+            try {
+                runCatching {
+                    accountApi.checkVersion()
+                }.onSuccess { response ->
+                    if (isAutomatic) {
+                        SeenotVersionCheckPrefs.saveLastSuccessfulAutomaticCheckAt(context)
+                    }
+                    versionCheckResponse = response
+                    if (!isAutomatic) {
+                        val message = if (response.updateAvailable) {
+                            context.getString(R.string.version_check_update_available_toast, response.latestVersion)
+                        } else {
+                            context.getString(R.string.version_check_up_to_date_toast)
+                        }
+                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
+                    }
+                }.onFailure {
+                    if (!isAutomatic) {
+                        Toast.makeText(context, context.getString(R.string.version_check_failed_toast), Toast.LENGTH_SHORT).show()
+                    }
+                }
+            } finally {
+                isVersionCheckInFlight = false
+            }
+        }
+    }
+
+    LaunchedEffect(Unit) {
+        if (SeenotVersionCheckPrefs.isAutomaticCheckDue(context)) {
+            runVersionCheck(isAutomatic = true)
+        }
+    }
+
     // Check notification permission status. Request only when the user explicitly enters the flow.
     LaunchedEffect(Unit) {
         if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.TIRAMISU) {
@@ -207,6 +249,9 @@ fun MainScreen(
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 isMediaSessionAccessEnabled = MediaSessionProbe.hasNotificationListenerAccess(context)
+                if (SeenotVersionCheckPrefs.isAutomaticCheckDue(context)) {
+                    runVersionCheck(isAutomatic = true)
+                }
             }
         }
         lifecycleOwner.lifecycle.addObserver(observer)
@@ -479,7 +524,19 @@ fun MainScreen(
                         isAccountLoginInFlight = isAccountLoginInFlight,
                         isAccountRefreshInFlight = isAccountRefreshInFlight,
                         onHomeTimelineChanged = { showHomeTimeline = it },
-                        onOpenRuleRecords = { showRuleRecordsPage = true }
+                        onOpenRuleRecords = { showRuleRecordsPage = true },
+                        automaticVersionCheckEnabled = automaticVersionCheckEnabled,
+                        versionCheckResponse = versionCheckResponse,
+                        isVersionCheckInFlight = isVersionCheckInFlight,
+                        onAutomaticVersionCheckChanged = { enabled ->
+                            automaticVersionCheckEnabled = enabled
+                            SeenotVersionCheckPrefs.setAutomaticCheckEnabled(context, enabled)
+                            if (enabled && SeenotVersionCheckPrefs.isAutomaticCheckDue(context)) {
+                                runVersionCheck(isAutomatic = true)
+                            }
+                        },
+                        onManualVersionCheck = { runVersionCheck(isAutomatic = false) },
+                        onOpenVersionDownload = { url -> openExternalUrl(context, url) }
                     )
                 }
 
@@ -3194,7 +3251,13 @@ fun SettingsTab(
     isAccountLoginInFlight: Boolean = false,
     isAccountRefreshInFlight: Boolean = false,
     onHomeTimelineChanged: (Boolean) -> Unit = {},
-    onOpenRuleRecords: () -> Unit = {}
+    onOpenRuleRecords: () -> Unit = {},
+    automaticVersionCheckEnabled: Boolean = true,
+    versionCheckResponse: SeenotVersionCheckResponse? = null,
+    isVersionCheckInFlight: Boolean = false,
+    onAutomaticVersionCheckChanged: (Boolean) -> Unit = {},
+    onManualVersionCheck: () -> Unit = {},
+    onOpenVersionDownload: (String) -> Unit = {}
 ) {
     val context = LocalContext.current
     val sessionManager = remember { SessionManager.getInstance(context) }
@@ -3601,6 +3664,12 @@ fun SettingsTab(
             description = null
         ) {
             AboutSection(
+                automaticVersionCheckEnabled = automaticVersionCheckEnabled,
+                versionCheckResponse = versionCheckResponse,
+                isVersionCheckInFlight = isVersionCheckInFlight,
+                onAutomaticVersionCheckChanged = onAutomaticVersionCheckChanged,
+                onManualVersionCheck = onManualVersionCheck,
+                onOpenVersionDownload = onOpenVersionDownload,
                 onOpenOfficialSite = { openSeenotOfficialSitePage(context) },
                 onOpenGithub = { openExternalUrl(context, "https://github.com/RoderickQiu/seenot-app") },
                 onOpenCreatorHomepage = { openExternalUrl(context, "https://r-q.name/") }
@@ -3611,6 +3680,12 @@ fun SettingsTab(
 
 @Composable
 private fun AboutSection(
+    automaticVersionCheckEnabled: Boolean,
+    versionCheckResponse: SeenotVersionCheckResponse?,
+    isVersionCheckInFlight: Boolean,
+    onAutomaticVersionCheckChanged: (Boolean) -> Unit,
+    onManualVersionCheck: () -> Unit,
+    onOpenVersionDownload: (String) -> Unit,
     onOpenOfficialSite: () -> Unit,
     onOpenGithub: () -> Unit,
     onOpenCreatorHomepage: () -> Unit
@@ -3636,6 +3711,22 @@ private fun AboutSection(
 
     HorizontalDivider()
 
+    SettingsSwitchRow(
+        title = stringResource(R.string.automatic_update_check_title),
+        summary = stringResource(R.string.automatic_update_check_desc),
+        checked = automaticVersionCheckEnabled,
+        onCheckedChange = onAutomaticVersionCheckChanged
+    )
+
+    VersionCheckStatusRow(
+        response = versionCheckResponse,
+        isChecking = isVersionCheckInFlight,
+        onManualVersionCheck = onManualVersionCheck,
+        onOpenVersionDownload = onOpenVersionDownload
+    )
+
+    HorizontalDivider()
+
     AboutLinkRow(
         icon = Icons.Filled.Public,
         title = stringResource(R.string.about_official_site),
@@ -3654,6 +3745,87 @@ private fun AboutSection(
         subtitle = "r-q.name",
         onClick = onOpenCreatorHomepage
     )
+}
+
+@Composable
+private fun VersionCheckStatusRow(
+    response: SeenotVersionCheckResponse?,
+    isChecking: Boolean,
+    onManualVersionCheck: () -> Unit,
+    onOpenVersionDownload: (String) -> Unit
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Icon(
+                imageVector = if (response?.updateAvailable == true) Icons.Filled.SystemUpdate else Icons.Filled.Update,
+                contentDescription = null,
+                tint = if (response?.updateAvailable == true) {
+                    MaterialTheme.colorScheme.primary
+                } else {
+                    MaterialTheme.colorScheme.onSurfaceVariant
+                }
+            )
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = versionCheckStatusTitle(response),
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = versionCheckStatusSummary(response),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            TextButton(
+                onClick = onManualVersionCheck,
+                enabled = !isChecking
+            ) {
+                Text(
+                    if (isChecking) {
+                        stringResource(R.string.version_check_checking_action)
+                    } else {
+                        stringResource(R.string.version_check_now_action)
+                    }
+                )
+            }
+        }
+
+        val downloadUrl = response?.downloadUrl?.takeIf { response.updateAvailable && it.isNotBlank() }
+        if (downloadUrl != null) {
+            OutlinedButton(
+                onClick = { onOpenVersionDownload(downloadUrl) },
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(stringResource(R.string.version_check_download_action))
+            }
+        }
+    }
+}
+
+@Composable
+private fun versionCheckStatusTitle(response: SeenotVersionCheckResponse?): String {
+    return when {
+        response?.updateAvailable == true -> stringResource(R.string.version_check_update_available_title)
+        response != null -> stringResource(R.string.version_check_up_to_date_title)
+        else -> stringResource(R.string.version_check_status_title)
+    }
+}
+
+@Composable
+private fun versionCheckStatusSummary(response: SeenotVersionCheckResponse?): String {
+    return when {
+        response?.updateAvailable == true && !response.message.isNullOrBlank() -> response.message
+        response?.updateAvailable == true -> stringResource(R.string.version_check_update_available_desc, response.latestVersion)
+        response != null -> stringResource(R.string.version_check_up_to_date_desc)
+        else -> stringResource(R.string.version_check_status_desc)
+    }
 }
 
 @Composable

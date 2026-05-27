@@ -128,6 +128,20 @@ open class SeenotAccountApi(
         }
     }
 
+    suspend fun checkVersion(): SeenotVersionCheckResponse = withContext(Dispatchers.IO) {
+        val body = JsonObject().apply {
+            addProperty("installation_id", SeenotAccountSession.getInstallationId())
+            addProperty("platform", "android")
+            addProperty("app_version", BuildConfig.VERSION_NAME)
+        }
+        postJson(
+            path = "/app/version-check",
+            body = body,
+            token = null,
+            responseClass = SeenotVersionCheckResponse::class.java
+        )
+    }
+
     suspend fun readSyncChanges(since: Long, limit: Int = 200): SyncChangesResponse = withContext(Dispatchers.IO) {
         retryOnceOnTransientClose {
             readSyncChangesWithFreshAccessToken(since, limit)
