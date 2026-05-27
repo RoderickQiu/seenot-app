@@ -74,8 +74,3 @@ ai-debugger/bin/
 .astro
 dist
 node_modules
-
-# Ruby / fastlane
-.bundle/
-vendor/
-fastlane/report.xml

@@ -29,13 +29,6 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
-        with:
-          ruby-version: "3.2"
-          bundler: 2.4.22
-          bundler-cache: true
-
       - name: Resolve release version from repository
         id: version
         shell: bash
@@ -93,9 +86,13 @@ jobs:
             exit 1
           fi
 
-          bundle exec fastlane android ci_release \
-            version_name:"${SEENOT_VERSION_NAME}" \
-            version_code:"${SEENOT_VERSION_CODE}"
+          ./gradlew :app:assembleRelease :app:bundleRelease \
+            -PSEENOT_VERSION_NAME="${SEENOT_VERSION_NAME}" \
+            -PSEENOT_VERSION_CODE="${SEENOT_VERSION_CODE}" \
+            -PRELEASE_STORE_FILE="${RELEASE_STORE_FILE}" \
+            -PRELEASE_STORE_PASSWORD="${RELEASE_STORE_PASSWORD}" \
+            -PRELEASE_KEY_ALIAS="${RELEASE_KEY_ALIAS}" \
+            -PRELEASE_KEY_PASSWORD="${RELEASE_KEY_PASSWORD}"
 
       - name: Upload workflow artifacts
         uses: actions/upload-artifact@v4
