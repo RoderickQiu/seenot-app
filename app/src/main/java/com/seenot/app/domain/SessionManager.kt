@@ -23,6 +23,7 @@ import com.seenot.app.config.ApiConfig
 import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.config.InterventionDialogPrefs
 import com.seenot.app.config.InterventionLevelPrefs
+import com.seenot.app.config.NoMonitorReminderPrefs
 import com.seenot.app.config.RuleRecordingPrefs
 import com.seenot.app.data.local.SeenotDatabase
 import com.seenot.app.data.local.entity.IntentConstraintEntity
@@ -45,6 +46,7 @@ import com.seenot.app.receiver.AppMonitoringResumeReceiver
 import com.seenot.app.service.SeenotAccessibilityService
 import com.seenot.app.ui.overlay.InterventionFeedbackDialogOverlay
 import com.seenot.app.ui.overlay.FalsePositiveRuleReviewOverlay
+import com.seenot.app.ui.overlay.NoMonitorReminderOverlay
 import com.seenot.app.ui.overlay.ToastOverlay
 import com.seenot.app.utils.Logger
 import kotlinx.coroutines.*
@@ -175,6 +177,7 @@ class SessionManager(
     private var falsePositiveDialogCooldownUntil = 0L
     private var dialogReentryCooldownUntil = 0L
     private var pendingSessionStartContext: PendingSessionStartContext? = null
+    private var lastNoMonitorReminderBucket: Long = 0L
 
     private fun logRuntimeEvent(
         eventType: RuntimeEventType,
@@ -465,6 +468,7 @@ class SessionManager(
         timerJob?.cancel()
         cancelPauseTimeout()
         stopScreenAnalysis()
+        NoMonitorReminderOverlay.dismiss()
         _activeSession.value = session.copy(isPaused = true)
         suspendedSessions[session.appPackageName] = Pair(session.copy(isPaused = true), System.currentTimeMillis())
         _activeSession.value = null
@@ -621,6 +625,7 @@ class SessionManager(
             }
         )
 
+        lastNoMonitorReminderBucket = 0L
         _activeSession.value = activeSession
 
         resetConstraintMatchStates(effectiveConstraints)
@@ -665,6 +670,7 @@ class SessionManager(
         timerJob?.cancel()
         cancelPauseTimeout()
         stopScreenAnalysis()
+        NoMonitorReminderOverlay.dismiss()
         repository.endSession(existingSession.sessionId, SessionEndReason.USER_ENDED.name)
         _activeSession.value = null
     }
@@ -1685,6 +1691,7 @@ class SessionManager(
         val session = _activeSession.value ?: return
 
         cancelPauseTimeout()
+        NoMonitorReminderOverlay.dismiss()
         _activeSession.value = session.copy(isPaused = false)
         startTimer()
 
@@ -1714,6 +1721,7 @@ class SessionManager(
 
         // Stop screen analysis while paused
         stopScreenAnalysis()
+        NoMonitorReminderOverlay.dismiss()
 
         _activeSession.value = session.copy(isPaused = true)
 
@@ -1742,12 +1750,14 @@ class SessionManager(
 
         // Stop screen analysis
         stopScreenAnalysis()
+        NoMonitorReminderOverlay.dismiss()
 
         // Update database
         repository.endSession(session.sessionId, reason.name)
 
         // Clear active session
         _activeSession.value = null
+        lastNoMonitorReminderBucket = 0L
         Logger.d(TAG, "!!! Session cleared (set to null)")
 
         runtimeEventLogger.log(
@@ -2017,6 +2027,7 @@ class SessionManager(
 
                 val session = _activeSession.value ?: break
                 if (session.isPaused) continue
+                maybeShowNoMonitorReminder(session)
 
                 // Update time for each constraint based on its timeScope
                 val updatedTimeRemaining = session.constraintTimeRemaining.toMutableMap()
@@ -2056,6 +2067,32 @@ class SessionManager(
                 _activeSession.value = session.copy(constraintTimeRemaining = updatedTimeRemaining)
             }
         }
+    }
+
+    private fun maybeShowNoMonitorReminder(session: ActiveSession) {
+        if (!NoMonitorReminderPrefs.isEnabled(context)) return
+        if (!session.constraints.isNoMonitorOnly()) return
+        if (NoMonitorReminderOverlay.isShowing()) return
+
+        val elapsedMs = System.currentTimeMillis() - session.startTime
+        val currentBucket = elapsedMs / NoMonitorReminderPrefs.REMINDER_INTERVAL_MS
+        if (currentBucket <= 0L || currentBucket <= lastNoMonitorReminderBucket) return
+
+        lastNoMonitorReminderBucket = currentBucket
+        logRuntimeEvent(
+            eventType = RuntimeEventType.NO_MONITOR_REMINDER_SHOWN,
+            session = session,
+            payload = mapOf(
+                "elapsed_ms" to elapsedMs,
+                "reminder_bucket" to currentBucket,
+                "interval_ms" to NoMonitorReminderPrefs.REMINDER_INTERVAL_MS
+            )
+        )
+        NoMonitorReminderOverlay.show(
+            context = context,
+            appName = session.appDisplayName,
+            onAcknowledge = { }
+        )
     }
 
     private fun resetConstraintMatchStates(constraints: List<SessionConstraint>) {

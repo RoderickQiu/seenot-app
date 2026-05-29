@@ -707,7 +707,7 @@
     <string name="advanced_ai_settings_title">Advanced AI Settings</string>
     <string name="advanced_ai_settings_desc">Configure provider, model, Base URL, and voice model for your own API key.</string>
     <string name="experience_settings">Experience Settings</string>
-    <string name="experience_settings_desc">Affects home display, startup behavior, and intent reminders</string>
+    <string name="experience_settings_desc">Affects home display, startup behavior, and reminders</string>
     <string name="show_today_timeline">Show today\'s timeline on home</string>
     <string name="show_today_timeline_desc">When off, home screen will not show today\'s timeline</string>
     <string name="compact_hud_indicator_only">Hide text when status bar is collapsed</string>
@@ -716,6 +716,8 @@
     <string name="auto_start_on_boot_desc">Automatically run SeeNot when system starts</string>
     <string name="intent_reminder_enabled_title">Remind when no intent is set</string>
     <string name="intent_reminder_enabled_desc">If you stay in a controlled app without setting intent, remind again later</string>
+    <string name="no_monitor_reminder_enabled_title">Remind during long no-monitor sessions</string>
+    <string name="no_monitor_reminder_enabled_desc">If this session is set to no monitoring, show one reminder after 20 minutes, then again every 20 minutes</string>
     <string name="intent_reminder_delay_title">Intent reminder delay</string>
     <string name="intent_reminder_delay_desc">Choose from 30 seconds to 10 minutes; turn it off to disable this reminder</string>
     <string name="non_gentle_allow_ignore_once_title">Allow ignore once in non-gentle modes</string>
@@ -727,6 +729,9 @@
     <string name="intent_reminder_delay_30_seconds">30 seconds</string>
     <string name="intent_reminder_delay_1_minute">1 minute</string>
     <string name="intent_reminder_delay_minutes">%s minutes</string>
+    <string name="no_monitor_reminder_title">You have been here for a while</string>
+    <string name="no_monitor_reminder_subtitle">This session is in no-monitor mode and has been running for 20 minutes. If you continue, check whether this is still how you want to use it.</string>
+    <string name="no_monitor_reminder_acknowledge">OK</string>
     <string name="judgment_records">Judgment Records</string>
     <string name="judgment_records_desc">Decide whether to save judgment history and whether to remind immediately</string>
     <string name="save_judgment_records">Save Judgment Records</string>

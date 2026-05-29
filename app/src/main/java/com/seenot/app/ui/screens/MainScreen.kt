@@ -70,6 +70,7 @@ import com.seenot.app.config.recommendedSttModelPresets
 import com.seenot.app.config.selectableProviders
 import com.seenot.app.config.selectableSttProviders
 import com.seenot.app.config.IntentReminderPrefs
+import com.seenot.app.config.NoMonitorReminderPrefs
 import com.seenot.app.config.RuleRecordingPrefs
 import com.seenot.app.domain.AppEntryIntentMode
 import com.seenot.app.domain.SessionManager
@@ -3270,6 +3271,7 @@ fun SettingsTab(
     var hideCompactHudText by remember { mutableStateOf(RuleRecordingPrefs.isCompactHudTextHidden(context)) }
     var showAnalysisResultToast by remember { mutableStateOf(RuleRecordingPrefs.isAnalysisResultToastEnabled(context)) }
     var intentReminderEnabled by remember { mutableStateOf(IntentReminderPrefs.isEnabled(context)) }
+    var noMonitorReminderEnabled by remember { mutableStateOf(NoMonitorReminderPrefs.isEnabled(context)) }
     var intentReminderDelayMs by remember { mutableLongStateOf(IntentReminderPrefs.getDelayMs(context)) }
     var intentReminderDropdownExpanded by remember { mutableStateOf(false) }
     var nonGentleAllowIgnoreOnce by remember {
@@ -3454,6 +3456,16 @@ fun SettingsTab(
                 onCheckedChange = {
                     intentReminderEnabled = it
                     IntentReminderPrefs.setEnabled(context, it)
+                }
+            )
+            HorizontalDivider()
+            SettingsSwitchRow(
+                title = stringResource(R.string.no_monitor_reminder_enabled_title),
+                summary = stringResource(R.string.no_monitor_reminder_enabled_desc),
+                checked = noMonitorReminderEnabled,
+                onCheckedChange = {
+                    noMonitorReminderEnabled = it
+                    NoMonitorReminderPrefs.setEnabled(context, it)
                 }
             )
             if (intentReminderEnabled) {
