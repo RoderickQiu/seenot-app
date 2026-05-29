@@ -673,6 +673,8 @@
     <string name="account_actions_action">Account</string>
     <string name="account_refresh_action">Refresh</string>
     <string name="account_refreshing_action">Refreshing</string>
+    <string name="subscribe_plus_action">Upgrade to Plus</string>
+    <string name="renew_plus_action">Renew Plus</string>
     <string name="manage_or_delete_account_action">Manage or delete account</string>
     <string name="sign_out_local_account_action">Sign out on this device</string>
     <string name="plus_sync_status_label">Sync</string>

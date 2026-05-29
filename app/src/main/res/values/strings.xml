@@ -679,6 +679,8 @@
     <string name="account_actions_action">设置账号</string>
     <string name="account_refresh_action">刷新</string>
     <string name="account_refreshing_action">刷新中</string>
+    <string name="subscribe_plus_action">开通 Plus</string>
+    <string name="renew_plus_action">续费 Plus</string>
     <string name="manage_or_delete_account_action">管理或删除账号</string>
     <string name="sign_out_local_account_action">退出本机登录</string>
     <string name="plus_sync_status_label">同步</string>

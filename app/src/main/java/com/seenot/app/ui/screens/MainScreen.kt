@@ -4045,11 +4045,27 @@ private fun ServiceStatusSection(
                                     )
                                     HorizontalDivider()
                                     DropdownMenuItem(
+                                        text = {
+                                            Text(
+                                                stringResource(
+                                                    if (isPlus) {
+                                                        R.string.renew_plus_action
+                                                    } else {
+                                                        R.string.subscribe_plus_action
+                                                    }
+                                                )
+                                            )
+                                        },
+                                        onClick = {
+                                            accountMenuExpanded = false
+                                            onOpenAccount()
+                                        }
+                                    )
+                                    DropdownMenuItem(
                                         text = { Text(stringResource(R.string.manage_or_delete_account_action)) },
                                         onClick = {
                                             accountMenuExpanded = false
-                                            onOpenAccount
-                                                .invoke()
+                                            onOpenAccount()
                                         }
                                     )
                                     DropdownMenuItem(
