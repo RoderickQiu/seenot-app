@@ -363,6 +363,11 @@ open class SeenotAccountApi(
                 if (errorDetail?.code == DEVICE_LIMIT_REACHED_CODE) {
                     throw SeenotDeviceLimitReachedException(errorDetail.deviceLimit)
                 }
+                if (errorDetail?.code == MANAGED_AI_TOKEN_QUOTA_EXCEEDED_CODE) {
+                    throw SeenotManagedAiQuotaExceededException(
+                        errorDetail.message ?: "Managed AI token quota exceeded."
+                    )
+                }
                 throw IOException(errorDetail?.message ?: "HTTP ${response.code}")
             }
             return gson.fromJson(responseText, responseClass)
@@ -444,5 +449,7 @@ open class SeenotAccountApi(
 
 private class SeenotAuthException(message: String) : RuntimeException(message)
 private class SeenotDeviceLimitReachedException(val deviceLimit: Int?) : IOException("Device limit reached.")
+class SeenotManagedAiQuotaExceededException(message: String) : IOException(message)
 
 private const val DEVICE_LIMIT_REACHED_CODE = "DEVICE_LIMIT_REACHED"
+private const val MANAGED_AI_TOKEN_QUOTA_EXCEEDED_CODE = "MANAGED_AI_TOKEN_QUOTA_EXCEEDED"

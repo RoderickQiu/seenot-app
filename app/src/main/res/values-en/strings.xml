@@ -546,6 +546,7 @@
     <string name="learn_plus_action">Learn about Plus</string>
     <string name="seenot_ai_enabled_toast">SeeNot AI is on</string>
     <string name="seenot_ai_enable_failed">Could not enable SeeNot AI</string>
+    <string name="seenot_ai_quota_exceeded">SeeNot AI temporary quota is used up. Please try again later.</string>
     <string name="ai_voice_optional_not_configured">Voice input is not configured yet. You can still type your intent</string>
     <string name="ai_voice_optional_configured">Voice input is also ready</string>
     <string name="controlled_apps_setup_title">Controlled Apps</string>

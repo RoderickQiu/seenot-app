@@ -53,6 +53,7 @@ import com.seenot.app.R
 import com.seenot.app.account.SeenotAccountApi
 import com.seenot.app.account.SeenotAccountSession
 import com.seenot.app.account.SeenotAccountState
+import com.seenot.app.account.SeenotManagedAiQuotaExceededException
 import com.seenot.app.account.SeenotSyncCoordinator
 import com.seenot.app.account.SeenotVersionCheckPrefs
 import com.seenot.app.account.SeenotVersionCheckResponse
@@ -1170,9 +1171,16 @@ private suspend fun enableSeenotAi(
     }.onFailure {
         Toast.makeText(
             context,
-            context.getString(R.string.seenot_ai_enable_failed),
+            managedAiErrorMessage(context, it),
             Toast.LENGTH_LONG
         ).show()
+    }
+}
+
+private fun managedAiErrorMessage(context: Context, error: Throwable): String {
+    return when (error) {
+        is SeenotManagedAiQuotaExceededException -> context.getString(R.string.seenot_ai_quota_exceeded)
+        else -> error.message?.takeIf { it.isNotBlank() } ?: context.getString(R.string.seenot_ai_enable_failed)
     }
 }
 
@@ -5151,7 +5159,7 @@ private fun AiModelSettingsDialog(
                         }.onFailure {
                             Toast.makeText(
                                 context,
-                                it.message ?: context.getString(R.string.seenot_ai_enable_failed),
+                                managedAiErrorMessage(context, it),
                                 Toast.LENGTH_LONG
                             ).show()
                         }

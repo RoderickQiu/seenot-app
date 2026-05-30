@@ -552,6 +552,7 @@
     <string name="learn_plus_action">了解 Plus</string>
     <string name="seenot_ai_enabled_toast">SeeNot AI 已启用</string>
     <string name="seenot_ai_enable_failed">暂时无法启用 SeeNot AI</string>
+    <string name="seenot_ai_quota_exceeded">SeeNot AI 临时额度已用完，请稍后再试</string>
     <string name="ai_voice_optional_not_configured">语音输入暂未配置，仍可直接键盘输入</string>
     <string name="ai_voice_optional_configured">语音输入也已可用</string>
     <string name="controlled_apps_setup_title">受控应用</string>

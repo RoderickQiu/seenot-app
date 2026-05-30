@@ -7,7 +7,10 @@ import com.seenot.app.config.ApiConfig
 import com.seenot.app.config.ApiSettings
 import com.seenot.app.config.QwenRegion
 import kotlinx.coroutines.runBlocking
+import okhttp3.mockwebserver.MockResponse
+import okhttp3.mockwebserver.MockWebServer
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertThrows
 import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
@@ -55,6 +58,37 @@ class SeenotManagedAiCredentialProviderTest {
         assertTrue(ApiConfig.isManagedAiActive(nowEpochMs = 1_800_000_000_000L))
         assertEquals("fresh-managed-key", settings.apiKey)
         assertEquals("fresh-model", settings.model)
+    }
+
+    @Test
+    fun createManagedAiSessionThrowsQuotaExceptionForManagedAiQuotaCode() = runBlocking {
+        SeenotAccountSession.save(authToken())
+
+        MockWebServer().use { server ->
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(429)
+                    .setBody(
+                        """
+                        {
+                          "detail": {
+                            "code": "MANAGED_AI_TOKEN_QUOTA_EXCEEDED",
+                            "message": "Managed AI token quota exceeded."
+                          }
+                        }
+                        """.trimIndent()
+                    )
+            )
+            val api = SeenotAccountApi(context, server.url("/api/v1").toString())
+
+            val error = assertThrows(SeenotManagedAiQuotaExceededException::class.java) {
+                runBlocking {
+                    api.createManagedAiSession()
+                }
+            }
+
+            assertEquals("Managed AI token quota exceeded.", error.message)
+        }
     }
 
     private class FakeManagedAiApi(context: android.content.Context) : SeenotAccountApi(context) {
