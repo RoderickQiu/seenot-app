@@ -133,6 +133,7 @@ open class SeenotAccountApi(
             addProperty("installation_id", SeenotAccountSession.getInstallationId())
             addProperty("platform", "android")
             addProperty("app_version", BuildConfig.VERSION_NAME)
+            addProperty("locale", AppLocalePrefs.getLanguage(appContext))
         }
         postJson(
             path = "/app/version-check",

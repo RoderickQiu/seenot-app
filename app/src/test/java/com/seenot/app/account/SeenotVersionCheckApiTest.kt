@@ -58,6 +58,7 @@ class SeenotVersionCheckApiTest {
             val body = request.body.readUtf8()
             assertTrue(body.contains("\"platform\":\"android\""))
             assertTrue(body.contains("\"app_version\":\""))
+            assertTrue(body.contains("\"locale\":\""))
             assertTrue(body.contains("\"installation_id\":\"${SeenotAccountSession.getInstallationId()}\""))
         }
     }
