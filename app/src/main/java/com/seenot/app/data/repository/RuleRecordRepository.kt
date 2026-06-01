@@ -5,6 +5,7 @@ import android.graphics.Bitmap
 import com.google.gson.Gson
 import com.seenot.app.data.local.SeenotDatabase
 import com.seenot.app.data.local.entity.RuleRecordEntity
+import com.seenot.app.data.local.model.RuleRecordTimelineRow
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.MediaContentContext
 import com.seenot.app.data.model.RecordStats
@@ -119,6 +120,16 @@ class RuleRecordRepository(private val context: Context) {
     fun getRecordsInRangeFlow(startTime: Long, endTime: Long): Flow<List<RuleRecord>> {
         return dao.getRecordsInRangeFlow(startTime, endTime).map { entities ->
             entities.map { it.toModel() }
+        }
+    }
+
+    fun getOldestRecordTimestampFlow(): Flow<Long?> {
+        return dao.getOldestTimestampFlow()
+    }
+
+    fun getTimelineRecordsInRangeFlow(startTime: Long, endTime: Long): Flow<List<RuleRecord>> {
+        return dao.getTimelineRowsInRangeFlow(startTime, endTime).map { rows ->
+            rows.map { it.toModel() }
         }
     }
 
@@ -324,6 +335,25 @@ class RuleRecordRepository(private val context: Context) {
                 runCatching { gson.fromJson(json, MediaContentContext::class.java) }.getOrNull()
             },
             isMarked = isMarked,
+            actionType = actionType,
+            actionReason = actionReason,
+            actionTimestamp = actionTimestamp
+        )
+    }
+
+    private fun RuleRecordTimelineRow.toModel(): RuleRecord {
+        return RuleRecord(
+            id = id,
+            timestamp = timestamp,
+            sessionId = sessionId,
+            appName = appName,
+            packageName = packageName,
+            constraintId = constraintId,
+            constraintType = constraintType?.let {
+                runCatching { ConstraintType.valueOf(it) }.getOrNull()
+            },
+            constraintContent = constraintContent,
+            isConditionMatched = isConditionMatched,
             actionType = actionType,
             actionReason = actionReason,
             actionTimestamp = actionTimestamp

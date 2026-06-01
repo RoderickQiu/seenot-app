@@ -125,7 +125,8 @@ class SeenotAccessibilityService : AccessibilityService() {
             className = className,
             eventType = AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED,
             sessionManager = sessionManager,
-            now = System.currentTimeMillis()
+            now = System.currentTimeMillis(),
+            hasTrustedForegroundEvidence = false
         )
     }
     private var pendingIntentReminderPackage: String? = null
@@ -339,9 +340,11 @@ class SeenotAccessibilityService : AccessibilityService() {
 
             val packageName = event.packageName?.toString()
             val className = event.className?.toString()
+            val sessionManager = SessionManager.getInstance(this)
+            val now = System.currentTimeMillis()
 
             if (eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
-                logWindowsChangedEvent(event)
+                handleWindowsChangedEvent(event, sessionManager, now)
                 return
             }
 
@@ -360,8 +363,6 @@ class SeenotAccessibilityService : AccessibilityService() {
                 return
             }
 
-            val sessionManager = SessionManager.getInstance(this)
-            val now = System.currentTimeMillis()
             if (eventType == AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED) {
                 if (!shouldConsiderContentChanged(packageName, sessionManager)) {
                     return
@@ -384,7 +385,8 @@ class SeenotAccessibilityService : AccessibilityService() {
                 className = className,
                 eventType = eventType,
                 sessionManager = sessionManager,
-                now = now
+                now = now,
+                hasTrustedForegroundEvidence = false
             )
         } catch (e: Exception) {
             Logger.e(TAG, "Error in onAccessibilityEvent", e)
@@ -396,7 +398,8 @@ class SeenotAccessibilityService : AccessibilityService() {
         className: String?,
         eventType: Int,
         sessionManager: SessionManager,
-        now: Long
+        now: Long,
+        hasTrustedForegroundEvidence: Boolean
     ) {
         try {
             maybeRecoverPausedSessionFromEvent(packageName, eventType, className)
@@ -425,13 +428,15 @@ class SeenotAccessibilityService : AccessibilityService() {
                     isWithinUnlockForegroundGuard(now) &&
                         isEnteringControlledApp &&
                         !isCapable &&
+                        !hasTrustedForegroundEvidence &&
                         !isLauncher &&
                         !isLeavingControlledContext
                 val shouldTrackForeground =
                     if (shouldGuardUnlockForeground) {
                         false
                     } else {
-                        isCapable ||
+                            isCapable ||
+                            hasTrustedForegroundEvidence ||
                             isLauncher ||
                             isEnteringControlledApp ||
                             isLeavingControlledContext
@@ -485,7 +490,54 @@ class SeenotAccessibilityService : AccessibilityService() {
         Logger.d(TAG, message)
     }
 
-    private fun logWindowsChangedEvent(event: AccessibilityEvent) {
+    private fun handleWindowsChangedEvent(
+        event: AccessibilityEvent,
+        sessionManager: SessionManager,
+        now: Long
+    ) {
+        val snapshots = logWindowsChangedEvent(event)
+        val candidate = ForegroundWindowResolver.resolveForegroundPackage(
+            windows = snapshots,
+            ownPackageName = packageName
+        )
+
+        if (candidate == null) {
+            return
+        }
+
+        val current = _currentPackage.value
+        val isEnteringControlledApp = sessionManager.isAppMonitoringEnabled(candidate.packageName)
+        val isLeavingControlledContext = sessionManager.isAppMonitoringEnabled(current)
+        if (!isEnteringControlledApp && !isLeavingControlledContext && !isLauncher(candidate.packageName)) {
+            return
+        }
+
+        if (now - lastAppSwitchTime < APP_SWITCH_DEBOUNCE_MS && candidate.packageName != current) {
+            Logger.d(
+                TAG,
+                "Debouncing foreground window candidate: ${candidate.packageName} (${now - lastAppSwitchTime}ms)"
+            )
+            return
+        }
+
+        Logger.d(
+            TAG,
+            "Foreground window candidate accepted: package=${candidate.packageName}, " +
+                "windowId=${candidate.windowId}, active=${candidate.isActive}, focused=${candidate.isFocused}"
+        )
+        processWindowEvent(
+            packageName = candidate.packageName,
+            className = null,
+            eventType = AccessibilityEvent.TYPE_WINDOWS_CHANGED,
+            sessionManager = sessionManager,
+            now = now,
+            hasTrustedForegroundEvidence = true
+        )
+    }
+
+    private fun logWindowsChangedEvent(
+        event: AccessibilityEvent
+    ): List<AccessibilityWindowEventDebugFormatter.WindowSnapshot> {
         val changes = AccessibilityWindowEventDebugFormatter.formatWindowChanges(event.windowChanges)
         val sourceWindow = runCatching { event.source?.window }.getOrNull()
         val sourceSnapshot = sourceWindow?.toWindowSnapshot()
@@ -493,9 +545,8 @@ class SeenotAccessibilityService : AccessibilityService() {
             Logger.w(TAG, "TYPE_WINDOWS_CHANGED could not read interactive windows", error)
             emptyList()
         }
-        val windowSummary = AccessibilityWindowEventDebugFormatter.formatWindowSummary(
-            interactiveWindows.mapNotNull { window -> window.toWindowSnapshot() }
-        )
+        val snapshots = interactiveWindows.mapNotNull { window -> window.toWindowSnapshot() }
+        val windowSummary = AccessibilityWindowEventDebugFormatter.formatWindowSummary(snapshots)
 
         Logger.i(
             TAG,
@@ -505,6 +556,8 @@ class SeenotAccessibilityService : AccessibilityService() {
                 "interactiveWindowCount=${interactiveWindows.size}, interactiveWindows=$windowSummary, " +
                 "current=${_currentPackage.value}"
         )
+
+        return snapshots
     }
 
     private fun AccessibilityWindowInfo.toWindowSnapshot(): AccessibilityWindowEventDebugFormatter.WindowSnapshot? {

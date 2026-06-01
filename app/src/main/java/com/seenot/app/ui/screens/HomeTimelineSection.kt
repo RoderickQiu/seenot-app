@@ -59,11 +59,12 @@ fun HomeTimelineSection(
     val dayRange = remember(safeDayOffset) { getDayRange(safeDayOffset) }
 
     val recordsFlow = remember(dayRange.first, dayRange.second) {
-        repository.getRecordsInRangeFlow(dayRange.first, dayRange.second)
+        repository.getTimelineRecordsInRangeFlow(dayRange.first, dayRange.second)
     }
     val records by recordsFlow.collectAsState(initial = emptyList())
-    val allRecords by remember { repository.getAllRecordsFlow() }.collectAsState(initial = emptyList())
-    val oldestRecordTimestamp = remember(allRecords) { allRecords.minOfOrNull { it.timestamp } }
+    val oldestRecordTimestamp by remember {
+        repository.getOldestRecordTimestampFlow()
+    }.collectAsState(initial = null)
     val canNavigatePrevious = remember(safeDayOffset, oldestRecordTimestamp) {
         canNavigateToPreviousDay(safeDayOffset, oldestRecordTimestamp)
     }

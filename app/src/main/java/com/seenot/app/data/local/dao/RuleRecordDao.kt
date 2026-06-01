@@ -2,6 +2,7 @@ package com.seenot.app.data.local.dao
 
 import androidx.room.*
 import com.seenot.app.data.local.entity.RuleRecordEntity
+import com.seenot.app.data.local.model.RuleRecordTimelineRow
 import kotlinx.coroutines.flow.Flow
 
 /**
@@ -42,6 +43,17 @@ interface RuleRecordDao {
 
     @Query("SELECT * FROM rule_records WHERE timestamp >= :startTime AND timestamp <= :endTime ORDER BY timestamp ASC")
     fun getRecordsInRangeFlow(startTime: Long, endTime: Long): Flow<List<RuleRecordEntity>>
+
+    @Query(
+        """
+        SELECT id, timestamp, sessionId, appName, packageName, constraintId, constraintType,
+               constraintContent, isConditionMatched, actionType, actionReason, actionTimestamp
+        FROM rule_records
+        WHERE timestamp >= :startTime AND timestamp <= :endTime
+        ORDER BY timestamp ASC
+        """
+    )
+    fun getTimelineRowsInRangeFlow(startTime: Long, endTime: Long): Flow<List<RuleRecordTimelineRow>>
 
     @Query("SELECT * FROM rule_records WHERE isMarked = 1 ORDER BY timestamp DESC")
     suspend fun getMarkedRecords(): List<RuleRecordEntity>
@@ -100,6 +112,9 @@ interface RuleRecordDao {
 
     @Query("SELECT MIN(timestamp) FROM rule_records")
     suspend fun getOldestTimestamp(): Long?
+
+    @Query("SELECT MIN(timestamp) FROM rule_records")
+    fun getOldestTimestampFlow(): Flow<Long?>
 
     @Query("SELECT MAX(timestamp) FROM rule_records")
     suspend fun getNewestTimestamp(): Long?
