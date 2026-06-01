@@ -23,6 +23,7 @@ import android.os.PowerManager
 import com.seenot.app.utils.Logger
 import android.view.Display
 import android.view.accessibility.AccessibilityEvent
+import android.view.accessibility.AccessibilityWindowInfo
 import androidx.core.content.ContextCompat
 import androidx.core.app.NotificationCompat
 import com.seenot.app.MainActivity
@@ -330,7 +331,8 @@ class SeenotAccessibilityService : AccessibilityService() {
             val eventType = event.eventType
             if (
                 eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
-                    eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED
+                    eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&
+                    eventType != AccessibilityEvent.TYPE_WINDOWS_CHANGED
             ) {
                 return
             }
@@ -338,7 +340,20 @@ class SeenotAccessibilityService : AccessibilityService() {
             val packageName = event.packageName?.toString()
             val className = event.className?.toString()
 
-            if (packageName == null) return
+            if (eventType == AccessibilityEvent.TYPE_WINDOWS_CHANGED) {
+                logWindowsChangedEvent(event)
+                return
+            }
+
+            if (packageName == null) {
+                Logger.d(
+                    TAG,
+                    "Window event without package ignored: " +
+                        "event=${AccessibilityEvent.eventTypeToString(eventType)}, class=$className, " +
+                        "windowId=${event.windowId}"
+                )
+                return
+            }
 
             if (packageName == this.packageName) {
                 Logger.d(TAG, "Ignoring SeeNot package window event before foreground tracking: $packageName")
@@ -468,6 +483,39 @@ class SeenotAccessibilityService : AccessibilityService() {
 
         noisyWindowEventLogTimes[key] = now
         Logger.d(TAG, message)
+    }
+
+    private fun logWindowsChangedEvent(event: AccessibilityEvent) {
+        val changes = AccessibilityWindowEventDebugFormatter.formatWindowChanges(event.windowChanges)
+        val sourceWindow = runCatching { event.source?.window }.getOrNull()
+        val sourceSnapshot = sourceWindow?.toWindowSnapshot()
+        val interactiveWindows = runCatching { windows }.getOrElse { error ->
+            Logger.w(TAG, "TYPE_WINDOWS_CHANGED could not read interactive windows", error)
+            emptyList()
+        }
+        val windowSummary = AccessibilityWindowEventDebugFormatter.formatWindowSummary(
+            interactiveWindows.mapNotNull { window -> window.toWindowSnapshot() }
+        )
+
+        Logger.i(
+            TAG,
+            "TYPE_WINDOWS_CHANGED observed: changes=$changes, " +
+                "eventPackage=${event.packageName ?: "<none>"}, eventClass=${event.className ?: "<none>"}, " +
+                "eventWindowId=${event.windowId}, sourceWindow=${sourceSnapshot?.let { AccessibilityWindowEventDebugFormatter.formatWindowSummary(listOf(it)) } ?: "none"}, " +
+                "interactiveWindowCount=${interactiveWindows.size}, interactiveWindows=$windowSummary, " +
+                "current=${_currentPackage.value}"
+        )
+    }
+
+    private fun AccessibilityWindowInfo.toWindowSnapshot(): AccessibilityWindowEventDebugFormatter.WindowSnapshot? {
+        return AccessibilityWindowEventDebugFormatter.WindowSnapshot(
+            id = id,
+            type = type,
+            layer = layer,
+            isActive = isActive,
+            isFocused = isFocused,
+            rootPackageName = runCatching { root?.packageName?.toString() }.getOrNull()
+        )
     }
 
     private fun logMediaSessionProbe(packageName: String, now: Long) {
