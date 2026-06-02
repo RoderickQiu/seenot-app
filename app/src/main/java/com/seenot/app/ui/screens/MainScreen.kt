@@ -1,6 +1,7 @@
 package com.seenot.app.ui.screens
 
 import android.net.Uri
+import android.app.Activity
 import android.content.Context
 import android.content.Intent
 import android.content.pm.ApplicationInfo
@@ -3453,9 +3454,9 @@ fun SettingsTab(
                                     selectedLanguage = code
                                     AppLocalePrefs.setLanguage(context, code)
                                     // Restart activity to apply language change
-                                    (context as? android.app.Activity)?.let { activity ->
+                                    (context as? Activity)?.let { activity ->
                                         activity.finish()
-                                        activity.startActivity(activity.intent)
+                                        activity.startActivity(buildLanguageRestartIntent(activity))
                                     }
                                 }
                                 languageDropdownExpanded = false
@@ -3960,6 +3961,10 @@ private fun SettingsSectionCard(
             content()
         }
     }
+}
+
+internal fun buildLanguageRestartIntent(activity: Activity): Intent {
+    return Intent(activity, activity::class.java)
 }
 
 @Composable
