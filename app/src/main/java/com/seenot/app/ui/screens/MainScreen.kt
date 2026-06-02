@@ -762,21 +762,21 @@ fun HomeTab(
             Spacer(modifier = Modifier.height(8.dp))
 
             PermissionCard(
-                title = stringResource(R.string.permission_usage_stats_optional),
+                title = stringResource(R.string.permission_usage_stats),
                 description = stringResource(R.string.permission_usage_stats_desc),
                 isEnabled = isUsageStatsAccessEnabled,
+                badgeLabel = stringResource(R.string.permission_optional_badge),
                 onClick = onOpenUsageStatsAccessSettings,
-                readyLabel = stringResource(R.string.permission_optional_ready),
                 notReadyLabel = stringResource(R.string.permission_optional_recommended)
             )
 
             Spacer(modifier = Modifier.height(12.dp))
 
             PermissionCard(
-                title = stringResource(R.string.permission_media_session_optional),
+                title = stringResource(R.string.permission_media_session),
                 description = stringResource(R.string.permission_media_session_desc),
                 isEnabled = isMediaSessionAccessEnabled,
-                readyLabel = stringResource(R.string.permission_optional_ready),
+                badgeLabel = stringResource(R.string.permission_optional_badge),
                 notReadyLabel = stringResource(R.string.permission_optional_recommended),
                 onClick = onOpenMediaSessionAccessSettings
             )
@@ -784,9 +784,10 @@ fun HomeTab(
             Spacer(modifier = Modifier.height(8.dp))
 
             PermissionCard(
-                title = stringResource(R.string.permission_microphone_optional),
+                title = stringResource(R.string.permission_microphone),
                 description = stringResource(R.string.permission_microphone_desc),
                 isEnabled = isMicrophoneEnabled,
+                badgeLabel = stringResource(R.string.permission_optional_badge),
                 onClick = onRequestMicrophone
             )
 
@@ -983,6 +984,7 @@ fun PermissionCard(
     title: String,
     description: String,
     isEnabled: Boolean,
+    badgeLabel: String? = null,
     readyLabel: String? = null,
     notReadyLabel: String? = null,
     onClick: () -> Unit
@@ -1005,19 +1007,30 @@ fun PermissionCard(
             )
             Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
+                val statusText = buildString {
+                    badgeLabel?.let {
+                        append(it)
+                        append(" · ")
+                    }
+                    append(
+                        if (isEnabled) {
+                            readyLabel ?: stringResource(R.string.permission_ready)
+                        } else {
+                            notReadyLabel ?: stringResource(R.string.permission_not_ready)
+                        }
+                    )
+                }
+                val statusColor =
+                    if (isEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
                 Text(
                     text = title,
                     style = MaterialTheme.typography.bodyLarge,
                     fontWeight = FontWeight.Medium
                 )
                 Text(
-                    text = if (isEnabled) {
-                        readyLabel ?: stringResource(R.string.permission_ready)
-                    } else {
-                        notReadyLabel ?: stringResource(R.string.permission_not_ready)
-                    },
+                    text = statusText,
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (isEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                    color = statusColor
                 )
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
