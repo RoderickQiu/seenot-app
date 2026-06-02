@@ -522,9 +522,9 @@
     <string name="permission_battery_optimization_desc">用于请求忽略电池优化，降低系统省电策略杀死 SeeNot 的概率</string>
     <string name="permission_microphone_optional">麦克风权限（可选）</string>
     <string name="permission_microphone_desc">用于语音输入声明意图</string>
-    <string name="permission_usage_stats_optional">前台识别增强</string>
+    <string name="permission_usage_stats_optional">前台识别增强（可选）</string>
     <string name="permission_usage_stats_desc">在无障碍事件偶发缺失时，帮助 SeeNot 仍能识别你正在使用哪个应用</string>
-    <string name="permission_media_session_optional">视频播放增强</string>
+    <string name="permission_media_session_optional">视频识别增强（可选）</string>
     <string name="permission_media_session_desc">读取支持的软件正在播放的视频标题和播放状态，让视频判断更准确</string>
     <string name="permission_ready">已完成</string>
     <string name="permission_not_ready">未完成</string>
