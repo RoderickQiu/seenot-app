@@ -769,10 +769,14 @@
     <string name="version_check_up_to_date_desc">当前版本已是最新。</string>
     <string name="version_check_now_action">检查</string>
     <string name="version_check_checking_action">检查中</string>
-    <string name="version_check_download_action">查看新版本</string>
-    <string name="version_check_update_available_toast">发现新版本：%s</string>
+    <string name="version_check_download_action">查看新版本（%s）</string>
     <string name="version_check_up_to_date_toast">当前已是最新版本。</string>
     <string name="version_check_failed_toast">暂时无法检查更新，请稍后重试。</string>
+    <string name="version_update_dialog_title">SeeNot %s 已发布</string>
+    <string name="version_update_dialog_default_message">这个版本包含新的改进，建议更新后继续使用。</string>
+    <string name="version_update_dialog_published_at">发布时间：%s</string>
+    <string name="version_update_dialog_download_action">去更新</string>
+    <string name="version_update_dialog_later_action">稍后</string>
     <string name="about_official_site">官网</string>
     <string name="about_github">GitHub</string>
     <string name="about_github_desc">查看源码、版本和问题反馈</string>

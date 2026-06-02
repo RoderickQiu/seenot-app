@@ -763,10 +763,14 @@
     <string name="version_check_up_to_date_desc">This is the latest version.</string>
     <string name="version_check_now_action">Check</string>
     <string name="version_check_checking_action">Checking</string>
-    <string name="version_check_download_action">View update</string>
-    <string name="version_check_update_available_toast">New version available: %s</string>
+    <string name="version_check_download_action">View update (%s)</string>
     <string name="version_check_up_to_date_toast">This is the latest version.</string>
     <string name="version_check_failed_toast">Could not check for updates right now. Please try again.</string>
+    <string name="version_update_dialog_title">SeeNot %s is available</string>
+    <string name="version_update_dialog_default_message">This version includes new improvements. Updating is recommended.</string>
+    <string name="version_update_dialog_published_at">Published: %s</string>
+    <string name="version_update_dialog_download_action">Update</string>
+    <string name="version_update_dialog_later_action">Later</string>
     <string name="about_official_site">Official Site</string>
     <string name="about_github">GitHub</string>
     <string name="about_github_desc">Source code, releases, and issue tracking</string>

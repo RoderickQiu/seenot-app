@@ -139,7 +139,8 @@ fun MainScreen(
     var isAccountRefreshInFlight by remember { mutableStateOf(false) }
     var syncRefreshKey by remember { mutableIntStateOf(0) }
     var automaticVersionCheckEnabled by remember { mutableStateOf(SeenotVersionCheckPrefs.isAutomaticCheckEnabled(context)) }
-    var versionCheckResponse by remember { mutableStateOf<SeenotVersionCheckResponse?>(null) }
+    var versionCheckResponse by remember { mutableStateOf(SeenotVersionCheckPrefs.getLastVersionCheckResponse(context)) }
+    var visibleVersionUpdateDialog by remember { mutableStateOf<SeenotVersionCheckResponse?>(null) }
     var isVersionCheckInFlight by remember { mutableStateOf(false) }
 
     // State
@@ -216,14 +217,17 @@ fun MainScreen(
                     if (isAutomatic) {
                         SeenotVersionCheckPrefs.saveLastSuccessfulAutomaticCheckAt(context)
                     }
+                    SeenotVersionCheckPrefs.saveLastVersionCheckResponse(context, response)
                     versionCheckResponse = response
-                    if (!isAutomatic) {
-                        val message = if (response.updateAvailable) {
-                            context.getString(R.string.version_check_update_available_toast, response.latestVersion)
+                    if (response.updateAvailable && isAutomatic && SeenotVersionCheckPrefs.shouldPromptForUpdate(context, response)) {
+                        visibleVersionUpdateDialog = response
+                        SeenotVersionCheckPrefs.markUpdatePrompted(context, response)
+                    } else if (!isAutomatic) {
+                        if (response.updateAvailable) {
+                            visibleVersionUpdateDialog = response
                         } else {
-                            context.getString(R.string.version_check_up_to_date_toast)
+                            Toast.makeText(context, context.getString(R.string.version_check_up_to_date_toast), Toast.LENGTH_SHORT).show()
                         }
-                        Toast.makeText(context, message, Toast.LENGTH_SHORT).show()
                     }
                 }.onFailure {
                     if (!isAutomatic) {
@@ -234,6 +238,21 @@ fun MainScreen(
                 isVersionCheckInFlight = false
             }
         }
+    }
+
+    visibleVersionUpdateDialog?.let { response ->
+        VersionUpdateDialog(
+            response = response,
+            onDismiss = { visibleVersionUpdateDialog = null },
+            onOpenDownload = response.downloadUrl
+                ?.takeIf { response.updateAvailable && it.isNotBlank() }
+                ?.let { url ->
+                    {
+                        visibleVersionUpdateDialog = null
+                        openExternalUrl(context, url)
+                    }
+                }
+        )
     }
 
     LaunchedEffect(Unit) {
@@ -559,7 +578,7 @@ fun MainScreen(
                             }
                         },
                         onManualVersionCheck = { runVersionCheck(isAutomatic = false) },
-                        onOpenVersionDownload = { url -> openExternalUrl(context, url) }
+                        onOpenVersionUpdate = { response -> visibleVersionUpdateDialog = response }
                     )
                 }
 
@@ -3322,7 +3341,7 @@ fun SettingsTab(
     isVersionCheckInFlight: Boolean = false,
     onAutomaticVersionCheckChanged: (Boolean) -> Unit = {},
     onManualVersionCheck: () -> Unit = {},
-    onOpenVersionDownload: (String) -> Unit = {}
+    onOpenVersionUpdate: (SeenotVersionCheckResponse) -> Unit = {}
 ) {
     val context = LocalContext.current
     val sessionManager = remember { SessionManager.getInstance(context) }
@@ -3745,7 +3764,7 @@ fun SettingsTab(
                 isVersionCheckInFlight = isVersionCheckInFlight,
                 onAutomaticVersionCheckChanged = onAutomaticVersionCheckChanged,
                 onManualVersionCheck = onManualVersionCheck,
-                onOpenVersionDownload = onOpenVersionDownload,
+                onOpenVersionUpdate = onOpenVersionUpdate,
                 onOpenOfficialSite = { openSeenotOfficialSitePage(context) },
                 onOpenGithub = { openExternalUrl(context, "https://github.com/RoderickQiu/seenot-app") },
                 onOpenCreatorHomepage = { openExternalUrl(context, "https://r-q.name/") }
@@ -3761,7 +3780,7 @@ private fun AboutSection(
     isVersionCheckInFlight: Boolean,
     onAutomaticVersionCheckChanged: (Boolean) -> Unit,
     onManualVersionCheck: () -> Unit,
-    onOpenVersionDownload: (String) -> Unit,
+    onOpenVersionUpdate: (SeenotVersionCheckResponse) -> Unit,
     onOpenOfficialSite: () -> Unit,
     onOpenGithub: () -> Unit,
     onOpenCreatorHomepage: () -> Unit
@@ -3798,7 +3817,7 @@ private fun AboutSection(
         response = versionCheckResponse,
         isChecking = isVersionCheckInFlight,
         onManualVersionCheck = onManualVersionCheck,
-        onOpenVersionDownload = onOpenVersionDownload
+        onOpenVersionUpdate = onOpenVersionUpdate
     )
 
     HorizontalDivider()
@@ -3828,7 +3847,7 @@ private fun VersionCheckStatusRow(
     response: SeenotVersionCheckResponse?,
     isChecking: Boolean,
     onManualVersionCheck: () -> Unit,
-    onOpenVersionDownload: (String) -> Unit
+    onOpenVersionUpdate: (SeenotVersionCheckResponse) -> Unit
 ) {
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Row(
@@ -3871,18 +3890,62 @@ private fun VersionCheckStatusRow(
             }
         }
 
-        val downloadUrl = response?.downloadUrl?.takeIf { response.updateAvailable && it.isNotBlank() }
-        if (downloadUrl != null) {
+        if (response?.updateAvailable == true) {
             OutlinedButton(
-                onClick = { onOpenVersionDownload(downloadUrl) },
+                onClick = { onOpenVersionUpdate(response) },
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Icon(Icons.AutoMirrored.Filled.OpenInNew, contentDescription = null)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text(stringResource(R.string.version_check_download_action))
+                Text(stringResource(R.string.version_check_download_action, response.latestVersion))
             }
         }
     }
+}
+
+@Composable
+private fun VersionUpdateDialog(
+    response: SeenotVersionCheckResponse,
+    onDismiss: () -> Unit,
+    onOpenDownload: (() -> Unit)?
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(Icons.Filled.SystemUpdate, contentDescription = null)
+        },
+        title = {
+            Text(stringResource(R.string.version_update_dialog_title, response.latestVersion))
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = response.message?.takeIf { it.isNotBlank() }
+                        ?: stringResource(R.string.version_update_dialog_default_message),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                if (!response.publishedAt.isNullOrBlank()) {
+                    Text(
+                        text = stringResource(R.string.version_update_dialog_published_at, response.publishedAt),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        },
+        confirmButton = {
+            if (onOpenDownload != null) {
+                TextButton(onClick = onOpenDownload) {
+                    Text(stringResource(R.string.version_update_dialog_download_action))
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.version_update_dialog_later_action))
+            }
+        }
+    )
 }
 
 @Composable
