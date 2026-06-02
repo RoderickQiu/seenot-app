@@ -76,6 +76,7 @@ import com.seenot.app.config.RuleRecordingPrefs
 import com.seenot.app.domain.AppEntryIntentMode
 import com.seenot.app.domain.SessionManager
 import com.seenot.app.domain.AppMonitoringPause
+import com.seenot.app.service.ForegroundUsageStatsReader
 import com.seenot.app.service.SeenotAccessibilityService
 import com.seenot.app.service.MediaSessionProbe
 import com.seenot.app.ai.voice.VoiceInputManager
@@ -145,6 +146,7 @@ fun MainScreen(
     var isAccessibilityEnabled by remember { mutableStateOf(false) }
     var isOverlayEnabled by remember { mutableStateOf(false) }
     var isNotificationEnabled by remember { mutableStateOf(false) }
+    var isUsageStatsAccessEnabled by remember { mutableStateOf(false) }
     var isMediaSessionAccessEnabled by remember { mutableStateOf(false) }
     var isMicrophoneEnabled by remember { mutableStateOf(false) }
     var isBatteryOptimizationIgnored by remember { mutableStateOf(false) }
@@ -180,6 +182,12 @@ fun MainScreen(
         contract = ActivityResultContracts.StartActivityForResult()
     ) {
         isMediaSessionAccessEnabled = MediaSessionProbe.hasNotificationListenerAccess(context)
+    }
+
+    val usageStatsAccessLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.StartActivityForResult()
+    ) {
+        isUsageStatsAccessEnabled = ForegroundUsageStatsReader(context).hasPermission()
     }
 
     // Notification permission launcher
@@ -247,10 +255,18 @@ fun MainScreen(
         isMediaSessionAccessEnabled = MediaSessionProbe.hasNotificationListenerAccess(context)
     }
 
+    LaunchedEffect(Unit) {
+        isUsageStatsAccessEnabled = ForegroundUsageStatsReader(context).hasPermission()
+        SeenotAccessibilityService.isUsageStatsAccessEnabled.collectLatest {
+            isUsageStatsAccessEnabled = it
+        }
+    }
+
     DisposableEffect(lifecycleOwner, context) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 isMediaSessionAccessEnabled = MediaSessionProbe.hasNotificationListenerAccess(context)
+                isUsageStatsAccessEnabled = ForegroundUsageStatsReader(context).hasPermission()
                 if (SeenotVersionCheckPrefs.isAutomaticCheckDue(context)) {
                     runVersionCheck(isAutomatic = true)
                 }
@@ -412,6 +428,7 @@ fun MainScreen(
                         isAccessibilityEnabled = isAccessibilityEnabled,
                         isOverlayEnabled = isOverlayEnabled,
                         isNotificationEnabled = isNotificationEnabled,
+                        isUsageStatsAccessEnabled = isUsageStatsAccessEnabled,
                         isMediaSessionAccessEnabled = isMediaSessionAccessEnabled,
                         isBatteryOptimizationIgnored = isBatteryOptimizationIgnored,
                         isMicrophoneEnabled = isMicrophoneEnabled,
@@ -437,6 +454,9 @@ fun MainScreen(
                         },
                         onOpenMediaSessionAccessSettings = {
                             pendingPermissionGuide = PermissionGuideType.MEDIA_SESSION
+                        },
+                        onOpenUsageStatsAccessSettings = {
+                            pendingPermissionGuide = PermissionGuideType.USAGE_STATS
                         },
                         onRequestMicrophone = {
                             microphonePermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
@@ -624,6 +644,9 @@ fun MainScreen(
                     PermissionGuideType.MEDIA_SESSION -> {
                         mediaSessionAccessLauncher.launch(createNotificationListenerSettingsIntent())
                     }
+                    PermissionGuideType.USAGE_STATS -> {
+                        usageStatsAccessLauncher.launch(createUsageStatsSettingsIntent())
+                    }
                 }
             }
         )
@@ -638,6 +661,7 @@ fun HomeTab(
     isAccessibilityEnabled: Boolean,
     isOverlayEnabled: Boolean,
     isNotificationEnabled: Boolean,
+    isUsageStatsAccessEnabled: Boolean,
     isMediaSessionAccessEnabled: Boolean,
     isBatteryOptimizationIgnored: Boolean,
     isMicrophoneEnabled: Boolean,
@@ -650,6 +674,7 @@ fun HomeTab(
     onRequestIgnoreBatteryOptimizations: () -> Unit,
     onOpenNotificationSettings: () -> Unit,
     onOpenMediaSessionAccessSettings: () -> Unit,
+    onOpenUsageStatsAccessSettings: () -> Unit,
     onRequestMicrophone: () -> Unit,
     onOpenAiSettings: () -> Unit,
     onOpenAccount: () -> Unit,
@@ -734,6 +759,17 @@ fun HomeTab(
             )
 
             Spacer(modifier = Modifier.height(8.dp))
+
+            PermissionCard(
+                title = stringResource(R.string.permission_usage_stats_optional),
+                description = stringResource(R.string.permission_usage_stats_desc),
+                isEnabled = isUsageStatsAccessEnabled,
+                onClick = onOpenUsageStatsAccessSettings,
+                readyLabel = stringResource(R.string.permission_optional_ready),
+                notReadyLabel = stringResource(R.string.permission_optional_recommended)
+            )
+
+            Spacer(modifier = Modifier.height(12.dp))
 
             PermissionCard(
                 title = stringResource(R.string.permission_media_session_optional),
@@ -1080,7 +1116,8 @@ private enum class PermissionGuideType {
     ACCESSIBILITY,
     OVERLAY,
     BATTERY,
-    MEDIA_SESSION
+    MEDIA_SESSION,
+    USAGE_STATS
 }
 
 private const val SEENOT_APP_LOGIN_REDIRECT_URI = "seenot://auth/callback"
@@ -1195,6 +1232,7 @@ private fun PermissionGuideDialog(
         PermissionGuideType.OVERLAY -> R.string.permission_guide_overlay_title to R.string.permission_guide_overlay_message
         PermissionGuideType.BATTERY -> R.string.permission_guide_battery_title to R.string.permission_guide_battery_message
         PermissionGuideType.MEDIA_SESSION -> R.string.permission_guide_media_session_title to R.string.permission_guide_media_session_message
+        PermissionGuideType.USAGE_STATS -> R.string.permission_guide_usage_stats_title to R.string.permission_guide_usage_stats_message
     }
 
     AlertDialog(
@@ -1243,6 +1281,10 @@ private fun createNotificationSettingsIntent(context: Context): Intent {
 
 private fun createNotificationListenerSettingsIntent(): Intent {
     return Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)
+}
+
+private fun createUsageStatsSettingsIntent(): Intent {
+    return Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
 }
 
 /**

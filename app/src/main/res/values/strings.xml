@@ -522,6 +522,8 @@
     <string name="permission_battery_optimization_desc">用于请求忽略电池优化，降低系统省电策略杀死 SeeNot 的概率</string>
     <string name="permission_microphone_optional">麦克风权限（可选）</string>
     <string name="permission_microphone_desc">用于语音输入声明意图</string>
+    <string name="permission_usage_stats_optional">前台识别增强</string>
+    <string name="permission_usage_stats_desc">在无障碍事件偶发缺失时，帮助 SeeNot 仍能识别你正在使用哪个应用</string>
     <string name="permission_media_session_optional">视频播放增强</string>
     <string name="permission_media_session_desc">读取支持的软件正在播放的视频标题和播放状态，让视频判断更准确</string>
     <string name="permission_ready">已完成</string>
@@ -815,6 +817,8 @@
     <string name="permission_guide_overlay_message">接下来会打开系统悬浮窗设置。请允许 SeeNot 在其他应用上层显示，这样进入受控应用时才能看到意图输入和状态提示。</string>
     <string name="permission_guide_battery_title">关闭电池限制前先看一下</string>
     <string name="permission_guide_battery_message">接下来会打开系统电池设置。请把 SeeNot 设为后台无限制或忽略优化，避免系统把它杀掉，导致提醒和判断中断。</string>
+    <string name="permission_guide_usage_stats_title">开启前台识别增强前先看一下</string>
+    <string name="permission_guide_usage_stats_message">接下来会打开系统“使用情况访问权限”设置。请允许 SeeNot 读取最近使用的应用，这样在系统偶尔没有送达无障碍切换事件时，SeeNot 仍能及时识别你是否进入了受控应用。SeeNot 只用它判断应用级前台状态，不读取聊天内容或页面文字。</string>
     <string name="permission_guide_media_session_title">开启视频播放增强前先看一下</string>
     <string name="permission_guide_media_session_message">接下来会打开系统“通知使用权”设置。开启后，SeeNot 可读取支持的软件当前播放的媒体标题、作者和播放状态，用于更准确判断视频内容。SeeNot 不需要读取短信、聊天消息或其他通知内容；推荐开启，但不强制。</string>
 

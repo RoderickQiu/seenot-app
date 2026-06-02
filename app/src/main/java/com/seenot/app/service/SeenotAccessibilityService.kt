@@ -67,6 +67,8 @@ class SeenotAccessibilityService : AccessibilityService() {
         private const val OVERLAY_WATCHDOG_RECOVERY_COOLDOWN_MS = 5000L
         private const val NOISY_WINDOW_EVENT_LOG_INTERVAL_MS = 2000L
         private const val MEDIA_SESSION_PROBE_LOG_INTERVAL_MS = 5000L
+        private const val USAGE_STATS_POLL_INTERVAL_MS = 1_200L
+        private const val USAGE_STATS_PERMISSION_LOG_INTERVAL_MS = 10_000L
 
         var instance: SeenotAccessibilityService? = null
 
@@ -75,6 +77,9 @@ class SeenotAccessibilityService : AccessibilityService() {
 
         private val _isServiceReady = MutableStateFlow(false)
         val isServiceReady: StateFlow<Boolean> = _isServiceReady.asStateFlow()
+
+        private val _isUsageStatsAccessEnabled = MutableStateFlow(false)
+        val isUsageStatsAccessEnabled: StateFlow<Boolean> = _isUsageStatsAccessEnabled.asStateFlow()
 
         private val _deviceState = MutableStateFlow(AccessibilityDeviceState())
         val deviceState: StateFlow<AccessibilityDeviceState> = _deviceState.asStateFlow()
@@ -106,6 +111,10 @@ class SeenotAccessibilityService : AccessibilityService() {
     private var lastMediaSessionProbeSignature: String? = null
     private val noisyWindowEventLogTimes = mutableMapOf<String, Long>()
     private lateinit var sessionManager: SessionManager
+    private val usageStatsReader by lazy { ForegroundUsageStatsReader(this) }
+    private val usageStatsReducer = UsageStatsForegroundReducer()
+    private var lastUsageStatsPermissionLogAt: Long = 0L
+    private var lastUsageStatsEventTimeMs: Long = 0L
     private var deviceStateReceiverRegistered = false
     private val runtimeEventLogger by lazy { RuntimeEventLogger.getInstance(this) }
     private val mainHandler = Handler(Looper.getMainLooper())
@@ -128,6 +137,12 @@ class SeenotAccessibilityService : AccessibilityService() {
             now = System.currentTimeMillis(),
             hasTrustedForegroundEvidence = false
         )
+    }
+    private val usageStatsPollRunnable = object : Runnable {
+        override fun run() {
+            pollUsageStatsForeground()
+            mainHandler.postDelayed(this, USAGE_STATS_POLL_INTERVAL_MS)
+        }
     }
     private var pendingIntentReminderPackage: String? = null
     private var pendingIntentReminderAppName: String? = null
@@ -209,9 +224,15 @@ class SeenotAccessibilityService : AccessibilityService() {
             } catch (e: Exception) {
                 Logger.e(TAG, "Failed to start foreground service", e)
             }
+            startUsageStatsPolling()
         } catch (e: Exception) {
             Logger.e(TAG, "Error in onServiceConnected", e)
         }
+    }
+
+    private fun startUsageStatsPolling() {
+        mainHandler.removeCallbacks(usageStatsPollRunnable)
+        mainHandler.post(usageStatsPollRunnable)
     }
 
     private fun registerDeviceStateReceiver() {
@@ -532,6 +553,131 @@ class SeenotAccessibilityService : AccessibilityService() {
             sessionManager = sessionManager,
             now = now,
             hasTrustedForegroundEvidence = true
+        )
+    }
+
+    private fun pollUsageStatsForeground() {
+        val now = System.currentTimeMillis()
+        try {
+            updateDeviceState()
+            if (!_deviceState.value.shouldAnalyze) {
+                return
+            }
+
+            val hasPermission = usageStatsReader.hasPermission()
+            _isUsageStatsAccessEnabled.value = hasPermission
+            if (!hasPermission) {
+                if (now - lastUsageStatsPermissionLogAt >= USAGE_STATS_PERMISSION_LOG_INTERVAL_MS) {
+                    lastUsageStatsPermissionLogAt = now
+                    Logger.w(TAG, "UsageStats foreground fallback unavailable: usage access permission missing")
+                }
+                return
+            }
+
+            val events = usageStatsReader.readTransitionEvents(
+                beginMs = now - ForegroundUsageStatsReader.QUERY_WINDOW_MS,
+                endMs = now
+            ).filter { it.timeMs > lastUsageStatsEventTimeMs }
+            events.maxOfOrNull { it.timeMs }?.let { latestEventTime ->
+                lastUsageStatsEventTimeMs = latestEventTime
+            }
+            val decision = usageStatsReducer.reduce(events = events, nowMs = now)
+            logUsageStatsDecision(decision, events, now)
+
+            if (decision.reason == UsageStatsForegroundReducer.DecisionReason.PENDING_EXIT_EXPIRED) {
+                handleUsageStatsPendingExitExpired(decision)
+                return
+            }
+
+            val foregroundPackage = decision.foregroundPackage ?: return
+            val eventAgeMs = decision.eventTimeMs?.let { now - it } ?: Long.MAX_VALUE
+            if (eventAgeMs > UsageStatsForegroundReducer.DEFAULT_FRESH_EVENT_MS) {
+                return
+            }
+            if (
+                decision.reason != UsageStatsForegroundReducer.DecisionReason.ENTER &&
+                    decision.reason != UsageStatsForegroundReducer.DecisionReason.SAME_PACKAGE_REENTER &&
+                    decision.reason != UsageStatsForegroundReducer.DecisionReason.CROSS_PACKAGE_ENTER
+            ) {
+                return
+            }
+
+            val manager = SessionManager.getInstance(this)
+            val current = _currentPackage.value
+            val isEnteringControlledApp = manager.isAppMonitoringEnabled(foregroundPackage)
+            val isLeavingControlledContext = manager.isAppMonitoringEnabled(current)
+            if (!isEnteringControlledApp && !isLeavingControlledContext && !isLauncher(foregroundPackage)) {
+                return
+            }
+
+            if (foregroundPackage == current) {
+                maybeRecoverWeakReentry(
+                    packageName = foregroundPackage,
+                    className = null,
+                    eventType = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
+                )
+                return
+            }
+
+            Logger.i(
+                TAG,
+                "UsageStats foreground candidate accepted: package=$foregroundPackage, " +
+                    "previous=${decision.previousForegroundPackage}, reason=${decision.reason}, ageMs=$eventAgeMs"
+            )
+            processWindowEvent(
+                packageName = foregroundPackage,
+                className = null,
+                eventType = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED,
+                sessionManager = manager,
+                now = now,
+                hasTrustedForegroundEvidence = true
+            )
+        } catch (e: Exception) {
+            Logger.e(TAG, "Error polling UsageStats foreground fallback", e)
+        }
+    }
+
+    private fun handleUsageStatsPendingExitExpired(
+        decision: UsageStatsForegroundReducer.Decision
+    ) {
+        val previous = decision.previousForegroundPackage ?: return
+        if (_currentPackage.value != previous) return
+
+        val manager = SessionManager.getInstance(this)
+        if (!manager.isAppMonitoringEnabled(previous)) return
+
+        Logger.i(
+            TAG,
+            "UsageStats foreground exit confirmed: package=$previous, reason=${decision.reason}"
+        )
+        _currentPackage.value = null
+        if (currentMonitoredPackage == previous) {
+            lastExitedPackage = previous
+            lastExitedTime = System.currentTimeMillis()
+            currentMonitoredPackage = null
+            cancelPendingIntentReminder(previous)
+        }
+    }
+
+    private fun logUsageStatsDecision(
+        decision: UsageStatsForegroundReducer.Decision,
+        events: List<UsageStatsForegroundReducer.UsageEvent>,
+        now: Long
+    ) {
+        if (
+            decision.reason == UsageStatsForegroundReducer.DecisionReason.NONE &&
+                events.isEmpty()
+        ) {
+            return
+        }
+
+        val latest = events.maxByOrNull { it.timeMs }
+        Logger.d(
+            TAG,
+            "UsageStats foreground reducer: current=${decision.foregroundPackage}, " +
+                "previous=${decision.previousForegroundPackage}, pending=${decision.pendingExitPackage}, " +
+                "reason=${decision.reason}, latest=${latest?.packageName ?: "<none>"}, " +
+                "latestType=${latest?.type ?: "<none>"}, ageMs=${latest?.let { now - it.timeMs } ?: -1}"
         )
     }
 
@@ -1210,6 +1356,7 @@ class SeenotAccessibilityService : AccessibilityService() {
         try {
             super.onDestroy()
             serviceScope.cancel()
+            mainHandler.removeCallbacks(usageStatsPollRunnable)
             cancelTrailingContentChanged()
             cancelPendingIntentReminder()
             unregisterDeviceStateReceiver()
@@ -1217,6 +1364,7 @@ class SeenotAccessibilityService : AccessibilityService() {
             dismissAllOverlays()
             instance = null
             _isServiceReady.value = false
+            _isUsageStatsAccessEnabled.value = false
             Logger.d(TAG, "AccessibilityService destroyed")
         } catch (e: Exception) {
             Logger.e(TAG, "Error in onDestroy", e)
@@ -1226,10 +1374,12 @@ class SeenotAccessibilityService : AccessibilityService() {
     override fun onUnbind(intent: Intent?): Boolean {
         try {
             unregisterDeviceStateReceiver()
+            mainHandler.removeCallbacks(usageStatsPollRunnable)
             cancelTrailingContentChanged()
             cancelPendingIntentReminder()
             instance = null
             _isServiceReady.value = false
+            _isUsageStatsAccessEnabled.value = false
             return super.onUnbind(intent)
         } catch (e: Exception) {
             Logger.e(TAG, "Error in onUnbind", e)
