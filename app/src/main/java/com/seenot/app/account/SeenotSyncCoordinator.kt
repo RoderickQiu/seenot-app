@@ -40,12 +40,14 @@ class SeenotSyncCoordinator(
             SeenotAccountSession.init(appContext)
             Logger.i(
                 TAG,
-                "Starting sync: pending=${syncStore.pendingOps().size}, latestSequence=${syncStore.lastServerSequence}"
+                "Starting sync: pending=${syncStore.pendingOps().size}, latestSequence=${syncStore.lastServerSequence}, " +
+                    "bootstrapped=${syncStore.bootstrapCompleted}"
             )
+            val bootstrap = bootstrapSnapshotIfNeeded()
             val pull = pullChanges()
             val push = pushPendingOps()
             val summary = SyncRunSummary(
-                downloaded = pull.downloaded,
+                downloaded = bootstrap.downloaded + pull.downloaded,
                 uploaded = push.uploaded,
                 pending = syncStore.pendingOps().size,
                 latestSequence = syncStore.lastServerSequence
@@ -91,12 +93,16 @@ class SeenotSyncCoordinator(
         do {
             Logger.i(TAG, "Pulling remote changes: since=${syncStore.lastServerSequence}")
             val response = accountApi.readSyncChanges(since = syncStore.lastServerSequence)
-            val summary = syncEngine.applyRemoteChanges(response.changes)
+            Logger.i(
+                TAG,
+                "Remote change page: count=${response.changes.size}, latestSequence=${response.latestSequence}, " +
+                    "hasMore=${response.hasMore}, changes=${response.changes.joinToString(limit = 240) { change ->
+                        "${change.serverSequence}:${change.entityType}:${change.entityId}:${change.operation.wireValue}:deleted=${change.deletedAt != null}"
+                    }}"
+            )
+            val summary = syncEngine.applyRemoteChanges(response.changes, cursorSequence = response.latestSequence)
             response.changes.forEach(sessionManager::applySyncChange)
             totalDownloaded += summary.downloaded
-            if (response.latestSequence > syncStore.lastServerSequence) {
-                syncStore.lastServerSequence = response.latestSequence
-            }
             Logger.i(
                 TAG,
                 "Pulled remote changes: downloaded=${summary.downloaded}, latestSequence=${response.latestSequence}, hasMore=${response.hasMore}"
@@ -107,6 +113,27 @@ class SeenotSyncCoordinator(
             pending = syncStore.pendingOps().size,
             latestSequence = syncStore.lastServerSequence
         )
+    }
+
+    private suspend fun bootstrapSnapshotIfNeeded(): SyncRunSummary {
+        if (syncStore.bootstrapCompleted) {
+            Logger.i(TAG, "Skipping snapshot bootstrap: already completed")
+            return SyncRunSummary(pending = syncStore.pendingOps().size, latestSequence = syncStore.lastServerSequence)
+        }
+        Logger.i(TAG, "Snapshot bootstrap started")
+        val snapshot = accountApi.readSyncEntities(includeDeleted = false)
+        Logger.i(
+            TAG,
+            "Snapshot bootstrap page: entities=${snapshot.entities.size}, snapshotSequence=${snapshot.snapshotSequence}, " +
+                "counts=${snapshot.entities.groupingBy { it.entityType }.eachCount()}"
+        )
+        val summary = syncEngine.applyEntitySnapshot(snapshot)
+        snapshot.entities.forEach(sessionManager::applySyncEntitySnapshot)
+        Logger.i(
+            TAG,
+            "Snapshot bootstrap applied: downloaded=${summary.downloaded}, latestSequence=${syncStore.lastServerSequence}"
+        )
+        return summary
     }
 
     private suspend fun pushPendingOps(): SyncRunSummary {

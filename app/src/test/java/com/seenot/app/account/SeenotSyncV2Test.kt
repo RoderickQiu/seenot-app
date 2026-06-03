@@ -35,6 +35,96 @@ class SeenotSyncV2Test {
     }
 
     @Test
+    fun pagedPullUsesResponseCursorInsteadOfHighestChangeSequence() {
+        val result = SeenotSyncEngine(store).applyRemoteChanges(
+            changes = listOf(
+                SyncChange(
+                    serverSequence = 208,
+                    changeId = "change-208",
+                    entityType = SyncEntityType.GLOBAL_PREF.value,
+                    entityId = "global",
+                    operation = SyncOperation.UPSERT,
+                    revision = 1,
+                    payload = mapOf("show_home_timeline" to false),
+                    deviceId = "device-a",
+                    createdAt = "2026-05-25T00:00:00Z"
+                )
+            ),
+            cursorSequence = 200
+        )
+
+        assertEquals(1, result.downloaded)
+        assertEquals(200, store.lastServerSequence)
+        assertEquals(1, store.getEntityState(SyncEntityType.GLOBAL_PREF.value, "global")?.revision)
+    }
+
+    @Test
+    fun snapshotBootstrapUsesSnapshotSequenceAndDoesNotCreatePendingOps() {
+        store.enqueueOp(
+            entityType = SyncEntityType.GLOBAL_PREF.value,
+            entityId = "global",
+            operation = SyncOperation.UPSERT,
+            baseRevision = 0,
+            payload = mapOf("show_home_timeline" to true)
+        )
+
+        val result = SeenotSyncEngine(store).applyEntitySnapshot(
+            SyncEntitySnapshotResponse(
+                entities = listOf(
+                    SyncEntityState(
+                        entityType = SyncEntityType.GLOBAL_PREF.value,
+                        entityId = "global",
+                        revision = 3,
+                        payload = mapOf("show_home_timeline" to false),
+                        updatedAt = "2026-05-25T00:00:00Z",
+                        updatedByDeviceId = "device-a"
+                    )
+                ),
+                snapshotSequence = 42
+            )
+        )
+
+        assertEquals(1, result.downloaded)
+        assertEquals(42, store.lastServerSequence)
+        assertTrue(store.pendingOps().isEmpty())
+        assertEquals(3, store.getEntityState(SyncEntityType.GLOBAL_PREF.value, "global")?.revision)
+    }
+
+    @Test
+    fun activeSnapshotClearsLocalTombstonesMissingFromFreshSnapshot() {
+        store.upsertEntityState(
+            SyncEntityState(
+                entityType = SyncEntityType.MONITORED_APP.value,
+                entityId = "com.old",
+                revision = 2,
+                payload = null,
+                updatedAt = "2026-05-25T00:00:00Z",
+                updatedByDeviceId = "device-a",
+                deletedAt = "2026-05-25T00:01:00Z"
+            )
+        )
+
+        SeenotSyncEngine(store).applyEntitySnapshot(
+            SyncEntitySnapshotResponse(
+                entities = listOf(
+                    SyncEntityState(
+                        entityType = SyncEntityType.MONITORED_APP.value,
+                        entityId = "com.current",
+                        revision = 1,
+                        payload = mapOf("package_name" to "com.current"),
+                        updatedAt = "2026-05-25T00:02:00Z",
+                        updatedByDeviceId = "device-b"
+                    )
+                ),
+                snapshotSequence = 10
+            )
+        )
+
+        assertNull(store.getEntityState(SyncEntityType.MONITORED_APP.value, "com.old"))
+        assertEquals(1, store.getEntityState(SyncEntityType.MONITORED_APP.value, "com.current")?.revision)
+    }
+
+    @Test
     fun localDeleteQueuesTombstoneOpWithBaseRevision() {
         store.upsertEntityState(
             SyncEntityState(
@@ -129,6 +219,44 @@ class SeenotSyncV2Test {
         assertEquals(1, result.uploaded)
         assertTrue(store.pendingOps().isEmpty())
         assertEquals(3, store.getEntityState(op.entityType, op.entityId)?.revision)
+    }
+
+    @Test
+    fun conflictPushResultUpdatesBaselineAndRemovesPendingOp() {
+        val op = store.enqueueOp(
+            entityType = SyncEntityType.MONITORED_APP.value,
+            entityId = "com.video",
+            operation = SyncOperation.UPSERT,
+            baseRevision = 1,
+            payload = mapOf("package_name" to "com.video")
+        )
+
+        val result = SeenotSyncEngine(store).applyPushResults(
+            listOf(
+                SyncOpResult(
+                    opId = op.opId,
+                    status = SyncOpStatus.CONFLICT,
+                    entityType = op.entityType,
+                    entityId = op.entityId,
+                    revision = 2,
+                    entity = SyncEntityState(
+                        entityType = op.entityType,
+                        entityId = op.entityId,
+                        revision = 2,
+                        payload = null,
+                        updatedAt = "2026-05-25T00:00:00Z",
+                        updatedByDeviceId = "device-a",
+                        deletedAt = "2026-05-25T00:01:00Z"
+                    ),
+                    conflictReason = "tombstone_stale_base_revision"
+                )
+            )
+        )
+
+        assertEquals(0, result.uploaded)
+        assertTrue(store.pendingOps().isEmpty())
+        assertEquals(2, store.getEntityState(op.entityType, op.entityId)?.revision)
+        assertEquals("2026-05-25T00:01:00Z", store.getEntityState(op.entityType, op.entityId)?.deletedAt)
     }
 
     @Test

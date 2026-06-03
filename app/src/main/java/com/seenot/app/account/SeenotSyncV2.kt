@@ -18,7 +18,10 @@ enum class SyncOperation(val wireValue: String) {
 
 enum class SyncOpStatus(val wireValue: String) {
     @SerializedName("applied")
-    APPLIED("applied")
+    APPLIED("applied"),
+
+    @SerializedName("conflict")
+    CONFLICT("conflict")
 }
 
 enum class SyncEntityType(val value: String) {
@@ -60,7 +63,8 @@ data class SyncChangesResponse(
 )
 
 data class SyncEntitySnapshotResponse(
-    val entities: List<SyncEntityState> = emptyList()
+    val entities: List<SyncEntityState> = emptyList(),
+    @SerializedName("snapshot_sequence") val snapshotSequence: Long = 0L
 )
 
 data class SyncOpRequest(
@@ -84,7 +88,8 @@ data class SyncOpResult(
     @SerializedName("entity_id") val entityId: String,
     @SerializedName("server_sequence") val serverSequence: Long? = null,
     val revision: Int? = null,
-    val entity: SyncEntityState? = null
+    val entity: SyncEntityState? = null,
+    @SerializedName("conflict_reason") val conflictReason: String? = null
 )
 
 data class SyncOpsResponse(
@@ -114,10 +119,13 @@ data class SyncRunSummary(
 
 interface SyncStore {
     var lastServerSequence: Long
+    var bootstrapCompleted: Boolean
     fun getEntityState(entityType: String, entityId: String): SyncEntityState?
     fun upsertEntityState(state: SyncEntityState)
     fun removeEntityState(entityType: String, entityId: String)
+    fun replaceEntityStates(states: List<SyncEntityState>)
     fun pendingOps(): List<SyncOpRequest>
+    fun clearPendingOps()
     fun enqueueOp(
         entityType: String,
         entityId: String,
@@ -143,10 +151,11 @@ class SeenotSyncEngine(private val store: SyncStore) {
         return store.enqueueOp(entityType, entityId, SyncOperation.DELETE, baseRevision, null)
     }
 
-    fun applyRemoteChanges(changes: List<SyncChange>): SyncRunSummary {
+    fun applyRemoteChanges(changes: List<SyncChange>, cursorSequence: Long? = null): SyncRunSummary {
         var downloaded = 0
+        var highestChangeSequence = store.lastServerSequence
         changes.sortedBy { it.serverSequence }.forEach { change ->
-            store.lastServerSequence = maxOf(store.lastServerSequence, change.serverSequence)
+            highestChangeSequence = maxOf(highestChangeSequence, change.serverSequence)
             store.upsertEntityState(
                 SyncEntityState(
                     entityType = change.entityType,
@@ -160,8 +169,21 @@ class SeenotSyncEngine(private val store: SyncStore) {
             )
             downloaded++
         }
+        store.lastServerSequence = maxOf(store.lastServerSequence, cursorSequence ?: highestChangeSequence)
         return SyncRunSummary(
             downloaded = downloaded,
+            pending = store.pendingOps().size,
+            latestSequence = store.lastServerSequence
+        )
+    }
+
+    fun applyEntitySnapshot(snapshot: SyncEntitySnapshotResponse): SyncRunSummary {
+        store.replaceEntityStates(snapshot.entities.filter { it.deletedAt == null })
+        store.lastServerSequence = maxOf(store.lastServerSequence, snapshot.snapshotSequence)
+        store.clearPendingOps()
+        store.bootstrapCompleted = true
+        return SyncRunSummary(
+            downloaded = snapshot.entities.count { it.deletedAt == null },
             pending = store.pendingOps().size,
             latestSequence = store.lastServerSequence
         )
@@ -173,7 +195,9 @@ class SeenotSyncEngine(private val store: SyncStore) {
             result.entity?.let(store::upsertEntityState)
             result.serverSequence?.let { store.lastServerSequence = maxOf(store.lastServerSequence, it) }
             store.removePendingOp(result.opId)
-            uploaded++
+            if (result.status == SyncOpStatus.APPLIED) {
+                uploaded++
+            }
         }
         return SyncRunSummary(
             uploaded = uploaded,
@@ -185,6 +209,7 @@ class SeenotSyncEngine(private val store: SyncStore) {
 
 class InMemorySyncStore : SyncStore {
     override var lastServerSequence: Long = 0L
+    override var bootstrapCompleted: Boolean = false
     private val states = linkedMapOf<Pair<String, String>, SyncEntityState>()
     private val pending = linkedMapOf<String, SyncOpRequest>()
 
@@ -198,7 +223,16 @@ class InMemorySyncStore : SyncStore {
         states.remove(entityType to entityId)
     }
 
+    override fun replaceEntityStates(states: List<SyncEntityState>) {
+        this.states.clear()
+        states.forEach { state -> this.states[state.entityType to state.entityId] = state }
+    }
+
     override fun pendingOps(): List<SyncOpRequest> = pending.values.toList()
+
+    override fun clearPendingOps() {
+        pending.clear()
+    }
 
     override fun enqueueOp(
         entityType: String,
@@ -238,6 +272,12 @@ class SharedPrefsSyncStore(
             prefs.edit().putLong(KEY_LAST_SERVER_SEQUENCE, value.coerceAtLeast(0L)).apply()
         }
 
+    override var bootstrapCompleted: Boolean
+        get() = prefs.getBoolean(KEY_BOOTSTRAP_COMPLETED, false)
+        set(value) {
+            prefs.edit().putBoolean(KEY_BOOTSTRAP_COMPLETED, value).apply()
+        }
+
     override fun getEntityState(entityType: String, entityId: String): SyncEntityState? {
         return entityStates()[entityKey(entityType, entityId)]
     }
@@ -254,7 +294,15 @@ class SharedPrefsSyncStore(
         saveEntityStates(states)
     }
 
+    override fun replaceEntityStates(states: List<SyncEntityState>) {
+        saveEntityStates(states.associateBy { entityKey(it.entityType, it.entityId) })
+    }
+
     override fun pendingOps(): List<SyncOpRequest> = pendingOpsMap().values.toList()
+
+    override fun clearPendingOps() {
+        savePendingOps(emptyMap())
+    }
 
     override fun enqueueOp(
         entityType: String,
@@ -310,6 +358,7 @@ class SharedPrefsSyncStore(
     companion object {
         private const val PREFS_NAME = "seenot_sync_v2"
         private const val KEY_LAST_SERVER_SEQUENCE = "last_server_sequence"
+        private const val KEY_BOOTSTRAP_COMPLETED = "bootstrap_completed"
         private const val KEY_ENTITY_STATES = "entity_states"
         private const val KEY_PENDING_OPS = "pending_ops"
         private val entityStateMapType = object : TypeToken<Map<String, SyncEntityState>>() {}.type

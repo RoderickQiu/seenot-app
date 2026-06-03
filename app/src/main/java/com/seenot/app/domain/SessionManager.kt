@@ -15,6 +15,7 @@ import com.seenot.app.account.SeenotAccountSession
 import com.seenot.app.account.SeenotSyncScheduler
 import com.seenot.app.account.SeenotSyncCoordinator
 import com.seenot.app.account.SyncChange
+import com.seenot.app.account.SyncEntityState
 import com.seenot.app.account.SyncEntityType
 import com.seenot.app.account.SyncOperation
 import com.seenot.app.ai.parser.EffectiveIntentMigrator
@@ -23,6 +24,7 @@ import com.seenot.app.config.ApiConfig
 import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.config.InterventionDialogPrefs
 import com.seenot.app.config.InterventionLevelPrefs
+import com.seenot.app.config.IntentReminderPrefs
 import com.seenot.app.config.NoMonitorReminderPrefs
 import com.seenot.app.config.RuleRecordingPrefs
 import com.seenot.app.data.local.SeenotDatabase
@@ -2723,12 +2725,24 @@ class SessionManager(
     }
 
     fun applySyncChange(change: SyncChange) {
+        Logger.d(
+            TAG,
+            "Applying sync change: seq=${change.serverSequence}, type=${change.entityType}, " +
+                "id=${change.entityId}, op=${change.operation.wireValue}, deleted=${change.deletedAt != null}"
+        )
         applyingSyncChange = true
         try {
             when (change.entityType) {
                 SyncEntityType.GLOBAL_PREF.value -> {
                     if (change.operation == SyncOperation.UPSERT) {
                         applySyncGlobalPreferences(change.payload.orEmpty())
+                        Logger.d(
+                            TAG,
+                            "Applied global prefs sync: autoStart=${isAutoStartEnabled()}, " +
+                                "homeTimeline=${RuleRecordingPrefs.isHomeTimelineEnabled(context)}, " +
+                                "analysisToast=${RuleRecordingPrefs.isAnalysisResultToastEnabled(context)}, " +
+                                "fixedLevel=${InterventionLevelPrefs.isFixedLevelEnabled(context)}"
+                        )
                     }
                 }
                 SyncEntityType.MONITORED_APP.value -> applyMonitoredAppSyncChange(change)
@@ -2749,6 +2763,23 @@ class SessionManager(
         }
     }
 
+    fun applySyncEntitySnapshot(entity: SyncEntityState) {
+        applySyncChange(
+            SyncChange(
+                serverSequence = 0,
+                changeId = "snapshot:${entity.entityType}:${entity.entityId}",
+                entityType = entity.entityType,
+                entityId = entity.entityId,
+                operation = if (entity.deletedAt != null) SyncOperation.DELETE else SyncOperation.UPSERT,
+                revision = entity.revision,
+                payload = entity.payload,
+                deletedAt = entity.deletedAt,
+                deviceId = entity.updatedByDeviceId,
+                createdAt = entity.updatedAt
+            )
+        )
+    }
+
     private fun applyMonitoredAppSyncChange(change: SyncChange) {
         val packageName = change.entityId
         if (packageName.isBlank()) return
@@ -2756,11 +2787,13 @@ class SessionManager(
             val newApps = _controlledApps.value - packageName
             _controlledApps.value = newApps
             saveControlledApps(newApps)
+            Logger.d(TAG, "Applied monitored app delete from sync: package=$packageName, controlledApps=$newApps")
             return
         }
         val newApps = _controlledApps.value + packageName
         _controlledApps.value = newApps
         saveControlledApps(newApps)
+        Logger.d(TAG, "Applied monitored app upsert from sync: package=$packageName, controlledApps=$newApps")
         val payload = change.payload.orEmpty()
         (payload["entry_mode"] as? String)
             ?.let { runCatching { AppEntryIntentMode.valueOf(it) }.getOrNull() }
@@ -2787,6 +2820,10 @@ class SessionManager(
         booleanPreference(preferences["show_home_timeline"])?.let { RuleRecordingPrefs.setHomeTimelineEnabled(context, it) }
         booleanPreference(preferences["hide_compact_hud_text"])?.let { RuleRecordingPrefs.setCompactHudTextHidden(context, it) }
         booleanPreference(preferences["analysis_result_toast"])?.let { RuleRecordingPrefs.setAnalysisResultToastEnabled(context, it) }
+        booleanPreference(preferences["intent_reminder_enabled"])?.let { IntentReminderPrefs.setEnabled(context, it) }
+        longPreference(preferences["intent_reminder_delay_ms"])?.let { IntentReminderPrefs.setDelayMs(context, it) }
+        booleanPreference(preferences["no_monitor_reminder_enabled"])?.let { NoMonitorReminderPrefs.setEnabled(context, it) }
+        stringPreference(preferences["app_language"])?.let { AppLocalePrefs.setLanguage(context, it) }
         booleanPreference(preferences["fixed_intervention_level_enabled"])?.let { InterventionLevelPrefs.setFixedLevelEnabled(context, it) }
         stringPreference(preferences["fixed_intervention_level"])?.let { raw ->
             runCatching { InterventionLevel.valueOf(raw) }
@@ -2808,6 +2845,14 @@ class SessionManager(
 
     private fun stringPreference(value: Any?): String? {
         return value as? String
+    }
+
+    private fun longPreference(value: Any?): Long? {
+        return when (value) {
+            is Number -> value.toLong()
+            is String -> value.toLongOrNull()
+            else -> null
+        }
     }
 
     private fun enqueueMonitoredAppUpsert(packageName: String) {
@@ -2854,6 +2899,10 @@ class SessionManager(
             "show_home_timeline" to RuleRecordingPrefs.isHomeTimelineEnabled(context),
             "hide_compact_hud_text" to RuleRecordingPrefs.isCompactHudTextHidden(context),
             "analysis_result_toast" to RuleRecordingPrefs.isAnalysisResultToastEnabled(context),
+            "intent_reminder_enabled" to IntentReminderPrefs.isEnabled(context),
+            "intent_reminder_delay_ms" to IntentReminderPrefs.getDelayMs(context),
+            "no_monitor_reminder_enabled" to NoMonitorReminderPrefs.isEnabled(context),
+            "app_language" to AppLocalePrefs.getLanguage(context),
             "fixed_intervention_level_enabled" to InterventionLevelPrefs.isFixedLevelEnabled(context),
             "fixed_intervention_level" to InterventionLevelPrefs.getFixedLevel(context).name,
             "non_gentle_allow_ignore_once" to InterventionDialogPrefs.isNonGentleAllowIgnoreOnceEnabled(context)
