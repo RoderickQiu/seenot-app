@@ -47,7 +47,8 @@ adb_target() {
     "$ADB_BIN" -s "$TARGET_SERIAL" "$@"
 }
 
-echo "📦 Building app only..."
+echo "📦 Building debug APK..."
+echo "   Debug builds reuse the release signing key when release signing is configured."
 ./gradlew :app:assembleDebug
 
 echo ""

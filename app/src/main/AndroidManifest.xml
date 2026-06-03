@@ -62,7 +62,7 @@
         <!-- AccessibilityService -->
         <service
             android:name=".service.SeenotAccessibilityService"
-            android:exported="false"
+            android:exported="true"
             android:foregroundServiceType="specialUse"
             android:permission="android.permission.BIND_ACCESSIBILITY_SERVICE">
             <property

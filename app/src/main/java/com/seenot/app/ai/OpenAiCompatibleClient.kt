@@ -1,5 +1,6 @@
 package com.seenot.app.ai
 
+import android.content.Context
 import com.google.gson.JsonArray
 import com.google.gson.JsonElement
 import com.google.gson.JsonObject
@@ -15,12 +16,18 @@ import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
 import okhttp3.RequestBody.Companion.toRequestBody
+import java.io.IOException
+import java.net.ConnectException
+import java.net.SocketTimeoutException
+import java.net.UnknownHostException
 import java.util.concurrent.TimeUnit
 
 class OpenAiCompatibleClient(
-    private val settingsProvider: suspend () -> ApiSettings = { ApiConfig.getSettings() }
+    private val settingsProvider: suspend () -> ApiSettings = { ApiConfig.getSettings() },
+    private val appContext: Context? = null
 ) {
     constructor(context: android.content.Context) : this(
+        appContext = context.applicationContext,
         settingsProvider = {
             SeenotManagedAiCredentialProvider(context).getSettingsWithFreshManagedCredential()
         }
@@ -83,7 +90,7 @@ class OpenAiCompatibleClient(
     private suspend fun executeWithManagedCredentialRetry(settings: ApiSettings, body: JsonObject): String {
         return try {
             execute(settings, body)
-        } catch (error: ModelAuthException) {
+        } catch (error: AiRequestFailure.Auth) {
             if (ApiConfig.getAiSource() != com.seenot.app.config.AiSource.SEENOT_AI) {
                 throw error
             }
@@ -155,6 +162,9 @@ class OpenAiCompatibleClient(
         val apiKey = settings.apiKey.trim()
         require(baseUrl.isNotBlank()) { "Base URL not configured" }
         require(apiKey.isNotBlank()) { "API key not configured" }
+        if (appContext != null && !NetworkAvailability.isDeviceOnline(appContext)) {
+            throw AiRequestFailure.Offline()
+        }
 
         val request = Request.Builder()
             .url("$baseUrl/chat/completions")
@@ -163,20 +173,35 @@ class OpenAiCompatibleClient(
             .post(body.toString().toRequestBody(JSON_MEDIA_TYPE))
             .build()
 
-        httpClient.newCall(request).execute().use { response ->
-            val responseText = response.body?.string().orEmpty()
-            if (!response.isSuccessful) {
-                Logger.e(TAG, "HTTP ${response.code}: $responseText")
-                if (response.code == 401 || response.code == 403) {
-                    throw ModelAuthException(response.code)
+        try {
+            httpClient.newCall(request).execute().use { response ->
+                val responseText = response.body?.string().orEmpty()
+                if (!response.isSuccessful) {
+                    Logger.e(TAG, "HTTP ${response.code}: $responseText")
+                    when (response.code) {
+                        401, 403 -> throw AiRequestFailure.Auth(response.code)
+                        503 -> throw AiRequestFailure.ServiceUnavailable(response.code)
+                        else -> throw AiRequestFailure.RequestFailed(response.code)
+                    }
                 }
-                throw IllegalStateException("模型请求失败 (${response.code})")
+                return extractAssistantText(responseText)
             }
-            return extractAssistantText(responseText)
+        } catch (error: IOException) {
+            throw mapNetworkException(error)
         }
     }
 
-    private class ModelAuthException(val statusCode: Int) : IllegalStateException("模型请求失败 ($statusCode)")
+    private fun mapNetworkException(error: IOException): AiRequestFailure {
+        if (appContext != null && !NetworkAvailability.isDeviceOnline(appContext)) {
+            return AiRequestFailure.Offline(error)
+        }
+        return when (error) {
+            is UnknownHostException,
+            is ConnectException,
+            is SocketTimeoutException -> AiRequestFailure.Reachability(error)
+            else -> AiRequestFailure.RequestFailed(-1)
+        }
+    }
 
     private fun extractAssistantText(responseText: String): String {
         val root = JsonParser.parseString(responseText).asJsonObject

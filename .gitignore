@@ -74,3 +74,6 @@ ai-debugger/bin/
 .astro
 dist
 node_modules
+
+# agent-device
+artifacts/

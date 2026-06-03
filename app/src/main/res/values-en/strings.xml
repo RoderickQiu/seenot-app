@@ -326,8 +326,11 @@
     <string name="label_unknown_screen">Unknown screen</string>
     <string name="label_no_match">None</string>
     <string name="err_model_request_failed">Model request failed</string>
+    <string name="err_model_offline">No network right now. SeeNot cannot run AI checks until you are back online.</string>
+    <string name="err_model_network_unreachable">The network is currently unreachable. SeeNot cannot run AI checks right now.</string>
     <string name="err_model_service_unavailable">Model service temporarily unavailable</string>
     <string name="err_model_auth_failed">Model authentication failed. Please check API Key.</string>
+    <string name="hud_status_offline">Offline now, resumes when back online</string>
     <string name="toast_violation_format">⚠️ Violation: %s</string>
     <string name="toast_compliant_format">✅ Compliant: %s</string>
     <string name="toast_timing_format">⏱️ %s timing</string>

@@ -330,8 +330,11 @@
     <string name="label_unknown_screen">未知界面</string>
     <string name="label_no_match">无</string>
     <string name="err_model_request_failed">模型请求失败</string>
+    <string name="err_model_offline">当前无网络，SeeNot 暂时无法进行 AI 判断</string>
+    <string name="err_model_network_unreachable">当前网络不可达，SeeNot 暂时无法进行 AI 判断</string>
     <string name="err_model_service_unavailable">模型服务暂时不可用</string>
     <string name="err_model_auth_failed">模型鉴权失败，请检查 API Key</string>
+    <string name="hud_status_offline">当前离线，联网后恢复</string>
     <string name="toast_violation_format">⚠️ 违规: %s</string>
     <string name="toast_compliant_format">✅ 符合规则: %s</string>
     <string name="toast_timing_format">⏱️ %s 计时中</string>

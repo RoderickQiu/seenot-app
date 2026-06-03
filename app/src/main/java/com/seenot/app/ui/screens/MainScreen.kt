@@ -11,6 +11,8 @@ import android.os.PowerManager
 import android.provider.Settings
 import android.text.format.DateUtils
 import android.app.NotificationManager
+import android.accessibilityservice.AccessibilityServiceInfo
+import android.view.accessibility.AccessibilityManager
 import java.time.Instant
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
@@ -285,6 +287,7 @@ fun MainScreen(
     DisposableEffect(lifecycleOwner, context) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
+                isAccessibilityEnabled = isSeenotAccessibilityEnabled(context) || SeenotAccessibilityService.isServiceReady.value
                 isMediaSessionAccessEnabled = MediaSessionProbe.hasNotificationListenerAccess(context)
                 isUsageStatsAccessEnabled = ForegroundUsageStatsReader(context).hasPermission()
                 if (SeenotVersionCheckPrefs.isAutomaticCheckDue(context)) {
@@ -300,9 +303,9 @@ fun MainScreen(
 
     // Check permission status
     LaunchedEffect(Unit) {
-        isAccessibilityEnabled = SeenotAccessibilityService.isServiceReady.value
+        isAccessibilityEnabled = isSeenotAccessibilityEnabled(context) || SeenotAccessibilityService.isServiceReady.value
         SeenotAccessibilityService.isServiceReady.collectLatest {
-            isAccessibilityEnabled = it
+            isAccessibilityEnabled = it || isSeenotAccessibilityEnabled(context)
         }
     }
 
@@ -670,6 +673,30 @@ fun MainScreen(
                 }
             }
         )
+    }
+}
+
+private fun isSeenotAccessibilityEnabled(context: Context): Boolean {
+    val expectedServiceId = "${context.packageName}/com.seenot.app.service.SeenotAccessibilityService"
+    val accessibilityManager = context.getSystemService(Context.ACCESSIBILITY_SERVICE) as? AccessibilityManager
+    val enabledServiceIds = accessibilityManager
+        ?.getEnabledAccessibilityServiceList(AccessibilityServiceInfo.FEEDBACK_ALL_MASK)
+        ?.mapNotNull { it.resolveInfo?.serviceInfo }
+        ?.map { "${it.packageName}/${it.name}" }
+        .orEmpty()
+
+    if (enabledServiceIds.any { it == expectedServiceId }) {
+        return true
+    }
+
+    val secureSetting = Settings.Secure.getString(
+        context.contentResolver,
+        Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+    ).orEmpty()
+
+    return secureSetting.split(':').any { candidate ->
+        candidate.equals(expectedServiceId, ignoreCase = true) ||
+            candidate.equals(expectedServiceId.substringAfter('/'), ignoreCase = true)
     }
 }
 

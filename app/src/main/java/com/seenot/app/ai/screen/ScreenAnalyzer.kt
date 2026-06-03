@@ -14,6 +14,7 @@ import android.os.PowerManager
 import android.hardware.display.DisplayManager
 import android.view.Display
 import com.seenot.app.R
+import com.seenot.app.ai.AiRequestFailure
 import com.seenot.app.utils.Logger
 import com.seenot.app.ui.overlay.FalsePositiveRuleReviewOverlay
 import com.seenot.app.ui.overlay.FloatingIndicatorOverlay
@@ -113,6 +114,7 @@ class ScreenAnalyzer(
     private var lastViolationState: Map<String, Boolean> = emptyMap() // constraintId -> wasViolation
     private var lastAiErrorToastAt = 0L
     private var lastAiErrorToastMessage: String? = null
+    private var offlineSilenced = false
 
     // Analysis job
     private var analysisJob: Job? = null
@@ -308,6 +310,7 @@ class ScreenAnalyzer(
         lastQuickHash = null
         lastViolationState = emptyMap()
         consecutiveViolations = 0
+        offlineSilenced = false
     }
 
     private fun getBlockingOverlayName(): String? {
@@ -1006,6 +1009,8 @@ class ScreenAnalyzer(
                 temperature = 0.3,
                 maxTokens = 1000
             )
+            offlineSilenced = false
+            FloatingIndicatorOverlay.setAiAvailability(isOffline = false)
             val callDuration = System.currentTimeMillis() - callStart
 
             Logger.d(TAG, "[AI] Model call completed, duration: ${callDuration}ms")
@@ -1018,27 +1023,51 @@ class ScreenAnalyzer(
         } catch (e: CancellationException) {
             Logger.d(TAG, "[AI] Analysis cancelled: ${e.message}")
             ParsedAiAnalysis()
+        } catch (e: AiRequestFailure) {
+            Logger.e(TAG, "[AI] Structured AI request failure: ${e.message}", e)
+            showAiErrorToast(e)
+            ParsedAiAnalysis()
         } catch (e: IllegalStateException) {
             Logger.e(TAG, "[AI] Config/API error: ${e.message}", e)
-            showAiErrorToast(e.message)
+            showAiErrorToast(e)
             ParsedAiAnalysis()
         } catch (e: Exception) {
             Logger.e(TAG, "[AI] Analysis failed: ${e.message}", e)
-            showAiErrorToast(e.message)
+            showAiErrorToast(e)
             ParsedAiAnalysis()
         }
     }
 
-    private fun showAiErrorToast(errorMessage: String?) {
+    private fun showAiErrorToast(error: Throwable?) {
+        val errorMessage = error?.message
         if (errorMessage?.contains("cancelled", ignoreCase = true) == true) {
             return
         }
 
         val message = when {
+            error is AiRequestFailure.Offline -> context.getString(R.string.err_model_offline)
+            error is AiRequestFailure.Reachability -> context.getString(R.string.err_model_network_unreachable)
+            error is AiRequestFailure.ServiceUnavailable -> context.getString(R.string.err_model_service_unavailable)
+            error is AiRequestFailure.Auth -> context.getString(R.string.err_model_auth_failed)
+            error is AiRequestFailure.RequestFailed && error.statusCode > 0 -> {
+                context.getString(R.string.err_model_request_failed)
+            }
             errorMessage.isNullOrBlank() -> context.getString(R.string.err_model_request_failed)
-            errorMessage.contains("503") -> context.getString(R.string.err_model_service_unavailable)
-            errorMessage.contains("401") || errorMessage.contains("403") -> context.getString(R.string.err_model_auth_failed)
             else -> context.getString(R.string.err_model_request_failed)
+        }
+
+        if (error is AiRequestFailure.Offline) {
+            if (offlineSilenced) {
+                FloatingIndicatorOverlay.setAiAvailability(isOffline = true)
+                return
+            }
+            offlineSilenced = true
+            FloatingIndicatorOverlay.setAiAvailability(isOffline = true)
+        } else if (error is AiRequestFailure.Reachability) {
+            FloatingIndicatorOverlay.setAiAvailability(isOffline = true)
+        } else {
+            offlineSilenced = false
+            FloatingIndicatorOverlay.setAiAvailability(isOffline = false)
         }
 
         val now = System.currentTimeMillis()

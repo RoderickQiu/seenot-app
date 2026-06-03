@@ -51,7 +51,8 @@ class FloatingIndicatorOverlay(
         val displayedConstraints: List<SessionConstraint>? = null,
         val isViolating: Boolean = false,
         val isExpanded: Boolean = false,
-        val matchStates: Map<String, Boolean> = emptyMap()
+        val matchStates: Map<String, Boolean> = emptyMap(),
+        val isAiOffline: Boolean = false
     )
 
     private data class RuleTypeStatus(
@@ -91,6 +92,7 @@ class FloatingIndicatorOverlay(
     private val warningColor get() = if (isDarkMode) Color.parseColor("#FFE082") else Color.parseColor("#FFC107")
     private val riskColor get() = if (isDarkMode) Color.parseColor("#EF9A9A") else Color.parseColor("#F44336")
     private val mutedButtonColor get() = if (isDarkMode) Color.parseColor("#3F3F46") else Color.parseColor("#F3F4F6")
+    private val inactiveGrayColor get() = if (isDarkMode) Color.parseColor("#9AA4AF") else Color.parseColor("#7A8793")
 
     private val density = context.resources.displayMetrics.density
     private var scope = CoroutineScope(Dispatchers.Main + Job())
@@ -297,7 +299,13 @@ class FloatingIndicatorOverlay(
     private fun updateCompactVisuals() {
         if (state.isExpanded) return
         statusTextView?.text = buildCompactStatusText()
-        statusTextView?.setTextColor(if (state.isViolating) riskColor else subtleTextColor)
+        statusTextView?.setTextColor(
+            when {
+                state.isViolating -> riskColor
+                state.isAiOffline -> inactiveGrayColor
+                else -> subtleTextColor
+            }
+        )
         val dotColor = when {
             state.isViolating -> riskColor
             else -> getIndicatorColor()
@@ -661,7 +669,9 @@ class FloatingIndicatorOverlay(
     private fun buildCompactStatusText(): String {
         val constraints = currentConstraints()
         val isChineseUi = AppLocalePrefs.getLanguage(context) == AppLocalePrefs.LANG_ZH
-        return if (constraints.isEmpty()) {
+        return if (state.isAiOffline) {
+            context.getString(R.string.hud_status_offline)
+        } else if (constraints.isEmpty()) {
             context.getString(R.string.hud_tap_to_set_intent)
         } else {
             if (isChineseUi) {
@@ -856,7 +866,13 @@ class FloatingIndicatorOverlay(
     }
 
     private fun getIndicatorColor(): Int {
+        if (state.isAiOffline) {
+            return inactiveGrayColor
+        }
         val statuses = buildRuleTypeStatuses()
+        if (statuses.any { it.type == ConstraintType.NO_MONITOR }) {
+            return inactiveGrayColor
+        }
         if (statuses.any { it.type == ConstraintType.DENY && !it.isConditionMatched }) {
             return riskColor
         }
@@ -935,6 +951,8 @@ class FloatingIndicatorOverlay(
     companion object {
         @Volatile
         private var currentOverlay: FloatingIndicatorOverlay? = null
+        @Volatile
+        private var currentAiOffline: Boolean = false
 
         fun show(
             context: Context,
@@ -946,6 +964,7 @@ class FloatingIndicatorOverlay(
             dismiss()
             val localizedContext = AppLocalePrefs.createLocalizedContext(context)
             val overlay = FloatingIndicatorOverlay(localizedContext, appName, packageName, sessionManager, onTapToReopen)
+            overlay.state = overlay.state.copy(isAiOffline = currentAiOffline)
             overlay.show()
             currentOverlay = overlay
         }
@@ -961,6 +980,7 @@ class FloatingIndicatorOverlay(
             dismiss()
             val localizedContext = AppLocalePrefs.createLocalizedContext(context)
             val overlay = FloatingIndicatorOverlay(localizedContext, appName, packageName, sessionManager, onTapToReopen)
+            overlay.state = overlay.state.copy(isAiOffline = currentAiOffline)
             overlay.showWithConstraints(constraints)
             currentOverlay = overlay
         }
@@ -980,6 +1000,18 @@ class FloatingIndicatorOverlay(
 
         fun refreshCurrentOverlay() {
             currentOverlay?.render()
+        }
+
+        fun setAiAvailability(isOffline: Boolean) {
+            currentAiOffline = isOffline
+            currentOverlay?.let { overlay ->
+                overlay.state = overlay.state.copy(isAiOffline = isOffline)
+                if (overlay.state.isExpanded) {
+                    overlay.render()
+                } else {
+                    overlay.updateCompactVisuals()
+                }
+            }
         }
     }
 }
