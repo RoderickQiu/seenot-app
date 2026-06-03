@@ -87,6 +87,8 @@ class SessionManager(
         private const val KEY_APP_ENTRY_INTENT_MODE_PREFIX = "app_entry_intent_mode_"
         private const val KEY_AUTO_START = "auto_start"
         private const val KEY_PAUSED_APP_MONITORING = "paused_app_monitoring"
+        private const val KEY_GLOBAL_MONITORING_PAUSE = "global_monitoring_pause"
+        private const val GLOBAL_MONITORING_PACKAGE_KEY = "__seenot_global__"
         private const val MAX_HISTORY_PER_APP = 10
 
         // Short vs long session pause threshold (ms)
@@ -96,6 +98,7 @@ class SessionManager(
 
         // SeeNot's own package - should be ignored in app detection
         const val SEENOT_PACKAGE_NAME = "com.seenot.app"
+        const val GLOBAL_MONITORING_RESUME_KEY = GLOBAL_MONITORING_PACKAGE_KEY
 
         @Volatile
         private var INSTANCE: SessionManager? = null
@@ -147,6 +150,9 @@ class SessionManager(
     // Per-app monitoring pause state.
     private val _pausedMonitoringApps = MutableStateFlow(loadPausedMonitoringApps())
     val pausedMonitoringApps: StateFlow<Map<String, AppMonitoringPause>> = _pausedMonitoringApps.asStateFlow()
+
+    private val _globalMonitoringPause = MutableStateFlow(loadGlobalMonitoringPause())
+    val globalMonitoringPause: StateFlow<AppMonitoringPause?> = _globalMonitoringPause.asStateFlow()
 
     // Session events
     private val _sessionEvents = MutableSharedFlow<SessionEvent>()
@@ -2164,6 +2170,24 @@ class SessionManager(
         Logger.d(TAG, "Saved paused monitoring apps: $payload")
     }
 
+    private fun loadGlobalMonitoringPause(): AppMonitoringPause? {
+        if (!prefs.contains(KEY_GLOBAL_MONITORING_PAUSE)) return null
+        val rawResumeAt = prefs.getLong(KEY_GLOBAL_MONITORING_PAUSE, Long.MIN_VALUE)
+        val resumeAt = rawResumeAt.takeIf { it > 0L }
+        return AppMonitoringPause(packageName = GLOBAL_MONITORING_PACKAGE_KEY, resumeAt = resumeAt)
+    }
+
+    private fun saveGlobalMonitoringPause(pause: AppMonitoringPause?) {
+        val editor = prefs.edit()
+        if (pause == null) {
+            editor.remove(KEY_GLOBAL_MONITORING_PAUSE)
+        } else {
+            editor.putLong(KEY_GLOBAL_MONITORING_PAUSE, pause.resumeAt ?: 0L)
+        }
+        editor.apply()
+        Logger.d(TAG, "Saved global monitoring pause: ${pause?.resumeAt}")
+    }
+
     private fun buildResumeMonitoringIntent(packageName: String): PendingIntent {
         val intent = Intent(context, AppMonitoringResumeReceiver::class.java).apply {
             action = AppMonitoringResumeReceiver.ACTION_RESUME_APP_MONITORING
@@ -2194,23 +2218,42 @@ class SessionManager(
         alarmManager.cancel(pendingIntent)
     }
 
+    private fun scheduleGlobalMonitoringResume(resumeAt: Long) {
+        scheduleAppMonitoringResume(GLOBAL_MONITORING_PACKAGE_KEY, resumeAt)
+    }
+
+    private fun cancelGlobalMonitoringResume() {
+        cancelAppMonitoringResume(GLOBAL_MONITORING_PACKAGE_KEY)
+    }
+
     fun refreshPausedMonitoringState(triggerSource: String = "external") {
         val now = System.currentTimeMillis()
         val current = loadPausedMonitoringApps()
         val active = current.filterValues { pause -> pause.resumeAt == null || pause.resumeAt > now }
         val expiredPackages = current.keys - active.keys
+        val globalPause = loadGlobalMonitoringPause()
+        val activeGlobalPause = globalPause?.takeIf { pause -> pause.resumeAt == null || pause.resumeAt > now }
 
         _pausedMonitoringApps.value = active
+        _globalMonitoringPause.value = activeGlobalPause
         if (expiredPackages.isNotEmpty() || current != active) {
             savePausedMonitoringApps(active)
+        }
+        if (globalPause != activeGlobalPause) {
+            saveGlobalMonitoringPause(activeGlobalPause)
         }
 
         active.values.forEach { pause ->
             pause.resumeAt?.let { scheduleAppMonitoringResume(pause.packageName, it) }
         }
+        activeGlobalPause?.resumeAt?.let { scheduleGlobalMonitoringResume(it) }
         expiredPackages.forEach { packageName ->
             cancelAppMonitoringResume(packageName)
             Logger.d(TAG, "Expired paused monitoring restored for $packageName via $triggerSource")
+        }
+        if (globalPause != null && activeGlobalPause == null) {
+            cancelGlobalMonitoringResume()
+            Logger.d(TAG, "Expired global monitoring pause restored via $triggerSource")
         }
     }
 
@@ -2234,6 +2277,40 @@ class SessionManager(
         }
         suspendedSessions.remove(packageName)
         Logger.d(TAG, "Paused monitoring for $packageName until=$resumeAt")
+    }
+
+    fun pauseGlobalMonitoring(durationMs: Long?) {
+        val resumeAt = durationMs?.let { System.currentTimeMillis() + it }
+        val pause = AppMonitoringPause(packageName = GLOBAL_MONITORING_PACKAGE_KEY, resumeAt = resumeAt)
+        _globalMonitoringPause.value = pause
+        saveGlobalMonitoringPause(pause)
+        if (resumeAt != null) {
+            scheduleGlobalMonitoringResume(resumeAt)
+        } else {
+            cancelGlobalMonitoringResume()
+        }
+
+        if (_activeSession.value != null) {
+            scope.launch {
+                endSession(SessionEndReason.USER_LEFT)
+            }
+        }
+        suspendedSessions.clear()
+        Logger.d(TAG, "Paused global monitoring until=$resumeAt")
+    }
+
+    fun resumeGlobalMonitoring(triggerSource: String = "manual") {
+        if (_globalMonitoringPause.value == null && loadGlobalMonitoringPause() == null) return
+        _globalMonitoringPause.value = null
+        saveGlobalMonitoringPause(null)
+        cancelGlobalMonitoringResume()
+
+        SeenotAccessibilityService.currentPackage.value
+            ?.takeIf { isAppMonitoringEnabled(it) }
+            ?.let { packageName ->
+                SeenotAccessibilityService.instance?.forceRestartOverlayForCurrentApp(packageName)
+            }
+        Logger.d(TAG, "Resumed global monitoring via $triggerSource")
     }
 
     fun resumeAppMonitoring(packageName: String, triggerSource: String = "manual") {
@@ -2265,9 +2342,22 @@ class SessionManager(
         return getAppMonitoringPause(packageName) != null
     }
 
+    fun isGlobalMonitoringPaused(): Boolean {
+        val pause = _globalMonitoringPause.value ?: return false
+        val resumeAt = pause.resumeAt ?: return true
+        return if (resumeAt > System.currentTimeMillis()) {
+            true
+        } else {
+            resumeGlobalMonitoring(triggerSource = "expired_on_read")
+            false
+        }
+    }
+
     fun isAppMonitoringEnabled(packageName: String?): Boolean {
         if (packageName.isNullOrBlank()) return false
-        return packageName in _controlledApps.value && !isAppMonitoringPaused(packageName)
+        return !isGlobalMonitoringPaused() &&
+            packageName in _controlledApps.value &&
+            !isAppMonitoringPaused(packageName)
     }
 
     /**

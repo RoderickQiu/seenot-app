@@ -21,6 +21,12 @@ class AppMonitoringResumeReceiver : BroadcastReceiver() {
             ?.takeIf { it.isNotBlank() }
             ?: return
 
+        if (packageName == SessionManager.GLOBAL_MONITORING_RESUME_KEY) {
+            Logger.d(TAG, "Received global monitoring resume alarm")
+            SessionManager.getInstance(appContext).resumeGlobalMonitoring(triggerSource = "alarm")
+            return
+        }
+
         Logger.d(TAG, "Received app monitoring resume alarm for $packageName")
         SessionManager.getInstance(appContext).resumeAppMonitoring(
             packageName = packageName,

@@ -26,6 +26,7 @@ import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.OpenInNew
@@ -41,6 +42,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
@@ -157,6 +159,7 @@ fun MainScreen(
     var showVoiceInput by remember { mutableStateOf(startWithVoiceInput) }
     var currentVoiceInputPackage by remember { mutableStateOf(voiceInputPackageName) }
     var controlledAppCount by remember { mutableIntStateOf(0) }
+    var globalMonitoringPause by remember { mutableStateOf<AppMonitoringPause?>(null) }
 
     // Rule records state
     var showRuleRecordsPage by remember { mutableStateOf(false) }
@@ -332,6 +335,13 @@ fun MainScreen(
         }
     }
 
+    LaunchedEffect(Unit) {
+        globalMonitoringPause = sessionManager.globalMonitoringPause.value
+        sessionManager.globalMonitoringPause.collectLatest {
+            globalMonitoringPause = it
+        }
+    }
+
     LaunchedEffect(accountRefreshKey) {
         isAccountRefreshInFlight = true
         accountState = SeenotAccountState.Loading
@@ -459,6 +469,7 @@ fun MainScreen(
                         isVoiceConfigured = isVoiceConfigured,
                         isHomeReady = isHomeReady,
                         controlledAppCount = controlledAppCount,
+                        globalMonitoringPause = globalMonitoringPause,
                         onEnableAccessibility = {
                             pendingPermissionGuide = PermissionGuideType.ACCESSIBILITY
                         },
@@ -509,6 +520,12 @@ fun MainScreen(
                             }
                         },
                         onOpenControlledApps = { selectedTab = 1 },
+                        onPauseGlobalMonitoring = { durationMs ->
+                            sessionManager.pauseGlobalMonitoring(durationMs)
+                        },
+                        onResumeGlobalMonitoring = {
+                            sessionManager.resumeGlobalMonitoring()
+                        },
                         accountState = accountState,
                         showHomeTimeline = showHomeTimeline,
                         modifier = Modifier.padding(padding)
@@ -716,6 +733,7 @@ fun HomeTab(
     isVoiceConfigured: Boolean,
     isHomeReady: Boolean,
     controlledAppCount: Int,
+    globalMonitoringPause: AppMonitoringPause?,
     onEnableAccessibility: () -> Unit,
     onEnableOverlay: () -> Unit,
     onRequestIgnoreBatteryOptimizations: () -> Unit,
@@ -727,12 +745,15 @@ fun HomeTab(
     onOpenAccount: () -> Unit,
     onUseSeenotAi: () -> Unit,
     onOpenControlledApps: () -> Unit,
+    onPauseGlobalMonitoring: (Long?) -> Unit,
+    onResumeGlobalMonitoring: () -> Unit,
     accountState: SeenotAccountState,
     showHomeTimeline: Boolean,
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
     var showCompletedConfigDetails by rememberSaveable { mutableStateOf(false) }
+    var showGlobalPauseDialog by rememberSaveable { mutableStateOf(false) }
     val permissionsReady = isAccessibilityEnabled && isOverlayEnabled && isNotificationEnabled && isBatteryOptimizationIgnored
     val hasControlledApps = controlledAppCount > 0
 
@@ -768,16 +789,6 @@ fun HomeTab(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Accessibility Permission
-            PermissionCard(
-                title = stringResource(R.string.permission_accessibility),
-                description = stringResource(R.string.permission_accessibility_desc),
-                isEnabled = isAccessibilityEnabled,
-                onClick = onEnableAccessibility
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
             // Overlay Permission
             PermissionCard(
                 title = stringResource(R.string.permission_overlay),
@@ -794,6 +805,15 @@ fun HomeTab(
                 description = stringResource(R.string.permission_notification_desc),
                 isEnabled = isNotificationEnabled,
                 onClick = onOpenNotificationSettings
+            )
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            PermissionCard(
+                title = stringResource(R.string.permission_accessibility),
+                description = stringResource(R.string.permission_accessibility_desc),
+                isEnabled = isAccessibilityEnabled,
+                onClick = onEnableAccessibility
             )
 
             Spacer(modifier = Modifier.height(8.dp))
@@ -952,6 +972,14 @@ fun HomeTab(
                     )
                 }
             }
+
+            Spacer(modifier = Modifier.height(12.dp))
+
+            GlobalMonitoringStatusCard(
+                pause = globalMonitoringPause,
+                onPauseClick = { showGlobalPauseDialog = true },
+                onResumeClick = onResumeGlobalMonitoring
+            )
         } else {
             Card(
                 colors = CardDefaults.cardColors(
@@ -1019,6 +1047,200 @@ fun HomeTab(
             // Today's timeline (derived from RuleRecord)
             HomeTimelineSection()
         }
+    }
+
+    if (showGlobalPauseDialog) {
+        PauseSeenotDialog(
+            onDismiss = { showGlobalPauseDialog = false },
+            onPauseForHalfHour = {
+                onPauseGlobalMonitoring(30L * 60L * 1000L)
+                showGlobalPauseDialog = false
+            },
+            onPauseForOneDay = {
+                onPauseGlobalMonitoring(24L * 60L * 60L * 1000L)
+                showGlobalPauseDialog = false
+            },
+            onPauseForCustomHours = { hours ->
+                onPauseGlobalMonitoring(hours * 60L * 60L * 1000L)
+                showGlobalPauseDialog = false
+            },
+            onPausePermanently = {
+                onPauseGlobalMonitoring(null)
+                showGlobalPauseDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun GlobalMonitoringStatusCard(
+    pause: AppMonitoringPause?,
+    onPauseClick: () -> Unit,
+    onResumeClick: () -> Unit
+) {
+    Card(
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
+        )
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = if (pause == null) Icons.Default.PlayCircle else Icons.Default.PauseCircle,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.width(12.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = if (pause == null) {
+                        stringResource(R.string.seenot_monitoring_running_title)
+                    } else {
+                        stringResource(R.string.seenot_monitoring_paused_title)
+                    },
+                    style = MaterialTheme.typography.bodyLarge,
+                    fontWeight = FontWeight.Medium
+                )
+                Text(
+                    text = if (pause == null) {
+                        stringResource(R.string.seenot_monitoring_running_desc)
+                    } else {
+                        formatGlobalMonitoringPauseStatus(LocalContext.current, pause)
+                    },
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            OutlinedButton(
+                onClick = if (pause == null) onPauseClick else onResumeClick
+            ) {
+                Text(
+                    text = if (pause == null) {
+                        stringResource(R.string.pause_seenot_monitoring)
+                    } else {
+                        stringResource(R.string.resume_seenot_monitoring)
+                    }
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun PauseSeenotDialog(
+    onDismiss: () -> Unit,
+    onPauseForHalfHour: () -> Unit,
+    onPauseForOneDay: () -> Unit,
+    onPauseForCustomHours: (Long) -> Unit,
+    onPausePermanently: () -> Unit
+) {
+    var showCustomHoursDialog by rememberSaveable { mutableStateOf(false) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.pause_seenot_monitoring_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.pause_seenot_monitoring_desc))
+                FilledTonalButton(
+                    onClick = onPauseForHalfHour,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.pause_for_half_hour))
+                }
+                FilledTonalButton(
+                    onClick = onPauseForOneDay,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.pause_for_one_day))
+                }
+                OutlinedButton(
+                    onClick = { showCustomHoursDialog = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.pause_custom_hours_entry))
+                }
+                OutlinedButton(
+                    onClick = onPausePermanently,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.pause_permanently))
+                }
+            }
+        },
+        confirmButton = {},
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+
+    if (showCustomHoursDialog) {
+        PauseCustomHoursDialog(
+            onDismiss = { showCustomHoursDialog = false },
+            onPauseForCustomHours = { hours ->
+                onPauseForCustomHours(hours)
+                showCustomHoursDialog = false
+            }
+        )
+    }
+}
+
+@Composable
+private fun PauseCustomHoursDialog(
+    onDismiss: () -> Unit,
+    onPauseForCustomHours: (Long) -> Unit
+) {
+    var customHours by rememberSaveable { mutableStateOf("") }
+    val parsedHours = customHours.toLongOrNull()
+    val isValid = parsedHours != null && parsedHours in 1L..720L
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = { Text(stringResource(R.string.pause_custom_hours_title)) },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                Text(stringResource(R.string.pause_custom_hours_desc))
+                OutlinedTextField(
+                    value = customHours,
+                    onValueChange = { input ->
+                        customHours = input.filter(Char::isDigit).take(3)
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    label = { Text(stringResource(R.string.pause_custom_hours_label)) },
+                    singleLine = true,
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    suffix = { Text(stringResource(R.string.pause_custom_hours_suffix)) }
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = { parsedHours?.let(onPauseForCustomHours) },
+                enabled = isValid
+            ) {
+                Text(stringResource(R.string.pause_custom_hours_action))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
+        }
+    )
+}
+
+private fun formatGlobalMonitoringPauseStatus(context: Context, pause: AppMonitoringPause): String {
+    return if (pause.resumeAt == null) {
+        context.getString(R.string.seenot_monitoring_paused_permanently)
+    } else {
+        context.getString(R.string.seenot_monitoring_paused_until, formatResumeTime(context, pause.resumeAt))
     }
 }
 
@@ -1543,6 +1765,10 @@ fun AppsTab(
             },
             onPauseForOneDay = {
                 sessionManager.pauseAppMonitoring(app.packageName, 24L * 60L * 60L * 1000L)
+                selectedAppForPause = null
+            },
+            onPauseForCustomHours = { hours ->
+                sessionManager.pauseAppMonitoring(app.packageName, hours * 60L * 60L * 1000L)
                 selectedAppForPause = null
             },
             onPausePermanently = {
@@ -3294,8 +3520,11 @@ private fun PauseMonitoringDialog(
     onDismiss: () -> Unit,
     onPauseForHalfHour: () -> Unit,
     onPauseForOneDay: () -> Unit,
+    onPauseForCustomHours: (Long) -> Unit,
     onPausePermanently: () -> Unit
 ) {
+    var showCustomHoursDialog by rememberSaveable { mutableStateOf(false) }
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(stringResource(R.string.pause_app_monitoring_title, app.name)) },
@@ -3315,6 +3544,12 @@ private fun PauseMonitoringDialog(
                     Text(stringResource(R.string.pause_for_one_day))
                 }
                 OutlinedButton(
+                    onClick = { showCustomHoursDialog = true },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(stringResource(R.string.pause_custom_hours_entry))
+                }
+                OutlinedButton(
                     onClick = onPausePermanently,
                     modifier = Modifier.fillMaxWidth()
                 ) {
@@ -3329,6 +3564,16 @@ private fun PauseMonitoringDialog(
             }
         }
     )
+
+    if (showCustomHoursDialog) {
+        PauseCustomHoursDialog(
+            onDismiss = { showCustomHoursDialog = false },
+            onPauseForCustomHours = { hours ->
+                onPauseForCustomHours(hours)
+                showCustomHoursDialog = false
+            }
+        )
+    }
 }
 
 private fun formatMonitoringPauseStatus(context: Context, pause: AppMonitoringPause): String {
@@ -3336,7 +3581,11 @@ private fun formatMonitoringPauseStatus(context: Context, pause: AppMonitoringPa
     if (resumeAt == null) {
         return context.getString(R.string.app_monitoring_paused_permanently)
     }
-    val formattedTime = DateUtils.formatDateTime(
+    return context.getString(R.string.app_monitoring_paused_until, formatResumeTime(context, resumeAt))
+}
+
+private fun formatResumeTime(context: Context, resumeAt: Long): String {
+    return DateUtils.formatDateTime(
         context,
         resumeAt,
         DateUtils.FORMAT_SHOW_DATE or
@@ -3344,7 +3593,6 @@ private fun formatMonitoringPauseStatus(context: Context, pause: AppMonitoringPa
             DateUtils.FORMAT_ABBREV_MONTH or
             DateUtils.FORMAT_ABBREV_RELATIVE
     )
-    return context.getString(R.string.app_monitoring_paused_until, formattedTime)
 }
 
 /**
