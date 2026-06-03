@@ -7,9 +7,11 @@
     <!-- Permissions -->
     <string name="accessibility_service_description">SeeNot uses accessibility services to monitor app usage and enforce your declared intentions.</string>
     <string name="permission_accessibility">无障碍服务</string>
-    <string name="permission_accessibility_desc">用于检测应用切换、截图和执行手势</string>
+    <string name="permission_accessibility_desc">识别受控应用和当前屏幕，判断你是否偏离目标。</string>
+    <string name="permission_accessibility_off">SeeNot 无法判断，也无法及时提醒。</string>
     <string name="permission_overlay">悬浮窗权限</string>
-    <string name="permission_overlay_desc">用于显示语音输入和会话状态悬浮窗</string>
+    <string name="permission_overlay_desc">显示意图输入、状态提示和提醒。</string>
+    <string name="permission_overlay_off">你可能看不到输入框和提醒。</string>
 
     <!-- Tabs -->
     <string name="tab_home">首页</string>
@@ -535,15 +537,22 @@
 
     <!-- HomeTab -->
     <string name="permission_notification">通知权限</string>
-    <string name="permission_notification_desc">用于显示提醒通知和前台服务，点此去开启</string>
+    <string name="permission_notification_desc">显示系统要求的运行通知，帮助 SeeNot 持续识别受控 App。</string>
+    <string name="permission_notification_off">不开时，SeeNot 更容易被系统停掉，进入受控 App 后可能无法继续识别。</string>
+    <string name="permission_notification_action">开启通知权限</string>
     <string name="permission_battery_optimization">后台无限制</string>
-    <string name="permission_battery_optimization_desc">用于请求忽略电池优化，降低系统省电策略杀死 SeeNot 的概率</string>
+    <string name="permission_battery_optimization_desc">减少系统省电策略中断 SeeNot。</string>
+    <string name="permission_battery_optimization_off">长时间后台后可能停止提醒或判断。</string>
+    <string name="permission_battery_optimization_action">设置后台无限制</string>
     <string name="permission_microphone">麦克风权限</string>
-    <string name="permission_microphone_desc">用于语音输入声明意图</string>
-    <string name="permission_usage_stats">前台识别增强</string>
-    <string name="permission_usage_stats_desc">在无障碍事件偶发缺失时，帮助 SeeNot 仍能识别你正在使用哪个应用</string>
-    <string name="permission_media_session">视频识别增强</string>
-    <string name="permission_media_session_desc">读取支持的软件正在播放的视频标题和播放状态，让视频判断更准确</string>
+    <string name="permission_microphone_desc">想用语音说目标时开启；不开也能用键盘输入。</string>
+    <string name="permission_microphone_action">开启麦克风权限</string>
+    <string name="permission_usage_stats">使用情况访问权限</string>
+    <string name="permission_usage_stats_desc">让 SeeNot 多一种方式确认当前前台 App；不开也能使用。</string>
+    <string name="permission_usage_stats_action">开启使用情况访问</string>
+    <string name="permission_media_session">通知读取权限</string>
+    <string name="permission_media_session_desc">让 SeeNot 读取播放器标题和播放状态，帮助判断视频内容；不开也能使用。</string>
+    <string name="permission_media_session_action">开启通知读取</string>
     <string name="permission_optional_badge">可选</string>
     <string name="permission_ready">已完成</string>
     <string name="permission_not_ready">未完成</string>
@@ -575,13 +584,31 @@
     <string name="seenot_ai_quota_exceeded">SeeNot AI 临时额度已用完，请稍后再试</string>
     <string name="ai_voice_optional_not_configured">语音输入暂未配置，仍可直接键盘输入</string>
     <string name="ai_voice_optional_configured">语音输入也已可用</string>
+    <string name="home_ready_title">SeeNot 已准备好</string>
+    <string name="first_setup_progress_title">首次设置进度</string>
+    <string name="first_setup_progress_count">已完成 %1$d/%2$d 步</string>
+    <string name="first_setup_ready_desc">基础权限、AI 和受控 App 已完成</string>
+    <string name="first_setup_ready_next">打开一个受控 App，说出本次目标，试一次提醒。</string>
+    <string name="first_setup_ready_action">查看受控 App</string>
+    <string name="permission_overlay_action">开启悬浮窗权限</string>
+    <string name="permission_accessibility_action">开启无障碍服务</string>
+    <string name="setup_step_ai_title">选择 AI 方案</string>
+    <string name="setup_step_ai_desc">新手推荐 SeeNot AI，也可使用自己的 API Key。</string>
+    <string name="setup_step_ai_action">使用 SeeNot AI</string>
+    <string name="setup_step_apps_title">添加第一个受控应用</string>
+    <string name="setup_step_apps_desc">先选一个最容易跑偏的 App。</string>
+    <string name="setup_step_apps_action">添加 App</string>
+    <string name="setup_optional_section">可选权限</string>
+    <string name="setup_optional_desc">这些不是开始使用的必需项；开启后，SeeNot 在部分场景下能拿到更多判断线索。</string>
+    <string name="setup_optional_next_action">开启下一项</string>
+    <string name="setup_required_section">必需步骤</string>
     <string name="controlled_apps_setup_title">受控应用</string>
     <string name="controlled_apps_setup_missing">尚未添加受控应用，点按去添加至少 1 个</string>
     <string name="controlled_apps_setup_ready">已添加 %1$d 个受控应用，点按查看或继续添加</string>
     <string name="basic_config_complete">已准备就绪，可以开始使用</string>
     <string name="one_step_left_add_app">还差最后一步：添加至少 1 个受控应用</string>
-    <string name="tap_to_collapse">点按收起权限与配置入口</string>
-    <string name="tap_to_expand">点按展开权限与配置入口</string>
+    <string name="tap_to_collapse">收起步骤和可选权限</string>
+    <string name="tap_to_expand">查看步骤和可选权限</string>
     <string name="please_complete_permissions_and_ai_config">请先完成必要权限、AI 配置，并添加至少 1 个受控应用</string>
     <string name="usage_instructions">使用说明</string>
     <string name="step_1_select_apps">在「应用」页面选择要管理的 App</string>

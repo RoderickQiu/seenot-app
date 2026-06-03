@@ -751,10 +751,83 @@ fun HomeTab(
     modifier: Modifier = Modifier
 ) {
     val scrollState = rememberScrollState()
-    var showCompletedConfigDetails by rememberSaveable { mutableStateOf(false) }
+    var showSetupDetails by rememberSaveable { mutableStateOf(false) }
     var showGlobalPauseDialog by rememberSaveable { mutableStateOf(false) }
-    val permissionsReady = isAccessibilityEnabled && isOverlayEnabled && isNotificationEnabled && isBatteryOptimizationIgnored
     val hasControlledApps = controlledAppCount > 0
+    val isPlus = (accountState as? SeenotAccountState.Ready)?.snapshot?.hasPlus == true
+    val requiredSetupSteps = listOf(
+        SetupProgressStep(
+            title = stringResource(R.string.permission_overlay),
+            description = stringResource(R.string.permission_overlay_desc),
+            offImpact = stringResource(R.string.permission_overlay_off),
+            isComplete = isOverlayEnabled,
+            actionLabel = stringResource(R.string.permission_overlay_action),
+            onAction = onEnableOverlay
+        ),
+        SetupProgressStep(
+            title = stringResource(R.string.permission_notification),
+            description = stringResource(R.string.permission_notification_desc),
+            offImpact = stringResource(R.string.permission_notification_off),
+            isComplete = isNotificationEnabled,
+            actionLabel = stringResource(R.string.permission_notification_action),
+            onAction = onOpenNotificationSettings
+        ),
+        SetupProgressStep(
+            title = stringResource(R.string.permission_accessibility),
+            description = stringResource(R.string.permission_accessibility_desc),
+            offImpact = stringResource(R.string.permission_accessibility_off),
+            isComplete = isAccessibilityEnabled,
+            actionLabel = stringResource(R.string.permission_accessibility_action),
+            onAction = onEnableAccessibility
+        ),
+        SetupProgressStep(
+            title = stringResource(R.string.permission_battery_optimization),
+            description = stringResource(R.string.permission_battery_optimization_desc),
+            offImpact = stringResource(R.string.permission_battery_optimization_off),
+            isComplete = isBatteryOptimizationIgnored,
+            actionLabel = stringResource(R.string.permission_battery_optimization_action),
+            onAction = onRequestIgnoreBatteryOptimizations
+        ),
+        SetupProgressStep(
+            title = stringResource(R.string.setup_step_ai_title),
+            description = stringResource(R.string.setup_step_ai_desc),
+            isComplete = isAiConfigured,
+            actionLabel = stringResource(R.string.setup_step_ai_action),
+            onAction = if (isPlus) onUseSeenotAi else onOpenAccount
+        ),
+        SetupProgressStep(
+            title = stringResource(R.string.setup_step_apps_title),
+            description = stringResource(R.string.setup_step_apps_desc),
+            isComplete = hasControlledApps,
+            actionLabel = stringResource(R.string.setup_step_apps_action),
+            onAction = onOpenControlledApps
+        )
+    )
+    val optionalSetupSteps = listOf(
+        SetupProgressStep(
+            title = stringResource(R.string.permission_usage_stats),
+            description = stringResource(R.string.permission_usage_stats_desc),
+            isComplete = isUsageStatsAccessEnabled,
+            actionLabel = stringResource(R.string.permission_usage_stats_action),
+            onAction = onOpenUsageStatsAccessSettings
+        ),
+        SetupProgressStep(
+            title = stringResource(R.string.permission_media_session),
+            description = stringResource(R.string.permission_media_session_desc),
+            isComplete = isMediaSessionAccessEnabled,
+            actionLabel = stringResource(R.string.permission_media_session_action),
+            onAction = onOpenMediaSessionAccessSettings
+        ),
+        SetupProgressStep(
+            title = stringResource(R.string.permission_microphone),
+            description = stringResource(R.string.permission_microphone_desc),
+            isComplete = isMicrophoneEnabled,
+            actionLabel = stringResource(R.string.permission_microphone_action),
+            onAction = onRequestMicrophone
+        )
+    )
+    val completedSetupSteps = requiredSetupSteps.count { it.isComplete }
+    val nextSetupStep = requiredSetupSteps.firstOrNull { !it.isComplete }
 
     Column(
         modifier = modifier
@@ -778,90 +851,21 @@ fun HomeTab(
 
         Spacer(modifier = Modifier.height(24.dp))
 
-        // Permission section - always reachable; expanded by default until required setup is complete.
-        if (!isHomeReady || showCompletedConfigDetails) {
-            Text(
-                text = stringResource(R.string.permission_status),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
+        FirstSetupProgressCard(
+            requiredSteps = requiredSetupSteps,
+            optionalSteps = optionalSetupSteps,
+            completedSteps = completedSetupSteps,
+            totalSteps = requiredSetupSteps.size,
+            nextStep = nextSetupStep,
+            isHomeReady = isHomeReady,
+            showDetails = showSetupDetails,
+            onToggleDetails = { showSetupDetails = !showSetupDetails },
+            onReadyAction = onOpenControlledApps
+        )
 
-            Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-            // Overlay Permission
-            PermissionCard(
-                title = stringResource(R.string.permission_overlay),
-                description = stringResource(R.string.permission_overlay_desc),
-                isEnabled = isOverlayEnabled,
-                onClick = onEnableOverlay
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            // Notification Permission
-            PermissionCard(
-                title = stringResource(R.string.permission_notification),
-                description = stringResource(R.string.permission_notification_desc),
-                isEnabled = isNotificationEnabled,
-                onClick = onOpenNotificationSettings
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            PermissionCard(
-                title = stringResource(R.string.permission_accessibility),
-                description = stringResource(R.string.permission_accessibility_desc),
-                isEnabled = isAccessibilityEnabled,
-                onClick = onEnableAccessibility
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            PermissionCard(
-                title = stringResource(R.string.permission_battery_optimization),
-                description = stringResource(R.string.permission_battery_optimization_desc),
-                isEnabled = isBatteryOptimizationIgnored,
-                onClick = onRequestIgnoreBatteryOptimizations
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            PermissionCard(
-                title = stringResource(R.string.permission_usage_stats),
-                description = stringResource(R.string.permission_usage_stats_desc),
-                isEnabled = isUsageStatsAccessEnabled,
-                badgeLabel = stringResource(R.string.permission_optional_badge),
-                onClick = onOpenUsageStatsAccessSettings,
-                notReadyLabel = stringResource(R.string.permission_optional_recommended)
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            PermissionCard(
-                title = stringResource(R.string.permission_media_session),
-                description = stringResource(R.string.permission_media_session_desc),
-                isEnabled = isMediaSessionAccessEnabled,
-                badgeLabel = stringResource(R.string.permission_optional_badge),
-                notReadyLabel = stringResource(R.string.permission_optional_recommended),
-                onClick = onOpenMediaSessionAccessSettings
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            PermissionCard(
-                title = stringResource(R.string.permission_microphone),
-                description = stringResource(R.string.permission_microphone_desc),
-                isEnabled = isMicrophoneEnabled,
-                badgeLabel = stringResource(R.string.permission_optional_badge),
-                onClick = onRequestMicrophone
-            )
-
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Spacer(modifier = Modifier.height(24.dp))
-        }
-
-        if (!isHomeReady || showCompletedConfigDetails) {
+        if (showSetupDetails) {
             Text(
                 text = stringResource(R.string.ai_capability_title),
                 style = MaterialTheme.typography.titleMedium,
@@ -879,7 +883,7 @@ fun HomeTab(
                 onUseSeenotAi = onUseSeenotAi
             )
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
 
             Card(
                 modifier = Modifier
@@ -930,85 +934,12 @@ fun HomeTab(
             Spacer(modifier = Modifier.height(24.dp))
         }
 
-        // Status Summary
         if (isHomeReady) {
-            Card(
-                modifier = Modifier.clickable {
-                    showCompletedConfigDetails = !showCompletedConfigDetails
-                },
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.primaryContainer
-                )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.CheckCircle,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.basic_config_complete),
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                        Text(
-                            text = if (showCompletedConfigDetails) stringResource(R.string.tap_to_collapse) else stringResource(R.string.tap_to_expand),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Icon(
-                        if (showCompletedConfigDetails) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(12.dp))
-
             GlobalMonitoringStatusCard(
                 pause = globalMonitoringPause,
                 onPauseClick = { showGlobalPauseDialog = true },
                 onResumeClick = onResumeGlobalMonitoring
             )
-        } else {
-            Card(
-                colors = CardDefaults.cardColors(
-                    containerColor = MaterialTheme.colorScheme.errorContainer
-                )
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        Icons.Default.Warning,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.error
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column {
-                        Text(
-                            text = when {
-                                permissionsReady && isAiConfigured && !hasControlledApps ->
-                                    stringResource(R.string.one_step_left_add_app)
-                                else -> stringResource(R.string.please_complete_permissions_and_ai_config)
-                            },
-                            style = MaterialTheme.typography.bodyLarge
-                        )
-                    }
-                }
-            }
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -1068,6 +999,270 @@ fun HomeTab(
                 showGlobalPauseDialog = false
             }
         )
+    }
+}
+
+private data class SetupProgressStep(
+    val title: String,
+    val description: String,
+    val offImpact: String? = null,
+    val isComplete: Boolean,
+    val actionLabel: String,
+    val onAction: () -> Unit
+)
+
+@Composable
+private fun FirstSetupProgressCard(
+    requiredSteps: List<SetupProgressStep>,
+    optionalSteps: List<SetupProgressStep>,
+    completedSteps: Int,
+    totalSteps: Int,
+    nextStep: SetupProgressStep?,
+    isHomeReady: Boolean,
+    showDetails: Boolean,
+    onToggleDetails: () -> Unit,
+    onReadyAction: () -> Unit
+) {
+    val progress = completedSteps.toFloat() / totalSteps.toFloat()
+    val isCompactReady = isHomeReady && !showDetails
+    val nextOptionalStep = optionalSteps.firstOrNull { !it.isComplete }
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.65f)
+        )
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Icon(
+                    imageVector = if (isHomeReady) Icons.Default.CheckCircle else Icons.Default.Flag,
+                    contentDescription = null,
+                    tint = if (isHomeReady) {
+                        MaterialTheme.colorScheme.primary
+                    } else {
+                        MaterialTheme.colorScheme.secondary
+                    }
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = if (isHomeReady) {
+                            stringResource(R.string.home_ready_title)
+                        } else {
+                            stringResource(R.string.first_setup_progress_title)
+                        },
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = if (isHomeReady) {
+                            stringResource(R.string.first_setup_ready_desc)
+                        } else {
+                            stringResource(R.string.first_setup_progress_count, completedSteps, totalSteps)
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+
+            if (!isCompactReady) {
+                LinearProgressIndicator(
+                    progress = { progress },
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(8.dp),
+                    color = MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surface.copy(alpha = 0.62f)
+                )
+
+                if (nextStep != null) {
+                    Text(
+                        text = nextStep.title,
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Medium
+                    )
+                    Text(
+                        text = nextStep.description,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    nextStep.offImpact?.let { offImpact ->
+                        Text(
+                            text = offImpact,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    Button(
+                        onClick = nextStep.onAction,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(nextStep.actionLabel)
+                    }
+                } else if (showDetails) {
+                    Text(
+                        text = stringResource(R.string.first_setup_ready_next),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Button(
+                        onClick = onReadyAction,
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Text(stringResource(R.string.first_setup_ready_action))
+                    }
+                }
+            }
+
+            if (showDetails) {
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
+                if (nextStep != null) {
+                    RequiredSetupSection(requiredSteps = requiredSteps)
+                    OptionalSetupSection(
+                        optionalSteps = optionalSteps,
+                        nextOptionalStep = nextOptionalStep
+                    )
+                } else {
+                    OptionalSetupSection(
+                        optionalSteps = optionalSteps,
+                        nextOptionalStep = nextOptionalStep
+                    )
+                    RequiredSetupSection(requiredSteps = requiredSteps)
+                }
+            }
+
+            TextButton(
+                onClick = onToggleDetails,
+                modifier = Modifier.align(Alignment.End)
+            ) {
+                Text(if (showDetails) stringResource(R.string.tap_to_collapse) else stringResource(R.string.tap_to_expand))
+                Spacer(modifier = Modifier.width(4.dp))
+                Icon(
+                    if (showDetails) Icons.Default.ExpandLess else Icons.Default.ExpandMore,
+                    contentDescription = null,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun RequiredSetupSection(requiredSteps: List<SetupProgressStep>) {
+    Text(
+        text = stringResource(R.string.setup_required_section),
+        style = MaterialTheme.typography.labelLarge,
+        fontWeight = FontWeight.Medium,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        requiredSteps.forEach { step ->
+            SetupProgressStepRow(step = step)
+        }
+    }
+}
+
+@Composable
+private fun OptionalSetupSection(
+    optionalSteps: List<SetupProgressStep>,
+    nextOptionalStep: SetupProgressStep?
+) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Text(
+            text = stringResource(R.string.setup_optional_section),
+            style = MaterialTheme.typography.labelLarge,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            modifier = Modifier.weight(1f)
+        )
+        if (nextOptionalStep != null) {
+            TextButton(onClick = nextOptionalStep.onAction) {
+                Text(stringResource(R.string.setup_optional_next_action))
+            }
+        }
+    }
+    Text(
+        text = stringResource(R.string.setup_optional_desc),
+        style = MaterialTheme.typography.bodySmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+    Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+        optionalSteps.forEach { step ->
+            SetupProgressStepRow(
+                step = step,
+                isOptional = true
+            )
+        }
+    }
+}
+
+@Composable
+private fun SetupProgressStepRow(
+    step: SetupProgressStep,
+    isOptional: Boolean = false
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(enabled = !step.isComplete) { step.onAction() },
+        verticalAlignment = Alignment.Top
+    ) {
+        Icon(
+            imageVector = if (step.isComplete) Icons.Default.CheckCircle else Icons.Default.RadioButtonUnchecked,
+            contentDescription = null,
+            tint = if (step.isComplete) {
+                MaterialTheme.colorScheme.primary
+            } else {
+                MaterialTheme.colorScheme.onSurfaceVariant
+            },
+            modifier = Modifier
+                .padding(top = 2.dp)
+                .size(20.dp)
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Column(modifier = Modifier.weight(1f)) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Text(
+                    text = step.title,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    modifier = Modifier.weight(1f)
+                )
+                Text(
+                    text = when {
+                        step.isComplete -> stringResource(R.string.permission_ready)
+                        isOptional -> stringResource(R.string.permission_optional_recommended)
+                        else -> stringResource(R.string.permission_not_ready)
+                    },
+                    style = MaterialTheme.typography.labelSmall,
+                    color = when {
+                        step.isComplete -> MaterialTheme.colorScheme.primary
+                        isOptional -> MaterialTheme.colorScheme.secondary
+                        else -> MaterialTheme.colorScheme.error
+                    }
+                )
+            }
+            Text(
+                text = step.description,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            if (!step.isComplete) {
+                step.offImpact?.let { offImpact ->
+                    Text(
+                        text = offImpact,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
+        }
     }
 }
 
@@ -1240,77 +1435,6 @@ private fun formatGlobalMonitoringPauseStatus(context: Context, pause: AppMonito
         context.getString(R.string.seenot_monitoring_paused_permanently)
     } else {
         context.getString(R.string.seenot_monitoring_paused_until, formatResumeTime(context, pause.resumeAt))
-    }
-}
-
-/**
- * Permission Card
- */
-@Composable
-fun PermissionCard(
-    title: String,
-    description: String,
-    isEnabled: Boolean,
-    badgeLabel: String? = null,
-    readyLabel: String? = null,
-    notReadyLabel: String? = null,
-    onClick: () -> Unit
-) {
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable { onClick() }
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                if (isEnabled) Icons.Default.CheckCircle else Icons.Default.Cancel,
-                contentDescription = null,
-                tint = if (isEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                val statusText = buildString {
-                    badgeLabel?.let {
-                        append(it)
-                        append(" · ")
-                    }
-                    append(
-                        if (isEnabled) {
-                            readyLabel ?: stringResource(R.string.permission_ready)
-                        } else {
-                            notReadyLabel ?: stringResource(R.string.permission_not_ready)
-                        }
-                    )
-                }
-                val statusColor =
-                    if (isEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    text = statusText,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = statusColor
-                )
-                Spacer(modifier = Modifier.height(2.dp))
-                Text(
-                    text = description,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Icon(
-                Icons.Default.ChevronRight,
-                contentDescription = null
-            )
-        }
     }
 }
 

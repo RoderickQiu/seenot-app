@@ -7,9 +7,11 @@
     <!-- Permissions -->
     <string name="accessibility_service_description">SeeNot uses accessibility services to monitor app usage and enforce your declared intentions.</string>
     <string name="permission_accessibility">Accessibility Service</string>
-    <string name="permission_accessibility_desc">Used to detect app switching, capture screenshots, and perform gestures</string>
+    <string name="permission_accessibility_desc">Detects controlled apps and reads the current screen for intent checks.</string>
+    <string name="permission_accessibility_off">SeeNot cannot check or remind you in time.</string>
     <string name="permission_overlay">Overlay Permission</string>
-    <string name="permission_overlay_desc">Used to display voice input and session status floating windows</string>
+    <string name="permission_overlay_desc">Shows the intent prompt, session status, and reminders.</string>
+    <string name="permission_overlay_off">Prompts and reminders may not appear.</string>
 
     <!-- Tabs -->
     <string name="tab_home">Home</string>
@@ -528,16 +530,23 @@
     <!-- MainScreen.kt strings -->
 
     <!-- HomeTab -->
-    <string name="permission_notification">Notification Permission</string>
-    <string name="permission_notification_desc">Needed for reminders and foreground service</string>
+    <string name="permission_notification">Notification permission</string>
+    <string name="permission_notification_desc">Shows Android\'s required running notification so SeeNot can keep detecting controlled apps.</string>
+    <string name="permission_notification_off">Without it, Android is more likely to stop SeeNot, so controlled app detection may not continue.</string>
+    <string name="permission_notification_action">Enable notifications</string>
     <string name="permission_battery_optimization">Unrestricted Battery</string>
-    <string name="permission_battery_optimization_desc">Keeps SeeNot running in the background by reducing battery restrictions</string>
+    <string name="permission_battery_optimization_desc">Reduces the chance that Android stops SeeNot.</string>
+    <string name="permission_battery_optimization_off">Long background sessions may stop checking or reminding.</string>
+    <string name="permission_battery_optimization_action">Allow unrestricted battery</string>
     <string name="permission_microphone">Microphone Permission</string>
-    <string name="permission_microphone_desc">Used for voice input to declare intents</string>
-    <string name="permission_usage_stats">Foreground Detection Backup</string>
-    <string name="permission_usage_stats_desc">Uses Usage Stats as a backup when Android misses an app-switch event</string>
-    <string name="permission_media_session">Video Recognition Enhancement</string>
-    <string name="permission_media_session_desc">Uses the current media title and playback state for more accurate video checks</string>
+    <string name="permission_microphone_desc">Turn this on if you want to speak your goal. You can still type without it.</string>
+    <string name="permission_microphone_action">Enable microphone</string>
+    <string name="permission_usage_stats">Usage Access Permission</string>
+    <string name="permission_usage_stats_desc">Gives SeeNot another way to confirm the foreground app. SeeNot still works without it.</string>
+    <string name="permission_usage_stats_action">Enable usage access</string>
+    <string name="permission_media_session">Notification Access Permission</string>
+    <string name="permission_media_session_desc">Lets SeeNot read player titles and playback status for video checks. SeeNot still works without it.</string>
+    <string name="permission_media_session_action">Enable notification access</string>
     <string name="permission_optional_badge">Optional</string>
     <string name="permission_ready">Done</string>
     <string name="permission_not_ready">Not done</string>
@@ -555,7 +564,7 @@
     <string name="seenot_ai_enabled_title">SeeNot AI is on</string>
     <string name="seenot_ai_enabled_desc">Plus includes visual checks, intent parsing, and voice input without an API key.</string>
     <string name="plus_can_enable_seenot_ai_desc">Your Plus plan can enable SeeNot AI directly, or you can keep using your own API key.</string>
-    <string name="open_plus_no_config_action">Sign in and use SeeNot AI</string>
+    <string name="open_plus_no_config_action">Use SeeNot AI</string>
     <string name="use_seenot_ai_action">Use SeeNot AI</string>
     <string name="use_own_api_key_action">My API key</string>
     <string name="switch_to_own_key_action">Switch to my API key</string>
@@ -569,13 +578,31 @@
     <string name="seenot_ai_quota_exceeded">SeeNot AI temporary quota is used up. Please try again later.</string>
     <string name="ai_voice_optional_not_configured">Voice input is not configured yet. You can still type your intent</string>
     <string name="ai_voice_optional_configured">Voice input is also ready</string>
+    <string name="home_ready_title">SeeNot is ready</string>
+    <string name="first_setup_progress_title">First setup progress</string>
+    <string name="first_setup_progress_count">%1$d of %2$d steps done</string>
+    <string name="first_setup_ready_desc">Permissions, AI, and controlled apps are ready</string>
+    <string name="first_setup_ready_next">Open a controlled app, say today\'s goal, and try a reminder.</string>
+    <string name="first_setup_ready_action">View controlled apps</string>
+    <string name="permission_overlay_action">Enable overlay permission</string>
+    <string name="permission_accessibility_action">Enable Accessibility Service</string>
+    <string name="setup_step_ai_title">Choose an AI option</string>
+    <string name="setup_step_ai_desc">Start with SeeNot AI, or use your own API key.</string>
+    <string name="setup_step_ai_action">Use SeeNot AI</string>
+    <string name="setup_step_apps_title">Add your first controlled app</string>
+    <string name="setup_step_apps_desc">Pick one app where you often drift.</string>
+    <string name="setup_step_apps_action">Add app</string>
+    <string name="setup_optional_section">Optional permissions</string>
+    <string name="setup_optional_desc">These are not required to start. Turning them on gives SeeNot more signals in some situations.</string>
+    <string name="setup_optional_next_action">Enable next</string>
+    <string name="setup_required_section">Required steps</string>
     <string name="controlled_apps_setup_title">Controlled Apps</string>
     <string name="controlled_apps_setup_missing">No controlled apps yet. Tap to add at least one</string>
     <string name="controlled_apps_setup_ready">%1$d controlled apps added. Tap to review or add more</string>
     <string name="basic_config_complete">Everything is ready. You can start using SeeNot now</string>
     <string name="one_step_left_add_app">One last step: add at least one controlled app</string>
-    <string name="tap_to_collapse">Tap to collapse permissions and config</string>
-    <string name="tap_to_expand">Tap to expand permissions and config</string>
+    <string name="tap_to_collapse">Hide steps and optional permissions</string>
+    <string name="tap_to_expand">View steps and optional permissions</string>
     <string name="please_complete_permissions_and_ai_config">Please complete required permissions, AI setup, and add at least one controlled app</string>
     <string name="usage_instructions">Usage Instructions</string>
     <string name="step_1_select_apps">Select apps to manage on the \"Apps\" page</string>

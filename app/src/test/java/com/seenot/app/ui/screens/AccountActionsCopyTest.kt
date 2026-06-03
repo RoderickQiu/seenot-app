@@ -41,7 +41,7 @@ class AccountActionsCopyTest {
             stringResourceValue("src/main/res/values/strings.xml", "ai_model_settings_title")
         )
         assertEquals(
-            "Sign in and use SeeNot AI",
+            "Use SeeNot AI",
             stringResourceValue("src/main/res/values-en/strings.xml", "open_plus_no_config_action")
         )
         assertEquals(
