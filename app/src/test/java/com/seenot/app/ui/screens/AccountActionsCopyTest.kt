@@ -26,6 +26,34 @@ class AccountActionsCopyTest {
         )
     }
 
+    @Test
+    fun aiChoiceCopyGuidesNovicesToSeenotAiAndOwnKeySetup() {
+        assertEquals(
+            "登录并使用 SeeNot AI",
+            stringResourceValue("src/main/res/values/strings.xml", "open_plus_no_config_action")
+        )
+        assertEquals(
+            "自带 API Key",
+            stringResourceValue("src/main/res/values/strings.xml", "use_own_api_key_action")
+        )
+        assertEquals(
+            "自带 API Key 设置",
+            stringResourceValue("src/main/res/values/strings.xml", "ai_model_settings_title")
+        )
+        assertEquals(
+            "Sign in and use SeeNot AI",
+            stringResourceValue("src/main/res/values-en/strings.xml", "open_plus_no_config_action")
+        )
+        assertEquals(
+            "My API key",
+            stringResourceValue("src/main/res/values-en/strings.xml", "use_own_api_key_action")
+        )
+        assertEquals(
+            "Own API Key Setup",
+            stringResourceValue("src/main/res/values-en/strings.xml", "ai_model_settings_title")
+        )
+    }
+
     private fun stringResourceValue(path: String, name: String): String {
         val document = DocumentBuilderFactory.newInstance()
             .newDocumentBuilder()

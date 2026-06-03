@@ -555,9 +555,9 @@
     <string name="seenot_ai_enabled_title">SeeNot AI is on</string>
     <string name="seenot_ai_enabled_desc">Plus includes visual checks, intent parsing, and voice input without an API key.</string>
     <string name="plus_can_enable_seenot_ai_desc">Your Plus plan can enable SeeNot AI directly, or you can keep using your own API key.</string>
-    <string name="open_plus_no_config_action">Open account page</string>
+    <string name="open_plus_no_config_action">Sign in and use SeeNot AI</string>
     <string name="use_seenot_ai_action">Use SeeNot AI</string>
-    <string name="use_own_api_key_action">Use local setup</string>
+    <string name="use_own_api_key_action">My API key</string>
     <string name="switch_to_own_key_action">Switch to my API key</string>
     <string name="open_account_details_action">View account</string>
     <string name="adjust_local_setup_action">Adjust on-device AI setup</string>
@@ -670,7 +670,7 @@
     <string name="service_status_title">Service Status</string>
     <string name="service_status_local_desc">You can use the AI setup on this device right away. If you want less setup to manage yourself, Plus is also available.</string>
     <string name="service_status_own_key_desc">This device is currently using its own AI setup. You can switch to Plus later if you want less setup to manage.</string>
-    <string name="service_status_plus_desc">Your Plus plan is ready. You can turn on SeeNot AI directly or keep using local setup.</string>
+    <string name="service_status_plus_desc">Your Plus plan is ready. You can turn on SeeNot AI directly or keep using your own API key.</string>
     <string name="service_status_seenot_ai_desc">Visual checks, intent parsing, and voice input are currently provided by SeeNot AI.</string>
     <string name="service_status_loading_desc">Checking which account and AI options are available now.</string>
     <string name="account_status_label">Account</string>
@@ -796,7 +796,7 @@
     <string name="edit_intent">Edit Intent</string>
 
     <!-- AiModelSettingsDialog -->
-    <string name="ai_model_settings_title">AI Model Settings</string>
+    <string name="ai_model_settings_title">Own API Key Setup</string>
     <string name="vision_tab">Vision</string>
     <string name="voice_tab">Voice (Optional)</string>
     <string name="ai_setup_intro">For first use, you only need to finish the core analysis setup. Voice input can be added later.</string>

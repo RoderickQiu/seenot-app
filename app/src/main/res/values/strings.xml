@@ -561,9 +561,9 @@
     <string name="seenot_ai_enabled_title">SeeNot AI 已启用</string>
     <string name="seenot_ai_enabled_desc">Plus 已包含视觉判断、意图解析和语音输入，无需配置 API Key。</string>
     <string name="plus_can_enable_seenot_ai_desc">你的 Plus 可直接启用 SeeNot AI，也可以继续使用自己的 API Key。</string>
-    <string name="open_plus_no_config_action">打开账号页</string>
+    <string name="open_plus_no_config_action">登录并使用 SeeNot AI</string>
     <string name="use_seenot_ai_action">使用 SeeNot AI</string>
-    <string name="use_own_api_key_action">使用自带配置</string>
+    <string name="use_own_api_key_action">自带 API Key</string>
     <string name="switch_to_own_key_action">切回自带 API Key</string>
     <string name="open_account_details_action">查看账号</string>
     <string name="adjust_local_setup_action">调整本机 AI 设置</string>
@@ -676,7 +676,7 @@
     <string name="service_status_title">服务状态</string>
     <string name="service_status_local_desc">现在可直接使用这台设备上的本机 AI 设置；如果想省去这些设置，也可以开通 Plus。</string>
     <string name="service_status_own_key_desc">当前正在使用这台设备上的本机 AI 设置；需要时也可以切换到 Plus。</string>
-    <string name="service_status_plus_desc">你的 Plus 已可用，可直接启用 SeeNot AI，也可以继续使用自带配置。</string>
+    <string name="service_status_plus_desc">你的 Plus 已可用，可直接启用 SeeNot AI，也可以继续使用自己的 API Key。</string>
     <string name="service_status_seenot_ai_desc">当前由 SeeNot AI 提供视觉判断、意图解析和语音输入。</string>
     <string name="service_status_loading_desc">正在读取当前可用的账号和 AI 方案。</string>
     <string name="account_status_label">账号</string>
@@ -802,7 +802,7 @@
     <string name="edit_intent">编辑意图</string>
 
     <!-- AiModelSettingsDialog -->
-    <string name="ai_model_settings_title">AI 模型设置</string>
+    <string name="ai_model_settings_title">自带 API Key 设置</string>
     <string name="vision_tab">视觉</string>
     <string name="voice_tab">语音（可选）</string>
     <string name="ai_setup_intro">第一次使用时，只需要先完成核心分析配置。语音输入可以之后再补。</string>
