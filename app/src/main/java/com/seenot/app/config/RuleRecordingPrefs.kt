@@ -13,7 +13,6 @@ object RuleRecordingPrefs {
     private const val KEY_SCREENSHOT_MODE = "rule_record_screenshot_mode"
     private const val KEY_SHOW_HOME_TIMELINE = "show_home_timeline"
     private const val KEY_SHOW_ANALYSIS_RESULT_TOAST = "show_analysis_result_toast"
-    private const val KEY_HIDE_COMPACT_HUD_TEXT = "hide_compact_hud_text"
 
     /**
      * Screenshot save modes:
@@ -55,8 +54,8 @@ object RuleRecordingPrefs {
      * Get screenshot save mode
      */
     fun getScreenshotMode(context: Context): ScreenshotMode {
-        val value = getPrefs(context).getString(KEY_SCREENSHOT_MODE, ScreenshotMode.ALL.value)
-        return ScreenshotMode.fromValue(value ?: ScreenshotMode.ALL.value)
+        val value = getPrefs(context).getString(KEY_SCREENSHOT_MODE, ScreenshotMode.MATCHED_ONLY.value)
+        return ScreenshotMode.fromValue(value ?: ScreenshotMode.MATCHED_ONLY.value)
     }
 
     /**
@@ -83,15 +82,17 @@ object RuleRecordingPrefs {
     /**
      * Whether compact status HUD should hide text and only show the color indicator
      */
+    @Suppress("UNUSED_PARAMETER")
     fun isCompactHudTextHidden(context: Context): Boolean {
-        return getPrefs(context).getBoolean(KEY_HIDE_COMPACT_HUD_TEXT, false)
+        return true
     }
 
     /**
      * Set compact status HUD text visibility
      */
+    @Suppress("UNUSED_PARAMETER")
     fun setCompactHudTextHidden(context: Context, hidden: Boolean) {
-        getPrefs(context).edit().putBoolean(KEY_HIDE_COMPACT_HUD_TEXT, hidden).apply()
+        // Compact HUD text is now always hidden.
     }
 
     /**

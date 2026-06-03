@@ -21,14 +21,14 @@ class InterventionDialogPrefsTest {
     }
 
     @Test
-    fun nonGentleIgnoreOnceDisabledByDefault() {
-        assertFalse(InterventionDialogPrefs.isNonGentleAllowIgnoreOnceEnabled(context))
+    fun nonGentleIgnoreOnceEnabledByDefault() {
+        assertTrue(InterventionDialogPrefs.isNonGentleAllowIgnoreOnceEnabled(context))
     }
 
     @Test
-    fun nonGentleIgnoreOnceCanBeEnabled() {
-        InterventionDialogPrefs.setNonGentleAllowIgnoreOnceEnabled(context, true)
+    fun nonGentleIgnoreOnceCanBeDisabled() {
+        InterventionDialogPrefs.setNonGentleAllowIgnoreOnceEnabled(context, false)
 
-        assertTrue(InterventionDialogPrefs.isNonGentleAllowIgnoreOnceEnabled(context))
+        assertFalse(InterventionDialogPrefs.isNonGentleAllowIgnoreOnceEnabled(context))
     }
 }

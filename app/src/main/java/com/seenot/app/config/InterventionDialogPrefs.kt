@@ -13,7 +13,7 @@ object InterventionDialogPrefs {
     }
 
     fun isNonGentleAllowIgnoreOnceEnabled(context: Context): Boolean {
-        return getPrefs(context).getBoolean(KEY_NON_GENTLE_ALLOW_IGNORE_ONCE, false)
+        return getPrefs(context).getBoolean(KEY_NON_GENTLE_ALLOW_IGNORE_ONCE, true)
     }
 
     fun setNonGentleAllowIgnoreOnceEnabled(context: Context, enabled: Boolean) {
