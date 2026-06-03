@@ -531,11 +531,11 @@
     <string name="permission_notification">Notification Permission</string>
     <string name="permission_notification_desc">Needed for reminders and foreground service</string>
     <string name="permission_battery_optimization">Unrestricted Battery</string>
-    <string name="permission_battery_optimization_desc">Requests battery-optimization exemption so the system is less likely to kill SeeNot in the background</string>
+    <string name="permission_battery_optimization_desc">Keeps SeeNot running in the background by reducing battery restrictions</string>
     <string name="permission_microphone">Microphone Permission</string>
     <string name="permission_microphone_desc">Used for voice input to declare intents</string>
     <string name="permission_usage_stats">Foreground Detection Backup</string>
-    <string name="permission_usage_stats_desc">Helps SeeNot identify the app you are using when Android occasionally misses an accessibility app-switch event</string>
+    <string name="permission_usage_stats_desc">Uses Usage Stats as a backup when Android misses an app-switch event</string>
     <string name="permission_media_session">Video Recognition Enhancement</string>
     <string name="permission_media_session_desc">Uses the current media title and playback state for more accurate video checks</string>
     <string name="permission_optional_badge">Optional</string>
@@ -563,7 +563,7 @@
     <string name="adjust_local_setup_action">Adjust on-device AI setup</string>
     <string name="adjust_seenot_ai_action">View SeeNot AI</string>
     <string name="adjust_ai_setup_action">Adjust</string>
-    <string name="learn_plus_action">Learn about Plus</string>
+    <string name="learn_plus_action">Get Plus</string>
     <string name="seenot_ai_enabled_toast">SeeNot AI is on</string>
     <string name="seenot_ai_enable_failed">Could not enable SeeNot AI</string>
     <string name="seenot_ai_quota_exceeded">SeeNot AI temporary quota is used up. Please try again later.</string>
@@ -725,8 +725,8 @@
     <string name="ai_source_selector_seenot">SeeNot AI</string>
     <string name="ai_source_selector_local">On-device AI setup</string>
     <string name="ai_source_selector_desc">Plus and local AI setup are both available. Choose which one to use by default here.</string>
-    <string name="plus_hint_title">Prefer not to manage AI setup yourself?</string>
-    <string name="plus_hint_desc">With Plus, SeeNot AI is ready without your own API key or model setup.</string>
+    <string name="plus_hint_title">Use AI instantly</string>
+    <string name="plus_hint_desc">SeeNot Plus unlocks ready-to-use SeeNot AI, no setup needed.</string>
     <string name="advanced_ai_settings_title">Advanced AI Settings</string>
     <string name="advanced_ai_settings_desc">Configure provider, model, Base URL, and voice model for your own API key.</string>
     <string name="experience_settings">Experience Settings</string>
