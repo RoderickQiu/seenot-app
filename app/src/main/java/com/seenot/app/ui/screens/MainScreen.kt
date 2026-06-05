@@ -1131,7 +1131,7 @@ private fun FirstSetupProgressCard(
                     )
                     nextStep.offImpact?.let { offImpact ->
                         Text(
-                            text = offImpact,
+                            text = stringResource(R.string.setup_step_off_impact_label, offImpact),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -1143,12 +1143,10 @@ private fun FirstSetupProgressCard(
                         Text(nextStep.actionLabel)
                     }
                     nextStep.restrictedSettingsHelpTarget?.let { target ->
-                        TextButton(
+                        PermissionSetupHelpLink(
                             onClick = { onOpenRestrictedSettingsHelp(target) },
                             modifier = Modifier.align(Alignment.CenterHorizontally)
-                        ) {
-                            Text(stringResource(R.string.restricted_settings_help_entry))
-                        }
+                        )
                     }
                 } else if (showDetails) {
                     Text(
@@ -1314,22 +1312,34 @@ private fun SetupProgressStepRow(
             if (!step.isComplete) {
                 step.offImpact?.let { offImpact ->
                     Text(
-                        text = offImpact,
+                        text = stringResource(R.string.setup_step_off_impact_label, offImpact),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
                 if (step.restrictedSettingsHelpTarget != null && onOpenRestrictedSettingsHelp != null) {
-                    TextButton(
+                    PermissionSetupHelpLink(
                         onClick = { onOpenRestrictedSettingsHelp(step.restrictedSettingsHelpTarget) },
-                        contentPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp)
-                    ) {
-                        Text(stringResource(R.string.restricted_settings_help_entry))
-                    }
+                        modifier = Modifier.padding(top = 2.dp)
+                    )
                 }
             }
         }
     }
+}
+
+@Composable
+private fun PermissionSetupHelpLink(
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Text(
+        text = stringResource(R.string.restricted_settings_help_entry),
+        style = MaterialTheme.typography.bodySmall,
+        fontWeight = FontWeight.Medium,
+        color = MaterialTheme.colorScheme.primary,
+        modifier = modifier.clickable(onClick = onClick)
+    )
 }
 
 @Composable

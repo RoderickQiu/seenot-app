@@ -596,6 +596,7 @@
     <string name="setup_optional_desc">These are not required to start. Turning them on gives SeeNot more signals in some situations.</string>
     <string name="setup_optional_next_action">Enable next</string>
     <string name="setup_required_section">Required steps</string>
+    <string name="setup_step_off_impact_label">If off: %1$s</string>
     <string name="controlled_apps_setup_title">Controlled Apps</string>
     <string name="controlled_apps_setup_missing">No controlled apps yet. Tap to add at least one</string>
     <string name="controlled_apps_setup_ready">%1$d controlled apps added. Tap to review or add more</string>

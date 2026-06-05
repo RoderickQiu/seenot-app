@@ -602,6 +602,7 @@
     <string name="setup_optional_desc">这些不是开始使用的必需项；开启后，SeeNot 在部分场景下能拿到更多判断线索。</string>
     <string name="setup_optional_next_action">开启下一项</string>
     <string name="setup_required_section">必需步骤</string>
+    <string name="setup_step_off_impact_label">若不开：%1$s</string>
     <string name="controlled_apps_setup_title">受控应用</string>
     <string name="controlled_apps_setup_missing">尚未添加受控应用，点按去添加至少 1 个</string>
     <string name="controlled_apps_setup_ready">已添加 %1$d 个受控应用，点按查看或继续添加</string>
