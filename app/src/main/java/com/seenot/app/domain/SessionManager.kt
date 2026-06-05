@@ -3082,7 +3082,7 @@ class SessionManager(
      * Get auto-start setting
      */
     fun isAutoStartEnabled(): Boolean {
-        return prefs.getBoolean(KEY_AUTO_START, false)
+        return prefs.getBoolean(KEY_AUTO_START, true)
     }
 
     /**

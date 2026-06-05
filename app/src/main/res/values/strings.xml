@@ -570,7 +570,7 @@
     <string name="seenot_ai_enabled_title">SeeNot AI 已启用</string>
     <string name="seenot_ai_enabled_desc">Plus 已包含视觉判断、意图解析和语音输入，无需配置 API Key。</string>
     <string name="plus_can_enable_seenot_ai_desc">你的 Plus 可直接启用 SeeNot AI，也可以继续使用自己的 API Key。</string>
-    <string name="open_plus_no_config_action">登录并使用 SeeNot AI</string>
+    <string name="open_plus_no_config_action">使用 SeeNot AI</string>
     <string name="use_seenot_ai_action">使用 SeeNot AI</string>
     <string name="use_own_api_key_action">自带 API Key</string>
     <string name="switch_to_own_key_action">切回自带 API Key</string>
@@ -769,7 +769,7 @@
     <string name="compact_hud_indicator_only">收起状态栏时隐藏文字</string>
     <string name="compact_hud_indicator_only_desc">开启后，收起的状态悬浮窗只保留颜色指示点，减少遮挡</string>
     <string name="auto_start_on_boot">开机时自动启动</string>
-    <string name="auto_start_on_boot_desc">系统启动后自动运行 SeeNot</string>
+    <string name="auto_start_on_boot_desc">设备重启后恢复监测；需要无障碍权限保持开启</string>
     <string name="intent_reminder_enabled_title">没设意图时提醒我</string>
     <string name="intent_reminder_enabled_desc">进入受控 app 后，如果一直没设置意图，稍后再提醒一次</string>
     <string name="no_monitor_reminder_enabled_title">不监控太久时提醒我</string>

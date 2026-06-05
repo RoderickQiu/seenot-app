@@ -763,7 +763,7 @@
     <string name="compact_hud_indicator_only">Hide text when status bar is collapsed</string>
     <string name="compact_hud_indicator_only_desc">When on, the collapsed status HUD keeps only the color indicator to reduce obstruction</string>
     <string name="auto_start_on_boot">Auto start on boot</string>
-    <string name="auto_start_on_boot_desc">Automatically run SeeNot when system starts</string>
+    <string name="auto_start_on_boot_desc">Resume monitoring after device restart. Requires Accessibility to remain enabled.</string>
     <string name="intent_reminder_enabled_title">Remind when no intent is set</string>
     <string name="intent_reminder_enabled_desc">If you stay in a controlled app without setting intent, remind again later</string>
     <string name="no_monitor_reminder_enabled_title">Remind during long no-monitor sessions</string>
