@@ -876,6 +876,17 @@
     <string name="restricted_settings_help_app_info_caption">Use the app info menu to allow restricted settings.</string>
     <string name="restricted_settings_help_open_app_info">Open app info</string>
     <string name="restricted_settings_help_back_to_permission">Back to permission settings</string>
+    <string name="background_limits_help_entry">Still stopped in background?</string>
+    <string name="background_limits_help_title">If SeeNot still gets stopped</string>
+    <string name="background_limits_help_message">Some phones add extra background limits beyond the normal battery setting. If SeeNot stops checking or reminding after a while, check these settings.</string>
+    <string name="background_limits_help_step_battery">First, make sure SeeNot\'s battery setting is unrestricted or ignoring optimization.</string>
+    <string name="background_limits_help_step_autostart">Then check app info for autostart, background running, or background activity, and allow SeeNot there.</string>
+    <string name="background_limits_help_step_lock">Finally, open Recent apps and lock SeeNot from its card menu to reduce system or manual cleanup.</string>
+    <string name="background_limits_help_battery_caption">Start by setting the basic battery policy to unrestricted.</string>
+    <string name="background_limits_help_app_info_caption">Some phones also show autostart or background running controls in app info.</string>
+    <string name="background_limits_help_recent_lock_caption">The Recent apps lock can reduce cleanup of SeeNot.</string>
+    <string name="background_limits_help_open_app_info">Open app info</string>
+    <string name="background_limits_help_got_it">Got it</string>
 
     <!-- AddAppDialog -->
     <string name="add_app_title">Add App</string>

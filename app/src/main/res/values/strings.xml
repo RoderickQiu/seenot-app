@@ -882,6 +882,17 @@
     <string name="restricted_settings_help_app_info_caption">在应用信息页右上角菜单里允许受限制的设置。</string>
     <string name="restricted_settings_help_open_app_info">打开应用信息</string>
     <string name="restricted_settings_help_back_to_permission">回到权限设置</string>
+    <string name="background_limits_help_entry">后台还是会被停？</string>
+    <string name="background_limits_help_title">如果 SeeNot 仍然被系统停掉</string>
+    <string name="background_limits_help_message">有些手机在基础省电设置之外，还会限制自启动、后台运行或最近任务。如果你发现 SeeNot 过一会儿不再提醒，可以按这里检查。</string>
+    <string name="background_limits_help_step_battery">先确认 SeeNot 的电池设置已经是后台无限制或忽略优化。</string>
+    <string name="background_limits_help_step_autostart">再检查应用信息里的自启动、后台运行或允许后台活动，把 SeeNot 设为允许。</string>
+    <string name="background_limits_help_step_lock">最后打开最近任务，在 SeeNot 卡片菜单里选择锁定，减少被系统或手动清理的概率。</string>
+    <string name="background_limits_help_battery_caption">先把基础省电策略设为无限制。</string>
+    <string name="background_limits_help_app_info_caption">有些手机还会在应用信息里提供自启动或后台运行开关。</string>
+    <string name="background_limits_help_recent_lock_caption">最近任务里的锁定入口可以减少 SeeNot 被清理。</string>
+    <string name="background_limits_help_open_app_info">打开应用信息</string>
+    <string name="background_limits_help_got_it">我知道了</string>
 
     <!-- AddAppDialog -->
     <string name="add_app_title">添加应用</string>

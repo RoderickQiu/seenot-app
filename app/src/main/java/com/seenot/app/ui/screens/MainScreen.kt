@@ -141,6 +141,7 @@ fun MainScreen(
     var aiSettingsRefreshKey by remember { mutableIntStateOf(0) }
     var pendingPermissionGuide by remember { mutableStateOf<PermissionGuideType?>(null) }
     var restrictedSettingsHelpTarget by rememberSaveable { mutableStateOf<RestrictedSettingsHelpTarget?>(null) }
+    var showBackgroundLimitsHelp by rememberSaveable { mutableStateOf(false) }
     var isAccountLoginInFlight by remember { mutableStateOf(false) }
     var isAccountRefreshInFlight by remember { mutableStateOf(false) }
     var syncRefreshKey by remember { mutableIntStateOf(0) }
@@ -478,8 +479,18 @@ fun MainScreen(
                         onEnableOverlay = {
                             pendingPermissionGuide = PermissionGuideType.OVERLAY
                         },
-                        onOpenRestrictedSettingsHelp = { target ->
-                            restrictedSettingsHelpTarget = target
+                        onOpenSecondaryHelp = { help ->
+                            when (help) {
+                                SetupSecondaryHelp.RESTRICTED_SETTINGS_ACCESSIBILITY -> {
+                                    restrictedSettingsHelpTarget = RestrictedSettingsHelpTarget.ACCESSIBILITY
+                                }
+                                SetupSecondaryHelp.RESTRICTED_SETTINGS_OVERLAY -> {
+                                    restrictedSettingsHelpTarget = RestrictedSettingsHelpTarget.OVERLAY
+                                }
+                                SetupSecondaryHelp.BACKGROUND_LIMITS -> {
+                                    showBackgroundLimitsHelp = true
+                                }
+                            }
                         },
                         onRequestIgnoreBatteryOptimizations = {
                             pendingPermissionGuide = PermissionGuideType.BATTERY
@@ -721,6 +732,15 @@ fun MainScreen(
             }
         )
     }
+
+    if (showBackgroundLimitsHelp) {
+        BackgroundLimitsHelpSheet(
+            onDismiss = { showBackgroundLimitsHelp = false },
+            onOpenAppInfo = {
+                context.startActivity(createAppDetailsSettingsIntent(context))
+            }
+        )
+    }
 }
 
 private fun isSeenotAccessibilityEnabled(context: Context): Boolean {
@@ -766,7 +786,7 @@ fun HomeTab(
     globalMonitoringPause: AppMonitoringPause?,
     onEnableAccessibility: () -> Unit,
     onEnableOverlay: () -> Unit,
-    onOpenRestrictedSettingsHelp: (RestrictedSettingsHelpTarget) -> Unit,
+    onOpenSecondaryHelp: (SetupSecondaryHelp) -> Unit,
     onRequestIgnoreBatteryOptimizations: () -> Unit,
     onOpenNotificationSettings: () -> Unit,
     onOpenMediaSessionAccessSettings: () -> Unit,
@@ -794,7 +814,7 @@ fun HomeTab(
             offImpact = stringResource(R.string.permission_overlay_off),
             isComplete = isOverlayEnabled,
             actionLabel = stringResource(R.string.permission_overlay_action),
-            restrictedSettingsHelpTarget = RestrictedSettingsHelpTarget.OVERLAY,
+            secondaryHelp = SetupSecondaryHelp.RESTRICTED_SETTINGS_OVERLAY,
             onAction = onEnableOverlay
         ),
         SetupProgressStep(
@@ -811,7 +831,7 @@ fun HomeTab(
             offImpact = stringResource(R.string.permission_accessibility_off),
             isComplete = isAccessibilityEnabled,
             actionLabel = stringResource(R.string.permission_accessibility_action),
-            restrictedSettingsHelpTarget = RestrictedSettingsHelpTarget.ACCESSIBILITY,
+            secondaryHelp = SetupSecondaryHelp.RESTRICTED_SETTINGS_ACCESSIBILITY,
             onAction = onEnableAccessibility
         ),
         SetupProgressStep(
@@ -820,6 +840,7 @@ fun HomeTab(
             offImpact = stringResource(R.string.permission_battery_optimization_off),
             isComplete = isBatteryOptimizationIgnored,
             actionLabel = stringResource(R.string.permission_battery_optimization_action),
+            secondaryHelp = SetupSecondaryHelp.BACKGROUND_LIMITS,
             onAction = onRequestIgnoreBatteryOptimizations
         ),
         SetupProgressStep(
@@ -894,7 +915,7 @@ fun HomeTab(
             isHomeReady = isHomeReady,
             showDetails = showSetupDetails,
             onToggleDetails = { showSetupDetails = !showSetupDetails },
-            onOpenRestrictedSettingsHelp = onOpenRestrictedSettingsHelp,
+            onOpenSecondaryHelp = onOpenSecondaryHelp,
             onReadyAction = onOpenControlledApps
         )
 
@@ -1043,7 +1064,7 @@ private data class SetupProgressStep(
     val offImpact: String? = null,
     val isComplete: Boolean,
     val actionLabel: String,
-    val restrictedSettingsHelpTarget: RestrictedSettingsHelpTarget? = null,
+    val secondaryHelp: SetupSecondaryHelp? = null,
     val onAction: () -> Unit
 )
 
@@ -1057,7 +1078,7 @@ private fun FirstSetupProgressCard(
     isHomeReady: Boolean,
     showDetails: Boolean,
     onToggleDetails: () -> Unit,
-    onOpenRestrictedSettingsHelp: (RestrictedSettingsHelpTarget) -> Unit,
+    onOpenSecondaryHelp: (SetupSecondaryHelp) -> Unit,
     onReadyAction: () -> Unit
 ) {
     val progress = completedSteps.toFloat() / totalSteps.toFloat()
@@ -1142,9 +1163,10 @@ private fun FirstSetupProgressCard(
                     ) {
                         Text(nextStep.actionLabel)
                     }
-                    nextStep.restrictedSettingsHelpTarget?.let { target ->
-                        PermissionSetupHelpLink(
-                            onClick = { onOpenRestrictedSettingsHelp(target) },
+                    nextStep.secondaryHelp?.let { help ->
+                        SetupSecondaryHelpLink(
+                            help = help,
+                            onClick = { onOpenSecondaryHelp(help) },
                             modifier = Modifier.align(Alignment.CenterHorizontally)
                         )
                     }
@@ -1168,7 +1190,7 @@ private fun FirstSetupProgressCard(
                 if (nextStep != null) {
                     RequiredSetupSection(
                         requiredSteps = requiredSteps,
-                        onOpenRestrictedSettingsHelp = onOpenRestrictedSettingsHelp
+                        onOpenSecondaryHelp = onOpenSecondaryHelp
                     )
                     OptionalSetupSection(
                         optionalSteps = optionalSteps,
@@ -1181,7 +1203,7 @@ private fun FirstSetupProgressCard(
                     )
                     RequiredSetupSection(
                         requiredSteps = requiredSteps,
-                        onOpenRestrictedSettingsHelp = onOpenRestrictedSettingsHelp
+                        onOpenSecondaryHelp = onOpenSecondaryHelp
                     )
                 }
             }
@@ -1205,7 +1227,7 @@ private fun FirstSetupProgressCard(
 @Composable
 private fun RequiredSetupSection(
     requiredSteps: List<SetupProgressStep>,
-    onOpenRestrictedSettingsHelp: (RestrictedSettingsHelpTarget) -> Unit
+    onOpenSecondaryHelp: (SetupSecondaryHelp) -> Unit
 ) {
     Text(
         text = stringResource(R.string.setup_required_section),
@@ -1217,7 +1239,7 @@ private fun RequiredSetupSection(
         requiredSteps.forEach { step ->
             SetupProgressStepRow(
                 step = step,
-                onOpenRestrictedSettingsHelp = onOpenRestrictedSettingsHelp
+                onOpenSecondaryHelp = onOpenSecondaryHelp
             )
         }
     }
@@ -1261,7 +1283,7 @@ private fun OptionalSetupSection(
 private fun SetupProgressStepRow(
     step: SetupProgressStep,
     isOptional: Boolean = false,
-    onOpenRestrictedSettingsHelp: ((RestrictedSettingsHelpTarget) -> Unit)? = null
+    onOpenSecondaryHelp: ((SetupSecondaryHelp) -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
@@ -1317,9 +1339,10 @@ private fun SetupProgressStepRow(
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                if (step.restrictedSettingsHelpTarget != null && onOpenRestrictedSettingsHelp != null) {
-                    PermissionSetupHelpLink(
-                        onClick = { onOpenRestrictedSettingsHelp(step.restrictedSettingsHelpTarget) },
+                if (step.secondaryHelp != null && onOpenSecondaryHelp != null) {
+                    SetupSecondaryHelpLink(
+                        help = step.secondaryHelp,
+                        onClick = { onOpenSecondaryHelp(step.secondaryHelp) },
                         modifier = Modifier.padding(top = 2.dp)
                     )
                 }
@@ -1329,12 +1352,13 @@ private fun SetupProgressStepRow(
 }
 
 @Composable
-private fun PermissionSetupHelpLink(
+private fun SetupSecondaryHelpLink(
+    help: SetupSecondaryHelp,
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     Text(
-        text = stringResource(R.string.restricted_settings_help_entry),
+        text = stringResource(help.labelRes),
         style = MaterialTheme.typography.bodySmall,
         fontWeight = FontWeight.Medium,
         color = MaterialTheme.colorScheme.primary,
@@ -1606,6 +1630,23 @@ enum class RestrictedSettingsHelpTarget {
     OVERLAY
 }
 
+enum class SetupSecondaryHelp(
+    @StringRes val labelRes: Int,
+    val restrictedSettingsTarget: RestrictedSettingsHelpTarget? = null
+) {
+    RESTRICTED_SETTINGS_ACCESSIBILITY(
+        labelRes = R.string.restricted_settings_help_entry,
+        restrictedSettingsTarget = RestrictedSettingsHelpTarget.ACCESSIBILITY
+    ),
+    RESTRICTED_SETTINGS_OVERLAY(
+        labelRes = R.string.restricted_settings_help_entry,
+        restrictedSettingsTarget = RestrictedSettingsHelpTarget.OVERLAY
+    ),
+    BACKGROUND_LIMITS(
+        labelRes = R.string.background_limits_help_entry
+    )
+}
+
 private fun PermissionGuideType.restrictedSettingsHelpTarget(): RestrictedSettingsHelpTarget? {
     return when (this) {
         PermissionGuideType.ACCESSIBILITY -> RestrictedSettingsHelpTarget.ACCESSIBILITY
@@ -1782,27 +1823,27 @@ private fun RestrictedSettingsHelpSheet(
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            RestrictedSettingsStep(
+            HelpStep(
                 number = 1,
                 text = stringResource(R.string.restricted_settings_help_step_app_info)
             )
-            RestrictedSettingsStep(
+            HelpStep(
                 number = 2,
                 text = stringResource(R.string.restricted_settings_help_step_menu)
             )
-            RestrictedSettingsStep(
+            HelpStep(
                 number = 3,
                 text = stringResource(R.string.restricted_settings_help_step_return)
             )
-            RestrictedSettingsImage(
+            HelpImage(
                 resId = R.drawable.restricted_settings_denied,
                 caption = stringResource(R.string.restricted_settings_help_denied_caption)
             )
-            RestrictedSettingsImage(
+            HelpImage(
                 resId = R.drawable.restricted_settings_permission,
                 caption = stringResource(R.string.restricted_settings_help_permission_caption)
             )
-            RestrictedSettingsImage(
+            HelpImage(
                 resId = R.drawable.restricted_settings_app_info,
                 caption = stringResource(R.string.restricted_settings_help_app_info_caption)
             )
@@ -1822,8 +1863,73 @@ private fun RestrictedSettingsHelpSheet(
     }
 }
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
-private fun RestrictedSettingsStep(
+private fun BackgroundLimitsHelpSheet(
+    onDismiss: () -> Unit,
+    onOpenAppInfo: () -> Unit
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.background_limits_help_title),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = stringResource(R.string.background_limits_help_message),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            HelpStep(
+                number = 1,
+                text = stringResource(R.string.background_limits_help_step_battery)
+            )
+            HelpStep(
+                number = 2,
+                text = stringResource(R.string.background_limits_help_step_autostart)
+            )
+            HelpStep(
+                number = 3,
+                text = stringResource(R.string.background_limits_help_step_lock)
+            )
+            HelpImage(
+                resId = R.drawable.background_limits_battery,
+                caption = stringResource(R.string.background_limits_help_battery_caption)
+            )
+            HelpImage(
+                resId = R.drawable.background_limits_app_info,
+                caption = stringResource(R.string.background_limits_help_app_info_caption)
+            )
+            HelpImage(
+                resId = R.drawable.background_limits_recent_lock,
+                caption = stringResource(R.string.background_limits_help_recent_lock_caption)
+            )
+            Button(
+                onClick = onOpenAppInfo,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.background_limits_help_open_app_info))
+            }
+            TextButton(
+                onClick = onDismiss,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            ) {
+                Text(stringResource(R.string.background_limits_help_got_it))
+            }
+        }
+    }
+}
+
+@Composable
+private fun HelpStep(
     number: Int,
     text: String
 ) {
@@ -1853,7 +1959,7 @@ private fun RestrictedSettingsStep(
 }
 
 @Composable
-private fun RestrictedSettingsImage(
+private fun HelpImage(
     resId: Int,
     caption: String
 ) {
