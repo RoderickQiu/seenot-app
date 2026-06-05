@@ -530,7 +530,7 @@
     <!-- MainScreen.kt strings -->
 
     <!-- HomeTab -->
-    <string name="permission_notification">Notification permission</string>
+    <string name="permission_notification">Notification Permission</string>
     <string name="permission_notification_desc">Shows Android\'s required running notification so SeeNot can keep detecting controlled apps.</string>
     <string name="permission_notification_off">Without it, Android is more likely to stop SeeNot, so controlled app detection may not continue.</string>
     <string name="permission_notification_action">Enable notifications</string>
@@ -544,8 +544,8 @@
     <string name="permission_usage_stats">Usage Access Permission</string>
     <string name="permission_usage_stats_desc">Gives SeeNot another way to confirm the foreground app. SeeNot still works without it.</string>
     <string name="permission_usage_stats_action">Enable usage access</string>
-    <string name="permission_media_session">Notification Access Permission</string>
-    <string name="permission_media_session_desc">Lets SeeNot read player titles and playback status for video checks. SeeNot still works without it.</string>
+    <string name="permission_media_session">Notification Access</string>
+    <string name="permission_media_session_desc">Lets SeeNot use Notification Access to read player titles and playback status for video checks. SeeNot still works without it.</string>
     <string name="permission_media_session_action">Enable notification access</string>
     <string name="permission_optional_badge">Optional</string>
     <string name="permission_ready">Done</string>
@@ -862,8 +862,19 @@
     <string name="permission_guide_battery_message">Next, the system battery settings will open. Set SeeNot to unrestricted or ignore optimization, so the system is less likely to kill it and interrupt reminders or analysis.</string>
     <string name="permission_guide_usage_stats_title">Before enabling foreground detection backup</string>
     <string name="permission_guide_usage_stats_message">Next, Android Usage Access settings will open. Allow SeeNot to read recently used apps so it can still detect when you enter a controlled app if Android misses an accessibility app-switch event. SeeNot uses this only for app-level foreground state, not chat content or page text.</string>
-    <string name="permission_guide_media_session_title">Before enabling video playback enhancement</string>
-    <string name="permission_guide_media_session_message">Next, Android Notification Access settings will open. This lets SeeNot read the current media title, creator, and playback state from supported apps for more accurate video checks. SeeNot does not need SMS, chat messages, or other notification content. Recommended, but not required.</string>
+    <string name="permission_guide_media_session_title">Before enabling Notification Access for video checks</string>
+    <string name="permission_guide_media_session_message">Next, Android Notification Access settings will open. Allowing it lets SeeNot read the current media title, creator, and playback state from supported apps for more accurate video checks. SeeNot does not need SMS, chat messages, or other notification content. Recommended, but not required.</string>
+    <string name="restricted_settings_help_entry">Switch disabled?</string>
+    <string name="restricted_settings_help_title">If Android blocks this permission</string>
+    <string name="restricted_settings_help_message">Some phones restrict apps installed from downloads from enabling overlay or Accessibility. Open SeeNot\'s app info, allow restricted settings, then come back and enable the permission again.</string>
+    <string name="restricted_settings_help_step_app_info">Open SeeNot\'s app info page.</string>
+    <string name="restricted_settings_help_step_menu">Tap the top-right menu and choose Allow restricted settings.</string>
+    <string name="restricted_settings_help_step_return">Go back to the permission settings page and enable the permission again.</string>
+    <string name="restricted_settings_help_denied_caption">If Android shows this denied access dialog, allow restricted settings first.</string>
+    <string name="restricted_settings_help_permission_caption">The Accessibility or overlay switch may be disabled.</string>
+    <string name="restricted_settings_help_app_info_caption">Use the app info menu to allow restricted settings.</string>
+    <string name="restricted_settings_help_open_app_info">Open app info</string>
+    <string name="restricted_settings_help_back_to_permission">Back to permission settings</string>
 
     <!-- AddAppDialog -->
     <string name="add_app_title">Add App</string>

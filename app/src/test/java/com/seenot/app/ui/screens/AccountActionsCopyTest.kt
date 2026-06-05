@@ -29,7 +29,7 @@ class AccountActionsCopyTest {
     @Test
     fun aiChoiceCopyGuidesNovicesToSeenotAiAndOwnKeySetup() {
         assertEquals(
-            "登录并使用 SeeNot AI",
+            "使用 SeeNot AI",
             stringResourceValue("src/main/res/values/strings.xml", "open_plus_no_config_action")
         )
         assertEquals(

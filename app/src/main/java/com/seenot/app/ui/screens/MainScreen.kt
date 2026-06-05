@@ -22,6 +22,7 @@ import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -48,6 +49,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.res.stringResource
 import androidx.annotation.StringRes
 import androidx.lifecycle.Lifecycle
@@ -138,6 +140,7 @@ fun MainScreen(
     var accountRefreshKey by remember { mutableIntStateOf(0) }
     var aiSettingsRefreshKey by remember { mutableIntStateOf(0) }
     var pendingPermissionGuide by remember { mutableStateOf<PermissionGuideType?>(null) }
+    var restrictedSettingsHelpTarget by rememberSaveable { mutableStateOf<RestrictedSettingsHelpTarget?>(null) }
     var isAccountLoginInFlight by remember { mutableStateOf(false) }
     var isAccountRefreshInFlight by remember { mutableStateOf(false) }
     var syncRefreshKey by remember { mutableIntStateOf(0) }
@@ -475,6 +478,9 @@ fun MainScreen(
                         onEnableOverlay = {
                             pendingPermissionGuide = PermissionGuideType.OVERLAY
                         },
+                        onOpenRestrictedSettingsHelp = { target ->
+                            restrictedSettingsHelpTarget = target
+                        },
                         onRequestIgnoreBatteryOptimizations = {
                             pendingPermissionGuide = PermissionGuideType.BATTERY
                         },
@@ -663,6 +669,12 @@ fun MainScreen(
     pendingPermissionGuide?.let { guideType ->
         PermissionGuideDialog(
             type = guideType,
+            onOpenRestrictedSettingsHelp = guideType.restrictedSettingsHelpTarget()?.let { target ->
+                {
+                    restrictedSettingsHelpTarget = target
+                    pendingPermissionGuide = null
+                }
+            },
             onDismiss = { pendingPermissionGuide = null },
             onContinue = {
                 pendingPermissionGuide = null
@@ -672,7 +684,7 @@ fun MainScreen(
                     }
                     PermissionGuideType.OVERLAY -> {
                         overlayPermissionLauncher.launch(
-                            Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION)
+                            createOverlaySettingsIntent(context)
                         )
                     }
                     PermissionGuideType.BATTERY -> {
@@ -685,6 +697,25 @@ fun MainScreen(
                     }
                     PermissionGuideType.USAGE_STATS -> {
                         usageStatsAccessLauncher.launch(createUsageStatsSettingsIntent())
+                    }
+                }
+            }
+        )
+    }
+
+    restrictedSettingsHelpTarget?.let { target ->
+        RestrictedSettingsHelpSheet(
+            onDismiss = { restrictedSettingsHelpTarget = null },
+            onOpenAppInfo = {
+                context.startActivity(createAppDetailsSettingsIntent(context))
+            },
+            onOpenPermissionSettings = {
+                when (target) {
+                    RestrictedSettingsHelpTarget.ACCESSIBILITY -> {
+                        context.startActivity(Intent(Settings.ACTION_ACCESSIBILITY_SETTINGS))
+                    }
+                    RestrictedSettingsHelpTarget.OVERLAY -> {
+                        overlayPermissionLauncher.launch(createOverlaySettingsIntent(context))
                     }
                 }
             }
@@ -735,6 +766,7 @@ fun HomeTab(
     globalMonitoringPause: AppMonitoringPause?,
     onEnableAccessibility: () -> Unit,
     onEnableOverlay: () -> Unit,
+    onOpenRestrictedSettingsHelp: (RestrictedSettingsHelpTarget) -> Unit,
     onRequestIgnoreBatteryOptimizations: () -> Unit,
     onOpenNotificationSettings: () -> Unit,
     onOpenMediaSessionAccessSettings: () -> Unit,
@@ -762,6 +794,7 @@ fun HomeTab(
             offImpact = stringResource(R.string.permission_overlay_off),
             isComplete = isOverlayEnabled,
             actionLabel = stringResource(R.string.permission_overlay_action),
+            restrictedSettingsHelpTarget = RestrictedSettingsHelpTarget.OVERLAY,
             onAction = onEnableOverlay
         ),
         SetupProgressStep(
@@ -778,6 +811,7 @@ fun HomeTab(
             offImpact = stringResource(R.string.permission_accessibility_off),
             isComplete = isAccessibilityEnabled,
             actionLabel = stringResource(R.string.permission_accessibility_action),
+            restrictedSettingsHelpTarget = RestrictedSettingsHelpTarget.ACCESSIBILITY,
             onAction = onEnableAccessibility
         ),
         SetupProgressStep(
@@ -860,6 +894,7 @@ fun HomeTab(
             isHomeReady = isHomeReady,
             showDetails = showSetupDetails,
             onToggleDetails = { showSetupDetails = !showSetupDetails },
+            onOpenRestrictedSettingsHelp = onOpenRestrictedSettingsHelp,
             onReadyAction = onOpenControlledApps
         )
 
@@ -1008,6 +1043,7 @@ private data class SetupProgressStep(
     val offImpact: String? = null,
     val isComplete: Boolean,
     val actionLabel: String,
+    val restrictedSettingsHelpTarget: RestrictedSettingsHelpTarget? = null,
     val onAction: () -> Unit
 )
 
@@ -1021,6 +1057,7 @@ private fun FirstSetupProgressCard(
     isHomeReady: Boolean,
     showDetails: Boolean,
     onToggleDetails: () -> Unit,
+    onOpenRestrictedSettingsHelp: (RestrictedSettingsHelpTarget) -> Unit,
     onReadyAction: () -> Unit
 ) {
     val progress = completedSteps.toFloat() / totalSteps.toFloat()
@@ -1105,6 +1142,14 @@ private fun FirstSetupProgressCard(
                     ) {
                         Text(nextStep.actionLabel)
                     }
+                    nextStep.restrictedSettingsHelpTarget?.let { target ->
+                        TextButton(
+                            onClick = { onOpenRestrictedSettingsHelp(target) },
+                            modifier = Modifier.align(Alignment.CenterHorizontally)
+                        ) {
+                            Text(stringResource(R.string.restricted_settings_help_entry))
+                        }
+                    }
                 } else if (showDetails) {
                     Text(
                         text = stringResource(R.string.first_setup_ready_next),
@@ -1123,7 +1168,10 @@ private fun FirstSetupProgressCard(
             if (showDetails) {
                 HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant)
                 if (nextStep != null) {
-                    RequiredSetupSection(requiredSteps = requiredSteps)
+                    RequiredSetupSection(
+                        requiredSteps = requiredSteps,
+                        onOpenRestrictedSettingsHelp = onOpenRestrictedSettingsHelp
+                    )
                     OptionalSetupSection(
                         optionalSteps = optionalSteps,
                         nextOptionalStep = nextOptionalStep
@@ -1133,7 +1181,10 @@ private fun FirstSetupProgressCard(
                         optionalSteps = optionalSteps,
                         nextOptionalStep = nextOptionalStep
                     )
-                    RequiredSetupSection(requiredSteps = requiredSteps)
+                    RequiredSetupSection(
+                        requiredSteps = requiredSteps,
+                        onOpenRestrictedSettingsHelp = onOpenRestrictedSettingsHelp
+                    )
                 }
             }
 
@@ -1154,7 +1205,10 @@ private fun FirstSetupProgressCard(
 }
 
 @Composable
-private fun RequiredSetupSection(requiredSteps: List<SetupProgressStep>) {
+private fun RequiredSetupSection(
+    requiredSteps: List<SetupProgressStep>,
+    onOpenRestrictedSettingsHelp: (RestrictedSettingsHelpTarget) -> Unit
+) {
     Text(
         text = stringResource(R.string.setup_required_section),
         style = MaterialTheme.typography.labelLarge,
@@ -1163,7 +1217,10 @@ private fun RequiredSetupSection(requiredSteps: List<SetupProgressStep>) {
     )
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         requiredSteps.forEach { step ->
-            SetupProgressStepRow(step = step)
+            SetupProgressStepRow(
+                step = step,
+                onOpenRestrictedSettingsHelp = onOpenRestrictedSettingsHelp
+            )
         }
     }
 }
@@ -1205,7 +1262,8 @@ private fun OptionalSetupSection(
 @Composable
 private fun SetupProgressStepRow(
     step: SetupProgressStep,
-    isOptional: Boolean = false
+    isOptional: Boolean = false,
+    onOpenRestrictedSettingsHelp: ((RestrictedSettingsHelpTarget) -> Unit)? = null
 ) {
     Row(
         modifier = Modifier
@@ -1260,6 +1318,14 @@ private fun SetupProgressStepRow(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
+                }
+                if (step.restrictedSettingsHelpTarget != null && onOpenRestrictedSettingsHelp != null) {
+                    TextButton(
+                        onClick = { onOpenRestrictedSettingsHelp(step.restrictedSettingsHelpTarget) },
+                        contentPadding = PaddingValues(horizontal = 0.dp, vertical = 4.dp)
+                    ) {
+                        Text(stringResource(R.string.restricted_settings_help_entry))
+                    }
                 }
             }
         }
@@ -1525,6 +1591,21 @@ private enum class PermissionGuideType {
     USAGE_STATS
 }
 
+enum class RestrictedSettingsHelpTarget {
+    ACCESSIBILITY,
+    OVERLAY
+}
+
+private fun PermissionGuideType.restrictedSettingsHelpTarget(): RestrictedSettingsHelpTarget? {
+    return when (this) {
+        PermissionGuideType.ACCESSIBILITY -> RestrictedSettingsHelpTarget.ACCESSIBILITY
+        PermissionGuideType.OVERLAY -> RestrictedSettingsHelpTarget.OVERLAY
+        PermissionGuideType.BATTERY,
+        PermissionGuideType.MEDIA_SESSION,
+        PermissionGuideType.USAGE_STATS -> null
+    }
+}
+
 private const val SEENOT_APP_LOGIN_REDIRECT_URI = "seenot://auth/callback"
 
 private suspend fun openSeenotAccountPage(
@@ -1629,6 +1710,7 @@ private fun managedAiErrorMessage(context: Context, error: Throwable): String {
 @Composable
 private fun PermissionGuideDialog(
     type: PermissionGuideType,
+    onOpenRestrictedSettingsHelp: (() -> Unit)?,
     onDismiss: () -> Unit,
     onContinue: () -> Unit
 ) {
@@ -1650,11 +1732,135 @@ private fun PermissionGuideDialog(
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) {
-                Text(stringResource(R.string.cancel))
+            Row {
+                onOpenRestrictedSettingsHelp?.let { openHelp ->
+                    TextButton(onClick = openHelp) {
+                        Text(stringResource(R.string.restricted_settings_help_entry))
+                    }
+                }
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.cancel))
+                }
             }
         }
     )
+}
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun RestrictedSettingsHelpSheet(
+    onDismiss: () -> Unit,
+    onOpenAppInfo: () -> Unit,
+    onOpenPermissionSettings: () -> Unit
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.restricted_settings_help_title),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = stringResource(R.string.restricted_settings_help_message),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            RestrictedSettingsStep(
+                number = 1,
+                text = stringResource(R.string.restricted_settings_help_step_app_info)
+            )
+            RestrictedSettingsStep(
+                number = 2,
+                text = stringResource(R.string.restricted_settings_help_step_menu)
+            )
+            RestrictedSettingsStep(
+                number = 3,
+                text = stringResource(R.string.restricted_settings_help_step_return)
+            )
+            RestrictedSettingsImage(
+                resId = R.drawable.restricted_settings_denied,
+                caption = stringResource(R.string.restricted_settings_help_denied_caption)
+            )
+            RestrictedSettingsImage(
+                resId = R.drawable.restricted_settings_permission,
+                caption = stringResource(R.string.restricted_settings_help_permission_caption)
+            )
+            RestrictedSettingsImage(
+                resId = R.drawable.restricted_settings_app_info,
+                caption = stringResource(R.string.restricted_settings_help_app_info_caption)
+            )
+            Button(
+                onClick = onOpenAppInfo,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(R.string.restricted_settings_help_open_app_info))
+            }
+            TextButton(
+                onClick = onOpenPermissionSettings,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            ) {
+                Text(stringResource(R.string.restricted_settings_help_back_to_permission))
+            }
+        }
+    }
+}
+
+@Composable
+private fun RestrictedSettingsStep(
+    number: Int,
+    text: String
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.Top
+    ) {
+        Surface(
+            color = MaterialTheme.colorScheme.primaryContainer,
+            shape = MaterialTheme.shapes.small
+        ) {
+            Text(
+                text = number.toString(),
+                modifier = Modifier.padding(horizontal = 9.dp, vertical = 4.dp),
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onPrimaryContainer,
+                fontWeight = FontWeight.Bold
+            )
+        }
+        Spacer(modifier = Modifier.width(12.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
+    }
+}
+
+@Composable
+private fun RestrictedSettingsImage(
+    resId: Int,
+    caption: String
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Image(
+            painter = painterResource(resId),
+            contentDescription = caption,
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(max = 420.dp)
+        )
+        Text(
+            text = caption,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+    }
 }
 
 private fun isBatteryOptimizationIgnored(context: Context): Boolean {
@@ -1675,6 +1881,18 @@ private fun createBatteryOptimizationIntent(context: Context): Intent {
         requestIntent
     } else {
         Intent(Settings.ACTION_IGNORE_BATTERY_OPTIMIZATION_SETTINGS)
+    }
+}
+
+private fun createOverlaySettingsIntent(context: Context): Intent {
+    return Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION).apply {
+        data = Uri.parse("package:${context.packageName}")
+    }
+}
+
+private fun createAppDetailsSettingsIntent(context: Context): Intent {
+    return Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+        data = Uri.parse("package:${context.packageName}")
     }
 }
 
