@@ -76,16 +76,6 @@
                 android:resource="@xml/accessibility_service_config" />
         </service>
 
-        <!-- Foreground Service -->
-        <service
-            android:name=".service.SeenotForegroundService"
-            android:exported="false"
-            android:foregroundServiceType="specialUse">
-            <property
-                android:name="android.app.PROPERTY_SPECIAL_USE_FGS_SUBTYPE"
-                android:value="attention_management" />
-        </service>
-
         <!-- Optional listener used to inspect active MediaSession metadata in diagnostics. -->
         <service
             android:name=".service.SeenotNotificationListenerService"
