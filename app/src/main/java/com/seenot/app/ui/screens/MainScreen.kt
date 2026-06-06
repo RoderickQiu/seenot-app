@@ -517,6 +517,7 @@ fun MainScreen(
                         },
                         onOpenAiSettings = { showAiSettingsDialog = true },
                         onOpenAiOptionsHelp = { appHelpTopic = AppHelpTopic.AI_OPTIONS },
+                        onOpenUsageInstructions = { appHelpTopic = AppHelpTopic.USAGE_INSTRUCTIONS },
                         onOpenAccount = {
                             mainScope.launch {
                                 openSeenotAccountPage(
@@ -757,6 +758,7 @@ fun MainScreen(
             primaryActionLabelRes = when (topic) {
                 AppHelpTopic.AI_OPTIONS -> if (isPlus) R.string.use_seenot_ai_action else R.string.open_plus_no_config_action
                 AppHelpTopic.WRONG_JUDGMENT -> R.string.view_records
+                AppHelpTopic.USAGE_INSTRUCTIONS -> R.string.first_setup_ready_action
             },
             onPrimaryAction = {
                 appHelpTopic = null
@@ -788,11 +790,15 @@ fun MainScreen(
                     AppHelpTopic.WRONG_JUDGMENT -> {
                         showRuleRecordsPage = true
                     }
+                    AppHelpTopic.USAGE_INSTRUCTIONS -> {
+                        selectedTab = 1
+                    }
                 }
             },
             secondaryActionLabelRes = when (topic) {
                 AppHelpTopic.AI_OPTIONS -> R.string.use_own_api_key_action
                 AppHelpTopic.WRONG_JUDGMENT -> R.string.background_limits_help_got_it
+                AppHelpTopic.USAGE_INSTRUCTIONS -> R.string.background_limits_help_got_it
             },
             onSecondaryAction = {
                 appHelpTopic = null
@@ -855,6 +861,7 @@ fun HomeTab(
     onRequestMicrophone: () -> Unit,
     onOpenAiSettings: () -> Unit,
     onOpenAiOptionsHelp: () -> Unit,
+    onOpenUsageInstructions: () -> Unit,
     onOpenAccount: () -> Unit,
     onUseSeenotAi: () -> Unit,
     onOpenControlledApps: () -> Unit,
@@ -965,11 +972,23 @@ fun HomeTab(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        Text(
-            text = stringResource(R.string.app_tagline),
-            style = MaterialTheme.typography.bodyLarge,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.Top,
+            horizontalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text(
+                text = stringResource(R.string.app_tagline),
+                style = MaterialTheme.typography.bodyLarge,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.weight(1f)
+            )
+            InlineHelpLink(
+                text = stringResource(R.string.usage_instructions),
+                onClick = onOpenUsageInstructions,
+                modifier = Modifier.padding(top = 3.dp)
+            )
+        }
 
         Spacer(modifier = Modifier.height(24.dp))
 
@@ -983,6 +1002,9 @@ fun HomeTab(
             showDetails = showSetupDetails,
             onToggleDetails = { showSetupDetails = !showSetupDetails },
             onOpenSecondaryHelp = onOpenSecondaryHelp,
+            globalMonitoringPause = globalMonitoringPause,
+            onPauseGlobalMonitoring = { showGlobalPauseDialog = true },
+            onResumeGlobalMonitoring = onResumeGlobalMonitoring,
             onReadyAction = onOpenControlledApps
         )
 
@@ -1058,45 +1080,6 @@ fun HomeTab(
             Spacer(modifier = Modifier.height(24.dp))
         }
 
-        if (isHomeReady) {
-            GlobalMonitoringStatusCard(
-                pause = globalMonitoringPause,
-                onPauseClick = { showGlobalPauseDialog = true },
-                onResumeClick = onResumeGlobalMonitoring
-            )
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // Quick Start Guide
-        Text(
-            text = stringResource(R.string.usage_instructions),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
-        Card {
-            Column(modifier = Modifier.padding(16.dp)) {
-                StepItem(number = 1, text = stringResource(R.string.step_1_select_apps))
-                Spacer(modifier = Modifier.height(8.dp))
-                StepItem(number = 2, text = stringResource(R.string.step_2_declare_intent))
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(
-                    text = stringResource(R.string.step_2_intent_example),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.height(8.dp))
-                StepItem(number = 3, text = stringResource(R.string.step_3_ai_guards))
-                Spacer(modifier = Modifier.height(8.dp))
-                StepItem(number = 4, text = stringResource(R.string.step_4_report_misreport))
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
         if (isHomeReady && showHomeTimeline) {
             // Today's timeline (derived from RuleRecord)
             HomeTimelineSection()
@@ -1147,6 +1130,9 @@ private fun FirstSetupProgressCard(
     showDetails: Boolean,
     onToggleDetails: () -> Unit,
     onOpenSecondaryHelp: (SetupSecondaryHelp) -> Unit,
+    globalMonitoringPause: AppMonitoringPause?,
+    onPauseGlobalMonitoring: () -> Unit,
+    onResumeGlobalMonitoring: () -> Unit,
     onReadyAction: () -> Unit
 ) {
     val progress = completedSteps.toFloat() / totalSteps.toFloat()
@@ -1187,12 +1173,31 @@ private fun FirstSetupProgressCard(
                     )
                     Text(
                         text = if (isHomeReady) {
-                            stringResource(R.string.first_setup_ready_desc)
+                            if (globalMonitoringPause == null) {
+                                stringResource(R.string.first_setup_ready_desc)
+                            } else {
+                                formatGlobalMonitoringPauseStatus(LocalContext.current, globalMonitoringPause)
+                            }
                         } else {
                             stringResource(R.string.first_setup_progress_count, completedSteps, totalSteps)
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                if (isHomeReady) {
+                    Spacer(modifier = Modifier.width(12.dp))
+                    InlineHelpLink(
+                        text = if (globalMonitoringPause == null) {
+                            stringResource(R.string.pause_seenot_monitoring)
+                        } else {
+                            stringResource(R.string.resume_seenot_monitoring)
+                        },
+                        onClick = if (globalMonitoringPause == null) {
+                            onPauseGlobalMonitoring
+                        } else {
+                            onResumeGlobalMonitoring
+                        }
                     )
                 }
             }
@@ -1448,65 +1453,6 @@ private fun InlineHelpLink(
 }
 
 @Composable
-private fun GlobalMonitoringStatusCard(
-    pause: AppMonitoringPause?,
-    onPauseClick: () -> Unit,
-    onResumeClick: () -> Unit
-) {
-    Card(
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f)
-        )
-    ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Icon(
-                imageVector = if (pause == null) Icons.Default.PlayCircle else Icons.Default.PauseCircle,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = if (pause == null) {
-                        stringResource(R.string.seenot_monitoring_running_title)
-                    } else {
-                        stringResource(R.string.seenot_monitoring_paused_title)
-                    },
-                    style = MaterialTheme.typography.bodyLarge,
-                    fontWeight = FontWeight.Medium
-                )
-                Text(
-                    text = if (pause == null) {
-                        stringResource(R.string.seenot_monitoring_running_desc)
-                    } else {
-                        formatGlobalMonitoringPauseStatus(LocalContext.current, pause)
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            OutlinedButton(
-                onClick = if (pause == null) onPauseClick else onResumeClick
-            ) {
-                Text(
-                    text = if (pause == null) {
-                        stringResource(R.string.pause_seenot_monitoring)
-                    } else {
-                        stringResource(R.string.resume_seenot_monitoring)
-                    }
-                )
-            }
-        }
-    }
-}
-
-@Composable
 private fun PauseSeenotDialog(
     onDismiss: () -> Unit,
     onPauseForHalfHour: () -> Unit,
@@ -1739,7 +1685,8 @@ enum class SetupSecondaryHelp(
 
 enum class AppHelpTopic {
     AI_OPTIONS,
-    WRONG_JUDGMENT
+    WRONG_JUDGMENT,
+    USAGE_INSTRUCTIONS
 }
 
 private fun PermissionGuideType.restrictedSettingsHelpTarget(): RestrictedSettingsHelpTarget? {
@@ -2078,12 +2025,14 @@ private val AppHelpTopic.titleRes: Int
     @StringRes get() = when (this) {
         AppHelpTopic.AI_OPTIONS -> R.string.ai_options_help_title
         AppHelpTopic.WRONG_JUDGMENT -> R.string.wrong_judgment_help_title
+        AppHelpTopic.USAGE_INSTRUCTIONS -> R.string.usage_instructions
     }
 
 private val AppHelpTopic.messageRes: Int
     @StringRes get() = when (this) {
         AppHelpTopic.AI_OPTIONS -> R.string.ai_options_help_message
         AppHelpTopic.WRONG_JUDGMENT -> R.string.wrong_judgment_help_message
+        AppHelpTopic.USAGE_INSTRUCTIONS -> R.string.usage_instructions_help_message
     }
 
 private val AppHelpTopic.stepResIds: List<Int>
@@ -2096,6 +2045,12 @@ private val AppHelpTopic.stepResIds: List<Int>
             R.string.wrong_judgment_help_step_current,
             R.string.wrong_judgment_help_step_records,
             R.string.wrong_judgment_help_step_result
+        )
+        AppHelpTopic.USAGE_INSTRUCTIONS -> listOf(
+            R.string.step_1_select_apps,
+            R.string.step_2_declare_intent,
+            R.string.step_3_ai_guards,
+            R.string.step_4_report_misreport
         )
     }
 
@@ -2195,28 +2150,6 @@ private fun createNotificationListenerSettingsIntent(): Intent {
 
 private fun createUsageStatsSettingsIntent(): Intent {
     return Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
-}
-
-/**
- * Step Item
- */
-@Composable
-fun StepItem(number: Int, text: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Surface(
-            shape = MaterialTheme.shapes.small,
-            color = MaterialTheme.colorScheme.primary
-        ) {
-            Text(
-                text = "$number",
-                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                color = MaterialTheme.colorScheme.onPrimary,
-                style = MaterialTheme.typography.labelMedium
-            )
-        }
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(text = text, style = MaterialTheme.typography.bodyMedium)
-    }
 }
 
 /**

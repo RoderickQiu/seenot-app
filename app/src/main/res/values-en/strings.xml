@@ -2,7 +2,7 @@
 <resources>
     <!-- App -->
     <string name="app_name">SeeNot</string>
-    <string name="app_tagline">AI-Powered Attention Management</string>
+    <string name="app_tagline">AI Attention Management</string>
 
     <!-- Permissions -->
     <string name="accessibility_service_description">SeeNot uses accessibility services to monitor app usage and enforce your declared intentions.</string>
@@ -48,9 +48,6 @@
     <string name="resume_seenot_monitoring">Resume</string>
     <string name="pause_seenot_monitoring_title">Pause SeeNot</string>
     <string name="pause_seenot_monitoring_desc">While paused, SeeNot will stop judging all controlled apps and restore automatically when time is up.</string>
-    <string name="seenot_monitoring_running_title">SeeNot is running</string>
-    <string name="seenot_monitoring_running_desc">When you enter a controlled app, SeeNot will judge it according to your intent.</string>
-    <string name="seenot_monitoring_paused_title">SeeNot is paused</string>
     <string name="seenot_monitoring_paused_until">Paused, resumes %s</string>
     <string name="seenot_monitoring_paused_permanently">Paused permanently</string>
     <string name="remove_controlled_app_title">Remove controlled app?</string>
@@ -581,7 +578,7 @@
     <string name="home_ready_title">SeeNot is ready</string>
     <string name="first_setup_progress_title">First setup progress</string>
     <string name="first_setup_progress_count">%1$d of %2$d steps done</string>
-    <string name="first_setup_ready_desc">Permissions, AI, and controlled apps are ready</string>
+    <string name="first_setup_ready_desc">Ready to monitor selected apps</string>
     <string name="first_setup_ready_next">Open a controlled app, say today\'s goal, and try a reminder.</string>
     <string name="first_setup_ready_action">View controlled apps</string>
     <string name="permission_overlay_action">Enable overlay permission</string>
@@ -606,9 +603,9 @@
     <string name="tap_to_expand">View steps and optional permissions</string>
     <string name="please_complete_permissions_and_ai_config">Please complete required permissions, AI setup, and add at least one controlled app</string>
     <string name="usage_instructions">Usage Instructions</string>
+    <string name="usage_instructions_help_message">Open a controlled app and follow these steps.</string>
     <string name="step_1_select_apps">Select apps to manage on the \"Apps\" page</string>
-    <string name="step_2_declare_intent">Declare your intent when opening a controlled app</string>
-    <string name="step_2_intent_example">e.g., "Only check work messages, 10 minutes". You can use voice or type directly.</string>
+    <string name="step_2_declare_intent">Declare your intent when opening a controlled app, such as “I want to watch product design videos for 10 minutes.”</string>
     <string name="step_3_ai_guards">AI will guard your intent in real-time and remind or intervene when appropriate</string>
     <string name="step_4_report_misreport">If the system misunderstood, you can report a misreport anytime to let AI correct it.</string>
 
