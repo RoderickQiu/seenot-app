@@ -168,7 +168,7 @@ internal fun AiModelSettingsDialog(
     }
     val providerOptions = remember(provider) { selectableProviders(provider) }
     val sttProviderOptions = remember(sttProvider) { selectableSttProviders(sttProvider) }
-    val sttModelIsFixed = sttProvider == AiProvider.DASHSCOPE || sttProvider == AiProvider.GEMINI
+    val sttModelIsFixed = sttProvider == AiProvider.DASHSCOPE
     val sttUsesSharedProviderConfig = sttProvider != AiProvider.CUSTOM
     val devDashscopeKeyValidUntilEpochMs = BuildConfig.DEVELOPMENT_DASHSCOPE_KEY_VALID_UNTIL_EPOCH_MS
     val isDevDashscopeKeyActive = BuildConfig.ENABLE_DEVELOPMENT_MODE &&
@@ -273,6 +273,60 @@ internal fun AiModelSettingsDialog(
 
     val baseUrlSuggestions = remember(provider) { baseUrlSuggestionsFor(provider) }
     val sttBaseUrlSuggestions = remember(sttProvider) { baseUrlSuggestionsFor(sttProvider) }
+
+    @Composable
+    fun VisionBaseUrlField() {
+        ExposedDropdownMenuBox(
+            expanded = baseUrlExpanded,
+            onExpandedChange = {
+                if (baseUrlSuggestions.isNotEmpty()) baseUrlExpanded = !baseUrlExpanded
+            }
+        ) {
+            OutlinedTextField(
+                value = baseUrl,
+                onValueChange = {
+                    baseUrl = it
+                    if (provider == sttProvider && provider != AiProvider.CUSTOM) {
+                        sttBaseUrl = it
+                    }
+                },
+                label = { Text(stringResource(R.string.base_url)) },
+                placeholder = { Text(stringResource(R.string.base_url_placeholder)) },
+                trailingIcon = {
+                    if (baseUrlSuggestions.isNotEmpty()) {
+                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = baseUrlExpanded)
+                    }
+                },
+                modifier = Modifier
+                    .menuAnchor()
+                    .fillMaxWidth(),
+                singleLine = true
+            )
+            if (baseUrlSuggestions.isNotEmpty()) {
+                ExposedDropdownMenu(
+                    expanded = baseUrlExpanded,
+                    onDismissRequest = { baseUrlExpanded = false }
+                ) {
+                    baseUrlSuggestions.forEach { (labelResId, value) ->
+                        DropdownMenuItem(
+                            text = { Text(stringResource(labelResId)) },
+                            onClick = {
+                                baseUrlExpanded = false
+                                baseUrl = value
+                                if (provider == sttProvider && provider != AiProvider.CUSTOM) {
+                                    sttBaseUrl = value
+                                }
+                                if (provider == AiProvider.DASHSCOPE) {
+                                    qwenRegion = QwenRegion.entries.firstOrNull { it.baseUrl == value }
+                                        ?: qwenRegion
+                                }
+                            }
+                        )
+                    }
+                }
+            }
+        }
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -439,6 +493,10 @@ internal fun AiModelSettingsDialog(
                             }
                         }
 
+                        if (provider == AiProvider.CUSTOM) {
+                            VisionBaseUrlField()
+                        }
+
                         Surface(
                             modifier = Modifier
                                 .fillMaxWidth()
@@ -471,55 +529,8 @@ internal fun AiModelSettingsDialog(
                         }
 
                         if (showAdvancedVisionSettings) {
-                            ExposedDropdownMenuBox(
-                                expanded = baseUrlExpanded,
-                                onExpandedChange = {
-                                    if (baseUrlSuggestions.isNotEmpty()) baseUrlExpanded = !baseUrlExpanded
-                                }
-                            ) {
-                                OutlinedTextField(
-                                    value = baseUrl,
-                                    onValueChange = {
-                                        baseUrl = it
-                                        if (provider == sttProvider && provider != AiProvider.CUSTOM) {
-                                            sttBaseUrl = it
-                                        }
-                                    },
-                                    label = { Text(stringResource(R.string.base_url)) },
-                                    placeholder = { Text(stringResource(R.string.base_url_placeholder)) },
-                                    trailingIcon = {
-                                        if (baseUrlSuggestions.isNotEmpty()) {
-                                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = baseUrlExpanded)
-                                        }
-                                    },
-                                    modifier = Modifier
-                                        .menuAnchor()
-                                        .fillMaxWidth(),
-                                    singleLine = true
-                                )
-                                if (baseUrlSuggestions.isNotEmpty()) {
-                                    ExposedDropdownMenu(
-                                        expanded = baseUrlExpanded,
-                                        onDismissRequest = { baseUrlExpanded = false }
-                                    ) {
-                                        baseUrlSuggestions.forEach { (labelResId, value) ->
-                                            DropdownMenuItem(
-                                                text = { Text(stringResource(labelResId)) },
-                                                onClick = {
-                                                    baseUrlExpanded = false
-                                                    baseUrl = value
-                                                    if (provider == sttProvider && provider != AiProvider.CUSTOM) {
-                                                        sttBaseUrl = value
-                                                    }
-                                                    if (provider == AiProvider.DASHSCOPE) {
-                                                        qwenRegion = QwenRegion.entries.firstOrNull { it.baseUrl == value }
-                                                            ?: qwenRegion
-                                                    }
-                                                }
-                                            )
-                                        }
-                                    }
-                                }
+                            if (provider != AiProvider.CUSTOM) {
+                                VisionBaseUrlField()
                             }
                         }
 
@@ -748,7 +759,7 @@ internal fun AiModelSettingsDialog(
                             }
                         }
 
-                        if (sttProvider == AiProvider.DASHSCOPE || sttProvider == AiProvider.GEMINI) {
+                        if (sttProvider == AiProvider.DASHSCOPE) {
                             Text(
                                 text = stringResource(R.string.voice_input_auto_config_hint),
                                 style = MaterialTheme.typography.bodySmall,
@@ -799,7 +810,6 @@ internal fun AiModelSettingsDialog(
                                     provider = sttProvider,
                                     model = when (sttProvider) {
                                         AiProvider.DASHSCOPE -> "fun-asr-realtime"
-                                        AiProvider.GEMINI -> "gemini-2.5-flash-preview-tts"
                                         else -> sttModel.trim()
                                     },
                                     apiKey = sttApiKey.trim(),
@@ -881,4 +891,3 @@ internal fun AiModelSettingsDialog(
         }
     )
 }
-

@@ -263,7 +263,7 @@ object ApiConfig {
         val provider = raw?.let { value ->
             AiProvider.entries.firstOrNull { it.name == value }
         } ?: fallback
-        return if (provider == AiProvider.ANTHROPIC) fallback else provider
+        return if (provider.supportsStt()) provider else fallback
     }
 
     fun getSttModel(): String {
@@ -301,11 +301,7 @@ object ApiConfig {
     }
 
     fun saveSttSettings(settings: SttSettings) {
-        val normalizedProvider = if (settings.provider == AiProvider.ANTHROPIC) {
-            defaultSttProviderFor(getProvider())
-        } else {
-            settings.provider
-        }
+        val normalizedProvider = if (settings.provider.supportsStt()) settings.provider else defaultSttProviderFor(getProvider())
         val normalizedModel = normalizeSttModel(normalizedProvider, settings.model.trim())
 
         prefs?.edit()
@@ -439,16 +435,10 @@ object ApiConfig {
     }
 
     private fun defaultSttProviderFor(modelProvider: AiProvider): AiProvider {
-        return when (modelProvider) {
-            AiProvider.ANTHROPIC -> AiProvider.DASHSCOPE
-            else -> modelProvider
-        }
+        return if (modelProvider.supportsStt()) modelProvider else AiProvider.DASHSCOPE
     }
 
     private fun normalizeSttModel(provider: AiProvider, model: String): String {
-        if (provider == AiProvider.GEMINI) {
-            return "gemini-2.5-flash-preview-tts"
-        }
         return if (model.isBlank()) defaultSttModelFor(provider) else model
     }
 
@@ -456,11 +446,22 @@ object ApiConfig {
         return when (provider) {
             AiProvider.DASHSCOPE -> "fun-asr-realtime"
             AiProvider.OPENAI -> "gpt-4o-mini-transcribe"
-            AiProvider.GEMINI -> "gemini-2.5-flash-preview-tts"
+            AiProvider.GEMINI -> "fun-asr-realtime"
             AiProvider.GLM -> "glm-asr-2512"
             AiProvider.CUSTOM -> "whisper-1"
             AiProvider.ANTHROPIC -> "fun-asr-realtime"
         }
+    }
+}
+
+private fun AiProvider.supportsStt(): Boolean {
+    return when (this) {
+        AiProvider.DASHSCOPE,
+        AiProvider.OPENAI,
+        AiProvider.GLM,
+        AiProvider.CUSTOM -> true
+        AiProvider.GEMINI,
+        AiProvider.ANTHROPIC -> false
     }
 }
 
@@ -535,11 +536,10 @@ fun selectableSttProviders(current: AiProvider? = null): List<AiProvider> {
     val defaults = listOf(
         AiProvider.DASHSCOPE,
         AiProvider.OPENAI,
-        AiProvider.GEMINI,
         AiProvider.GLM,
         AiProvider.CUSTOM
     )
-    return if (current != null && current !in defaults) defaults + current else defaults
+    return if (current != null && current !in defaults && current.supportsStt()) defaults + current else defaults
 }
 
 data class ApiSettings(
