@@ -26,4 +26,13 @@ class SetupSecondaryHelpTest {
         )
         assertNull(SetupSecondaryHelp.BACKGROUND_LIMITS.restrictedSettingsTarget)
     }
+
+    @Test
+    fun aiOptionsHelpUsesKnowledgeTopicLabelAndNoRestrictedTarget() {
+        assertEquals(
+            R.string.ai_options_help_entry,
+            SetupSecondaryHelp.AI_OPTIONS.labelRes
+        )
+        assertNull(SetupSecondaryHelp.AI_OPTIONS.restrictedSettingsTarget)
+    }
 }

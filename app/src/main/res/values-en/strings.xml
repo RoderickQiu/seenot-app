@@ -564,7 +564,7 @@
     <string name="seenot_ai_enabled_title">SeeNot AI is on</string>
     <string name="seenot_ai_enabled_desc">Plus includes visual checks, intent parsing, and voice input without an API key.</string>
     <string name="plus_can_enable_seenot_ai_desc">Your Plus plan can enable SeeNot AI directly, or you can keep using your own API key.</string>
-    <string name="open_plus_no_config_action">Use SeeNot AI</string>
+    <string name="open_plus_no_config_action">Get Plus</string>
     <string name="use_seenot_ai_action">Use SeeNot AI</string>
     <string name="use_own_api_key_action">My API key</string>
     <string name="switch_to_own_key_action">Switch to my API key</string>
@@ -587,7 +587,7 @@
     <string name="permission_overlay_action">Enable overlay permission</string>
     <string name="permission_accessibility_action">Enable Accessibility Service</string>
     <string name="setup_step_ai_title">Choose an AI option</string>
-    <string name="setup_step_ai_desc">Start with SeeNot AI, or use your own API key.</string>
+    <string name="setup_step_ai_desc">New users can get Plus to use SeeNot AI, or use their own API key.</string>
     <string name="setup_step_ai_action">Use SeeNot AI</string>
     <string name="setup_step_apps_title">Add your first controlled app</string>
     <string name="setup_step_apps_desc">Pick one app where you often drift.</string>
@@ -748,7 +748,7 @@
     <string name="not_enabled_label">Not enabled</string>
     <string name="ai_source_seenot_ai_desc">No API key setup needed; SeeNot AI stays ready when needed.</string>
     <string name="ai_source_own_key_desc">Current setup: %s.</string>
-    <string name="ai_source_missing_desc">Choose SeeNot AI, or use the AI setup on this device.</string>
+    <string name="ai_source_missing_desc">Get Plus to use SeeNot AI, or use the AI setup on this device.</string>
     <string name="ai_source_selector_title">Default source</string>
     <string name="ai_source_selector_seenot">SeeNot AI</string>
     <string name="ai_source_selector_local">On-device AI setup</string>
@@ -852,6 +852,18 @@
     <string name="base_url_placeholder">https://.../v1</string>
     <string name="api_key">API Key</string>
     <string name="base_url">Base URL</string>
+    <string name="ai_options_help_entry">Which AI option should I use?</string>
+    <string name="view_ai_options_help">View AI option guide</string>
+    <string name="ai_options_help_title">Choosing an AI option</string>
+    <string name="ai_options_help_message">If you just want to start quickly, get SeeNot Plus to use SeeNot AI. If you already know your AI service setup, you can keep using your own configuration.</string>
+    <string name="ai_options_help_step_seenot_ai">Easiest start: get Plus and use SeeNot AI. SeeNot prepares the setup needed for analysis and voice input, so you do not need to maintain keys, models, or quota yourself.</string>
+    <string name="ai_options_help_step_own_key">Already have an AI account: connect it yourself. This is best if you are comfortable handling service billing, quota, network, and availability issues.</string>
+    <string name="wrong_judgment_help_entry">What if a judgment is wrong?</string>
+    <string name="wrong_judgment_help_title">When a judgment is wrong</string>
+    <string name="wrong_judgment_help_message">SeeNot may sometimes misjudge a screen. You can correct it when the status prompt appears, or review it later from judgment records.</string>
+    <string name="wrong_judgment_help_step_current">Right away: expand the status prompt and tap “Wrong judgment”. This works for false reminders and for cases that were not stopped or counted correctly.</string>
+    <string name="wrong_judgment_help_step_records">Later review: open judgment records, find that judgment, and mark it as inaccurate.</string>
+    <string name="wrong_judgment_help_step_result">After correction: SeeNot uses your feedback to generate a supplementary rule, so similar situations better match your intent next time.</string>
 
     <!-- Permission guidance -->
     <string name="permission_guide_continue">Open settings</string>

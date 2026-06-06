@@ -570,7 +570,7 @@
     <string name="seenot_ai_enabled_title">SeeNot AI 已启用</string>
     <string name="seenot_ai_enabled_desc">Plus 已包含视觉判断、意图解析和语音输入，无需配置 API Key。</string>
     <string name="plus_can_enable_seenot_ai_desc">你的 Plus 可直接启用 SeeNot AI，也可以继续使用自己的 API Key。</string>
-    <string name="open_plus_no_config_action">使用 SeeNot AI</string>
+    <string name="open_plus_no_config_action">开通 Plus</string>
     <string name="use_seenot_ai_action">使用 SeeNot AI</string>
     <string name="use_own_api_key_action">自带 API Key</string>
     <string name="switch_to_own_key_action">切回自带 API Key</string>
@@ -593,7 +593,7 @@
     <string name="permission_overlay_action">开启悬浮窗权限</string>
     <string name="permission_accessibility_action">开启无障碍服务</string>
     <string name="setup_step_ai_title">选择 AI 方案</string>
-    <string name="setup_step_ai_desc">新手推荐 SeeNot AI，也可使用自己的 API Key。</string>
+    <string name="setup_step_ai_desc">新手可开通 Plus 使用 SeeNot AI，也可使用自己的 API Key。</string>
     <string name="setup_step_ai_action">使用 SeeNot AI</string>
     <string name="setup_step_apps_title">添加第一个受控应用</string>
     <string name="setup_step_apps_desc">先选一个最容易跑偏的 App。</string>
@@ -754,7 +754,7 @@
     <string name="not_enabled_label">未启用</string>
     <string name="ai_source_seenot_ai_desc">无需配置 API Key；需要使用时会保持可用。</string>
     <string name="ai_source_own_key_desc">当前配置：%s。</string>
-    <string name="ai_source_missing_desc">可直接启用 SeeNot AI，或使用这台设备上的本机 AI 设置。</string>
+    <string name="ai_source_missing_desc">可开通 Plus 后使用 SeeNot AI，或使用这台设备上的本机 AI 设置。</string>
     <string name="ai_source_selector_title">默认使用</string>
     <string name="ai_source_selector_seenot">SeeNot AI</string>
     <string name="ai_source_selector_local">本机 AI 设置</string>
@@ -858,6 +858,18 @@
     <string name="base_url_placeholder">https://.../v1</string>
     <string name="api_key">API Key</string>
     <string name="base_url">Base URL</string>
+    <string name="ai_options_help_entry">AI 方案怎么选？</string>
+    <string name="view_ai_options_help">查看 AI 方案说明</string>
+    <string name="ai_options_help_title">AI 方案怎么选</string>
+    <string name="ai_options_help_message">如果你只是想尽快开始，可以开通 SeeNot Plus 来使用 SeeNot AI；如果你已经熟悉 AI 服务，也可以继续使用自己的配置。</string>
+    <string name="ai_options_help_step_seenot_ai">想省事：开通 Plus 后使用 SeeNot AI。SeeNot 会替你准备分析和语音输入需要的配置，不需要自己维护访问密钥、模型和额度。</string>
+    <string name="ai_options_help_step_own_key">已经有 AI 账号：可以自己连接。适合熟悉服务账单、额度和网络问题的人；后续服务不可用时也需要自己处理。</string>
+    <string name="wrong_judgment_help_entry">判断错了怎么办？</string>
+    <string name="wrong_judgment_help_title">判断错了怎么办</string>
+    <string name="wrong_judgment_help_message">SeeNot 的判断可能会有偏差。你可以在刚看到状态提示时纠正，也可以之后从判断记录里复盘。</string>
+    <string name="wrong_judgment_help_step_current">刚发生时：展开状态提示，点“判断错了”。不管是误提醒，还是没拦住、没计上的情况，都可以从这里补充。</string>
+    <string name="wrong_judgment_help_step_records">事后复盘：打开判断记录，找到那次判断，再标记为不准确。</string>
+    <string name="wrong_judgment_help_step_result">纠正后：SeeNot 会用这次反馈生成补充规则，让之后类似场景更贴近你的意图。</string>
 
     <!-- Permission guidance -->
     <string name="permission_guide_continue">去设置</string>

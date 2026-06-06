@@ -27,9 +27,9 @@ class AccountActionsCopyTest {
     }
 
     @Test
-    fun aiChoiceCopyGuidesNovicesToSeenotAiAndOwnKeySetup() {
+    fun aiChoiceCopyGuidesNovicesToPlusAndOwnKeySetup() {
         assertEquals(
-            "使用 SeeNot AI",
+            "开通 Plus",
             stringResourceValue("src/main/res/values/strings.xml", "open_plus_no_config_action")
         )
         assertEquals(
@@ -41,7 +41,7 @@ class AccountActionsCopyTest {
             stringResourceValue("src/main/res/values/strings.xml", "ai_model_settings_title")
         )
         assertEquals(
-            "Use SeeNot AI",
+            "Get Plus",
             stringResourceValue("src/main/res/values-en/strings.xml", "open_plus_no_config_action")
         )
         assertEquals(

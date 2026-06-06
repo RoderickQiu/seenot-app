@@ -142,6 +142,7 @@ fun MainScreen(
     var pendingPermissionGuide by remember { mutableStateOf<PermissionGuideType?>(null) }
     var restrictedSettingsHelpTarget by rememberSaveable { mutableStateOf<RestrictedSettingsHelpTarget?>(null) }
     var showBackgroundLimitsHelp by rememberSaveable { mutableStateOf(false) }
+    var appHelpTopic by rememberSaveable { mutableStateOf<AppHelpTopic?>(null) }
     var isAccountLoginInFlight by remember { mutableStateOf(false) }
     var isAccountRefreshInFlight by remember { mutableStateOf(false) }
     var syncRefreshKey by remember { mutableIntStateOf(0) }
@@ -490,6 +491,9 @@ fun MainScreen(
                                 SetupSecondaryHelp.BACKGROUND_LIMITS -> {
                                     showBackgroundLimitsHelp = true
                                 }
+                                SetupSecondaryHelp.AI_OPTIONS -> {
+                                    appHelpTopic = AppHelpTopic.AI_OPTIONS
+                                }
                             }
                         },
                         onRequestIgnoreBatteryOptimizations = {
@@ -512,6 +516,7 @@ fun MainScreen(
                             microphonePermissionLauncher.launch(android.Manifest.permission.RECORD_AUDIO)
                         },
                         onOpenAiSettings = { showAiSettingsDialog = true },
+                        onOpenAiOptionsHelp = { appHelpTopic = AppHelpTopic.AI_OPTIONS },
                         onOpenAccount = {
                             mainScope.launch {
                                 openSeenotAccountPage(
@@ -554,6 +559,7 @@ fun MainScreen(
                         modifier = Modifier.padding(padding),
                         accountState = accountState,
                         onOpenAiSettings = { showAiSettingsDialog = true },
+                        onOpenAiOptionsHelp = { appHelpTopic = AppHelpTopic.AI_OPTIONS },
                         onOpenAccount = {
                             mainScope.launch {
                                 openSeenotAccountPage(
@@ -603,6 +609,7 @@ fun MainScreen(
                         isAccountRefreshInFlight = isAccountRefreshInFlight,
                         onHomeTimelineChanged = { showHomeTimeline = it },
                         onOpenRuleRecords = { showRuleRecordsPage = true },
+                        onOpenWrongJudgmentHelp = { appHelpTopic = AppHelpTopic.WRONG_JUDGMENT },
                         automaticVersionCheckEnabled = automaticVersionCheckEnabled,
                         versionCheckResponse = versionCheckResponse,
                         isVersionCheckInFlight = isVersionCheckInFlight,
@@ -741,6 +748,60 @@ fun MainScreen(
             }
         )
     }
+
+    appHelpTopic?.let { topic ->
+        val isPlus = (accountState as? SeenotAccountState.Ready)?.snapshot?.hasPlus == true
+        AppHelpSheet(
+            topic = topic,
+            onDismiss = { appHelpTopic = null },
+            primaryActionLabelRes = when (topic) {
+                AppHelpTopic.AI_OPTIONS -> if (isPlus) R.string.use_seenot_ai_action else R.string.open_plus_no_config_action
+                AppHelpTopic.WRONG_JUDGMENT -> R.string.view_records
+            },
+            onPrimaryAction = {
+                appHelpTopic = null
+                when (topic) {
+                    AppHelpTopic.AI_OPTIONS -> {
+                        if (isPlus) {
+                            mainScope.launch {
+                                enableSeenotAi(
+                                    context = context,
+                                    accountApi = accountApi,
+                                    onEnabled = {
+                                        aiSettingsRefreshKey++
+                                        accountRefreshKey++
+                                    }
+                                )
+                            }
+                        } else {
+                            mainScope.launch {
+                                openSeenotAccountPage(
+                                    context = context,
+                                    accountApi = accountApi,
+                                    accountState = accountState,
+                                    isAccountLoginInFlight = isAccountLoginInFlight,
+                                    onLoginStarted = { isAccountLoginInFlight = it }
+                                )
+                            }
+                        }
+                    }
+                    AppHelpTopic.WRONG_JUDGMENT -> {
+                        showRuleRecordsPage = true
+                    }
+                }
+            },
+            secondaryActionLabelRes = when (topic) {
+                AppHelpTopic.AI_OPTIONS -> R.string.use_own_api_key_action
+                AppHelpTopic.WRONG_JUDGMENT -> R.string.background_limits_help_got_it
+            },
+            onSecondaryAction = {
+                appHelpTopic = null
+                if (topic == AppHelpTopic.AI_OPTIONS) {
+                    showAiSettingsDialog = true
+                }
+            }
+        )
+    }
 }
 
 private fun isSeenotAccessibilityEnabled(context: Context): Boolean {
@@ -793,6 +854,7 @@ fun HomeTab(
     onOpenUsageStatsAccessSettings: () -> Unit,
     onRequestMicrophone: () -> Unit,
     onOpenAiSettings: () -> Unit,
+    onOpenAiOptionsHelp: () -> Unit,
     onOpenAccount: () -> Unit,
     onUseSeenotAi: () -> Unit,
     onOpenControlledApps: () -> Unit,
@@ -847,7 +909,12 @@ fun HomeTab(
             title = stringResource(R.string.setup_step_ai_title),
             description = stringResource(R.string.setup_step_ai_desc),
             isComplete = isAiConfigured,
-            actionLabel = stringResource(R.string.setup_step_ai_action),
+            actionLabel = if (isPlus) {
+                stringResource(R.string.setup_step_ai_action)
+            } else {
+                stringResource(R.string.open_plus_no_config_action)
+            },
+            secondaryHelp = SetupSecondaryHelp.AI_OPTIONS,
             onAction = if (isPlus) onUseSeenotAi else onOpenAccount
         ),
         SetupProgressStep(
@@ -935,6 +1002,7 @@ fun HomeTab(
                 isVoiceConfigured = isVoiceConfigured,
                 accountState = accountState,
                 onOpenAiSettings = onOpenAiSettings,
+                onOpenAiOptionsHelp = onOpenAiOptionsHelp,
                 onOpenAccount = onOpenAccount,
                 onUseSeenotAi = onUseSeenotAi
             )
@@ -1357,8 +1425,21 @@ private fun SetupSecondaryHelpLink(
     onClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Text(
+    InlineHelpLink(
         text = stringResource(help.labelRes),
+        onClick = onClick,
+        modifier = modifier
+    )
+}
+
+@Composable
+private fun InlineHelpLink(
+    text: String,
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Text(
+        text = text,
         style = MaterialTheme.typography.bodySmall,
         fontWeight = FontWeight.Medium,
         color = MaterialTheme.colorScheme.primary,
@@ -1544,6 +1625,7 @@ private fun HomeAiChoiceCard(
     isVoiceConfigured: Boolean,
     accountState: SeenotAccountState,
     onOpenAiSettings: () -> Unit,
+    onOpenAiOptionsHelp: () -> Unit,
     onOpenAccount: () -> Unit,
     onUseSeenotAi: () -> Unit
 ) {
@@ -1613,6 +1695,11 @@ private fun HomeAiChoiceCard(
                     Text(stringResource(R.string.use_own_api_key_action))
                 }
             }
+            InlineHelpLink(
+                text = stringResource(R.string.ai_options_help_entry),
+                onClick = onOpenAiOptionsHelp,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
         }
     }
 }
@@ -1644,7 +1731,15 @@ enum class SetupSecondaryHelp(
     ),
     BACKGROUND_LIMITS(
         labelRes = R.string.background_limits_help_entry
+    ),
+    AI_OPTIONS(
+        labelRes = R.string.ai_options_help_entry
     )
+}
+
+enum class AppHelpTopic {
+    AI_OPTIONS,
+    WRONG_JUDGMENT
 }
 
 private fun PermissionGuideType.restrictedSettingsHelpTarget(): RestrictedSettingsHelpTarget? {
@@ -1927,6 +2022,82 @@ private fun BackgroundLimitsHelpSheet(
         }
     }
 }
+
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+private fun AppHelpSheet(
+    topic: AppHelpTopic,
+    onDismiss: () -> Unit,
+    @StringRes primaryActionLabelRes: Int,
+    onPrimaryAction: () -> Unit,
+    @StringRes secondaryActionLabelRes: Int,
+    onSecondaryAction: () -> Unit
+) {
+    ModalBottomSheet(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .verticalScroll(rememberScrollState())
+                .padding(horizontal = 24.dp)
+                .padding(bottom = 32.dp),
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            Text(
+                text = stringResource(topic.titleRes),
+                style = MaterialTheme.typography.titleLarge,
+                fontWeight = FontWeight.Bold
+            )
+            Text(
+                text = stringResource(topic.messageRes),
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            topic.stepResIds.forEachIndexed { index, stepRes ->
+                HelpStep(
+                    number = index + 1,
+                    text = stringResource(stepRes)
+                )
+            }
+            Button(
+                onClick = onPrimaryAction,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Text(stringResource(primaryActionLabelRes))
+            }
+            TextButton(
+                onClick = onSecondaryAction,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            ) {
+                Text(stringResource(secondaryActionLabelRes))
+            }
+        }
+    }
+}
+
+private val AppHelpTopic.titleRes: Int
+    @StringRes get() = when (this) {
+        AppHelpTopic.AI_OPTIONS -> R.string.ai_options_help_title
+        AppHelpTopic.WRONG_JUDGMENT -> R.string.wrong_judgment_help_title
+    }
+
+private val AppHelpTopic.messageRes: Int
+    @StringRes get() = when (this) {
+        AppHelpTopic.AI_OPTIONS -> R.string.ai_options_help_message
+        AppHelpTopic.WRONG_JUDGMENT -> R.string.wrong_judgment_help_message
+    }
+
+private val AppHelpTopic.stepResIds: List<Int>
+    @StringRes get() = when (this) {
+        AppHelpTopic.AI_OPTIONS -> listOf(
+            R.string.ai_options_help_step_seenot_ai,
+            R.string.ai_options_help_step_own_key
+        )
+        AppHelpTopic.WRONG_JUDGMENT -> listOf(
+            R.string.wrong_judgment_help_step_current,
+            R.string.wrong_judgment_help_step_records,
+            R.string.wrong_judgment_help_step_result
+        )
+    }
 
 @Composable
 private fun HelpStep(
@@ -4060,6 +4231,7 @@ fun SettingsTab(
     modifier: Modifier = Modifier,
     accountState: SeenotAccountState = SeenotAccountState.SignedOut,
     onOpenAiSettings: () -> Unit = {},
+    onOpenAiOptionsHelp: () -> Unit = {},
     onOpenAccount: () -> Unit = {},
     onSignOutAccount: () -> Unit = {},
     onRefreshAccount: () -> Unit = {},
@@ -4068,6 +4240,7 @@ fun SettingsTab(
     isAccountRefreshInFlight: Boolean = false,
     onHomeTimelineChanged: (Boolean) -> Unit = {},
     onOpenRuleRecords: () -> Unit = {},
+    onOpenWrongJudgmentHelp: () -> Unit = {},
     automaticVersionCheckEnabled: Boolean = true,
     versionCheckResponse: SeenotVersionCheckResponse? = null,
     isVersionCheckInFlight: Boolean = false,
@@ -4187,6 +4360,7 @@ fun SettingsTab(
             isAccountLoginInFlight = isAccountLoginInFlight,
             isAccountRefreshInFlight = isAccountRefreshInFlight,
             onOpenAiSettings = onOpenAiSettings,
+            onOpenAiOptionsHelp = onOpenAiOptionsHelp,
             onOpenPlus = { openSeenotPlusPage(context) }
         )
 
@@ -4447,6 +4621,11 @@ fun SettingsTab(
                     Text(stringResource(R.string.clear_records))
                 }
             }
+            InlineHelpLink(
+                text = stringResource(R.string.wrong_judgment_help_entry),
+                onClick = onOpenWrongJudgmentHelp,
+                modifier = Modifier.align(Alignment.CenterHorizontally)
+            )
         }
 
         Spacer(modifier = Modifier.height(24.dp))
@@ -4774,6 +4953,7 @@ private fun ServiceStatusSection(
     isAccountLoginInFlight: Boolean,
     isAccountRefreshInFlight: Boolean,
     onOpenAiSettings: () -> Unit,
+    onOpenAiOptionsHelp: () -> Unit,
     onOpenPlus: () -> Unit
 ) {
     val snapshot = (accountState as? SeenotAccountState.Ready)?.snapshot
@@ -4967,6 +5147,11 @@ private fun ServiceStatusSection(
                     supporting = aiSourceSupporting(usesSeenotAi, isAiConfigured, aiButtonLabel),
                     actionLabel = stringResource(R.string.adjust_ai_setup_action),
                     onActionClick = onOpenAiSettings
+                )
+                InlineHelpLink(
+                    text = stringResource(R.string.view_ai_options_help),
+                    onClick = onOpenAiOptionsHelp,
+                    modifier = Modifier.align(Alignment.CenterHorizontally)
                 )
             }
 
@@ -5466,7 +5651,6 @@ private fun AiModelSettingsDialog(
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-
                     if (canToggleAiSource) {
                         Text(
                             text = stringResource(R.string.ai_source_selector_title),
