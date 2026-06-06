@@ -860,7 +860,7 @@
     <string name="ai_options_help_title">AI 方案怎么选</string>
     <string name="ai_options_help_message">如果你只是想尽快开始，可以开通 SeeNot Plus 来使用 SeeNot AI；如果你已经熟悉 AI 服务，也可以继续使用自己的配置。</string>
     <string name="ai_options_help_step_seenot_ai">想省事：开通 Plus 后使用 SeeNot AI。SeeNot 会替你准备分析和语音输入需要的配置，不需要自己维护访问密钥、模型和额度。</string>
-    <string name="ai_options_help_step_own_key">已经有 AI 账号：可以自己连接。适合熟悉服务账单、额度和网络问题的人；后续服务不可用时也需要自己处理。</string>
+    <string name="ai_options_help_step_own_key">已经有 AI API Key：可以自己连接。适合有经验的用户，自行管理 API Key、模型和额度。</string>
     <string name="wrong_judgment_help_entry">判断错了怎么办？</string>
     <string name="wrong_judgment_help_title">判断错了怎么办</string>
     <string name="wrong_judgment_help_message">SeeNot 的判断可能会有偏差。你可以在刚看到状态提示时纠正，也可以之后从判断记录里复盘。</string>

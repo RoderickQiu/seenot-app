@@ -854,7 +854,7 @@
     <string name="ai_options_help_title">Choosing an AI option</string>
     <string name="ai_options_help_message">If you just want to start quickly, get SeeNot Plus to use SeeNot AI. If you already know your AI service setup, you can keep using your own configuration.</string>
     <string name="ai_options_help_step_seenot_ai">Easiest start: get Plus and use SeeNot AI. SeeNot prepares the setup needed for analysis and voice input, so you do not need to maintain keys, models, or quota yourself.</string>
-    <string name="ai_options_help_step_own_key">Already have an AI account: connect it yourself. This is best if you are comfortable handling service billing, quota, network, and availability issues.</string>
+    <string name="ai_options_help_step_own_key">Already have an AI API key: connect it yourself. This is best if you are a power user and able to handle issues with your own API key, model, and quota.</string>
     <string name="wrong_judgment_help_entry">What if a judgment is wrong?</string>
     <string name="wrong_judgment_help_title">When a judgment is wrong</string>
     <string name="wrong_judgment_help_message">SeeNot may sometimes misjudge a screen. You can correct it when the status prompt appears, or review it later from judgment records.</string>

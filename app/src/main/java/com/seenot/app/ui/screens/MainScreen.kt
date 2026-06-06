@@ -416,7 +416,6 @@ fun MainScreen(
             isNotificationEnabled &&
             isBatteryOptimizationIgnored
     val isAiConfigured = remember(showAiSettingsDialog, aiSettingsRefreshKey) { ApiConfig.isVisionConfigured() }
-    val isVoiceConfigured = remember(showAiSettingsDialog, aiSettingsRefreshKey) { ApiConfig.isVoiceConfigured() }
     val hasControlledApps = controlledAppCount > 0
     val isHomeReady = allPermissionsGranted && isAiConfigured && hasControlledApps
 
@@ -470,7 +469,6 @@ fun MainScreen(
                         isBatteryOptimizationIgnored = isBatteryOptimizationIgnored,
                         isMicrophoneEnabled = isMicrophoneEnabled,
                         isAiConfigured = isAiConfigured,
-                        isVoiceConfigured = isVoiceConfigured,
                         isHomeReady = isHomeReady,
                         controlledAppCount = controlledAppCount,
                         globalMonitoringPause = globalMonitoringPause,
@@ -833,4 +831,3 @@ private fun isSeenotAccessibilityEnabled(context: Context): Boolean {
             candidate.equals(expectedServiceId.substringAfter('/'), ignoreCase = true)
     }
 }
-

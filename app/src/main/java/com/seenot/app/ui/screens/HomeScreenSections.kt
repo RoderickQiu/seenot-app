@@ -65,7 +65,6 @@ import com.seenot.app.account.SeenotSyncCoordinator
 import com.seenot.app.account.SeenotVersionCheckPrefs
 import com.seenot.app.account.SeenotVersionCheckResponse
 import com.seenot.app.config.ApiConfig
-import com.seenot.app.config.AiSource
 import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.config.AiProvider
 import com.seenot.app.config.ApiSettings
@@ -124,7 +123,6 @@ fun HomeTab(
     isBatteryOptimizationIgnored: Boolean,
     isMicrophoneEnabled: Boolean,
     isAiConfigured: Boolean,
-    isVoiceConfigured: Boolean,
     isHomeReady: Boolean,
     controlledAppCount: Int,
     globalMonitoringPause: AppMonitoringPause?,
@@ -151,8 +149,8 @@ fun HomeTab(
     val scrollState = rememberScrollState()
     var showSetupDetails by rememberSaveable { mutableStateOf(false) }
     var showGlobalPauseDialog by rememberSaveable { mutableStateOf(false) }
+    var showAiChoiceDialog by rememberSaveable { mutableStateOf(false) }
     val hasControlledApps = controlledAppCount > 0
-    val isPlus = (accountState as? SeenotAccountState.Ready)?.snapshot?.hasPlus == true
     val requiredSetupSteps = listOf(
         SetupProgressStep(
             title = stringResource(R.string.permission_overlay),
@@ -193,13 +191,9 @@ fun HomeTab(
             title = stringResource(R.string.setup_step_ai_title),
             description = stringResource(R.string.setup_step_ai_desc),
             isComplete = isAiConfigured,
-            actionLabel = if (isPlus) {
-                stringResource(R.string.setup_step_ai_action)
-            } else {
-                stringResource(R.string.open_plus_no_config_action)
-            },
+            actionLabel = stringResource(R.string.choose_ai_plan_title),
             secondaryHelp = SetupSecondaryHelp.AI_OPTIONS,
-            onAction = if (isPlus) onUseSeenotAi else onOpenAccount
+            onAction = { showAiChoiceDialog = true }
         ),
         SetupProgressStep(
             title = stringResource(R.string.setup_step_apps_title),
@@ -287,76 +281,6 @@ fun HomeTab(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (showSetupDetails) {
-            Text(
-                text = stringResource(R.string.ai_capability_title),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-
-            Spacer(modifier = Modifier.height(12.dp))
-
-            HomeAiChoiceCard(
-                isAiConfigured = isAiConfigured,
-                isVoiceConfigured = isVoiceConfigured,
-                accountState = accountState,
-                onOpenAiSettings = onOpenAiSettings,
-                onOpenAiOptionsHelp = onOpenAiOptionsHelp,
-                onOpenAccount = onOpenAccount,
-                onUseSeenotAi = onUseSeenotAi
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            Card(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .clickable { onOpenControlledApps() }
-            ) {
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(16.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Icon(
-                        if (hasControlledApps) Icons.Default.CheckCircle else Icons.Default.Apps,
-                        contentDescription = null,
-                        tint = if (hasControlledApps) {
-                            MaterialTheme.colorScheme.primary
-                        } else {
-                            MaterialTheme.colorScheme.secondary
-                        }
-                    )
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = stringResource(R.string.controlled_apps_setup_title),
-                            style = MaterialTheme.typography.bodyLarge,
-                            fontWeight = FontWeight.Medium
-                        )
-                        Text(
-                            text = if (hasControlledApps) {
-                                stringResource(R.string.controlled_apps_setup_ready, controlledAppCount)
-                            } else {
-                                stringResource(R.string.controlled_apps_setup_missing)
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(12.dp))
-                    Icon(
-                        Icons.Default.ChevronRight,
-                        contentDescription = null,
-                        tint = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.height(24.dp))
-        }
-
         if (isHomeReady && showHomeTimeline) {
             // Today's timeline (derived from RuleRecord)
             HomeTimelineSection()
@@ -381,6 +305,30 @@ fun HomeTab(
             onPausePermanently = {
                 onPauseGlobalMonitoring(null)
                 showGlobalPauseDialog = false
+            }
+        )
+    }
+
+    if (showAiChoiceDialog) {
+        HomeAiChoiceDialog(
+            accountState = accountState,
+            onDismiss = { showAiChoiceDialog = false },
+            onUseSeenotAi = {
+                showAiChoiceDialog = false
+                val isPlus = (accountState as? SeenotAccountState.Ready)?.snapshot?.hasPlus == true
+                if (isPlus) {
+                    onUseSeenotAi()
+                } else {
+                    onOpenAccount()
+                }
+            },
+            onUseOwnApiKey = {
+                showAiChoiceDialog = false
+                onOpenAiSettings()
+            },
+            onOpenAiOptionsHelp = {
+                showAiChoiceDialog = false
+                onOpenAiOptionsHelp()
             }
         )
     }
@@ -843,88 +791,48 @@ private fun formatGlobalMonitoringPauseStatus(context: Context, pause: AppMonito
 }
 
 @Composable
-private fun HomeAiChoiceCard(
-    isAiConfigured: Boolean,
-    isVoiceConfigured: Boolean,
+private fun HomeAiChoiceDialog(
     accountState: SeenotAccountState,
-    onOpenAiSettings: () -> Unit,
+    onDismiss: () -> Unit,
+    onUseSeenotAi: () -> Unit,
+    onUseOwnApiKey: () -> Unit,
     onOpenAiOptionsHelp: () -> Unit,
-    onOpenAccount: () -> Unit,
-    onUseSeenotAi: () -> Unit
 ) {
-    val isPlus = (accountState as? SeenotAccountState.Ready)?.snapshot?.hasPlus == true
-    val usesSeenotAi = ApiConfig.getAiSource() == AiSource.SEENOT_AI
-    val title = when {
-        usesSeenotAi -> stringResource(R.string.seenot_ai_enabled_title)
-        isAiConfigured -> stringResource(R.string.own_key_ready_title)
-        else -> stringResource(R.string.choose_ai_plan_title)
-    }
-    val description = when {
-        usesSeenotAi -> stringResource(R.string.seenot_ai_enabled_desc)
-        isPlus && !isAiConfigured -> stringResource(R.string.plus_can_enable_seenot_ai_desc)
-        isAiConfigured && isVoiceConfigured -> stringResource(R.string.own_key_ready_home_desc_with_voice)
-        isAiConfigured -> stringResource(R.string.own_key_ready_home_desc)
-        else -> stringResource(R.string.choose_ai_plan_home_desc)
-    }
-
-    Card(modifier = Modifier.fillMaxWidth()) {
-        Column(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(16.dp),
-            verticalArrangement = Arrangement.spacedBy(12.dp)
-        ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = if (isAiConfigured) Icons.Default.CheckCircle else Icons.Default.AutoAwesome,
-                    contentDescription = null,
-                    tint = if (isAiConfigured) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.secondary
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(Icons.Default.AutoAwesome, contentDescription = null)
+        },
+        title = {
+            Text(stringResource(R.string.choose_ai_plan_title))
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = stringResource(R.string.choose_ai_plan_home_desc),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = title,
-                        style = MaterialTheme.typography.bodyLarge,
-                        fontWeight = FontWeight.Medium
-                    )
-                    Text(
-                        text = description,
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
+                InlineHelpLink(
+                    text = stringResource(R.string.ai_options_help_entry),
+                    onClick = onOpenAiOptionsHelp
+                )
             }
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+        },
+        confirmButton = {
+            Button(
+                onClick = onUseSeenotAi,
+                enabled = accountState !is SeenotAccountState.Loading
             ) {
-                Button(
-                    onClick = if (isPlus) onUseSeenotAi else onOpenAccount,
-                    modifier = Modifier.weight(1f),
-                    enabled = accountState !is SeenotAccountState.Loading
-                ) {
-                    Text(
-                        if (isPlus) {
-                            stringResource(R.string.use_seenot_ai_action)
-                        } else {
-                            stringResource(R.string.open_plus_no_config_action)
-                        }
-                    )
-                }
-                OutlinedButton(
-                    onClick = onOpenAiSettings,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    Text(stringResource(R.string.use_own_api_key_action))
-                }
+                Text(stringResource(R.string.use_seenot_ai_action))
             }
-            InlineHelpLink(
-                text = stringResource(R.string.ai_options_help_entry),
-                onClick = onOpenAiOptionsHelp,
-                modifier = Modifier.align(Alignment.CenterHorizontally)
-            )
+        },
+        dismissButton = {
+            TextButton(onClick = onUseOwnApiKey) {
+                Text(stringResource(R.string.use_own_api_key_action))
+            }
         }
-    }
+    )
 }
 
 internal enum class PermissionGuideType {
