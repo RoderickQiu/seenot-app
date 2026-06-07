@@ -827,7 +827,7 @@
     <string name="edit_intent">编辑意图</string>
 
     <!-- AiModelSettingsDialog -->
-    <string name="ai_model_settings_title">自带 API Key 设置</string>
+    <string name="ai_model_settings_title">AI 设置</string>
     <string name="vision_tab">视觉</string>
     <string name="voice_tab">语音（可选）</string>
     <string name="ai_setup_intro">第一次使用时，只需要先完成核心分析配置。语音输入可以之后再补。</string>

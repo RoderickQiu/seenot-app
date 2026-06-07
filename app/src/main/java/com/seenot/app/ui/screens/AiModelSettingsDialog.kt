@@ -123,9 +123,6 @@ internal fun AiModelSettingsDialog(
     val initialSettings = remember { ApiConfig.getOwnKeySettings() }
     val initialSttSettings = remember { ApiConfig.getSttSettings() }
     val hasPlus = (accountState as? SeenotAccountState.Ready)?.snapshot?.hasPlus == true
-    val hasOwnVisionSetup = initialSettings.apiKey.isNotBlank() &&
-        initialSettings.baseUrl.isNotBlank() &&
-        initialSettings.model.isNotBlank()
     var preferredAiSource by remember {
         mutableStateOf(
             if (ApiConfig.getAiSource() == AiSource.SEENOT_AI) {
@@ -135,7 +132,8 @@ internal fun AiModelSettingsDialog(
             }
         )
     }
-    val canToggleAiSource = hasPlus && hasOwnVisionSetup
+    val showAiSourceSelector = shouldShowAiSourceSelector(hasPlus)
+    val showOwnKeySettings = !showAiSourceSelector || preferredAiSource == AiSource.BRING_YOUR_OWN_KEY
     var isSaving by remember { mutableStateOf(false) }
 
     var provider by remember { mutableStateOf(initialSettings.provider) }
@@ -338,28 +336,8 @@ internal fun AiModelSettingsDialog(
                     .heightIn(max = 520.dp)
                     .verticalScroll(rememberScrollState())
             ) {
-                TabRow(selectedTabIndex = selectedConfigTab) {
-                    Tab(
-                        selected = selectedConfigTab == 0,
-                        onClick = { selectedConfigTab = 0 },
-                        text = { Text(stringResource(R.string.vision_tab)) }
-                    )
-                    Tab(
-                        selected = selectedConfigTab == 1,
-                        onClick = { selectedConfigTab = 1 },
-                        text = { Text(stringResource(R.string.voice_tab)) }
-                    )
-                }
-
-                Spacer(modifier = Modifier.height(12.dp))
-
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    Text(
-                        text = stringResource(R.string.ai_setup_intro),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    if (canToggleAiSource) {
+                    if (showAiSourceSelector) {
                         Text(
                             text = stringResource(R.string.ai_source_selector_title),
                             style = MaterialTheme.typography.labelLarge,
@@ -387,115 +365,135 @@ internal fun AiModelSettingsDialog(
                         )
                     }
 
-                    if (isDevDashscopeKeyActive) {
-                        Text(
-                            text = stringResource(R.string.dev_mode_dashscope_temp_key, devDashscopeKeyExpiryText),
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.tertiary
-                        )
-                    }
-
-                    if (selectedConfigTab == 0) {
-                        ExposedDropdownMenuBox(
-                            expanded = providerExpanded,
-                            onExpandedChange = { providerExpanded = !providerExpanded }
-                        ) {
-                            OutlinedTextField(
-                                value = context.getString(provider.displayNameResId),
-                                onValueChange = {},
-                                readOnly = true,
-                                label = { Text(stringResource(R.string.vision_provider)) },
-                                trailingIcon = {
-                                    ExposedDropdownMenuDefaults.TrailingIcon(expanded = providerExpanded)
-                                },
-                                modifier = Modifier
-                                    .menuAnchor()
-                                    .fillMaxWidth()
+                    if (showOwnKeySettings) {
+                        TabRow(selectedTabIndex = selectedConfigTab) {
+                            Tab(
+                                selected = selectedConfigTab == 0,
+                                onClick = { selectedConfigTab = 0 },
+                                text = { Text(stringResource(R.string.vision_tab)) }
                             )
-                            ExposedDropdownMenu(
-                                expanded = providerExpanded,
-                                onDismissRequest = { providerExpanded = false }
-                            ) {
-                                providerOptions.forEach { candidate ->
-                                    DropdownMenuItem(
-                                        text = { Text(context.getString(candidate.displayNameResId)) },
-                                        onClick = {
-                                            providerExpanded = false
-                                            applyProviderDefaults(candidate)
-                                        }
-                                    )
-                                }
-                            }
+                            Tab(
+                                selected = selectedConfigTab == 1,
+                                onClick = { selectedConfigTab = 1 },
+                                text = { Text(stringResource(R.string.voice_tab)) }
+                            )
                         }
 
-                        OutlinedTextField(
-                            value = apiKey,
-                            onValueChange = {
-                                apiKey = it
-                                if (provider == sttProvider && provider != AiProvider.CUSTOM) {
-                                    sttApiKey = it
-                                }
-                            },
-                            label = { Text(stringResource(R.string.api_key)) },
-                            modifier = Modifier.fillMaxWidth(),
-                            singleLine = true,
-                            visualTransformation = PasswordVisualTransformation()
+                        Text(
+                            text = stringResource(R.string.ai_setup_intro),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
 
-                        ExposedDropdownMenuBox(
-                            expanded = modelExpanded,
-                            onExpandedChange = {
-                                if (recommendedPresets.isNotEmpty()) modelExpanded = !modelExpanded
-                            }
-                        ) {
-                            OutlinedTextField(
-                                value = modelInput,
-                                onValueChange = {
-                                    modelInput = it
-                                    model = it
-                                },
-                                label = { Text(stringResource(R.string.vision_model)) },
-                                placeholder = { Text(stringResource(R.string.vision_model_hint)) },
-                                trailingIcon = {
-                                    if (recommendedPresets.isNotEmpty()) {
-                                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded)
-                                    }
-                                },
-                                modifier = Modifier
-                                    .menuAnchor()
-                                    .fillMaxWidth(),
-                                singleLine = true
+                        if (isDevDashscopeKeyActive) {
+                            Text(
+                                text = stringResource(R.string.dev_mode_dashscope_temp_key, devDashscopeKeyExpiryText),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.tertiary
                             )
-                            if (recommendedPresets.isNotEmpty()) {
+                        }
+
+                        if (selectedConfigTab == 0) {
+                            ExposedDropdownMenuBox(
+                                expanded = providerExpanded,
+                                onExpandedChange = { providerExpanded = !providerExpanded }
+                            ) {
+                                OutlinedTextField(
+                                    value = context.getString(provider.displayNameResId),
+                                    onValueChange = {},
+                                    readOnly = true,
+                                    label = { Text(stringResource(R.string.vision_provider)) },
+                                    trailingIcon = {
+                                        ExposedDropdownMenuDefaults.TrailingIcon(expanded = providerExpanded)
+                                    },
+                                    modifier = Modifier
+                                        .menuAnchor()
+                                        .fillMaxWidth()
+                                )
                                 ExposedDropdownMenu(
-                                    expanded = modelExpanded,
-                                    onDismissRequest = { modelExpanded = false }
+                                    expanded = providerExpanded,
+                                    onDismissRequest = { providerExpanded = false }
                                 ) {
-                                    recommendedPresets.forEach { preset ->
+                                    providerOptions.forEach { candidate ->
                                         DropdownMenuItem(
-                                            text = {
-                                                Text(
-                                                    when {
-                                                        preset.noteResId != null -> "${preset.model}  ${stringResource(preset.noteResId)}"
-                                                        preset.note.isNotBlank() -> "${preset.model}  ${preset.note}"
-                                                        else -> preset.model
-                                                    }
-                                                )
-                                            },
+                                            text = { Text(context.getString(candidate.displayNameResId)) },
                                             onClick = {
-                                                modelExpanded = false
-                                                model = preset.model
-                                                modelInput = preset.model
+                                                providerExpanded = false
+                                                applyProviderDefaults(candidate)
                                             }
                                         )
                                     }
                                 }
                             }
-                        }
 
-                        if (provider == AiProvider.CUSTOM) {
-                            VisionBaseUrlField()
-                        }
+                            OutlinedTextField(
+                                value = apiKey,
+                                onValueChange = {
+                                    apiKey = it
+                                    if (provider == sttProvider && provider != AiProvider.CUSTOM) {
+                                        sttApiKey = it
+                                    }
+                                },
+                                label = { Text(stringResource(R.string.api_key)) },
+                                modifier = Modifier.fillMaxWidth(),
+                                singleLine = true,
+                                visualTransformation = PasswordVisualTransformation()
+                            )
+
+                            ExposedDropdownMenuBox(
+                                expanded = modelExpanded,
+                                onExpandedChange = {
+                                    if (recommendedPresets.isNotEmpty()) modelExpanded = !modelExpanded
+                                }
+                            ) {
+                                OutlinedTextField(
+                                    value = modelInput,
+                                    onValueChange = {
+                                        modelInput = it
+                                        model = it
+                                    },
+                                    label = { Text(stringResource(R.string.vision_model)) },
+                                    placeholder = { Text(stringResource(R.string.vision_model_hint)) },
+                                    trailingIcon = {
+                                        if (recommendedPresets.isNotEmpty()) {
+                                            ExposedDropdownMenuDefaults.TrailingIcon(expanded = modelExpanded)
+                                        }
+                                    },
+                                    modifier = Modifier
+                                        .menuAnchor()
+                                        .fillMaxWidth(),
+                                    singleLine = true
+                                )
+                                if (recommendedPresets.isNotEmpty()) {
+                                    ExposedDropdownMenu(
+                                        expanded = modelExpanded,
+                                        onDismissRequest = { modelExpanded = false }
+                                    ) {
+                                        recommendedPresets.forEach { preset ->
+                                            DropdownMenuItem(
+                                                text = {
+                                                    Text(
+                                                        when {
+                                                            preset.noteResId != null -> "${preset.model}  ${stringResource(preset.noteResId)}"
+                                                            preset.note.isNotBlank() -> "${preset.model}  ${preset.note}"
+                                                            else -> preset.model
+                                                        }
+                                                    )
+                                                },
+                                                onClick = {
+                                                    modelExpanded = false
+                                                    model = preset.model
+                                                    modelInput = preset.model
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+
+                            if (provider == AiProvider.CUSTOM) {
+                                VisionBaseUrlField()
+                            }
 
                         Surface(
                             modifier = Modifier
@@ -770,6 +768,7 @@ internal fun AiModelSettingsDialog(
                     }
                 }
             }
+        }
         },
         confirmButton = {
             Button(
@@ -777,59 +776,59 @@ internal fun AiModelSettingsDialog(
                     scope.launch {
                         isSaving = true
                         runCatching {
-                            val normalizedRegion = if (provider == AiProvider.DASHSCOPE) {
-                                QwenRegion.entries.firstOrNull { it.baseUrl == baseUrl.trim() } ?: qwenRegion
+                            if (showAiSourceSelector && preferredAiSource == AiSource.SEENOT_AI) {
+                                if (!ApiConfig.isManagedAiActive()) {
+                                    val session = accountApi.createManagedAiSession()
+                                    ApiConfig.saveManagedAiSession(
+                                        apiKey = session.apiKey,
+                                        baseUrl = session.baseUrl,
+                                        model = session.model,
+                                        expiresAtEpochSeconds = session.expiresAt
+                                    )
+                                }
                             } else {
-                                qwenRegion
-                            }
-                            val normalizedSttRegion = if (sttProvider == AiProvider.DASHSCOPE) {
-                                QwenRegion.entries.firstOrNull { it.baseUrl == sttBaseUrl.trim() }
-                            } else {
-                                null
-                            }
+                                val normalizedRegion = if (provider == AiProvider.DASHSCOPE) {
+                                    QwenRegion.entries.firstOrNull { it.baseUrl == baseUrl.trim() } ?: qwenRegion
+                                } else {
+                                    qwenRegion
+                                }
+                                val normalizedSttRegion = if (sttProvider == AiProvider.DASHSCOPE) {
+                                    QwenRegion.entries.firstOrNull { it.baseUrl == sttBaseUrl.trim() }
+                                } else {
+                                    null
+                                }
 
-                            ApiConfig.saveSettings(
-                                ApiSettings(
-                                    provider = provider,
-                                    apiKey = apiKey.trim(),
-                                    baseUrl = baseUrl.trim(),
-                                    model = model.trim(),
-                                    feedbackModel = feedbackModel.trim().ifBlank { model.trim() },
-                                    qwenRegion = normalizedRegion
+                                ApiConfig.saveSettings(
+                                    ApiSettings(
+                                        provider = provider,
+                                        apiKey = apiKey.trim(),
+                                        baseUrl = baseUrl.trim(),
+                                        model = model.trim(),
+                                        feedbackModel = feedbackModel.trim().ifBlank { model.trim() },
+                                        qwenRegion = normalizedRegion
+                                    )
                                 )
-                            )
 
-                            if (sttProvider != AiProvider.CUSTOM) {
-                                ApiConfig.setApiKey(sttProvider, sttApiKey.trim())
-                                ApiConfig.setBaseUrl(sttProvider, sttBaseUrl.trim())
-                                normalizedSttRegion?.let(ApiConfig::setQwenRegion)
-                            }
+                                if (sttProvider != AiProvider.CUSTOM) {
+                                    ApiConfig.setApiKey(sttProvider, sttApiKey.trim())
+                                    ApiConfig.setBaseUrl(sttProvider, sttBaseUrl.trim())
+                                    normalizedSttRegion?.let(ApiConfig::setQwenRegion)
+                                }
 
-                            ApiConfig.saveSttSettings(
-                                SttSettings(
-                                    provider = sttProvider,
-                                    model = when (sttProvider) {
-                                        AiProvider.DASHSCOPE -> "fun-asr-realtime"
-                                        else -> sttModel.trim()
-                                    },
-                                    apiKey = sttApiKey.trim(),
-                                    baseUrl = sttBaseUrl.trim()
+                                ApiConfig.saveSttSettings(
+                                    SttSettings(
+                                        provider = sttProvider,
+                                        model = when (sttProvider) {
+                                            AiProvider.DASHSCOPE -> "fun-asr-realtime"
+                                            else -> sttModel.trim()
+                                        },
+                                        apiKey = sttApiKey.trim(),
+                                        baseUrl = sttBaseUrl.trim()
+                                    )
                                 )
-                            )
 
-                            if (canToggleAiSource) {
                                 when (preferredAiSource) {
-                                    AiSource.SEENOT_AI -> {
-                                        if (!ApiConfig.isManagedAiActive()) {
-                                            val session = accountApi.createManagedAiSession()
-                                            ApiConfig.saveManagedAiSession(
-                                                apiKey = session.apiKey,
-                                                baseUrl = session.baseUrl,
-                                                model = session.model,
-                                                expiresAtEpochSeconds = session.expiresAt
-                                            )
-                                        }
-                                    }
+                                    AiSource.SEENOT_AI -> Unit
                                     AiSource.BRING_YOUR_OWN_KEY -> ApiConfig.preferBringYourOwnKey()
                                 }
                             }
@@ -856,11 +855,14 @@ internal fun AiModelSettingsDialog(
                         isSaving = false
                     }
                 },
-                enabled = !isSaving &&
-                    apiKey.isNotBlank() &&
-                    baseUrl.isNotBlank() &&
-                    model.isNotBlank() &&
-                    feedbackModel.isNotBlank()
+                enabled = !isSaving && canSaveAiModelSettings(
+                    selectedSource = preferredAiSource,
+                    showAiSourceSelector = showAiSourceSelector,
+                    apiKey = apiKey,
+                    baseUrl = baseUrl,
+                    model = model,
+                    feedbackModel = feedbackModel
+                )
             ) {
                 Text(
                     if (isSaving) {
@@ -873,16 +875,18 @@ internal fun AiModelSettingsDialog(
         },
         dismissButton = {
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                TextButton(
-                    onClick = {
-                        if (selectedConfigTab == 0) {
-                            applyProviderDefaults(provider)
-                        } else {
-                            applySttDefaults(sttProvider)
+                if (showOwnKeySettings) {
+                    TextButton(
+                        onClick = {
+                            if (selectedConfigTab == 0) {
+                                applyProviderDefaults(provider)
+                            } else {
+                                applySttDefaults(sttProvider)
+                            }
                         }
+                    ) {
+                        Text(stringResource(R.string.restore_defaults))
                     }
-                ) {
-                    Text(stringResource(R.string.restore_defaults))
                 }
                 TextButton(onClick = onDismiss) {
                     Text(stringResource(R.string.close))
@@ -890,4 +894,23 @@ internal fun AiModelSettingsDialog(
             }
         }
     )
+}
+
+internal fun shouldShowAiSourceSelector(hasPlus: Boolean): Boolean = hasPlus
+
+internal fun canSaveAiModelSettings(
+    selectedSource: AiSource,
+    showAiSourceSelector: Boolean,
+    apiKey: String,
+    baseUrl: String,
+    model: String,
+    feedbackModel: String
+): Boolean {
+    if (showAiSourceSelector && selectedSource == AiSource.SEENOT_AI) {
+        return true
+    }
+    return apiKey.isNotBlank() &&
+        baseUrl.isNotBlank() &&
+        model.isNotBlank() &&
+        feedbackModel.isNotBlank()
 }

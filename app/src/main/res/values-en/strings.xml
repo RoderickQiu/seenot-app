@@ -821,7 +821,7 @@
     <string name="edit_intent">Edit Intent</string>
 
     <!-- AiModelSettingsDialog -->
-    <string name="ai_model_settings_title">Own API Key Setup</string>
+    <string name="ai_model_settings_title">AI Settings</string>
     <string name="vision_tab">Vision</string>
     <string name="voice_tab">Voice (Optional)</string>
     <string name="ai_setup_intro">For first use, you only need to finish the core analysis setup. Voice input can be added later.</string>
