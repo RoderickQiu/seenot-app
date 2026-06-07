@@ -2,7 +2,7 @@
 # SeeNot: Build Release APK
 # Usage:
 #   ./build-and-release.sh            # build release APK only
-#   ./build-and-release.sh --install  # build and install if APK is signed
+#   ./build-and-release.sh --install  # build, install, launch, and monitor logs if APK is signed
 
 set -euo pipefail
 
@@ -16,6 +16,37 @@ fi
 
 APK_OUTPUT_DIR="$SCRIPT_DIR/app/build/outputs/apk"
 CURRENT_VARIANTS=("release" "debug")
+ADB_BIN="${ADB:-adb}"
+
+choose_target_device() {
+  local devices_output
+  devices_output="$("$ADB_BIN" devices | tail -n +2)"
+
+  local -a physical_devices=()
+  local -a emulator_devices=()
+
+  while IFS=$'\t' read -r serial state; do
+    [[ -z "$serial" ]] && continue
+    [[ "$state" != "device" ]] && continue
+    if [[ "$serial" == emulator-* ]]; then
+      emulator_devices+=("$serial")
+    else
+      physical_devices+=("$serial")
+    fi
+  done <<< "$devices_output"
+
+  if ((${#physical_devices[@]} > 0)); then
+    printf '%s\n' "${physical_devices[0]}"
+    return 0
+  fi
+
+  if ((${#emulator_devices[@]} > 0)); then
+    printf '%s\n' "${emulator_devices[0]}"
+    return 0
+  fi
+
+  return 1
+}
 
 if [[ -d "$APK_OUTPUT_DIR" ]]; then
   for variant_dir in "$APK_OUTPUT_DIR"/*; do
@@ -69,14 +100,31 @@ if [[ ! -f "$SIGNED_APK" ]]; then
   exit 1
 fi
 
+TARGET_SERIAL="$(choose_target_device)" || {
+  echo "❌ No connected Android device/emulator found."
+  exit 1
+}
+
+adb_target() {
+  "$ADB_BIN" -s "$TARGET_SERIAL" "$@"
+}
+
+echo ""
+echo "🎯 Target device: $TARGET_SERIAL"
+
 echo ""
 echo "📲 Installing signed release APK..."
-adb shell am force-stop "$PACKAGE_NAME" 2>/dev/null || true
-adb install -r "$SIGNED_APK"
+adb_target shell am force-stop "$PACKAGE_NAME" 2>/dev/null || true
+adb_target install -r "$SIGNED_APK"
 
 echo ""
 echo "🚀 Starting app..."
-adb shell am start -n "$PACKAGE_NAME"/.MainActivity
+adb_target logcat -c
+adb_target shell am start -n "$PACKAGE_NAME"/.MainActivity
 
 echo ""
 echo "🎉 Release APK installed and launched."
+echo ""
+echo "🔍 Monitoring release logs (Press Ctrl+C to stop)..."
+echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+adb_target logcat -v time | grep -E 'SeeNot|SeeNotLogger|SeenotSync|SessionManager|IntentParser|ScreenAnalyzer|FloatingIndicator|pauseSession|resumeSession|SeenotAccessibility|TYPE_WINDOWS_CHANGED|sourceWindow|UsageStats|AndroidRuntime|FATAL EXCEPTION'
