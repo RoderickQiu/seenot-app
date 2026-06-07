@@ -1,101 +1,116 @@
 # SeeNot
 
-**SeeNot** is the mobile screen time management assistant that you never saw before. [中文版](README.zh-CN.md)
+**SeeNot** is an intent-aware screen time intervention app for Android. [中文版](README.zh-CN.md)
 
-You tell it what you want to do — and what you want to avoid — and it watches your screen to keep you honest.
+Tell SeeNot what you are trying to do, and it watches the current screen for this session to pull you back when you drift. It does not just block an entire app.
 
-> "Open Instagram, but don't let me scroll Reels."
-> "I can use Reddit for 15 minutes — but only my programming subreddits."
-> "Let me check YouTube only for learning purposes."
-
-SeeNot listens, understands, and intervenes if you drift dynamically.
-
-> **Note: We are now providing free AI keys for testing. Contact scrisqiu at hotmail.com for more information.**
+> "Let me open Reddit for 15 minutes, but only my programming subreddits."
+> "I need Amazon for one replacement charger, not random shopping."
+> "Open LinkedIn to reply to that recruiter, not scroll the feed."
 
 ---
 
 ## How It Works
 
-1. **Speak your intention** — tap the floating button and say what you want to do in natural language (English, Chinese, or other languages).
-2. **SeeNot parses it** — an LLM converts your words into a structured rule: which app, what's allowed, what's off-limits, and for how long.
-3. **Your session begins** — SeeNot monitors your screen in the background using Android's Accessibility Service.
-4. **It intervenes when needed** — if you wander into territory you said you'd avoid, or isn't related to your intent, SeeNot nudges you back with enforced actions.
-5. **You can correct it** — if SeeNot gets a screen wrong, mark it as a false positive and add a short note. SeeNot uses that correction in later judgments for similar screens.
+1. **Say the task** — use plain language to describe what you want to do and what should be avoided.
+2. **SeeNot parses it** — AI turns your intent into a rule for the app, allowed content, limits, and intervention level.
+3. **Your session begins** — SeeNot watches the current app and screen through Android Accessibility Service.
+4. **It steps in on drift** — SeeNot can remind you, go back, or return home when the current screen no longer matches your intent.
+5. **You can correct it** — mark a false positive and add a short note so later judgments can use that feedback.
 
 ---
 
 ## Features
 
-- **Voice-first intent input** — speak naturally; the AI figures out the rest
-- **AI screen analysis** — vision model reads your screen to detect violations in context, not just by app name
-- **Multiple enforcement levels**: Reminder notification / automatic navigation back / home return
-- **Flexible time limits** — per-session caps, per-content caps, or daily totals
-- **Multilingual** — UI and intent parsing support English and Chinese; designed to extend to 20+ languages
-- **Local-first** — all session data stays on your device
+- **Natural-language intents** — type or speak what you mean, without building rule lists first.
+- **AI screen analysis** — a vision model judges the current page, not just the app name.
+- **Flexible interventions** — reminder, back action, or home return.
+- **Time and content limits** — set limits for a session, a type of content, or daily use.
+- **Controlled apps and presets** — choose which apps SeeNot should watch and reuse common intents.
+- **SeeNot Plus and account support** — use managed SeeNot AI, keep account-backed state across signed-in devices, and receive update prompts.
+- **Multilingual by design** — English and Chinese are supported now, with the parser designed for more languages.
 
 ---
 
 ## Getting Started
 
-### For regular users
+Download the APK from [GitHub Releases](https://github.com/RoderickQiu/seenot-app/releases), install it, and follow the in-app setup.
 
-Pre-built APKs are available on the [Releases](../../releases) page. Download and install it, then follow the in-app setup.
+The first setup flow will guide you through:
 
-You'll need to:
+1. **Overlay permission** for the floating input button and intervention UI.
+2. **Notification permission** for reminders and status messages.
+3. **Accessibility Service** so SeeNot can detect app and screen changes, take screenshots for analysis, and perform back/home actions when needed.
+4. **Unrestricted background running** so Android is less likely to stop monitoring.
+5. **AI setup** through [SeeNot Plus](https://seenot.site/#seenot-plus) or your own AI provider key.
+6. **Controlled apps** so SeeNot knows where to watch.
 
-1. Grant Accessibility Service permission so SeeNot can detect the current app and screen state.
-2. Grant "Display over other apps" permission so SeeNot can show the floating button and intervention overlays.
-3. Enter an OpenAI-compatible vision model API key. DashScope Qwen is recommended for lower cost and latency.
-4. Optionally enter a speech-to-text API key if you want voice input. Text input works without STT.
+Optional permissions add convenience:
 
-SeeNot is best tested on a real Android device. Some accessibility and overlay behaviors may differ on emulators.
+- **Usage Stats** helps as a backup when Android misses an app-switch event.
+- **Notification access** can improve context in some app flows.
+- **Microphone** is only needed for voice input. Text input works without it.
 
-### Where to get API keys
+SeeNot is best tested on a real Android device. Accessibility, overlays, and background behavior can differ on emulators.
 
-SeeNot requires an AI API key to work. We are currently providing free API access for testing — contact me at scrisqiu at hotmail.com to get one. 
+---
 
-Alternatively, you can register your own AI key: create an account, enable billing or complete any required verification, open the provider's API key page, create a new key, and paste it into SeeNot.
+## AI Options
 
-- OpenAI: create a key from the OpenAI API keys page: [https://platform.openai.com/api-keys](https://platform.openai.com/api-keys)
-- Anthropic: sign in to Anthropic Console, then create a key from Account Settings / API Keys: [https://console.anthropic.com/](https://console.anthropic.com/) and docs: [https://docs.anthropic.com/en/api/getting-started](https://docs.anthropic.com/en/api/getting-started)
-- Gemini: create and manage keys in Google AI Studio: [https://aistudio.google.com/app/apikey](https://aistudio.google.com/app/apikey) and guide: [https://ai.google.dev/gemini-api/docs/api-key](https://ai.google.dev/gemini-api/docs/api-key)
-- Qwen (low-cost):
-  - International: use Alibaba Cloud Model Studio international, then create a key from the API Key page. Official guide: [https://www.alibabacloud.com/help/en/model-studio/get-api-key](https://www.alibabacloud.com/help/en/model-studio/get-api-key)
-  - China route: use Alibaba Cloud China. Official guide: [https://www.alibabacloud.com/help/zh/model-studio/get-api-key](https://www.alibabacloud.com/help/zh/model-studio/get-api-key)
-- GLM (low-cost):
-  - International: use Z.ai, then create a key from the API Keys page. Official docs: [https://docs.z.ai/guides/develop/http/introduction](https://docs.z.ai/guides/develop/http/introduction) and key page: [https://z.ai/manage-apikey/apikey-list](https://z.ai/manage-apikey/apikey-list)
-  - China route: use Zhipu BigModel Open Platform. Official docs: [https://docs.bigmodel.cn/](https://docs.bigmodel.cn/) and example guide: [https://docs.bigmodel.cn/cn/guide/develop/claude/introduction](https://docs.bigmodel.cn/cn/guide/develop/claude/introduction)
+SeeNot needs an AI model for intent parsing and screen analysis. You can choose either path:
 
-Or, you may use any OpenAI-compatible provider with a VLM or even your self-hosted AI.
+- **[SeeNot Plus](https://seenot.site/#seenot-plus)** — SeeNot handles AI access and setup. This is the easiest path for long-term use and signed-in device continuity.
+- **Bring your own key** — use Qwen/DashScope, GPT, Claude, Gemini, GLM, another OpenAI-compatible provider, or a custom endpoint.
 
-### For developers
+If you bring your own key, create it from the provider console and paste it into SeeNot:
+
+- OpenAI: [API keys](https://platform.openai.com/api-keys)
+- Anthropic: [Console](https://console.anthropic.com/) and [getting started docs](https://docs.anthropic.com/en/api/getting-started)
+- Gemini: [Google AI Studio keys](https://aistudio.google.com/app/apikey) and [API key guide](https://ai.google.dev/gemini-api/docs/api-key)
+- Qwen/DashScope: [international guide](https://www.alibabacloud.com/help/en/model-studio/get-api-key) or [China guide](https://www.alibabacloud.com/help/zh/model-studio/get-api-key)
+- GLM: [Z.ai keys](https://z.ai/manage-apikey/apikey-list) or [BigModel docs](https://docs.bigmodel.cn/)
+
+Testing support may be available while the project is in preview. Contact `scrisqiu at hotmail.com` if you need help getting started.
+
+---
+
+## For Developers
 
 ```bash
 git clone https://github.com/RoderickQiu/seenot-app.git
 cd seenot-app
 ```
 
-Then open the project in Android Studio and run it on a device or emulator (API 30+).
-
-Or build from the command line:
+Open the project in Android Studio, or build from the command line:
 
 ```bash
 ./gradlew :app:assembleDebug
 adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 
+Requirements and useful settings:
+
+- Java 17
+- Android API 30+
+- Version values are read from `app/version.properties`
+- Optional Gradle properties: `SEENOT_BACKEND_API_BASE_URL` and `SEENOT_WEBSITE_BASE_URL`
+
 ---
 
 ## Project Structure
 
-```
+```text
 seenot/
 ├── app/                    # Android application
 │   └── src/main/java/com/seenot/app/
-│       ├── ai/             # LLM intent parsing, screen analysis, STT
-│       ├── domain/         # Session management, business logic
-│       ├── data/           # Room database, repositories
-│       ├── service/        # Accessibility & foreground services
+│       ├── account/        # Account, device, Plus, and version service calls
+│       ├── ai/             # Intent parsing, screen analysis, STT, managed AI
+│       ├── config/         # App configuration and provider settings
+│       ├── data/           # Room database, repositories, built-in presets
+│       ├── domain/         # Sessions, rules, and intervention behavior
+│       ├── observability/  # Runtime diagnostics
+│       ├── receiver/       # Android system event receivers
+│       ├── service/        # Accessibility and foreground services
 │       └── ui/             # Jetpack Compose screens and overlays
 └── ai-debugger/            # CLI tool for AI prompt development
 ```
@@ -104,7 +119,11 @@ seenot/
 
 ## Privacy
 
-SeeNot has no hosted backend. Screenshots taken for screen analysis are sent only to the AI provider you configure, and session history stays on your device in a local database.
+SeeNot is local-first. Android session history stays on your device unless you export or share it.
+
+Account, device, Plus, billing, and update features use SeeNot services. AI requests are sent from the app to the provider you choose, or to the disclosed provider used by managed SeeNot AI. SeeNot does not proxy your prompts, screenshots, or audio through a hosted screen-analysis server.
+
+The formal policy is on the website: [Privacy Policy](https://seenot.site/privacy/).
 
 ---
 
