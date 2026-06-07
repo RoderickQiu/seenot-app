@@ -133,6 +133,24 @@ class SeenotSyncApplyChangeTest {
         assertTrue(SharedPrefsSyncStore(context).pendingOps().isEmpty())
     }
 
+    @Test
+    fun malformedPersistedPendingOpsAreDropped() {
+        context.getSharedPreferences("seenot_sync_v2", Context.MODE_PRIVATE)
+            .edit()
+            .putString(
+                "pending_ops",
+                """{"bad-op":{"base_revision":0},"also-bad":{"base_revision":2}}"""
+            )
+            .commit()
+
+        assertTrue(SharedPrefsSyncStore(context).pendingOps().isEmpty())
+        assertEquals(
+            "{}",
+            context.getSharedPreferences("seenot_sync_v2", Context.MODE_PRIVATE)
+                .getString("pending_ops", null)
+        )
+    }
+
     private fun change(
         entityType: String,
         entityId: String,

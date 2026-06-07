@@ -6,6 +6,7 @@ import com.google.gson.Gson
 import com.google.gson.JsonObject
 import com.google.gson.annotations.SerializedName
 import com.google.gson.reflect.TypeToken
+import com.seenot.app.utils.Logger
 import java.util.UUID
 
 enum class SyncOperation(val wireValue: String) {
@@ -344,18 +345,35 @@ class SharedPrefsSyncStore(
 
     private fun pendingOpsMap(): Map<String, SyncOpRequest> {
         val json = prefs.getString(KEY_PENDING_OPS, null) ?: return emptyMap()
-        return runCatching {
+        val parsed = runCatching {
             gson.fromJson<Map<String, SyncOpRequest>>(json, pendingOpMapType)
         }.getOrDefault(emptyMap())
+        val valid = parsed.filterValues(::isValidPendingOp)
+        if (valid.size != parsed.size) {
+            Logger.w(
+                SYNC_LOG_TAG,
+                "Dropped malformed pending sync ops: count=${parsed.size - valid.size}"
+            )
+            savePendingOps(valid)
+        }
+        return valid
     }
 
     private fun savePendingOps(ops: Map<String, SyncOpRequest>) {
         prefs.edit().putString(KEY_PENDING_OPS, gson.toJson(ops)).apply()
     }
 
+    private fun isValidPendingOp(op: SyncOpRequest): Boolean {
+        return (op.opId as String?)?.isNotBlank() == true &&
+            (op.entityType as String?)?.isNotBlank() == true &&
+            (op.entityId as String?)?.isNotBlank() == true &&
+            (op.operation as SyncOperation?) != null
+    }
+
     private fun entityKey(entityType: String, entityId: String): String = "$entityType\n$entityId"
 
     companion object {
+        private const val SYNC_LOG_TAG = "SeenotSyncCoordinator"
         private const val PREFS_NAME = "seenot_sync_v2"
         private const val KEY_LAST_SERVER_SEQUENCE = "last_server_sequence"
         private const val KEY_BOOTSTRAP_COMPLETED = "bootstrap_completed"

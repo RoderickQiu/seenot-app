@@ -105,6 +105,7 @@ import com.seenot.app.data.model.buildIntentScopedHintId
 import com.seenot.app.data.model.buildIntentScopedHintLabel
 import com.seenot.app.domain.SessionConstraint
 import com.seenot.app.observability.RuntimeEventLogger
+import com.seenot.app.utils.Logger
 import android.widget.Toast
 import kotlinx.coroutines.launch
 import com.seenot.app.ui.overlay.VoiceInputState
@@ -238,7 +239,8 @@ fun MainScreen(
                             Toast.makeText(context, context.getString(R.string.version_check_up_to_date_toast), Toast.LENGTH_SHORT).show()
                         }
                     }
-                }.onFailure {
+                }.onFailure { error ->
+                    Logger.e("SeeNot", "Version check failed; automatic=$isAutomatic", error)
                     if (!isAutomatic) {
                         Toast.makeText(context, context.getString(R.string.version_check_failed_toast), Toast.LENGTH_SHORT).show()
                     }
