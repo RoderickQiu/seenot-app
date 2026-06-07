@@ -2,7 +2,7 @@
 
 **SeeNot** is an intent-aware screen time intervention app for Android. [中文版](README.zh-CN.md)
 
-Tell SeeNot what you are trying to do, and it watches the current screen for this session to pull you back when you drift. It does not just block an entire app.
+Most screen-time tools block by app, website, schedule, or total time. SeeNot works at the intent level: tell it what you are trying to do, and it watches the current screen for this session to pull you back when you drift.
 
 > "Let me open Reddit for 15 minutes, but only my programming subreddits."
 > "I need Amazon for one replacement charger, not random shopping."
