@@ -34,7 +34,7 @@ class ForegroundWindowResolverTest {
     }
 
     @Test
-    fun ignoresOwnApplicationOverlayWindow() {
+    fun ignoresOwnApplicationWindowAsForegroundCandidate() {
         val candidate = ForegroundWindowResolver.resolveForegroundPackage(
             windows = listOf(
                 AccessibilityWindowEventDebugFormatter.WindowSnapshot(

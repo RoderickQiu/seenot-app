@@ -12,6 +12,8 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import com.seenot.app.domain.SessionManager
+import com.seenot.app.service.SeenotAccessibilityService
 import com.seenot.app.ui.theme.SeenotTheme
 import com.seenot.app.ui.screens.MainScreen
 
@@ -47,6 +49,12 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         extractAuthCallbackUri(intent)?.let { authCallbackUri = it }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        SeenotAccessibilityService.instance?.onMainActivityResumed()
+        SessionManager.getInstance(applicationContext).pauseActiveMonitoringForMainActivity()
     }
 
     private fun extractAuthCallbackUri(intent: Intent?): Uri? {

@@ -397,9 +397,9 @@ class SessionManager(
      */
     private suspend fun handleAppChange(packageName: String) {
         val controlled = _controlledApps.value
-        val currentSession = _activeSession.value
 
-        // Ignore SeeNot's own overlays (ToastOverlay, FloatingIndicator, etc.)
+        // SeeNot's own accessibility overlays use the app package too. MainActivity
+        // pauses monitoring from its own lifecycle instead of this event stream.
         if (packageName == SEENOT_PACKAGE_NAME) {
             Logger.d(TAG, "Ignoring SeeNot's own package: $packageName")
             return
@@ -1743,6 +1743,18 @@ class SessionManager(
         scope.launch {
             _sessionEvents.emit(SessionEvent.SessionPaused(session))
         }
+    }
+
+    fun pauseActiveMonitoringForMainActivity() {
+        val session = _activeSession.value ?: return
+        if (session.isPaused) {
+            return
+        }
+
+        Logger.d(TAG, "Pausing active session because MainActivity resumed")
+        pauseSession()
+        sessionPausedAt = System.currentTimeMillis()
+        schedulePauseTimeout(session, "main_activity_resumed")
     }
 
     /**

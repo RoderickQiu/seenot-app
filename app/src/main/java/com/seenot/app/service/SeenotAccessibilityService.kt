@@ -998,12 +998,6 @@ class SeenotAccessibilityService : AccessibilityService() {
             return
         }
 
-        // Ignore SeeNot's own package to prevent overlay dismissal
-        if (packageName == this.packageName) {
-            Logger.d(TAG, "Own package $packageName, skipping")
-            return
-        }
-
         try {
             // Get controlled apps from SessionManager
             val sessionManager = SessionManager.getInstance(this)
@@ -1329,6 +1323,18 @@ class SeenotAccessibilityService : AccessibilityService() {
             } catch (e: Exception) {
                 Logger.e(TAG, "Failed to force restart overlay for $packageName", e)
             }
+        }
+    }
+
+    fun onMainActivityResumed() {
+        val previousPackage = currentMonitoredPackage
+        if (previousPackage != null) {
+            Logger.d(TAG, "Clearing monitored overlay state because MainActivity resumed from $previousPackage")
+            lastExitedPackage = previousPackage
+            lastExitedTime = System.currentTimeMillis()
+            currentMonitoredPackage = null
+            cancelPendingIntentReminder()
+            dismissAllOverlays()
         }
     }
 
