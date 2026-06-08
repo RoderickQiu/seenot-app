@@ -50,6 +50,14 @@ class RuleRecordingPrefsTest {
     }
 
     @Test
+    fun defaultScreenshotModeOnlySavesWhenAnalysisHasViolation() {
+        RuleRecordingPrefs.setEnabled(context, true)
+
+        assertTrue(RuleRecordingPrefs.shouldSaveScreenshotForAnalysis(context, hasViolation = true))
+        assertFalse(RuleRecordingPrefs.shouldSaveScreenshotForAnalysis(context, hasViolation = false))
+    }
+
+    @Test
     fun screenshotModeCanBeChanged() {
         RuleRecordingPrefs.setScreenshotMode(context, RuleRecordingPrefs.ScreenshotMode.ALL)
 

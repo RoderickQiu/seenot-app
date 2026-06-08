@@ -121,4 +121,17 @@ object RuleRecordingPrefs {
             ScreenshotMode.NONE -> false
         }
     }
+
+    /**
+     * Whether to save screenshot for one analysis pass.
+     */
+    fun shouldSaveScreenshotForAnalysis(context: Context, hasViolation: Boolean): Boolean {
+        if (!isEnabled(context)) return false
+
+        return when (getScreenshotMode(context)) {
+            ScreenshotMode.ALL -> true
+            ScreenshotMode.MATCHED_ONLY -> hasViolation
+            ScreenshotMode.NONE -> false
+        }
+    }
 }

@@ -506,6 +506,7 @@ class ScreenAnalyzer(
             if (RuleRecordingPrefs.isEnabled(context) && packageName != null && matches.isNotEmpty()) {
                 try {
                     val savedRecordIds = mutableListOf<String>()
+                    val violationRecordIds = mutableListOf<String>()
                     val appDisplayName = currentAppDisplayName?.takeIf { it.isNotBlank() } ?: packageName
                     for (match in matches) {
                         // For DENY: isConditionMatched = !isViolation (true = safe, false = violates)
@@ -532,6 +533,9 @@ class ScreenAnalyzer(
                         )
                         val savedRecord = ruleRecordRepository.saveRecord(record)
                         savedRecordIds += savedRecord.id
+                        if (match.isViolation) {
+                            violationRecordIds += savedRecord.id
+                        }
                         runtimeEventLogger.log(
                             eventType = RuntimeEventType.CONSTRAINT_EVALUATED,
                             sessionId = sessionId,
@@ -560,9 +564,16 @@ class ScreenAnalyzer(
                         Logger.d(TAG, "💾 Saved rule record for constraint: ${match.constraint.description}")
                     }
 
-                    if (savedRecordIds.isNotEmpty()) {
-                        ruleRecordRepository.saveScreenshotForRecords(savedRecordIds, bitmapToSave, false)
-                        Logger.d(TAG, "💾 Saved shared screenshot for ${savedRecordIds.size} records")
+                    if (RuleRecordingPrefs.shouldSaveScreenshotForAnalysis(context, violationRecordIds.isNotEmpty())) {
+                        val screenshotRecordIds = when (RuleRecordingPrefs.getScreenshotMode(context)) {
+                            RuleRecordingPrefs.ScreenshotMode.ALL -> savedRecordIds
+                            RuleRecordingPrefs.ScreenshotMode.MATCHED_ONLY -> violationRecordIds
+                            RuleRecordingPrefs.ScreenshotMode.NONE -> emptyList()
+                        }
+                        if (screenshotRecordIds.isNotEmpty()) {
+                            ruleRecordRepository.saveScreenshotForRecords(screenshotRecordIds, bitmapToSave, false)
+                            Logger.d(TAG, "💾 Saved shared screenshot for ${screenshotRecordIds.size} records")
+                        }
                     }
                 } catch (e: Exception) {
                     Logger.e(TAG, "Failed to save rule records", e)
