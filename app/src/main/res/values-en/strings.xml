@@ -814,6 +814,11 @@
     <string name="version_update_dialog_published_at">Published: %s</string>
     <string name="version_update_dialog_download_action">Update</string>
     <string name="version_update_dialog_later_action">Later</string>
+    <string name="github_star_prompt_title">Support SeeNot</string>
+    <string name="github_star_prompt_message">SeeNot is open source. If you have a GitHub account, starring the project helps more people find it and shows that this direction is worth continuing.</string>
+    <string name="github_star_prompt_open_action">Star on GitHub</string>
+    <string name="github_star_prompt_later_action">Maybe later</string>
+    <string name="github_star_prompt_never_action">Don\'t show again</string>
     <string name="about_official_site">Official Site</string>
     <string name="about_github">GitHub</string>
     <string name="about_github_desc">Source code, releases, and issue tracking</string>

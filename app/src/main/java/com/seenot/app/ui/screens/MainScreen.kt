@@ -77,6 +77,7 @@ import com.seenot.app.config.SttSettings
 import com.seenot.app.config.recommendedSttModelPresets
 import com.seenot.app.config.selectableProviders
 import com.seenot.app.config.selectableSttProviders
+import com.seenot.app.config.GitHubStarPromptPrefs
 import com.seenot.app.config.IntentReminderPrefs
 import com.seenot.app.config.NoMonitorReminderPrefs
 import com.seenot.app.config.RuleRecordingPrefs
@@ -151,6 +152,7 @@ fun MainScreen(
     var versionCheckResponse by remember { mutableStateOf(SeenotVersionCheckPrefs.getLastVersionCheckResponse(context)) }
     var visibleVersionUpdateDialog by remember { mutableStateOf<SeenotVersionCheckResponse?>(null) }
     var isVersionCheckInFlight by remember { mutableStateOf(false) }
+    var showGitHubStarPrompt by remember { mutableStateOf(false) }
 
     // State
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -336,8 +338,23 @@ fun MainScreen(
 
     LaunchedEffect(Unit) {
         controlledAppCount = sessionManager.controlledApps.value.size
+        GitHubStarPromptPrefs.onControlledAppCountSeen(context, controlledAppCount)
+        var previousCount = controlledAppCount
         sessionManager.controlledApps.collectLatest {
+            GitHubStarPromptPrefs.onControlledAppCountChanged(
+                context = context,
+                previousCount = previousCount,
+                currentCount = it.size
+            )
+            GitHubStarPromptPrefs.onControlledAppCountSeen(context, it.size)
+            previousCount = it.size
             controlledAppCount = it.size
+        }
+    }
+
+    LaunchedEffect(selectedTab, controlledAppCount) {
+        if (selectedTab == 0 && GitHubStarPromptPrefs.shouldShowOnHome(context)) {
+            showGitHubStarPrompt = true
         }
     }
 
@@ -685,6 +702,24 @@ fun MainScreen(
         )
     }
 
+    if (showGitHubStarPrompt) {
+        GitHubStarPromptDialog(
+            onOpenGitHub = {
+                GitHubStarPromptPrefs.markShown(context)
+                showGitHubStarPrompt = false
+                openExternalUrl(context, "https://github.com/RoderickQiu/seenot-app")
+            },
+            onLater = {
+                GitHubStarPromptPrefs.markShown(context)
+                showGitHubStarPrompt = false
+            },
+            onNever = {
+                GitHubStarPromptPrefs.dismissForever(context)
+                showGitHubStarPrompt = false
+            }
+        )
+    }
+
     pendingPermissionGuide?.let { guideType ->
         PermissionGuideDialog(
             type = guideType,
@@ -808,6 +843,44 @@ fun MainScreen(
             }
         )
     }
+}
+
+@Composable
+private fun GitHubStarPromptDialog(
+    onOpenGitHub: () -> Unit,
+    onLater: () -> Unit,
+    onNever: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onLater,
+        icon = {
+            Icon(
+                imageVector = Icons.Outlined.StarBorder,
+                contentDescription = null
+            )
+        },
+        title = {
+            Text(stringResource(R.string.github_star_prompt_title))
+        },
+        text = {
+            Text(stringResource(R.string.github_star_prompt_message))
+        },
+        confirmButton = {
+            TextButton(onClick = onOpenGitHub) {
+                Text(stringResource(R.string.github_star_prompt_open_action))
+            }
+        },
+        dismissButton = {
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                TextButton(onClick = onNever) {
+                    Text(stringResource(R.string.github_star_prompt_never_action))
+                }
+                TextButton(onClick = onLater) {
+                    Text(stringResource(R.string.github_star_prompt_later_action))
+                }
+            }
+        }
+    )
 }
 
 private fun isSeenotAccessibilityEnabled(context: Context): Boolean {

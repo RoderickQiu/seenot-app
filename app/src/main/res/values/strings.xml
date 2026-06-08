@@ -820,6 +820,11 @@
     <string name="version_update_dialog_published_at">发布时间：%s</string>
     <string name="version_update_dialog_download_action">去更新</string>
     <string name="version_update_dialog_later_action">稍后</string>
+    <string name="github_star_prompt_title">支持 SeeNot</string>
+    <string name="github_star_prompt_message">SeeNot 是开源项目。如果你有 GitHub 账号，点一个 Star 能让更多人发现它，也能让我知道这个方向值得继续做。</string>
+    <string name="github_star_prompt_open_action">去 GitHub 点 Star</string>
+    <string name="github_star_prompt_later_action">以后再说</string>
+    <string name="github_star_prompt_never_action">不再提示</string>
     <string name="about_official_site">官网</string>
     <string name="about_github">GitHub</string>
     <string name="about_github_desc">查看源码、版本和问题反馈</string>
