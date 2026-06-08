@@ -11,7 +11,7 @@ object BuiltInAppHintRules {
         return when (packageName) {
             "com.tencent.mm" -> wechatRules
             "com.tencent.mobileqq" -> qqRules
-            "com.rednote.app" -> rednoteRules
+            "com.xingin.xhs" -> rednoteRules
             "com.taobao.taobao" -> taobaoRules
             else -> emptyList()
         }
