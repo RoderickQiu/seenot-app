@@ -9,6 +9,8 @@ import com.seenot.app.data.model.APP_HINT_SOURCE_INTENT_CARRY_OVER
 import com.seenot.app.data.model.AppHint
 import com.seenot.app.data.model.AppHintScopeType
 import com.seenot.app.data.model.ConstraintType
+import com.seenot.app.data.model.EffectiveIntent
+import com.seenot.app.data.model.MediaContentContext
 import com.seenot.app.data.model.RuleRecord
 import com.seenot.app.data.model.buildAppGeneralScopeKey
 import com.seenot.app.data.model.buildAppGeneralScopeLabel
@@ -311,6 +313,8 @@ class FalsePositiveRuleGenerator(private val context: Context) {
             val scopePart = targetConstraint.timeScope?.let { "，范围 ${it.name}" } ?: ""
             "- [$type] ${targetConstraint.description}$timePart$scopePart"
         }
+        val effectiveIntentText = buildEffectiveIntentText(targetConstraint.effectiveIntent)
+        val mediaContextText = buildMediaContextText(record.mediaContext)
 
         val appGeneralHintsText = if (appGeneralHints.isNotEmpty()) {
             appGeneralHints.take(8).joinToString("\n") { "- ${it.hintText}" }
@@ -488,6 +492,10 @@ class FalsePositiveRuleGenerator(private val context: Context) {
 当前 intent / 约束：
 $constraintsText
 
+$effectiveIntentText
+
+$mediaContextText
+
 这条误判 record：
 - 约束类型：$recordConstraintType
 - $judgmentText
@@ -511,6 +519,54 @@ $intentSpecificHintsText
 ${userNote ?: "无"}
 
 只输出 JSON，不要输出解释性文字。
+        """.trimIndent()
+    }
+
+    private fun buildEffectiveIntentText(effectiveIntent: EffectiveIntent?): String {
+        if (effectiveIntent == null) {
+            return "结构化 intent 语义：\n- 暂无，仅可参考上面的原始自然语言约束。"
+        }
+
+        val allowedSet = effectiveIntent.allowedSet ?: "null"
+        return """
+结构化 intent 语义：
+- raw: ${effectiveIntent.raw}
+- type: ${effectiveIntent.type.name}
+- prohibited_set: ${effectiveIntent.prohibitedSet}
+- allowed_set: $allowedSet
+- evaluation_scope: ${effectiveIntent.evaluationScope}
+- aggregate_page_policy: ${effectiveIntent.aggregatePagePolicy}
+- decision_rule: ${effectiveIntent.decisionRule}
+
+生成补充规则时，必须先以这里的 allowed_set / prohibited_set / decision_rule 为准，再结合截图和误判记录判断边界；不要只根据自然语言 description 里的主题词自行改写语义。
+        """.trimIndent()
+    }
+
+    private fun buildMediaContextText(mediaContext: MediaContentContext?): String {
+        val context = mediaContext ?: return ""
+        if (!context.hasUsableMetadata()) {
+            return ""
+        }
+
+        val titleLine = context.title?.takeIf { it.isNotBlank() }?.let { "- 标题：$it" }
+        val artistLine = context.artist?.takeIf { it.isNotBlank() }?.let { "- 作者/频道：$it" }
+        val albumLine = context.album?.takeIf { it.isNotBlank() }?.let { "- 专辑/集合：$it" }
+        val stateLine = context.playbackState?.takeIf { it.isNotBlank() }?.let { "- 播放状态：$it" }
+        val durationLine = context.durationMs?.let { "- 时长：${it}ms" }
+        val fieldLines = listOfNotNull(titleLine, artistLine, albumLine, stateLine, durationLine)
+        if (fieldLines.isEmpty()) {
+            return ""
+        }
+
+        return """
+当前媒体播放信息（来自当前前台应用的通知/媒体会话）：
+${fieldLines.joinToString("\n")}
+
+媒体信息使用规则：
+- 这部分信息只来自当前前台应用，用于补充当前正在播放/展示的媒体条目上下文。
+- 它是判断当前页面主题和条目归属的辅助锚点，不是脱离截图单独成立的最终结论。
+- 对“只允许/除...外”类约束：如果标题或作者/频道明确指向允许主题，不能只因为截图局部元素看起来偏题就直接忽略这条媒体线索。
+- 如果媒体信息泛泛、无法支持允许主题，或与截图中当前正在消费的内容明显冲突，应以当前截图里的实际消费内容为主。
         """.trimIndent()
     }
 
