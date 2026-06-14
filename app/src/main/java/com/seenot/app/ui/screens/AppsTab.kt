@@ -89,6 +89,7 @@ import com.seenot.app.service.MediaSessionProbe
 import com.seenot.app.ai.voice.VoiceInputManager
 import com.seenot.app.ai.voice.VoiceRecordingState
 import com.seenot.app.ai.parser.AppInfo
+import com.seenot.app.ui.appcolor.AppThemeColorResolver
 import com.seenot.app.ui.overlay.VoiceInputOverlay
 import com.seenot.app.data.repository.AppHintRepository
 import com.seenot.app.data.repository.RuleRecordRepository
@@ -338,6 +339,8 @@ fun AppItem(
     onPauseMonitoring: () -> Unit,
     onResumeMonitoring: () -> Unit
 ) {
+    val appColors = remember(app.packageName) { AppThemeColorResolver.resolve(app.packageName) }
+
     Card(
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -349,13 +352,14 @@ fun AppItem(
         ) {
             Surface(
                 shape = MaterialTheme.shapes.small,
-                color = MaterialTheme.colorScheme.primaryContainer,
+                color = appColors.background,
                 modifier = Modifier.size(48.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(
                         text = app.name.take(1).uppercase(),
-                        style = MaterialTheme.typography.titleMedium
+                        style = MaterialTheme.typography.titleMedium,
+                        color = appColors.content
                     )
                 }
             }
@@ -660,6 +664,7 @@ fun AddAppDialog(
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         items(filteredApps) { app ->
+                            val appColors = AppThemeColorResolver.resolve(app.packageName)
                             Card(
                                 modifier = Modifier
                                     .fillMaxWidth()
@@ -673,13 +678,14 @@ fun AddAppDialog(
                                 ) {
                                     Surface(
                                         shape = MaterialTheme.shapes.small,
-                                        color = MaterialTheme.colorScheme.primaryContainer,
+                                        color = appColors.background,
                                         modifier = Modifier.size(36.dp)
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             Text(
                                                 text = app.name.take(1).uppercase(),
-                                                style = MaterialTheme.typography.titleSmall
+                                                style = MaterialTheme.typography.titleSmall,
+                                                color = appColors.content
                                             )
                                         }
                                     }
@@ -716,4 +722,3 @@ fun AddAppDialog(
         }
     }
 }
-
