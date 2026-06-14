@@ -7,11 +7,11 @@ import org.junit.Test
 
 class AppThemeColorResolverTest {
     @Test
-    fun knownPackagesUseBrandColors() {
-        assertEquals(Color(0xFF07C160), AppThemeColorResolver.resolve("com.tencent.mm").background)
-        assertEquals(Color(0xFFFF2442), AppThemeColorResolver.resolve("com.xingin.xhs").background)
-        assertEquals(Color(0xFFFF0000), AppThemeColorResolver.resolve("com.google.android.youtube").background)
-        assertEquals(Color(0xFFFF6900), AppThemeColorResolver.resolve("com.taobao.taobao").background)
+    fun knownPackagesUseMutedBrandColors() {
+        assertEquals(Color(0xFF5FAE87), AppThemeColorResolver.resolve("com.tencent.mm").background)
+        assertEquals(Color(0xFFC85D6A), AppThemeColorResolver.resolve("com.xingin.xhs").background)
+        assertEquals(Color(0xFFC75A54), AppThemeColorResolver.resolve("com.google.android.youtube").background)
+        assertEquals(Color(0xFFC9875F), AppThemeColorResolver.resolve("com.taobao.taobao").background)
     }
 
     @Test
@@ -43,5 +43,30 @@ class AppThemeColorResolverTest {
     fun contentColorContrastsWithLightAndDarkBackgrounds() {
         assertEquals(Color(0xFF111827), AppThemeColorResolver.contentColorFor(Color(0xFFFDD835)))
         assertEquals(Color.White, AppThemeColorResolver.contentColorFor(Color(0xFF111827)))
+    }
+
+    @Test
+    fun paletteAvoidsHighSaturationColors() {
+        val sampledColors = AppThemeColorResolver.defaultBackgrounds + listOf(
+            AppThemeColorResolver.resolve("com.tencent.mm").background,
+            AppThemeColorResolver.resolve("com.xingin.xhs").background,
+            AppThemeColorResolver.resolve("com.google.android.youtube").background,
+            AppThemeColorResolver.resolve("com.taobao.taobao").background,
+            AppThemeColorResolver.resolve("com.sankuai.meituan").background,
+            AppThemeColorResolver.resolve("com.snapchat.android").background
+        )
+
+        sampledColors.forEach { color ->
+            assertTrue("Expected muted color, got $color", saturation(color) <= 0.58f)
+        }
+    }
+
+    private fun saturation(color: Color): Float {
+        val max = maxOf(color.red, color.green, color.blue)
+        val min = minOf(color.red, color.green, color.blue)
+        if (max == min) return 0f
+        val lightness = (max + min) / 2f
+        val delta = max - min
+        return delta / (1f - kotlin.math.abs(2f * lightness - 1f))
     }
 }
