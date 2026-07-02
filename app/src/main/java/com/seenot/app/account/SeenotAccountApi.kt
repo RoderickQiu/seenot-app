@@ -11,6 +11,8 @@ import com.seenot.app.config.AppLocalePrefs
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import okhttp3.MediaType.Companion.toMediaType
 import okhttp3.OkHttpClient
 import okhttp3.Request
@@ -33,6 +35,7 @@ open class SeenotAccountApi(
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
+    private val refreshMutex = Mutex()
 
     suspend fun loadAccount(): SeenotAccountState = withContext(Dispatchers.IO) {
         SeenotAccountSession.init(appContext)
@@ -41,7 +44,7 @@ open class SeenotAccountApi(
         }
 
         runCatching {
-            val auth = refresh()
+            val auth = refreshSession()
             ensureCurrentInstallationIfMissing(auth.accessToken, auth.device?.deviceId)
             val entitlement = getEntitlement(auth.accessToken)
             SeenotAccountState.Ready(SeenotAccountSnapshot(auth = auth, entitlement = entitlement))
@@ -179,7 +182,7 @@ open class SeenotAccountApi(
             )
         }.recoverCatching { error ->
             if (error is SeenotAuthException) {
-                val refreshed = refresh()
+                val refreshed = refreshSession()
                 postJson(
                     path = "/devices/$deviceId/revoke",
                     body = JsonObject(),
@@ -192,7 +195,13 @@ open class SeenotAccountApi(
         }
     }
 
-    private fun refresh(): SeenotAuthTokenResponse {
+    private suspend fun refreshSession(): SeenotAuthTokenResponse {
+        return refreshMutex.withLock {
+            refreshLocked()
+        }
+    }
+
+    private fun refreshLocked(): SeenotAuthTokenResponse {
         val refreshToken = SeenotAccountSession.getRefreshToken()
         if (refreshToken.isBlank()) throw SeenotAuthException("Missing refresh token.")
         val body = JsonObject().apply {
@@ -206,43 +215,60 @@ open class SeenotAccountApi(
         ).also(SeenotAccountSession::save)
     }
 
-    private fun createManagedAiSessionWithFreshAccessToken(): SeenotManagedAiSessionResponse {
-        return try {
-            postManagedAiSession(SeenotAccountSession.getAccessToken())
-        } catch (error: SeenotAuthException) {
-            val refreshed = refresh()
-            postManagedAiSession(refreshed.accessToken)
+    private suspend fun accessTokenAfterAuthFailure(failedAccessToken: String): String {
+        return refreshMutex.withLock {
+            val currentAccessToken = SeenotAccountSession.getAccessToken()
+            if (currentAccessToken.isNotBlank() && currentAccessToken != failedAccessToken) {
+                return@withLock currentAccessToken
+            }
+            runCatching {
+                refreshLocked().accessToken
+            }.getOrElse { error ->
+                if (error is SeenotAuthException) {
+                    SeenotAccountSession.clear()
+                }
+                throw error
+            }
         }
     }
 
-    private fun readSyncChangesWithFreshAccessToken(since: Long, limit: Int): SyncChangesResponse {
+    private suspend fun createManagedAiSessionWithFreshAccessToken(): SeenotManagedAiSessionResponse {
+        val accessToken = SeenotAccountSession.getAccessToken()
         return try {
-            getSyncChanges(SeenotAccountSession.getAccessToken(), since, limit)
+            postManagedAiSession(accessToken)
         } catch (error: SeenotAuthException) {
-            val refreshed = refresh()
-            getSyncChanges(refreshed.accessToken, since, limit)
+            postManagedAiSession(accessTokenAfterAuthFailure(accessToken))
         }
     }
 
-    private fun readSyncEntitiesWithFreshAccessToken(
+    private suspend fun readSyncChangesWithFreshAccessToken(since: Long, limit: Int): SyncChangesResponse {
+        val accessToken = SeenotAccountSession.getAccessToken()
+        return try {
+            getSyncChanges(accessToken, since, limit)
+        } catch (error: SeenotAuthException) {
+            getSyncChanges(accessTokenAfterAuthFailure(accessToken), since, limit)
+        }
+    }
+
+    private suspend fun readSyncEntitiesWithFreshAccessToken(
         entityType: String?,
         entityIds: List<String>,
         includeDeleted: Boolean
     ): SyncEntitySnapshotResponse {
+        val accessToken = SeenotAccountSession.getAccessToken()
         return try {
-            getSyncEntities(SeenotAccountSession.getAccessToken(), entityType, entityIds, includeDeleted)
+            getSyncEntities(accessToken, entityType, entityIds, includeDeleted)
         } catch (error: SeenotAuthException) {
-            val refreshed = refresh()
-            getSyncEntities(refreshed.accessToken, entityType, entityIds, includeDeleted)
+            getSyncEntities(accessTokenAfterAuthFailure(accessToken), entityType, entityIds, includeDeleted)
         }
     }
 
-    private fun writeSyncOpsWithFreshAccessToken(ops: List<SyncOpRequest>): SyncOpsResponse {
+    private suspend fun writeSyncOpsWithFreshAccessToken(ops: List<SyncOpRequest>): SyncOpsResponse {
+        val accessToken = SeenotAccountSession.getAccessToken()
         return try {
-            postSyncOps(SeenotAccountSession.getAccessToken(), ops)
+            postSyncOps(accessToken, ops)
         } catch (error: SeenotAuthException) {
-            val refreshed = refresh()
-            postSyncOps(refreshed.accessToken, ops)
+            postSyncOps(accessTokenAfterAuthFailure(accessToken), ops)
         }
     }
 
@@ -426,7 +452,7 @@ open class SeenotAccountApi(
             .ifBlank { "Android device" }
     }
 
-    private suspend fun <T> retryOnceOnTransientClose(block: () -> T): T {
+    private suspend fun <T> retryOnceOnTransientClose(block: suspend () -> T): T {
         return try {
             block()
         } catch (error: IOException) {
@@ -448,7 +474,7 @@ open class SeenotAccountApi(
     )
 }
 
-private class SeenotAuthException(message: String) : RuntimeException(message)
+class SeenotAuthException(message: String) : RuntimeException(message)
 private class SeenotDeviceLimitReachedException(val deviceLimit: Int?) : IOException("Device limit reached.")
 class SeenotManagedAiQuotaExceededException(message: String) : IOException(message)
 

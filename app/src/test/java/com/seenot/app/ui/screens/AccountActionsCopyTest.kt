@@ -37,7 +37,7 @@ class AccountActionsCopyTest {
             stringResourceValue("src/main/res/values/strings.xml", "use_own_api_key_action")
         )
         assertEquals(
-            "自带 API Key 设置",
+            "AI 设置",
             stringResourceValue("src/main/res/values/strings.xml", "ai_model_settings_title")
         )
         assertEquals(
@@ -49,7 +49,7 @@ class AccountActionsCopyTest {
             stringResourceValue("src/main/res/values-en/strings.xml", "use_own_api_key_action")
         )
         assertEquals(
-            "Own API Key Setup",
+            "AI Settings",
             stringResourceValue("src/main/res/values-en/strings.xml", "ai_model_settings_title")
         )
     }

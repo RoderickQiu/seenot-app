@@ -58,6 +58,7 @@ import androidx.compose.ui.window.Dialog
 import com.seenot.app.BuildConfig
 import com.seenot.app.R
 import com.seenot.app.account.SeenotAccountApi
+import com.seenot.app.account.SeenotAuthException
 import com.seenot.app.account.SeenotAccountSession
 import com.seenot.app.account.SeenotAccountState
 import com.seenot.app.account.SeenotManagedAiQuotaExceededException
@@ -373,6 +374,12 @@ fun MainScreen(
         isAccountRefreshInFlight = false
     }
 
+    LaunchedEffect(Unit) {
+        SeenotAccountSession.accountInvalidations.collectLatest {
+            accountState = SeenotAccountState.SignedOut
+        }
+    }
+
     LaunchedEffect(syncRefreshKey) {
         if (syncRefreshKey > 0) {
             syncCoordinator.syncNowIfPlus(accountState)
@@ -608,6 +615,9 @@ fun MainScreen(
                         onManualSync = { onComplete ->
                             mainScope.launch {
                                 val result = syncCoordinator.syncNowIfPlus(accountState)
+                                if (result.exceptionOrNull() is SeenotAuthException) {
+                                    accountState = accountApi.loadAccount()
+                                }
                                 val summary = result.getOrNull()
                                 val message = if (summary != null) {
                                     context.getString(

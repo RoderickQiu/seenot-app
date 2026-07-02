@@ -4,6 +4,9 @@ import android.content.Context
 import android.content.SharedPreferences
 import androidx.security.crypto.EncryptedSharedPreferences
 import androidx.security.crypto.MasterKey
+import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.SharedFlow
+import kotlinx.coroutines.flow.asSharedFlow
 import java.util.UUID
 
 object SeenotAccountSession {
@@ -17,6 +20,8 @@ object SeenotAccountSession {
     private const val KEY_LAST_SYNCED_AT_MS = "last_synced_at_ms"
 
     private var prefs: SharedPreferences? = null
+    private val _accountInvalidations = MutableSharedFlow<Unit>(extraBufferCapacity = 1)
+    val accountInvalidations: SharedFlow<Unit> = _accountInvalidations.asSharedFlow()
 
     fun init(context: Context) {
         if (prefs != null) return
@@ -78,6 +83,7 @@ object SeenotAccountSession {
             ?.remove(KEY_DEVICE_ID)
             ?.remove(KEY_LAST_SYNCED_AT_MS)
             ?.apply()
+        _accountInvalidations.tryEmit(Unit)
     }
 
     fun clear() {
