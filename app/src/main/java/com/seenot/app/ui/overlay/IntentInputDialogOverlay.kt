@@ -45,7 +45,6 @@ import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 import java.util.Locale
-import java.util.UUID
 
 /**
  * Full-screen dialog overlay shown when user enters a controlled app.
@@ -598,34 +597,26 @@ class IntentInputDialogOverlay(
             }
         }
         presetContainer?.addView(buildNoMonitorRestRow())
-        presetContainer?.addView(buildNoMonitorRow())
     }
 
     private fun buildNoMonitorRestRow(): View {
         return LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(14.dp(), 12.dp(), 14.dp(), 12.dp())
+            setPadding(14.dp(), 10.dp(), 14.dp(), 10.dp())
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { bottomMargin = 6.dp() }
             background = GradientDrawable().apply {
-                setColor(adjustAlpha(primaryColor, 0.12f))
+                setColor(historyBgColor)
                 cornerRadius = 10.dp().toFloat()
-                setStroke(1, adjustAlpha(primaryColor, 0.36f))
             }
             setOnClickListener { showTimedRestChoices() }
             addView(TextView(context).apply {
                 text = context.getString(R.string.intent_rest_action)
                 textSize = 14f
-                typeface = Typeface.DEFAULT_BOLD
                 setTextColor(textColor)
-            })
-            addView(TextView(context).apply {
-                text = context.getString(R.string.intent_rest_action_desc)
-                textSize = 12f
-                setTextColor(subtleTextColor)
-                setPadding(0, 4.dp(), 0, 0)
+                maxLines = 4
             })
         }
     }
@@ -693,35 +684,6 @@ class IntentInputDialogOverlay(
             setOnClickListener {
                 selectPresetIntent(NoMonitorTimedRest.createConstraint(minutes))
             }
-        }
-    }
-
-    private fun buildNoMonitorRow(): View {
-        return LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(14.dp(), 8.dp(), 14.dp(), 8.dp())
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = 6.dp() }
-            background = GradientDrawable().apply {
-                setColor(historyBgColor)
-                cornerRadius = 10.dp().toFloat()
-            }
-            setOnClickListener {
-                selectPresetIntent(
-                    SessionConstraint(
-                        id = UUID.randomUUID().toString(),
-                        type = ConstraintType.NO_MONITOR,
-                        description = context.getString(R.string.intent_no_monitor_action)
-                    )
-                )
-            }
-            addView(TextView(context).apply {
-                text = context.getString(R.string.intent_no_monitor_action)
-                textSize = 13f
-                setTextColor(subtleTextColor)
-            })
         }
     }
 

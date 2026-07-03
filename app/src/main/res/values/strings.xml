@@ -259,7 +259,6 @@
     <string name="intent_constraint_time_cap_full">限时: %1$s %2$s分钟</string>
     <string name="intent_constraint_no_monitor_full">本次不监控</string>
     <string name="intent_rest_action">休息一下</string>
-    <string name="intent_rest_action_desc">到点后 SeeNot 会帮你退出这个 app，并恢复监控</string>
     <string name="intent_rest_duration_title">休息多久？</string>
     <string name="intent_rest_duration_desc">到点后 SeeNot 会帮你退出这个 app，并恢复监控。</string>
     <string name="intent_rest_duration_option">休息 %d 分钟</string>

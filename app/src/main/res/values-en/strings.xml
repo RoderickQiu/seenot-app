@@ -255,7 +255,6 @@
     <string name="intent_constraint_time_cap_full">Time limit: %1$s %2$s minutes</string>
     <string name="intent_constraint_no_monitor_full">No monitoring this time</string>
     <string name="intent_rest_action">Rest for a bit</string>
-    <string name="intent_rest_action_desc">When time is up, SeeNot will leave this app and resume monitoring</string>
     <string name="intent_rest_duration_title">How long?</string>
     <string name="intent_rest_duration_desc">When time is up, SeeNot will leave this app and resume monitoring.</string>
     <string name="intent_rest_duration_option">Rest %d minutes</string>
