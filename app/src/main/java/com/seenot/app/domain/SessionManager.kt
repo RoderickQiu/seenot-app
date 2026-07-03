@@ -11,6 +11,7 @@ import com.seenot.app.R
 import com.seenot.app.ai.feedback.FalsePositiveRuleGenerator
 import com.seenot.app.ai.feedback.GeneratedFalsePositiveRuleResult
 import com.seenot.app.ai.feedback.FalsePositiveRulePreview
+import com.seenot.app.ai.feedback.SessionImprovementSuggestionGenerator
 import com.seenot.app.account.SeenotAccountSession
 import com.seenot.app.account.SeenotSyncScheduler
 import com.seenot.app.account.SeenotSyncCoordinator
@@ -41,6 +42,7 @@ import com.seenot.app.data.model.buildIntentScopedHintId
 import com.seenot.app.data.repository.RuleRecordRepository
 import com.seenot.app.data.repository.AppHintRepository
 import com.seenot.app.data.repository.SessionRepository
+import com.seenot.app.data.repository.SessionImprovementSuggestionRepository
 import com.seenot.app.domain.action.ActionExecutor
 import com.seenot.app.observability.RuntimeEventLogger
 import com.seenot.app.observability.RuntimeEventType
@@ -125,6 +127,9 @@ class SessionManager(
     private val ruleRecordRepository = RuleRecordRepository(context)
     private val appHintRepository = AppHintRepository(context)
     private val falsePositiveRuleGenerator = FalsePositiveRuleGenerator(context)
+    private val sessionImprovementCandidateSelector = SessionImprovementCandidateSelector()
+    private val sessionImprovementSuggestionGenerator = SessionImprovementSuggestionGenerator(context)
+    private val sessionImprovementSuggestionRepository = SessionImprovementSuggestionRepository(context)
     private val runtimeEventLogger = RuntimeEventLogger.getInstance(context)
     private val syncCoordinator by lazy { SeenotSyncCoordinator(context.applicationContext, sessionManager = this) }
 
@@ -1788,8 +1793,40 @@ class SessionManager(
             payload = mapOf("end_reason" to reason.name)
         )
 
+        scheduleSessionImprovementSuggestion(session)
+
         // Emit session ended event
         _sessionEvents.emit(SessionEvent.SessionEnded(session, reason))
+    }
+
+    private fun scheduleSessionImprovementSuggestion(session: ActiveSession) {
+        scope.launch(Dispatchers.IO) {
+            try {
+                val records = ruleRecordRepository.getRecordsForSession(session.sessionId)
+                val candidate = sessionImprovementCandidateSelector.select(
+                    sessionId = session.sessionId,
+                    appPackageName = session.appPackageName,
+                    appDisplayName = session.appDisplayName,
+                    records = records
+                )
+                if (!candidate.shouldGenerate) return@launch
+
+                val suggestion = sessionImprovementSuggestionGenerator.generate(candidate) ?: return@launch
+                sessionImprovementSuggestionRepository.saveIfAbsent(suggestion)
+            } catch (error: Exception) {
+                Logger.w(TAG, "Session improvement suggestion skipped", error)
+            }
+        }
+    }
+
+    fun previewSuggestedIntent(suggestionId: String, intentText: String) {
+        Logger.d(TAG, "Previewing session improvement suggestion $suggestionId: ${intentText.take(40)}")
+    }
+
+    fun acceptSuggestedIntent(suggestionId: String) {
+        scope.launch {
+            sessionImprovementSuggestionRepository.acceptNextIntent(suggestionId)
+        }
     }
 
     /**

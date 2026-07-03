@@ -33,6 +33,8 @@ import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.ai.voice.VoiceInputManager
 import com.seenot.app.ai.voice.VoiceRecordingState
 import com.seenot.app.data.model.ConstraintType
+import com.seenot.app.data.model.SessionImprovementSuggestion
+import com.seenot.app.data.repository.SessionImprovementSuggestionRepository
 import com.seenot.app.domain.AppEntryIntentMode
 import com.seenot.app.domain.NoMonitorTimedRest
 import com.seenot.app.domain.SessionConstraint
@@ -92,7 +94,7 @@ class IntentInputDialogOverlay(
 
     private enum class Mode { IDLE, RECORDING, PROCESSING, SHOWING_RULES }
     private enum class InputSource { NONE, VOICE, TEXT }
-    private enum class ApplyFeedback { NONE, DEFAULT_RULE, LAST_INTENT, TEXT_INPUT }
+    private enum class ApplyFeedback { NONE, DEFAULT_RULE, LAST_INTENT, TEXT_INPUT, SUGGESTION }
 
     private var windowManager: WindowManager? = null
     private var voiceInputManager: VoiceInputManager? = null
@@ -138,6 +140,8 @@ class IntentInputDialogOverlay(
     private var rulesPreviewText: TextView? = null
     private var textInput: EditText? = null
     private var presetRules: List<SessionConstraint> = emptyList()
+    private var pendingSuggestionId: String? = null
+    private val suggestionRepository = SessionImprovementSuggestionRepository(context)
 
     @SuppressLint("ClickableViewAccessibility")
     fun show(allowDefaultRuleAutoApply: Boolean = true) {
@@ -193,7 +197,7 @@ class IntentInputDialogOverlay(
                         val parsed = manager.parsedIntent.value
                         if (parsed != null && parsed.constraints.isNotEmpty()) {
                             pendingConstraints = parsed.constraints
-                            if (pendingInputSource == InputSource.TEXT) {
+                            if (pendingInputSource == InputSource.TEXT && pendingSuggestionId == null) {
                                 confirmAndTransition(ApplyFeedback.TEXT_INPUT)
                                 return@collectLatest
                             }
@@ -438,7 +442,13 @@ class IntentInputDialogOverlay(
                 LinearLayout.LayoutParams.WRAP_CONTENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { bottomMargin = 16.dp() }
-            setOnClickListener { confirmAndTransition() }
+            setOnClickListener {
+                if (pendingSuggestionId != null) {
+                    confirmAndTransition(ApplyFeedback.SUGGESTION)
+                } else {
+                    confirmAndTransition()
+                }
+            }
         }
         confirmText = TextView(context).apply {
             text = context.getString(R.string.intent_confirm_title)
@@ -533,6 +543,7 @@ class IntentInputDialogOverlay(
         // Populate preset and history
         populatePresets()
         populateHistory()
+        populateImprovementSuggestion()
 
         // Skip button at bottom
         val skipButton = TextView(context).apply {
@@ -580,6 +591,53 @@ class IntentInputDialogOverlay(
             windowManager?.addView(rootView, params)
         } catch (e: Exception) {
             Logger.e(TAG, "Failed to show dialog overlay", e)
+        }
+    }
+
+    private fun populateImprovementSuggestion() {
+        scope.launch {
+            val suggestion = suggestionRepository.getPendingSuggestionForPackage(packageName) ?: return@launch
+            val row = buildSuggestionRow(suggestion)
+            historyContainer?.addView(row, 0)
+        }
+    }
+
+    private fun buildSuggestionRow(suggestion: SessionImprovementSuggestion): View {
+        return LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(14.dp(), 10.dp(), 14.dp(), 10.dp())
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = 8.dp() }
+            background = GradientDrawable().apply {
+                setColor(adjustAlpha(primaryColor, 0.12f))
+                cornerRadius = 10.dp().toFloat()
+                setStroke(1, adjustAlpha(primaryColor, 0.38f))
+            }
+            setOnClickListener {
+                pendingSuggestionId = suggestion.id
+                sessionManager.previewSuggestedIntent(suggestion.id, suggestion.intentText)
+                textInput?.setText(suggestion.intentText)
+                submitTextIntent(fromSuggestion = true)
+            }
+            addView(TextView(context).apply {
+                text = context.getString(R.string.intent_suggestion_label)
+                textSize = 11f
+                setTextColor(primaryColor)
+                typeface = Typeface.DEFAULT_BOLD
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { bottomMargin = 2.dp() }
+            })
+            addView(TextView(context).apply {
+                text = suggestion.intentText
+                textSize = 14f
+                setTextColor(textColor)
+                maxLines = 3
+                ellipsize = TextUtils.TruncateAt.END
+            })
         }
     }
 
@@ -956,12 +1014,13 @@ class IntentInputDialogOverlay(
         return if (isChineseUi) 12 else 28
     }
 
-    private fun submitTextIntent() {
+    private fun submitTextIntent(fromSuggestion: Boolean = false) {
         val text = textInput?.text?.toString()?.trim().orEmpty()
         if (text.isBlank()) return
 
         pendingConstraints = null
         pendingInputSource = InputSource.TEXT
+        if (!fromSuggestion) pendingSuggestionId = null
         mode = Mode.PROCESSING
         updateUI()
         voiceInputManager?.setCurrentApp(packageName, appName)
@@ -1043,7 +1102,8 @@ class IntentInputDialogOverlay(
                 } ?: ""
                 rulesPreviewText?.text = rulesText
                 rulesPreviewText?.visibility = View.VISIBLE
-                confirmButton?.visibility = if (pendingInputSource == InputSource.VOICE) View.VISIBLE else View.GONE
+                confirmButton?.visibility =
+                    if (pendingInputSource == InputSource.VOICE || pendingSuggestionId != null) View.VISIBLE else View.GONE
                 retryVoiceButton?.visibility =
                     if (pendingInputSource == InputSource.VOICE && isVoiceInputAvailable) View.VISIBLE else View.GONE
                 textInput?.isEnabled = true
@@ -1085,7 +1145,19 @@ class IntentInputDialogOverlay(
                     )
                 )
             }
+            ApplyFeedback.SUGGESTION -> {
+                ToastOverlay.show(
+                    context,
+                    context.getString(
+                        R.string.intent_suggestion_apply_toast,
+                        buildConstraintSummary(constraints)
+                    )
+                )
+            }
             ApplyFeedback.NONE -> Unit
+        }
+        pendingSuggestionId?.let { suggestionId ->
+            sessionManager.acceptSuggestedIntent(suggestionId)
         }
         sessionManager.saveLastIntent(packageName, constraints)
         pendingInputSource = InputSource.NONE

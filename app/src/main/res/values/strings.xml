@@ -246,6 +246,8 @@
     <string name="intent_no_preset_yet">暂无预设意图</string>
     <string name="intent_no_history_yet">暂无历史意图</string>
     <string name="intent_last_used">上次使用</string>
+    <string name="intent_suggestion_label">上次建议</string>
+    <string name="intent_suggestion_apply_toast">已使用建议：%s</string>
     <string name="intent_tap_mic_or_type">点击麦克风开始录音，或直接键盘输入</string>
     <string name="intent_no_voice_type">未配置可用语音输入，可直接键盘输入</string>
     <string name="intent_recording_stop_hint">正在录音... 再次点击停止</string>
@@ -258,6 +260,9 @@
     <string name="intent_constraint_deny_full">禁止: %s</string>
     <string name="intent_constraint_time_cap_full">限时: %1$s %2$s分钟</string>
     <string name="intent_constraint_no_monitor_full">本次不监控</string>
+    <string name="session_improvement_card_title">下次更容易守住</string>
+    <string name="session_improvement_dismiss">暂时收起</string>
+    <string name="session_improvement_use_next_time">下次用这条</string>
     <string name="intent_rest_action">休息一下</string>
     <string name="intent_rest_duration_title">休息多久？</string>
     <string name="intent_rest_duration_desc">到点后 SeeNot 会帮你退出这个 app，并恢复监控。</string>

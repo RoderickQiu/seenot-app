@@ -14,10 +14,12 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowLeft
 import androidx.compose.material.icons.automirrored.filled.KeyboardArrowRight
 import androidx.compose.material.icons.filled.Bolt
+import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.TextButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -40,7 +42,10 @@ import androidx.compose.ui.unit.dp
 import com.seenot.app.R
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.RuleRecord
+import com.seenot.app.data.model.SessionImprovementSuggestion
 import com.seenot.app.data.repository.RuleRecordRepository
+import com.seenot.app.data.repository.SessionImprovementSuggestionRepository
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -52,6 +57,8 @@ fun HomeTimelineSection(
 ) {
     val context = LocalContext.current
     val repository = remember { RuleRecordRepository(context) }
+    val suggestionRepository = remember { SessionImprovementSuggestionRepository(context) }
+    val scope = androidx.compose.runtime.rememberCoroutineScope()
 
     // 0 = today, -1 = yesterday. Positive values are not allowed.
     var dayOffset by remember { mutableIntStateOf(0) }
@@ -62,6 +69,10 @@ fun HomeTimelineSection(
         repository.getTimelineRecordsInRangeFlow(dayRange.first, dayRange.second)
     }
     val records by recordsFlow.collectAsState(initial = emptyList())
+    val suggestionsFlow = remember(dayRange.first, dayRange.second) {
+        suggestionRepository.getSuggestionsInRangeFlow(dayRange.first, dayRange.second)
+    }
+    val suggestions by suggestionsFlow.collectAsState(initial = emptyList())
     val oldestRecordTimestamp by remember {
         repository.getOldestRecordTimestampFlow()
     }.collectAsState(initial = null)
@@ -86,7 +97,7 @@ fun HomeTimelineSection(
 
         Spacer(modifier = Modifier.height(12.dp))
 
-        if (events.isEmpty()) {
+        if (events.isEmpty() && suggestions.isEmpty()) {
             Card(
                 colors = CardDefaults.cardColors(
                     containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
@@ -113,6 +124,16 @@ fun HomeTimelineSection(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
+            suggestions.asReversed().forEach { suggestion ->
+                SessionImprovementSuggestionCard(
+                    suggestion = suggestion,
+                    onDismiss = {
+                        scope.launch {
+                            suggestionRepository.dismiss(suggestion.id)
+                        }
+                    }
+                )
+            }
             stacked.forEach { stack ->
                 TimelineEventStackRow(
                     stack = stack,
@@ -120,6 +141,63 @@ fun HomeTimelineSection(
                         resolveStackAppLabel(context, stack)
                     }
                 )
+            }
+        }
+    }
+}
+
+@Composable
+private fun SessionImprovementSuggestionCard(
+    suggestion: SessionImprovementSuggestion,
+    onDismiss: () -> Unit
+) {
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.34f)
+        ),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(12.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            RowTopLine(
+                icon = Icons.Default.Lightbulb,
+                iconColor = MaterialTheme.colorScheme.primary,
+                content = {
+                    Text(
+                        text = stringResource(R.string.session_improvement_card_title),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.primary,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Text(
+                        text = suggestion.intentText.ifBlank { suggestion.sessionPattern },
+                        style = MaterialTheme.typography.bodyLarge,
+                        fontWeight = FontWeight.Bold,
+                        maxLines = 2,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    if (suggestion.sessionPattern.isNotBlank()) {
+                        Text(
+                            text = suggestion.sessionPattern,
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.End,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                TextButton(onClick = onDismiss) {
+                    Text(stringResource(R.string.session_improvement_dismiss))
+                }
             }
         }
     }

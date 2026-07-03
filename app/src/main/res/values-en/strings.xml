@@ -242,6 +242,8 @@
     <string name="intent_no_preset_yet">No preset intents yet</string>
     <string name="intent_no_history_yet">No history yet</string>
     <string name="intent_last_used">Last used</string>
+    <string name="intent_suggestion_label">Suggested from last time</string>
+    <string name="intent_suggestion_apply_toast">Using suggestion: %s</string>
     <string name="intent_tap_mic_or_type">Tap mic to record, or type directly</string>
     <string name="intent_no_voice_type">No voice input configured. You can type directly.</string>
     <string name="intent_recording_stop_hint">Recording… tap again to stop</string>
@@ -254,6 +256,9 @@
     <string name="intent_constraint_deny_full">Deny: %s</string>
     <string name="intent_constraint_time_cap_full">Time limit: %1$s %2$s minutes</string>
     <string name="intent_constraint_no_monitor_full">No monitoring this time</string>
+    <string name="session_improvement_card_title">Easier to keep next time</string>
+    <string name="session_improvement_dismiss">Hide for now</string>
+    <string name="session_improvement_use_next_time">Use next time</string>
     <string name="intent_rest_action">Rest for a bit</string>
     <string name="intent_rest_duration_title">How long?</string>
     <string name="intent_rest_duration_desc">When time is up, SeeNot will leave this app and resume monitoring.</string>

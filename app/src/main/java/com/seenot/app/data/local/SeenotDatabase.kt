@@ -11,12 +11,14 @@ import com.seenot.app.data.local.dao.IntentConstraintDao
 import com.seenot.app.data.local.dao.RuleRecordDao
 import com.seenot.app.data.local.dao.ScreenAnalysisResultDao
 import com.seenot.app.data.local.dao.SessionDao
+import com.seenot.app.data.local.dao.SessionImprovementSuggestionDao
 import com.seenot.app.data.local.dao.SessionIntentDao
 import com.seenot.app.data.local.entity.AppHintEntity
 import com.seenot.app.data.local.entity.IntentConstraintEntity
 import com.seenot.app.data.local.entity.RuleRecordEntity
 import com.seenot.app.data.local.entity.ScreenAnalysisResultEntity
 import com.seenot.app.data.local.entity.SessionEntity
+import com.seenot.app.data.local.entity.SessionImprovementSuggestionEntity
 import com.seenot.app.data.local.entity.SessionIntentEntity
 
 /**
@@ -29,9 +31,10 @@ import com.seenot.app.data.local.entity.SessionIntentEntity
         IntentConstraintEntity::class,
         ScreenAnalysisResultEntity::class,
         RuleRecordEntity::class,
-        AppHintEntity::class
+        AppHintEntity::class,
+        SessionImprovementSuggestionEntity::class
     ],
-    version = 8,
+    version = 9,
     exportSchema = false
 )
 abstract class SeenotDatabase : RoomDatabase() {
@@ -42,6 +45,7 @@ abstract class SeenotDatabase : RoomDatabase() {
     abstract fun screenAnalysisResultDao(): ScreenAnalysisResultDao
     abstract fun ruleRecordDao(): RuleRecordDao
     abstract fun appHintDao(): AppHintDao
+    abstract fun sessionImprovementSuggestionDao(): SessionImprovementSuggestionDao
 
     companion object {
         private const val DATABASE_NAME = "seenot_database"
@@ -66,6 +70,39 @@ abstract class SeenotDatabase : RoomDatabase() {
             }
         }
 
+        private val MIGRATION_8_9 = object : Migration(8, 9) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    """
+                    CREATE TABLE IF NOT EXISTS session_improvement_suggestions (
+                        id TEXT NOT NULL PRIMARY KEY,
+                        sessionId INTEGER NOT NULL,
+                        packageName TEXT NOT NULL,
+                        appName TEXT NOT NULL,
+                        status TEXT NOT NULL,
+                        sessionPattern TEXT NOT NULL,
+                        nextIntentSuggestion TEXT NOT NULL,
+                        ruleDecision TEXT NOT NULL,
+                        ruleText TEXT,
+                        ruleScopeType TEXT,
+                        ruleReason TEXT,
+                        confidence TEXT,
+                        evidenceRecordIdsJson TEXT NOT NULL,
+                        createdAt INTEGER NOT NULL,
+                        dismissedAt INTEGER,
+                        acceptedAt INTEGER,
+                        acceptedAction TEXT
+                    )
+                    """.trimIndent()
+                )
+                db.execSQL("CREATE UNIQUE INDEX IF NOT EXISTS index_session_improvement_suggestions_sessionId ON session_improvement_suggestions(sessionId)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_session_improvement_suggestions_packageName ON session_improvement_suggestions(packageName)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_session_improvement_suggestions_createdAt ON session_improvement_suggestions(createdAt)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_session_improvement_suggestions_acceptedAt ON session_improvement_suggestions(acceptedAt)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS index_session_improvement_suggestions_dismissedAt ON session_improvement_suggestions(dismissedAt)")
+            }
+        }
+
         @Volatile
         private var INSTANCE: SeenotDatabase? = null
 
@@ -76,7 +113,7 @@ abstract class SeenotDatabase : RoomDatabase() {
                     SeenotDatabase::class.java,
                     DATABASE_NAME
                 )
-                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8)
+                    .addMigrations(MIGRATION_5_6, MIGRATION_6_7, MIGRATION_7_8, MIGRATION_8_9)
                     .build()
                 INSTANCE = instance
                 instance

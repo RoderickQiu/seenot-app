@@ -64,6 +64,9 @@ interface RuleRecordDao {
     @Query("SELECT * FROM rule_records WHERE appName = :appName ORDER BY timestamp DESC")
     suspend fun getRecordsByApp(appName: String): List<RuleRecordEntity>
 
+    @Query("SELECT * FROM rule_records WHERE sessionId = :sessionId ORDER BY timestamp ASC")
+    suspend fun getRecordsForSession(sessionId: Long): List<RuleRecordEntity>
+
     @Query(
         """
         SELECT * FROM rule_records

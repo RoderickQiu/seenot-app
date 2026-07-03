@@ -28,4 +28,13 @@ class IntentInputDialogOverlaySourceTest {
         assertFalse(restRowBody.contains("setStroke(1, adjustAlpha(primaryColor"))
         assertFalse(restRowBody.contains("typeface = Typeface.DEFAULT_BOLD"))
     }
+
+    @Test
+    fun dialogShowsPendingSameAppSuggestionWithoutAutoApplyingIt() {
+        assertTrue(source.contains("getPendingSuggestionForPackage(packageName)"))
+        assertTrue(source.contains("buildSuggestionRow"))
+        assertTrue(source.contains("sessionManager.previewSuggestedIntent"))
+        assertTrue(source.contains("suggestion.intentText"))
+        assertTrue(source.contains("confirmAndTransition(ApplyFeedback.SUGGESTION)"))
+    }
 }

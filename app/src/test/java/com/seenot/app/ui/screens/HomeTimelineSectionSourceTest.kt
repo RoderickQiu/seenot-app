@@ -12,6 +12,8 @@ class HomeTimelineSectionSourceTest {
 
         assertTrue(source.contains("getOldestRecordTimestampFlow()"))
         assertTrue(source.contains("getTimelineRecordsInRangeFlow("))
+        assertTrue(source.contains("getSuggestionsInRangeFlow("))
+        assertTrue(source.contains("SessionImprovementSuggestionCard"))
         assertFalse(source.contains("getAllRecordsFlow()"))
         assertFalse(source.contains("getRecordsInRangeFlow("))
         assertTrue(source.contains("collectAsState(initial ="))

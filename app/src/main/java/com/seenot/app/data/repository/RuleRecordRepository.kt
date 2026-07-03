@@ -162,6 +162,10 @@ class RuleRecordRepository(private val context: Context) {
         return dao.getRecordsByMatchStatus(isMatched).map { it.toModel() }
     }
 
+    suspend fun getRecordsForSession(sessionId: Long): List<RuleRecord> {
+        return dao.getRecordsForSession(sessionId).map { it.toModel() }
+    }
+
     /**
      * Get the most recent violation analysis record for a constraint in the active session.
      * This excludes action records so false-positive marking lands on the history item.
