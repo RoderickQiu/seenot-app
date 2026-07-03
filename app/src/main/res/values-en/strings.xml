@@ -135,6 +135,7 @@
     <string name="toast_distraction_ended">Ended current distraction</string>
     <string name="toast_time_up_return_home">⏰ Time up, returning home</string>
     <string name="toast_severe_violation_return">⚠️ Severe violation, returning home</string>
+    <string name="no_monitor_rest_finished_toast">Rest finished. Returned.</string>
     <string name="label_time">Time</string>
 
     <!-- STT error messages -->
@@ -253,6 +254,12 @@
     <string name="intent_constraint_deny_full">Deny: %s</string>
     <string name="intent_constraint_time_cap_full">Time limit: %1$s %2$s minutes</string>
     <string name="intent_constraint_no_monitor_full">No monitoring this time</string>
+    <string name="intent_rest_action">Rest for a bit</string>
+    <string name="intent_rest_action_desc">When time is up, SeeNot will leave this app and resume monitoring</string>
+    <string name="intent_rest_duration_title">How long?</string>
+    <string name="intent_rest_duration_desc">When time is up, SeeNot will leave this app and resume monitoring.</string>
+    <string name="intent_rest_duration_option">Rest %d minutes</string>
+    <string name="intent_rest_back_to_presets">Back to other intents</string>
     <string name="intent_no_monitor_action">No monitoring this time</string>
     <string name="intent_time_scope_suffix"> %1$s%2$smin</string>
     <string name="intent_retry">Try again</string>
@@ -279,6 +286,8 @@
     <string name="hud_status_timing">Timing</string>
     <string name="hud_status_not_timing">Not timing</string>
     <string name="hud_status_no_monitor">Not monitored</string>
+    <string name="hud_status_no_monitor_rest_remaining">Resting · %d min left</string>
+    <string name="hud_status_no_monitor_rest_remaining_multiline">Resting\n%d min left</string>
     <string name="hud_judgment_deny_format">%s</string>
     <string name="hud_judgment_deny_safe">Safe</string>
     <string name="hud_judgment_deny_at_risk">At risk</string>
@@ -293,6 +302,7 @@
     <string name="hud_rule_type_no_monitor">No monitoring</string>
     <string name="hud_rule_detail_deny">Deny %1$s</string>
     <string name="hud_rule_detail_no_monitor">No monitoring this time</string>
+    <string name="hud_rule_detail_no_monitor_rest">Resting, %d min left</string>
     <string name="hud_rule_detail_time_cap">Limit %1$s %2$s%3$smin</string>
     <string name="hud_rule_detail_time_cap_no_desc">Limit %1$s%2$smin</string>
     <string name="hud_compact_time_limit_prefix">Limit</string>

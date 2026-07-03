@@ -39,6 +39,7 @@ class ActionExecutor(private val context: Context) {
     companion object {
         private const val TAG = "ActionExecutor"
         const val REASON_GENTLE_CONFIRMED_RETURN = "gentle_confirmed_return"
+        const val REASON_NO_MONITOR_TIMED_EXIT = "no_monitor_timed_exit"
 
         // Cooldown after forced actions (ms)
         private const val COOLDOWN_MS = 30_000L // 30 seconds
@@ -77,6 +78,21 @@ class ActionExecutor(private val context: Context) {
             appName = appName,
             packageName = packageName,
             analysisId = analysisId
+        )
+    }
+
+    fun executeNoMonitorTimedExit(
+        constraint: SessionConstraint,
+        appName: String,
+        packageName: String?
+    ) {
+        executeAction(
+            action = ActionType.GO_HOME,
+            constraint = constraint,
+            reason = REASON_NO_MONITOR_TIMED_EXIT,
+            appName = appName,
+            packageName = packageName,
+            analysisId = null
         )
     }
 
@@ -407,6 +423,7 @@ class ActionExecutor(private val context: Context) {
         // Show toast before action
         val message = when {
             reason == REASON_GENTLE_CONFIRMED_RETURN -> l10n(R.string.toast_distraction_ended)
+            reason == REASON_NO_MONITOR_TIMED_EXIT -> l10n(R.string.no_monitor_rest_finished_toast)
             constraint.type == com.seenot.app.data.model.ConstraintType.TIME_CAP -> l10n(R.string.toast_time_up_return_home)
             else -> l10n(R.string.toast_severe_violation_return)
         }

@@ -2069,6 +2069,12 @@ class SessionManager(
                         updatedTimeRemaining[constraint.id] = newRemaining
 
                         if (newRemaining <= 0) {
+                            if (NoMonitorTimedRest.isTimedRestSession(session) &&
+                                NoMonitorTimedRest.isTimedRest(constraint)
+                            ) {
+                                handleNoMonitorTimedRestExpired(session, constraint)
+                                return@launch
+                            }
                             Logger.d(TAG, "Constraint timeout: ${constraint.description}")
                             actionExecutor?.executeIntervention(
                                 constraint,
@@ -2089,8 +2095,24 @@ class SessionManager(
         }
     }
 
+    private fun handleNoMonitorTimedRestExpired(session: ActiveSession, constraint: SessionConstraint) {
+        Logger.d(TAG, "No Monitor timed rest expired for ${session.appPackageName}")
+        val executor = actionExecutor ?: ActionExecutor(context).also { actionExecutor = it }
+
+        executor.executeNoMonitorTimedExit(
+            constraint = constraint,
+            appName = session.appDisplayName,
+            packageName = session.appPackageName
+        )
+
+        scope.launch {
+            endSession(SessionEndReason.TIMEOUT)
+        }
+    }
+
     private fun maybeShowNoMonitorReminder(session: ActiveSession) {
         if (!NoMonitorReminderPrefs.isEnabled(context)) return
+        if (NoMonitorTimedRest.isTimedRestSession(session)) return
         if (!session.constraints.isNoMonitorOnly()) return
         if (NoMonitorReminderOverlay.isShowing()) return
 

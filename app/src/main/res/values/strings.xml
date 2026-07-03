@@ -139,6 +139,7 @@
     <string name="toast_distraction_ended">已结束当前分心内容</string>
     <string name="toast_time_up_return_home">⏰ 时间到，返回主屏幕</string>
     <string name="toast_severe_violation_return">⚠️ 严重违规，返回主屏幕</string>
+    <string name="no_monitor_rest_finished_toast">休息结束，已返回。</string>
     <string name="label_time">时间</string>
 
     <!-- UnifiedTranscriber error messages -->
@@ -257,6 +258,12 @@
     <string name="intent_constraint_deny_full">禁止: %s</string>
     <string name="intent_constraint_time_cap_full">限时: %1$s %2$s分钟</string>
     <string name="intent_constraint_no_monitor_full">本次不监控</string>
+    <string name="intent_rest_action">休息一下</string>
+    <string name="intent_rest_action_desc">到点后 SeeNot 会帮你退出这个 app，并恢复监控</string>
+    <string name="intent_rest_duration_title">休息多久？</string>
+    <string name="intent_rest_duration_desc">到点后 SeeNot 会帮你退出这个 app，并恢复监控。</string>
+    <string name="intent_rest_duration_option">休息 %d 分钟</string>
+    <string name="intent_rest_back_to_presets">返回其他意图</string>
     <string name="intent_no_monitor_action">本次不监控</string>
     <string name="intent_time_scope_suffix"> %1$s%2$s分</string>
     <string name="intent_retry">再说一次</string>
@@ -283,6 +290,8 @@
     <string name="hud_status_timing">计时中</string>
     <string name="hud_status_not_timing">未计时</string>
     <string name="hud_status_no_monitor">未监控</string>
+    <string name="hud_status_no_monitor_rest_remaining">休息中 · 还剩 %d 分钟</string>
+    <string name="hud_status_no_monitor_rest_remaining_multiline">休息中\n还剩 %d 分钟</string>
     <string name="hud_judgment_deny_format">%s</string>
     <string name="hud_judgment_deny_safe">安全</string>
     <string name="hud_judgment_deny_at_risk">风险</string>
@@ -297,6 +306,7 @@
     <string name="hud_rule_type_no_monitor">不监控</string>
     <string name="hud_rule_detail_deny">禁止 %1$s</string>
     <string name="hud_rule_detail_no_monitor">本次不监控</string>
+    <string name="hud_rule_detail_no_monitor_rest">休息中，还剩 %d 分钟</string>
     <string name="hud_rule_detail_time_cap">限时 %1$s %2$s%3$s分</string>
     <string name="hud_rule_detail_time_cap_no_desc">限时 %1$s%2$s分</string>
     <string name="hud_compact_time_limit_prefix">限时</string>

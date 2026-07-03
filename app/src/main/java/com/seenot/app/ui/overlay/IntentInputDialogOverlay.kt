@@ -34,6 +34,7 @@ import com.seenot.app.ai.voice.VoiceInputManager
 import com.seenot.app.ai.voice.VoiceRecordingState
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.domain.AppEntryIntentMode
+import com.seenot.app.domain.NoMonitorTimedRest
 import com.seenot.app.domain.SessionConstraint
 import com.seenot.app.domain.SessionManager
 import kotlinx.coroutines.CoroutineScope
@@ -596,13 +597,109 @@ class IntentInputDialogOverlay(
                 presetContainer?.addView(row)
             }
         }
+        presetContainer?.addView(buildNoMonitorRestRow())
         presetContainer?.addView(buildNoMonitorRow())
+    }
+
+    private fun buildNoMonitorRestRow(): View {
+        return LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(14.dp(), 12.dp(), 14.dp(), 12.dp())
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = 6.dp() }
+            background = GradientDrawable().apply {
+                setColor(adjustAlpha(primaryColor, 0.12f))
+                cornerRadius = 10.dp().toFloat()
+                setStroke(1, adjustAlpha(primaryColor, 0.36f))
+            }
+            setOnClickListener { showTimedRestChoices() }
+            addView(TextView(context).apply {
+                text = context.getString(R.string.intent_rest_action)
+                textSize = 14f
+                typeface = Typeface.DEFAULT_BOLD
+                setTextColor(textColor)
+            })
+            addView(TextView(context).apply {
+                text = context.getString(R.string.intent_rest_action_desc)
+                textSize = 12f
+                setTextColor(subtleTextColor)
+                setPadding(0, 4.dp(), 0, 0)
+            })
+        }
+    }
+
+    private fun showTimedRestChoices() {
+        presetContainer?.removeAllViews()
+        presetContainer?.addView(TextView(context).apply {
+            text = context.getString(R.string.intent_rest_duration_title)
+            textSize = 14f
+            typeface = Typeface.DEFAULT_BOLD
+            setTextColor(textColor)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = 4.dp() }
+        })
+        presetContainer?.addView(TextView(context).apply {
+            text = context.getString(R.string.intent_rest_duration_desc)
+            textSize = 12f
+            setTextColor(subtleTextColor)
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = 8.dp() }
+        })
+
+        NoMonitorTimedRest.durationOptionsMinutes.forEach { minutes ->
+            presetContainer?.addView(buildTimedRestChoiceRow(minutes))
+        }
+
+        presetContainer?.addView(TextView(context).apply {
+            text = context.getString(R.string.intent_rest_back_to_presets)
+            textSize = 13f
+            setTextColor(primaryColor)
+            gravity = Gravity.CENTER
+            setPadding(12.dp(), 10.dp(), 12.dp(), 4.dp())
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            setOnClickListener { populatePresets() }
+        })
+    }
+
+    private fun buildTimedRestChoiceRow(minutes: Int): View {
+        val isDefault = minutes == NoMonitorTimedRest.defaultMinutes
+        return TextView(context).apply {
+            text = context.getString(R.string.intent_rest_duration_option, minutes)
+            textSize = 14f
+            typeface = if (isDefault) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
+            setTextColor(textColor)
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(14.dp(), 12.dp(), 14.dp(), 12.dp())
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = 6.dp() }
+            background = GradientDrawable().apply {
+                setColor(if (isDefault) adjustAlpha(primaryColor, 0.16f) else historyBgColor)
+                cornerRadius = 10.dp().toFloat()
+                if (isDefault) {
+                    setStroke(1, adjustAlpha(primaryColor, 0.42f))
+                }
+            }
+            setOnClickListener {
+                selectPresetIntent(NoMonitorTimedRest.createConstraint(minutes))
+            }
+        }
     }
 
     private fun buildNoMonitorRow(): View {
         return LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
-            setPadding(14.dp(), 10.dp(), 14.dp(), 10.dp())
+            setPadding(14.dp(), 8.dp(), 14.dp(), 8.dp())
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -622,8 +719,8 @@ class IntentInputDialogOverlay(
             }
             addView(TextView(context).apply {
                 text = context.getString(R.string.intent_no_monitor_action)
-                textSize = 14f
-                setTextColor(textColor)
+                textSize = 13f
+                setTextColor(subtleTextColor)
             })
         }
     }
@@ -1093,6 +1190,11 @@ class IntentInputDialogOverlay(
             try { windowManager?.removeView(view) } catch (e: Exception) { /* ignore */ }
         }
         rootView = null
+    }
+
+    private fun adjustAlpha(color: Int, alpha: Float): Int {
+        val clampedAlpha = (Color.alpha(color) * alpha).roundToInt().coerceIn(0, 255)
+        return Color.argb(clampedAlpha, Color.red(color), Color.green(color), Color.blue(color))
     }
 
     private fun Int.dp() = (this * density).roundToInt()

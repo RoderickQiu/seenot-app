@@ -25,6 +25,7 @@ import com.seenot.app.config.RuleRecordingPrefs
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.TimeScope
 import com.seenot.app.domain.ActiveSession
+import com.seenot.app.domain.NoMonitorTimedRest
 import com.seenot.app.domain.SessionConstraint
 import com.seenot.app.domain.SessionManager
 import com.seenot.app.utils.Logger
@@ -688,7 +689,14 @@ class FloatingIndicatorOverlay(
                             "${formatConstraintDetailSingleLine(constraint)}${context.getString(R.string.hud_compact_separator)}$status"
                         }
                         ConstraintType.NO_MONITOR -> {
-                            "${formatConstraintDetailSingleLine(constraint)}${context.getString(R.string.hud_compact_separator)}${context.getString(R.string.hud_status_no_monitor)}"
+                            if (NoMonitorTimedRest.isTimedRest(constraint)) {
+                                context.getString(
+                                    R.string.hud_status_no_monitor_rest_remaining,
+                                    remainingRestMinutes(constraint)
+                                )
+                            } else {
+                                "${formatConstraintDetailSingleLine(constraint)}${context.getString(R.string.hud_compact_separator)}${context.getString(R.string.hud_status_no_monitor)}"
+                            }
                         }
                     }
                 } + if (constraints.size > 2) context.getString(R.string.hud_more_count, constraints.size - 2) else ""
@@ -729,7 +737,13 @@ class FloatingIndicatorOverlay(
                     context.getString(R.string.hud_rule_detail_time_cap_no_desc, scopeStr, minText)
                 }
             }
-            ConstraintType.NO_MONITOR -> context.getString(R.string.hud_rule_detail_no_monitor)
+            ConstraintType.NO_MONITOR -> {
+                if (NoMonitorTimedRest.isTimedRest(constraint)) {
+                    context.getString(R.string.hud_rule_detail_no_monitor_rest, remainingRestMinutes(constraint))
+                } else {
+                    context.getString(R.string.hud_rule_detail_no_monitor)
+                }
+            }
         }
     }
 
@@ -801,7 +815,13 @@ class FloatingIndicatorOverlay(
                 val meta = buildCompactTimeCapMeta(constraint)
                 if (meta.isBlank()) title else "$title\n$meta"
             }
-            ConstraintType.NO_MONITOR -> context.getString(R.string.hud_rule_detail_no_monitor)
+            ConstraintType.NO_MONITOR -> {
+                if (NoMonitorTimedRest.isTimedRest(constraint)) {
+                    context.getString(R.string.hud_rule_detail_no_monitor_rest, remainingRestMinutes(constraint))
+                } else {
+                    context.getString(R.string.hud_rule_detail_no_monitor)
+                }
+            }
         }
     }
 
@@ -831,7 +851,14 @@ class FloatingIndicatorOverlay(
                 "$title\n$subtitle"
             }
             ConstraintType.NO_MONITOR -> {
-                "${context.getString(R.string.hud_rule_detail_no_monitor)}\n${context.getString(R.string.hud_status_no_monitor)}"
+                if (NoMonitorTimedRest.isTimedRest(constraint)) {
+                    context.getString(
+                        R.string.hud_status_no_monitor_rest_remaining_multiline,
+                        remainingRestMinutes(constraint)
+                    )
+                } else {
+                    "${context.getString(R.string.hud_rule_detail_no_monitor)}\n${context.getString(R.string.hud_status_no_monitor)}"
+                }
             }
         }
     }
@@ -857,6 +884,14 @@ class FloatingIndicatorOverlay(
             String.format(Locale.US, "%.1f", minutes)
         }
         return context.getString(R.string.hud_duration_minutes_short, value)
+    }
+
+    private fun remainingRestMinutes(constraint: SessionConstraint): Long {
+        return state.session
+            ?.let { NoMonitorTimedRest.remainingMinutesCeil(it) }
+            ?: constraint.timeLimitMs
+                ?.let { kotlin.math.ceil(it / 60_000.0).toLong() }
+            ?: 1L
     }
 
     private fun truncateCompactDescription(description: String, maxChars: Int = 12): String {
