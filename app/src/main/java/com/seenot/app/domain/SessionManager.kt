@@ -1802,17 +1802,65 @@ class SessionManager(
     private fun scheduleSessionImprovementSuggestion(session: ActiveSession) {
         scope.launch(Dispatchers.IO) {
             try {
+                Logger.i(
+                    TAG,
+                    "Session improvement: start sessionId=${session.sessionId}, " +
+                        "package=${session.appPackageName}, app=${session.appDisplayName}"
+                )
                 val records = ruleRecordRepository.getRecordsForSession(session.sessionId)
+                Logger.i(
+                    TAG,
+                    "Session improvement: loaded records sessionId=${session.sessionId}, count=${records.size}, " +
+                        "actions=${records.count { !it.actionType.isNullOrBlank() }}, " +
+                        "violations=${records.count { it.actionType.isNullOrBlank() && it.constraintType == ConstraintType.DENY && !it.isConditionMatched }}, " +
+                        "marked=${records.count { it.isMarked }}, " +
+                        "lowConfidence=${records.count { (it.confidence ?: 1.0) < 0.65 }}"
+                )
                 val candidate = sessionImprovementCandidateSelector.select(
                     sessionId = session.sessionId,
                     appPackageName = session.appPackageName,
                     appDisplayName = session.appDisplayName,
                     records = records
                 )
-                if (!candidate.shouldGenerate) return@launch
+                if (!candidate.shouldGenerate) {
+                    Logger.i(
+                        TAG,
+                        "Session improvement: no candidate sessionId=${session.sessionId}, " +
+                            "trigger=${candidate.primaryTrigger}, evidence=${candidate.evidenceRecords.size}"
+                    )
+                    return@launch
+                }
 
-                val suggestion = sessionImprovementSuggestionGenerator.generate(candidate) ?: return@launch
-                sessionImprovementSuggestionRepository.saveIfAbsent(suggestion)
+                Logger.i(
+                    TAG,
+                    "Session improvement: candidate sessionId=${session.sessionId}, " +
+                        "trigger=${candidate.primaryTrigger}, confidence=${candidate.confidence}, " +
+                        "evidenceIds=${candidate.evidenceRecords.joinToString(",") { it.id }}"
+                )
+                val suggestion = sessionImprovementSuggestionGenerator.generate(candidate)
+                if (suggestion == null) {
+                    Logger.w(
+                        TAG,
+                        "Session improvement: generator returned empty sessionId=${session.sessionId}, " +
+                            "trigger=${candidate.primaryTrigger}"
+                    )
+                    return@launch
+                }
+
+                val saved = sessionImprovementSuggestionRepository.saveIfAbsent(suggestion)
+                if (saved) {
+                    Logger.i(
+                        TAG,
+                        "Session improvement: saved suggestion sessionId=${session.sessionId}, " +
+                            "suggestionId=${suggestion.id}, evidence=${suggestion.evidenceRecordIds.size}"
+                    )
+                } else {
+                    Logger.i(
+                        TAG,
+                        "Session improvement: suggestion already exists sessionId=${session.sessionId}, " +
+                            "suggestionId=${suggestion.id}"
+                    )
+                }
             } catch (error: Exception) {
                 Logger.w(TAG, "Session improvement suggestion skipped", error)
             }
