@@ -5,6 +5,7 @@ import com.google.gson.JsonObject
 import com.google.gson.JsonParser
 import com.seenot.app.ai.OpenAiCompatibleClient
 import com.seenot.app.config.ApiConfig
+import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.data.model.AppHintScopeType
 import com.seenot.app.data.model.SessionImprovementRuleDecision
 import com.seenot.app.data.model.SessionImprovementSuggestion
@@ -23,8 +24,9 @@ class SessionImprovementSuggestionGenerator(
 
         return withContext(Dispatchers.IO) {
             try {
+                val outputLanguageName = AppLocalePrefs.getAiOutputLanguageName(context)
                 val response = client.completeText(
-                    systemPrompt = SYSTEM_PROMPT,
+                    systemPrompt = "You generate concise, user-confirmed SeeNot session improvement suggestions. Output all user-facing suggestion text in the current SeeNot UI language: $outputLanguageName.",
                     userPrompt = buildPrompt(candidate),
                     temperature = 0.2,
                     maxTokens = 700,
@@ -39,6 +41,7 @@ class SessionImprovementSuggestionGenerator(
     }
 
     private fun buildPrompt(candidate: SessionImprovementCandidate): String {
+        val outputLanguageName = AppLocalePrefs.getAiOutputLanguageName(context)
         val recordsText = candidate.evidenceRecords.joinToString("\n\n") { record ->
             buildString {
                 appendLine("- record_id: ${record.id}")
@@ -68,6 +71,11 @@ class SessionImprovementSuggestionGenerator(
 4. 媒体信息只能作为辅助证据，不能把标题、频道或播放状态当作绝对事实。
 5. 不要自动改变规则；你只输出候选，用户确认后才会生效。
 
+**输出语言规则（最高优先级）：**
+- `session_pattern`、`next_intent_suggestion`、`rule_text` 和 `reason` 必须使用 $outputLanguageName
+- 不要因为受控 app、证据记录、媒体标题或页面内容是中文就输出中文；也不要因为它们是英文就输出英文。始终跟随 SeeNot 当前界面语言
+- 不要输出中英混杂的 session_pattern / next_intent_suggestion / rule_text / reason
+
 输出 JSON，禁止 Markdown：
 {
   "decision": "create_suggestion" | "no_suggestion",
@@ -86,6 +94,7 @@ class SessionImprovementSuggestionGenerator(
 会话：
 - app: ${candidate.appDisplayName}
 - package: ${candidate.appPackageName}
+- 当前 SeeNot 软件语言: $outputLanguageName
 - trigger: ${candidate.primaryTrigger}
 - local_confidence: ${candidate.confidence}
 
@@ -151,6 +160,5 @@ $recordsText
 
     private companion object {
         private const val TAG = "SessionImprovementSuggestionGenerator"
-        private const val SYSTEM_PROMPT = "You generate concise, user-confirmed SeeNot session improvement suggestions."
     }
 }
