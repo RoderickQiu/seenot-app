@@ -205,6 +205,18 @@ class OpenAiCompatibleClient(
 
     private fun extractAssistantText(responseText: String): String {
         val root = JsonParser.parseString(responseText).asJsonObject
+        root.getAsJsonObject("header")?.let { header ->
+            val event = header.get("event")?.takeIf { !it.isJsonNull }?.asString.orEmpty()
+            if (event == "task-failed") {
+                val errorCode = header.get("error_code")?.takeIf { !it.isJsonNull }?.asString.orEmpty()
+                val errorMessage = header.get("error_message")?.takeIf { !it.isJsonNull }?.asString.orEmpty()
+                Logger.e(TAG, "DashScope task failed: code=$errorCode message=$errorMessage")
+                if (errorCode == "Model.AccessDenied") {
+                    throw AiRequestFailure.Auth(403)
+                }
+                throw AiRequestFailure.RequestFailed(200)
+            }
+        }
         val choices = root.getAsJsonArray("choices")
             ?: throw IllegalStateException("模型返回为空")
         if (choices.size() == 0) {

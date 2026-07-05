@@ -8,9 +8,12 @@ import com.seenot.app.ai.parser.ParsedConstraint
 import com.seenot.app.ai.parser.ParsedIntentResult
 import com.seenot.app.config.InterventionLevelPrefs
 import com.seenot.app.ai.stt.AudioFileRecorder
+import com.seenot.app.ai.stt.RealtimeSttStopCoordinator
 import com.seenot.app.ai.stt.SttEngine
 import com.seenot.app.ai.stt.SttResult
 import com.seenot.app.ai.stt.UnifiedTranscriber
+import com.seenot.app.account.SeenotManagedAiCredentialProvider
+import com.seenot.app.config.AiSource
 import com.seenot.app.config.AiProvider
 import com.seenot.app.config.ApiConfig
 import com.seenot.app.data.model.ConstraintType
@@ -30,6 +33,7 @@ class VoiceInputManager(private val context: Context) {
 
     companion object {
         private const val TAG = "VoiceInputManager"
+        private const val REALTIME_STT_FINAL_WAIT_TIMEOUT_MS = 2500L
     }
 
     private val scope = CoroutineScope(Dispatchers.Main + SupervisorJob())
@@ -63,6 +67,8 @@ class VoiceInputManager(private val context: Context) {
     private var isRecording = false
     private var recordingStartTime = 0L
     private var recordingUsesRealtimeDashScope = false
+    private var realtimeStopCoordinator: RealtimeSttStopCoordinator? = null
+    private var realtimeStopTimeoutJob: Job? = null
 
     // State flows for UI observation
     private val _recordingState = MutableStateFlow(VoiceRecordingState.IDLE)
@@ -128,44 +134,29 @@ class VoiceInputManager(private val context: Context) {
 
         recordingUsesRealtimeDashScope = shouldUseRealtimeDashScope()
         val started = if (recordingUsesRealtimeDashScope) {
-            sttEngine?.setCallback(object : SttEngine.TranscriptionCallback {
-                override fun onIntermediateResult(text: String) {
-                    Logger.d(TAG, "Intermediate: $text")
-                    scope.launch {
-                        _recognizedText.value = text
-                    }
-                }
-
-                override fun onFinalResult(text: String) {
-                    Logger.d(TAG, "Final result callback: $text")
-                    scope.launch {
-                        _recognizedText.value = text
-                    }
-                }
-
-                override fun onError(error: String) {
-                    Logger.e(TAG, "STT Error callback: $error")
-                    scope.launch {
-                        _error.value = error
-                    }
-                }
-
-                override fun onComplete() {
-                    Logger.d(TAG, "STT Complete callback")
-                }
-            })
-            sttEngine?.startRecording() ?: false
-        } else {
-            audioFileRecorder?.startRecording() ?: false
-        }
-
-        if (started) {
             isRecording = true
             recordingStartTime = System.currentTimeMillis()
             _recordingState.value = VoiceRecordingState.RECORDING
             _recognizedText.value = null
             _parsedIntent.value = null
             _error.value = null
+            scope.launch {
+                startRealtimeDashScopeRecording()
+            }
+            true
+        } else {
+            audioFileRecorder?.startRecording() ?: false
+        }
+
+        if (started) {
+            if (!recordingUsesRealtimeDashScope) {
+                isRecording = true
+                recordingStartTime = System.currentTimeMillis()
+                _recordingState.value = VoiceRecordingState.RECORDING
+                _recognizedText.value = null
+                _parsedIntent.value = null
+                _error.value = null
+            }
 
             Logger.d(TAG, "Recording started")
         } else {
@@ -178,7 +169,7 @@ class VoiceInputManager(private val context: Context) {
     }
 
     /**
-     * Stop recording - use the last recognized text immediately without waiting for final result
+     * Stop recording and wait briefly for the real-time STT final result.
      */
     fun stopRecording() {
         if (!isRecording) {
@@ -189,17 +180,10 @@ class VoiceInputManager(private val context: Context) {
         isRecording = false
 
         if (recordingUsesRealtimeDashScope) {
+            _recordingState.value = VoiceRecordingState.PROCESSING
+            realtimeStopCoordinator?.onStopRequested()?.let(::handleRealtimeStopDecision)
             sttEngine?.stopRecording()
-
-            val finalText = _recognizedText.value
-            if (!finalText.isNullOrBlank()) {
-                _recordingState.value = VoiceRecordingState.PROCESSING
-                Logger.d(TAG, "Stop called, using current recognized text: $finalText")
-                parseIntent(finalText, currentPackageName, currentAppName)
-            } else {
-                _error.value = context.getString(R.string.voice_err_not_recognized)
-                _recordingState.value = VoiceRecordingState.ERROR
-            }
+            scheduleRealtimeStopTimeout()
         } else {
             val audioFile = audioFileRecorder?.stopRecording()
             if (audioFile == null) {
@@ -241,8 +225,107 @@ class VoiceInputManager(private val context: Context) {
             audioFileRecorder?.cancelRecording()
         }
 
+        realtimeStopTimeoutJob?.cancel()
+        realtimeStopCoordinator = null
         recordingUsesRealtimeDashScope = false
         _recordingState.value = VoiceRecordingState.IDLE
+    }
+
+    private suspend fun startRealtimeDashScopeRecording() {
+        val settings = try {
+            if (ApiConfig.getAiSource() == AiSource.SEENOT_AI) {
+                SeenotManagedAiCredentialProvider(context).getSettingsWithFreshManagedCredential()
+            } else {
+                null
+            }
+        } catch (e: Exception) {
+            Logger.e(TAG, "Failed to refresh managed AI credential for realtime STT", e)
+            _error.value = e.message ?: context.getString(R.string.voice_err_start_failed)
+            _recordingState.value = VoiceRecordingState.ERROR
+            recordingUsesRealtimeDashScope = false
+            return
+        }
+
+        sttEngine?.setSessionApiKeyOverride(
+            settings
+                ?.takeIf { it.provider == AiProvider.DASHSCOPE }
+                ?.apiKey
+        )
+        realtimeStopCoordinator = RealtimeSttStopCoordinator()
+        sttEngine?.setCallback(object : SttEngine.TranscriptionCallback {
+            override fun onIntermediateResult(text: String) {
+                Logger.d(TAG, "Intermediate: $text")
+                scope.launch {
+                    _recognizedText.value = text
+                    realtimeStopCoordinator?.onIntermediateResult(text)?.let(::handleRealtimeStopDecision)
+                }
+            }
+
+            override fun onFinalResult(text: String) {
+                Logger.d(TAG, "Final result callback: $text")
+                scope.launch {
+                    _recognizedText.value = text
+                    realtimeStopCoordinator?.onFinalResult(text)?.let(::handleRealtimeStopDecision)
+                }
+            }
+
+            override fun onError(error: String) {
+                Logger.e(TAG, "STT Error callback: $error")
+                scope.launch {
+                    realtimeStopTimeoutJob?.cancel()
+                    realtimeStopCoordinator?.onError()
+                    _error.value = error
+                    _recordingState.value = VoiceRecordingState.ERROR
+                    recordingUsesRealtimeDashScope = false
+                    isRecording = false
+                }
+            }
+
+            override fun onComplete() {
+                Logger.d(TAG, "STT Complete callback")
+                scope.launch {
+                    realtimeStopCoordinator?.onComplete()?.let(::handleRealtimeStopDecision)
+                }
+            }
+        })
+
+        val started = sttEngine?.startRecording() ?: false
+        if (started) {
+            _recordingState.value = VoiceRecordingState.RECORDING
+            Logger.d(TAG, "Realtime recording started")
+        } else {
+            isRecording = false
+            _error.value = context.getString(R.string.voice_err_start_failed)
+            _recordingState.value = VoiceRecordingState.ERROR
+            recordingUsesRealtimeDashScope = false
+            realtimeStopCoordinator = null
+        }
+    }
+
+    private fun scheduleRealtimeStopTimeout() {
+        realtimeStopTimeoutJob?.cancel()
+        realtimeStopTimeoutJob = scope.launch {
+            delay(REALTIME_STT_FINAL_WAIT_TIMEOUT_MS)
+            realtimeStopCoordinator?.onTimeout()?.let(::handleRealtimeStopDecision)
+        }
+    }
+
+    private fun handleRealtimeStopDecision(decision: RealtimeSttStopCoordinator.Decision) {
+        realtimeStopTimeoutJob?.cancel()
+        realtimeStopTimeoutJob = null
+        realtimeStopCoordinator = null
+        recordingUsesRealtimeDashScope = false
+        when (decision) {
+            is RealtimeSttStopCoordinator.Decision.UseText -> {
+                _recognizedText.value = decision.text
+                Logger.d(TAG, "Using realtime recognized text: ${decision.text}")
+                parseIntent(decision.text, currentPackageName, currentAppName)
+            }
+            RealtimeSttStopCoordinator.Decision.EmptyRecognition -> {
+                _error.value = context.getString(R.string.voice_err_not_recognized)
+                _recordingState.value = VoiceRecordingState.ERROR
+            }
+        }
     }
 
     /**
@@ -314,6 +397,8 @@ class VoiceInputManager(private val context: Context) {
     fun release() {
         isRecording = false
         recordingUsesRealtimeDashScope = false
+        realtimeStopTimeoutJob?.cancel()
+        realtimeStopCoordinator = null
         scope.cancel()
         sttEngine?.release()
         audioFileRecorder?.release()

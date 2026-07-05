@@ -37,4 +37,22 @@ class IntentInputDialogOverlaySourceTest {
         assertTrue(source.contains("suggestion.intentText"))
         assertTrue(source.contains("confirmAndTransition(ApplyFeedback.SUGGESTION)"))
     }
+
+    @Test
+    fun parseErrorsAreRenderedInStatusInsteadOfVoiceConfigurationFallback() {
+        assertTrue(source.contains("lastErrorMessage"))
+        assertTrue(source.contains("statusText?.text = lastErrorMessage ?: when"))
+        assertTrue(source.contains("lastErrorMessage = manager.error.value ?: context.getString(R.string.voice_err_parse_failed_simple)"))
+        assertFalse(source.contains("ToastOverlay.show(context, manager.error.value ?: context.getString(R.string.voice_err_parse_failed_simple))\n                        mode = Mode.IDLE"))
+    }
+
+    @Test
+    fun realtimeVoiceStartupUsesRecordingStartupState() {
+        val handleMicClickBody = source.substringAfter("private fun handleMicClick()")
+            .substringBefore("private fun restartVoiceInput()")
+
+        assertTrue(handleMicClickBody.contains("mode = Mode.RECORDING"))
+        assertTrue(handleMicClickBody.contains("updateUI()"))
+        assertTrue(handleMicClickBody.contains("voiceInputManager?.startRecording()"))
+    }
 }

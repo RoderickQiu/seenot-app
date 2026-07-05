@@ -2,6 +2,7 @@ package com.seenot.app.ai.parser
 
 import android.content.Context
 import com.seenot.app.R
+import com.seenot.app.ai.AiRequestFailure
 import com.seenot.app.ai.OpenAiCompatibleClient
 import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.utils.Logger
@@ -201,6 +202,11 @@ $examples
                 Logger.e(TAG, "parseIntent failed", e)
                 val errorMsg = when (e) {
                     is LlmException -> context.getString(R.string.voice_err_parse_failed)
+                    is AiRequestFailure.Auth -> context.getString(R.string.err_model_auth_failed)
+                    is AiRequestFailure.ServiceUnavailable -> context.getString(R.string.err_model_service_unavailable)
+                    is AiRequestFailure.Offline -> context.getString(R.string.err_model_offline)
+                    is AiRequestFailure.Reachability -> context.getString(R.string.err_model_network_unreachable)
+                    is AiRequestFailure.RequestFailed -> context.getString(R.string.err_model_request_failed)
                     is IntentParseFormatException -> context.getString(R.string.voice_err_parse_failed)
                     else -> e.message ?: context.getString(R.string.voice_err_parse_failed_simple)
                 }
@@ -359,6 +365,9 @@ $examples
                 temperature = 0.3,
                 maxTokens = 800
             )
+        } catch (e: AiRequestFailure.Auth) {
+            Logger.w(TAG, "LLM auth error: ${e.message}")
+            throw e
         } catch (e: Exception) {
             Logger.w(TAG, "LLM error: ${e.message}")
             if (attempt < 3) Thread.sleep(1000L * attempt)

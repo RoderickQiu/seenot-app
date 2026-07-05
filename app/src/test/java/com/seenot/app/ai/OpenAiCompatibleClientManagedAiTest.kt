@@ -69,6 +69,46 @@ class OpenAiCompatibleClientManagedAiTest {
         }
     }
 
+    @Test
+    fun refreshesManagedCredentialWhenDashScopeReturnsTaskFailedAccessDeniedBody() = runBlocking {
+        MockWebServer().use { server ->
+            server.enqueue(MockResponse().setResponseCode(200).setBody(dashScopeTaskFailedAccessDenied()))
+            server.enqueue(MockResponse().setResponseCode(200).setBody(chatCompletion("ok after refresh")))
+            server.start()
+
+            ApiConfig.saveSettings(ApiSettings.defaults(AiProvider.DASHSCOPE))
+            ApiConfig.saveManagedAiSession(
+                apiKey = "stale-managed-key",
+                baseUrl = server.url("/v1").toString().trimEnd('/'),
+                model = "qwen-vl-plus",
+                expiresAtEpochSeconds = 1_900_000_000L
+            )
+
+            var callCount = 0
+            val client = OpenAiCompatibleClient(
+                settingsProvider = {
+                    callCount++
+                    if (callCount == 1) {
+                        ApiConfig.getSettings()
+                    } else {
+                        ApiConfig.saveManagedAiSession(
+                            apiKey = "fresh-managed-key",
+                            baseUrl = server.url("/v1").toString().trimEnd('/'),
+                            model = "qwen-vl-plus",
+                            expiresAtEpochSeconds = 1_900_000_000L
+                        )
+                        ApiConfig.getSettings()
+                    }
+                }
+            )
+
+            assertEquals("ok after refresh", client.completeText(userPrompt = "hello"))
+
+            assertEquals("Bearer stale-managed-key", server.takeRequest().getHeader("Authorization"))
+            assertEquals("Bearer fresh-managed-key", server.takeRequest().getHeader("Authorization"))
+        }
+    }
+
     private fun chatCompletion(content: String): String {
         return JsonObject().apply {
             add("choices", com.google.gson.JsonArray().apply {
@@ -78,6 +118,18 @@ class OpenAiCompatibleClientManagedAiTest {
                     })
                 })
             })
+        }.toString()
+    }
+
+    private fun dashScopeTaskFailedAccessDenied(): String {
+        return JsonObject().apply {
+            add("header", JsonObject().apply {
+                addProperty("task_id", "task")
+                addProperty("event", "task-failed")
+                addProperty("error_code", "Model.AccessDenied")
+                addProperty("error_message", "Model access denied.")
+            })
+            add("payload", JsonObject())
         }.toString()
     }
 }

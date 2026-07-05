@@ -31,12 +31,14 @@ class SttEngine(private val context: Context) {
 
     private var audioRecord: AudioRecord? = null
     private var recordingActive = false
+    private var stopRequested = false
     private var recordingStartTime: Long = 0
 
     private var recognitionHelper: DashScopeRecognitionHelper? = null
     private var recognitionExecutor: java.util.concurrent.ExecutorService? = null
 
     private var transcriptionCallback: TranscriptionCallback? = null
+    private var sessionApiKeyOverride: String? = null
 
     /**
      * Callback interface for transcription results
@@ -53,6 +55,10 @@ class SttEngine(private val context: Context) {
      */
     fun setCallback(callback: TranscriptionCallback?) {
         transcriptionCallback = callback
+    }
+
+    fun setSessionApiKeyOverride(apiKey: String?) {
+        sessionApiKeyOverride = apiKey?.trim()?.takeIf { it.isNotBlank() }
     }
 
     /**
@@ -95,7 +101,9 @@ class SttEngine(private val context: Context) {
                 return false
             }
 
-            val apiKey = ApiConfig.getApiKey(AiProvider.DASHSCOPE)
+            stopRequested = false
+            val apiKey = sessionApiKeyOverride.orEmpty()
+                .ifBlank { ApiConfig.getApiKey(AiProvider.DASHSCOPE) }
                 .ifBlank { currentInjectedDashscopeKeyIfActive() }
             if (apiKey.isBlank()) {
                 Logger.e(TAG, "API key is empty")
@@ -137,11 +145,13 @@ class SttEngine(private val context: Context) {
                 override fun onError(error: String) {
                     Logger.e(TAG, "RecognitionCallback error: $error")
                     transcriptionCallback?.onError(error)
+                    cleanupRecognitionSession()
                 }
 
                 override fun onComplete() {
                     Logger.d(TAG, "Recognition complete")
                     transcriptionCallback?.onComplete()
+                    cleanupRecognitionSession()
                 }
             })
 
@@ -203,10 +213,12 @@ class SttEngine(private val context: Context) {
             transcriptionCallback?.onError(e.message ?: "Audio sending error")
         } finally {
             Logger.d(TAG, "Audio capture loop finished, stopping recognition")
-            try {
-                recognitionHelper?.stop()
-            } catch (e: Exception) {
-                Logger.e(TAG, "Error stopping recognition", e)
+            if (!stopRequested) {
+                try {
+                    recognitionHelper?.stop()
+                } catch (e: Exception) {
+                    Logger.e(TAG, "Error stopping recognition", e)
+                }
             }
         }
     }
@@ -222,6 +234,7 @@ class SttEngine(private val context: Context) {
 
         try {
             recordingActive = false
+            stopRequested = true
 
             audioRecord?.apply {
                 stop()
@@ -240,8 +253,6 @@ class SttEngine(private val context: Context) {
             Logger.e(TAG, "Error stopping recognition", e)
         }
 
-        recognitionHelper = null
-
         // Shutdown executor
         recognitionExecutor?.shutdown()
         recognitionExecutor = null
@@ -254,6 +265,7 @@ class SttEngine(private val context: Context) {
      */
     fun cancelRecording() {
         recordingActive = false
+        stopRequested = true
 
         try {
             audioRecord?.apply {
@@ -320,16 +332,21 @@ class SttEngine(private val context: Context) {
         }
         audioRecord = null
         recordingActive = false
+        stopRequested = true
 
         try {
             recognitionHelper?.stop()
         } catch (e: Exception) {
             // Ignore
         }
-        recognitionHelper = null
+        cleanupRecognitionSession()
 
         recognitionExecutor?.shutdown()
         recognitionExecutor = null
+    }
+
+    private fun cleanupRecognitionSession() {
+        recognitionHelper = null
     }
 
     /**

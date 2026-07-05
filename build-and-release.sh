@@ -127,4 +127,4 @@ echo "🎉 Release APK installed and launched."
 echo ""
 echo "🔍 Monitoring release logs (Press Ctrl+C to stop)..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-adb_target logcat -v time | grep -E 'SeeNot|SeeNotLogger|SeenotSync|SessionManager|IntentParser|ScreenAnalyzer|FloatingIndicator|pauseSession|resumeSession|SeenotAccessibility|TYPE_WINDOWS_CHANGED|sourceWindow|UsageStats|AndroidRuntime|FATAL EXCEPTION'
+adb_target logcat -v time | grep -E 'SeeNot|SeeNotLogger|SeenotSync|SessionManager|IntentParser|ScreenAnalyzer|VoiceInputManager|VoiceInputOverlay|IntentInputDialog|SttEngine|DashScopeSTT|FloatingIndicator|pauseSession|resumeSession|SeenotAccessibility|TYPE_WINDOWS_CHANGED|sourceWindow|UsageStats|AndroidRuntime|FATAL EXCEPTION'

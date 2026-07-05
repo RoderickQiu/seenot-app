@@ -81,4 +81,4 @@ adb_target shell settings put secure accessibility_enabled 1
 echo ""
 echo "🔍 Monitoring logs (Press Ctrl+C to stop)..."
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-adb_target logcat -v time | grep -E 'SeeNot|SeeNotLogger|SeenotSync|SessionManager|IntentParser|ScreenAnalyzer|FloatingIndicator|pauseSession|resumeSession|SeenotAccessibility|TYPE_WINDOWS_CHANGED|sourceWindow|UsageStats'
+adb_target logcat -v time | grep -E 'SeeNot|SeeNotLogger|SeenotSync|SessionManager|IntentParser|ScreenAnalyzer|VoiceInputManager|VoiceInputOverlay|IntentInputDialog|SttEngine|DashScopeSTT|FloatingIndicator|pauseSession|resumeSession|SeenotAccessibility|TYPE_WINDOWS_CHANGED|sourceWindow|UsageStats'

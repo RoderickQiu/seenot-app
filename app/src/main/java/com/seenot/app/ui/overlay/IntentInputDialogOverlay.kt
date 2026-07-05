@@ -103,6 +103,7 @@ class IntentInputDialogOverlay(
     private var mode = Mode.IDLE
     private var pendingConstraints: List<SessionConstraint>? = null
     private var pendingInputSource = InputSource.NONE
+    private var lastErrorMessage: String? = null
     private var hasAudioPermission = false
     private var isVoiceInputAvailable = false
 
@@ -210,7 +211,8 @@ class IntentInputDialogOverlay(
                         }
                     }
                     VoiceRecordingState.ERROR -> {
-                        ToastOverlay.show(context, manager.error.value ?: context.getString(R.string.voice_err_parse_failed_simple))
+                        lastErrorMessage = manager.error.value ?: context.getString(R.string.voice_err_parse_failed_simple)
+                        ToastOverlay.show(context, lastErrorMessage!!)
                         mode = Mode.IDLE
                         updateUI()
                     }
@@ -884,7 +886,10 @@ class IntentInputDialogOverlay(
 
         when (mode) {
             Mode.IDLE -> {
+                lastErrorMessage = null
                 pendingInputSource = InputSource.VOICE
+                mode = Mode.RECORDING
+                updateUI()
                 voiceInputManager?.setCurrentApp(packageName, appName)
                 voiceInputManager?.startRecording()
             }
@@ -1020,6 +1025,7 @@ class IntentInputDialogOverlay(
 
         pendingConstraints = null
         pendingInputSource = InputSource.TEXT
+        lastErrorMessage = null
         if (!fromSuggestion) pendingSuggestionId = null
         mode = Mode.PROCESSING
         updateUI()
@@ -1035,12 +1041,12 @@ class IntentInputDialogOverlay(
                     shape = GradientDrawable.OVAL
                     setColor(primaryColor)
                 }
-                statusText?.text = when {
+                statusText?.text = lastErrorMessage ?: when {
                     isVoiceInputAvailable -> context.getString(R.string.intent_tap_mic_or_type)
                     !hasAudioPermission -> context.getString(R.string.intent_no_mic_permission_type)
                     else -> context.getString(R.string.intent_no_voice_type)
                 }
-                statusText?.setTextColor(subtleTextColor)
+                statusText?.setTextColor(if (lastErrorMessage == null) subtleTextColor else recordingColor)
                 rulesPreviewText?.visibility = View.GONE
                 confirmButton?.visibility = View.GONE
                 retryVoiceButton?.visibility = View.GONE
