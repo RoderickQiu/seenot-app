@@ -80,6 +80,14 @@ class AccountActionsCopyTest {
             "Share a real public story and apply for future Plus credit",
             stringResourceValue("src/main/res/values-en/strings.xml", "share_experience_desc")
         )
+        assertEquals(
+            "内容获得一定互动后，可以把公开链接发送到 contact@seenot.site 或 scrisqiu@hotmail.com 申请审核。我们会根据内容真实性、完整度和参考价值进行人工审核；审核通过后，可获得 SeeNot Plus 未来使用抵扣。",
+            stringResourceValue("src/main/res/values/strings.xml", "share_experience_dialog_review")
+        )
+        assertEquals(
+            "After the content receives meaningful engagement, send the public link to contact@seenot.site or scrisqiu@hotmail.com for review. We review authenticity, completeness, and usefulness manually; approved shares may receive future SeeNot Plus credit.",
+            stringResourceValue("src/main/res/values-en/strings.xml", "share_experience_dialog_review")
+        )
     }
 
     private fun stringResourceValue(path: String, name: String): String {

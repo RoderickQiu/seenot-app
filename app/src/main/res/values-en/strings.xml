@@ -817,7 +817,7 @@
     <string name="share_experience_desc">Share a real public story and apply for future Plus credit</string>
     <string name="share_experience_dialog_title">Share your real experience</string>
     <string name="share_experience_dialog_intro">If SeeNot has helped you reduce distraction, stay focused, or improve how you use your phone, you are welcome to share your experience publicly.</string>
-    <string name="share_experience_dialog_review">After the content receives meaningful engagement, you can submit the public link for review. We review authenticity, completeness, and usefulness manually; approved shares may receive future SeeNot Plus credit.</string>
+    <string name="share_experience_dialog_review">After the content receives meaningful engagement, send the public link to contact@seenot.site or scrisqiu@hotmail.com for review. We review authenticity, completeness, and usefulness manually; approved shares may receive future SeeNot Plus credit.</string>
     <string name="share_experience_dialog_limit">Credit is limited and depends on content quality and activity budget. These activity rules may change based on actual conditions.</string>
     <string name="about_section">About</string>
     <string name="about_app_version">SeeNot %s</string>
