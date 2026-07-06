@@ -158,6 +158,7 @@ fun SettingsTab(
     var screenshotMode by remember { mutableStateOf(RuleRecordingPrefs.getScreenshotMode(context)) }
     var screenshotDropdownExpanded by remember { mutableStateOf(false) }
     var showLogExportDialog by remember { mutableStateOf(false) }
+    var showShareExperienceDialog by remember { mutableStateOf(false) }
     var showDeleteConfirm by remember { mutableStateOf(false) }
     val screenshotModeOptions = listOf(
         RuleRecordingPrefs.ScreenshotMode.ALL to R.string.screenshot_mode_all,
@@ -541,6 +542,26 @@ fun SettingsTab(
         Spacer(modifier = Modifier.height(24.dp))
 
         SettingsSectionCard(
+            title = stringResource(R.string.support_seenot_section),
+            description = stringResource(R.string.support_seenot_section_desc)
+        ) {
+            SettingsActionRow(
+                icon = Icons.AutoMirrored.Filled.Send,
+                title = stringResource(R.string.share_experience_title),
+                summary = stringResource(R.string.share_experience_desc),
+                onClick = { showShareExperienceDialog = true }
+            )
+        }
+
+        if (showShareExperienceDialog) {
+            ShareExperienceDialog(
+                onDismiss = { showShareExperienceDialog = false }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        SettingsSectionCard(
             title = stringResource(R.string.about_section),
             description = null
         ) {
@@ -557,6 +578,43 @@ fun SettingsTab(
             )
         }
     }
+}
+
+@Composable
+private fun ShareExperienceDialog(
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        icon = {
+            Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null)
+        },
+        title = {
+            Text(stringResource(R.string.share_experience_dialog_title))
+        },
+        text = {
+            Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                Text(
+                    text = stringResource(R.string.share_experience_dialog_intro),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = stringResource(R.string.share_experience_dialog_review),
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Text(
+                    text = stringResource(R.string.share_experience_dialog_limit),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.close))
+            }
+        }
+    )
 }
 
 @Composable
@@ -750,6 +808,46 @@ private fun versionCheckStatusSummary(response: SeenotVersionCheckResponse?): St
         response?.updateAvailable == true -> stringResource(R.string.version_check_update_available_desc, response.latestVersion)
         response != null -> stringResource(R.string.version_check_up_to_date_desc)
         else -> stringResource(R.string.version_check_status_desc)
+    }
+}
+
+@Composable
+private fun SettingsActionRow(
+    icon: ImageVector,
+    title: String,
+    summary: String,
+    onClick: () -> Unit
+) {
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onClick)
+            .padding(vertical = 6.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        Icon(
+            imageVector = icon,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary
+        )
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium
+            )
+            Text(
+                text = summary,
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+        Icon(
+            imageVector = Icons.AutoMirrored.Filled.OpenInNew,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.onSurfaceVariant
+        )
     }
 }
 

@@ -817,6 +817,14 @@
     <string name="export_section">数据与日志</string>
     <string name="export_section_desc">导入或导出配置，并分享日志和运行事件</string>
     <string name="export_data">打开数据工具</string>
+    <string name="support_seenot_section">支持 SeeNot</string>
+    <string name="support_seenot_section_desc">分享真实体验，帮助更多人了解 SeeNot</string>
+    <string name="share_experience_title">分享使用体验</string>
+    <string name="share_experience_desc">公开分享真实体验，可申请 Plus 使用抵扣</string>
+    <string name="share_experience_dialog_title">分享你的真实使用体验</string>
+    <string name="share_experience_dialog_intro">如果 SeeNot 对你减少分心、保持专注或改善手机使用习惯有帮助，欢迎公开分享你的使用体验。</string>
+    <string name="share_experience_dialog_review">内容获得一定互动后，可以提交分享链接申请审核。我们会根据内容真实性、完整度和参考价值进行人工审核；审核通过后，可获得 SeeNot Plus 未来使用抵扣。</string>
+    <string name="share_experience_dialog_limit">抵扣数量有限，具体发放会根据内容情况和活动预算确定。当前活动规则可能随实际情况调整。</string>
     <string name="about_section">关于</string>
     <string name="about_app_version">SeeNot %s</string>
     <string name="about_app_desc">帮你在手机上守住注意力边界。</string>

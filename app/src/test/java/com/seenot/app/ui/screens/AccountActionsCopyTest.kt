@@ -54,6 +54,34 @@ class AccountActionsCopyTest {
         )
     }
 
+    @Test
+    fun shareExperienceCopyFramesPlusCreditForFutureUse() {
+        assertEquals(
+            "支持 SeeNot",
+            stringResourceValue("src/main/res/values/strings.xml", "support_seenot_section")
+        )
+        assertEquals(
+            "分享使用体验",
+            stringResourceValue("src/main/res/values/strings.xml", "share_experience_title")
+        )
+        assertEquals(
+            "公开分享真实体验，可申请 Plus 使用抵扣",
+            stringResourceValue("src/main/res/values/strings.xml", "share_experience_desc")
+        )
+        assertEquals(
+            "Support SeeNot",
+            stringResourceValue("src/main/res/values-en/strings.xml", "support_seenot_section")
+        )
+        assertEquals(
+            "Share your experience",
+            stringResourceValue("src/main/res/values-en/strings.xml", "share_experience_title")
+        )
+        assertEquals(
+            "Share a real public story and apply for future Plus credit",
+            stringResourceValue("src/main/res/values-en/strings.xml", "share_experience_desc")
+        )
+    }
+
     private fun stringResourceValue(path: String, name: String): String {
         val document = DocumentBuilderFactory.newInstance()
             .newDocumentBuilder()
