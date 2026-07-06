@@ -8,6 +8,10 @@ import com.seenot.app.config.AiProvider
 import com.seenot.app.config.ApiSettings
 import com.seenot.app.domain.SessionManager
 import com.seenot.app.utils.Logger
+import io.reactivex.exceptions.UndeliverableException
+import io.reactivex.plugins.RxJavaPlugins
+import java.io.IOException
+import java.net.SocketException
 
 class SeeNotApplication : Application() {
     companion object {
@@ -23,6 +27,7 @@ class SeeNotApplication : Application() {
 
         // Setup global uncaught exception handler
         setupGlobalExceptionHandler()
+        setupRxJavaErrorHandler()
 
         // Initialize API Config
         ApiConfig.init(this)
@@ -90,6 +95,22 @@ class SeeNotApplication : Application() {
         }
 
         Logger.i(TAG, "Global exception handler installed")
+    }
+
+    private fun setupRxJavaErrorHandler() {
+        RxJavaPlugins.setErrorHandler { throwable ->
+            val actual = (throwable as? UndeliverableException)?.cause ?: throwable
+            when (actual) {
+                is IOException,
+                is SocketException,
+                is InterruptedException -> {
+                    Logger.w(TAG, "Ignoring undeliverable RxJava network/lifecycle error: ${actual.message}")
+                }
+                else -> {
+                    Logger.e(TAG, "Undeliverable RxJava error", actual)
+                }
+            }
+        }
     }
 
     private fun currentInjectedDashscopeKeyIfActive(nowEpochMs: Long = System.currentTimeMillis()): String {

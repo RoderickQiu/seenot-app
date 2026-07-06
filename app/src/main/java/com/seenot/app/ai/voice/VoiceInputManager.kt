@@ -108,6 +108,10 @@ class VoiceInputManager(private val context: Context) {
 
     private fun localizeSttError(message: String): String {
         return when {
+            message.contains("Model.AccessDenied", ignoreCase = true) ||
+                message.contains("Model access denied", ignoreCase = true) -> {
+                context.getString(R.string.stt_dashscope_model_access_denied)
+            }
             message.contains("Gemini") -> context.getString(R.string.stt_gemini_not_supported)
             message.contains("DashScope") -> context.getString(R.string.stt_dashscope_not_supported)
             message.contains("Anthropic") -> context.getString(R.string.stt_anthropic_not_supported)
@@ -251,6 +255,11 @@ class VoiceInputManager(private val context: Context) {
                 ?.takeIf { it.provider == AiProvider.DASHSCOPE }
                 ?.apiKey
         )
+        sttEngine?.setSessionApiBaseUrlOverride(
+            settings
+                ?.takeIf { it.provider == AiProvider.DASHSCOPE }
+                ?.baseUrl
+        )
         realtimeStopCoordinator = RealtimeSttStopCoordinator()
         sttEngine?.setCallback(object : SttEngine.TranscriptionCallback {
             override fun onIntermediateResult(text: String) {
@@ -274,7 +283,7 @@ class VoiceInputManager(private val context: Context) {
                 scope.launch {
                     realtimeStopTimeoutJob?.cancel()
                     realtimeStopCoordinator?.onError()
-                    _error.value = error
+                    _error.value = localizeSttError(error)
                     _recordingState.value = VoiceRecordingState.ERROR
                     recordingUsesRealtimeDashScope = false
                     isRecording = false

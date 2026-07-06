@@ -256,7 +256,7 @@ dependencies {
     implementation("com.google.code.gson:gson:2.10.1")
 
     // DashScope SDK for real-time speech recognition
-    implementation("com.alibaba:dashscope-sdk-java:2.22.0")
+    implementation("com.alibaba:dashscope-sdk-java:2.22.24")
 
     // DataStore
     implementation("androidx.datastore:datastore-preferences:1.1.1")

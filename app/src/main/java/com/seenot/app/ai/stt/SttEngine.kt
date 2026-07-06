@@ -11,6 +11,7 @@ import com.alibaba.dashscope.audio.asr.recognition.RecognitionParam
 import com.alibaba.dashscope.utils.Constants
 import com.seenot.app.config.ApiConfig
 import com.seenot.app.config.AiProvider
+import java.net.URI
 import java.nio.ByteBuffer
 import java.util.concurrent.Executors
 
@@ -25,8 +26,19 @@ class SttEngine(private val context: Context) {
         private const val CHANNEL_CONFIG = AudioFormat.CHANNEL_IN_MONO
         private const val AUDIO_FORMAT_PCM = AudioFormat.ENCODING_PCM_16BIT
         private const val MAX_RECORDING_DURATION_MS = 30000L
+        private const val REALTIME_STT_MODEL = "fun-asr-realtime"
         // Fixed buffer size for 20ms of audio: 16000 * 2 * 0.02 = 640 bytes
         private const val AUDIO_BUFFER_SIZE = 640
+
+        internal fun dashScopeWebsocketUrlForBaseUrl(baseUrl: String): String? {
+            val trimmed = baseUrl.trim().trimEnd('/')
+            if (trimmed.isBlank()) return null
+            return runCatching {
+                val uri = URI(trimmed)
+                val host = uri.host?.takeIf { it.isNotBlank() } ?: return null
+                "wss://$host/api-ws/v1/inference"
+            }.getOrNull()
+        }
     }
 
     private var audioRecord: AudioRecord? = null
@@ -39,6 +51,7 @@ class SttEngine(private val context: Context) {
 
     private var transcriptionCallback: TranscriptionCallback? = null
     private var sessionApiKeyOverride: String? = null
+    private var sessionApiBaseUrlOverride: String? = null
 
     /**
      * Callback interface for transcription results
@@ -59,6 +72,10 @@ class SttEngine(private val context: Context) {
 
     fun setSessionApiKeyOverride(apiKey: String?) {
         sessionApiKeyOverride = apiKey?.trim()?.takeIf { it.isNotBlank() }
+    }
+
+    fun setSessionApiBaseUrlOverride(baseUrl: String?) {
+        sessionApiBaseUrlOverride = baseUrl?.trim()?.takeIf { it.isNotBlank() }
     }
 
     /**
@@ -102,23 +119,24 @@ class SttEngine(private val context: Context) {
             }
 
             stopRequested = false
-            val apiKey = sessionApiKeyOverride.orEmpty()
-                .ifBlank { ApiConfig.getApiKey(AiProvider.DASHSCOPE) }
-                .ifBlank { currentInjectedDashscopeKeyIfActive() }
+            val resolvedCredential = resolveDashScopeCredential()
+            val apiKey = resolvedCredential.apiKey
             if (apiKey.isBlank()) {
                 Logger.e(TAG, "API key is empty")
                 return false
             }
 
-            Constants.baseWebsocketApiUrl = when (ApiConfig.getQwenRegion()) {
-                com.seenot.app.config.QwenRegion.BEIJING -> "wss://dashscope.aliyuncs.com/api-ws/v1/inference"
-                com.seenot.app.config.QwenRegion.SINGAPORE -> "wss://dashscope-intl.aliyuncs.com/api-ws/v1/inference"
-                com.seenot.app.config.QwenRegion.VIRGINIA -> "wss://dashscope-us.aliyuncs.com/api-ws/v1/inference"
-            }
+            val websocketUrl = resolveDashScopeWebsocketUrl()
+            Constants.baseWebsocketApiUrl = websocketUrl
+            Logger.d(
+                TAG,
+                "Starting DashScope realtime STT: model=$REALTIME_STT_MODEL endpoint=$websocketUrl " +
+                    "qwenRegion=${ApiConfig.getQwenRegion().name} keySource=${resolvedCredential.source}"
+            )
 
             // Configure recognition parameters using builder
             val paramBuilder = RecognitionParam.builder()
-                .model("fun-asr-realtime")
+                .model(REALTIME_STT_MODEL)
                 .apiKey(apiKey)
                 .format("pcm")
                 .sampleRate(SAMPLE_RATE)
@@ -324,6 +342,35 @@ class SttEngine(private val context: Context) {
         }
     }
 
+    private data class ResolvedDashScopeCredential(
+        val apiKey: String,
+        val source: String
+    )
+
+    private fun resolveDashScopeCredential(): ResolvedDashScopeCredential {
+        sessionApiKeyOverride?.let {
+            return ResolvedDashScopeCredential(apiKey = it, source = "managed-session")
+        }
+        ApiConfig.getApiKey(AiProvider.DASHSCOPE).trim().takeIf { it.isNotBlank() }?.let {
+            return ResolvedDashScopeCredential(apiKey = it, source = "configured")
+        }
+        currentInjectedDashscopeKeyIfActive().takeIf { it.isNotBlank() }?.let {
+            return ResolvedDashScopeCredential(apiKey = it, source = "development-injected")
+        }
+        return ResolvedDashScopeCredential(apiKey = "", source = "missing")
+    }
+
+    private fun resolveDashScopeWebsocketUrl(): String {
+        val baseUrl = sessionApiBaseUrlOverride
+            ?: ApiConfig.getSttBaseUrl(AiProvider.DASHSCOPE)
+        dashScopeWebsocketUrlForBaseUrl(baseUrl)?.let { return it }
+        return when (ApiConfig.getQwenRegion()) {
+            com.seenot.app.config.QwenRegion.BEIJING -> "wss://dashscope.aliyuncs.com/api-ws/v1/inference"
+            com.seenot.app.config.QwenRegion.SINGAPORE -> "wss://dashscope-intl.aliyuncs.com/api-ws/v1/inference"
+            com.seenot.app.config.QwenRegion.VIRGINIA -> "wss://dashscope-us.aliyuncs.com/api-ws/v1/inference"
+        }
+    }
+
     private fun cleanup() {
         try {
             audioRecord?.release()
@@ -347,6 +394,8 @@ class SttEngine(private val context: Context) {
 
     private fun cleanupRecognitionSession() {
         recognitionHelper = null
+        sessionApiKeyOverride = null
+        sessionApiBaseUrlOverride = null
     }
 
     /**

@@ -149,6 +149,7 @@
     <string name="stt_config_incomplete">语音转写配置不完整</string>
     <string name="stt_failed">语音转写失败 (%s)</string>
     <string name="stt_result_empty">语音转写结果为空</string>
+    <string name="stt_dashscope_model_access_denied">语音识别服务没有当前 ASR 模型权限，请检查 DashScope 账号、地域或模型授权</string>
 
     <!-- RuntimeEventLogger messages -->
     <string name="event_log_not_enabled">运行事件记录未启用，请先在 local.properties 中设置 SEENOT_DEVELOPMENT_MODE=true</string>

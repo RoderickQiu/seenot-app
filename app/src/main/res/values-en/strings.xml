@@ -145,6 +145,7 @@
     <string name="stt_config_incomplete">Speech-to-text configuration incomplete</string>
     <string name="stt_failed">Speech-to-text failed (%s)</string>
     <string name="stt_result_empty">Speech-to-text result is empty</string>
+    <string name="stt_dashscope_model_access_denied">Speech recognition is not authorized for this DashScope ASR model. Check the DashScope account, region, or model access.</string>
 
     <!-- RuntimeEventLogger -->
     <string name="event_log_not_enabled">Runtime event logging not enabled. Set SEENOT_DEVELOPMENT_MODE=true in local.properties first.</string>
