@@ -18,16 +18,19 @@ import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Lightbulb
 import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material.icons.filled.Warning
+import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -60,6 +63,7 @@ fun HomeTimelineSection(
     val repository = remember { RuleRecordRepository(context) }
     val suggestionRepository = remember { SessionImprovementSuggestionRepository(context) }
     val scope = androidx.compose.runtime.rememberCoroutineScope()
+    var selectedSuggestion by remember { mutableStateOf<SessionImprovementSuggestion?>(null) }
 
     // 0 = today, -1 = yesterday. Positive values are not allowed.
     var dayOffset by remember { mutableIntStateOf(0) }
@@ -128,6 +132,7 @@ fun HomeTimelineSection(
             suggestions.asReversed().forEach { suggestion ->
                 SessionImprovementSuggestionCard(
                     suggestion = suggestion,
+                    onOpen = { selectedSuggestion = suggestion },
                     onDismiss = {
                         scope.launch {
                             suggestionRepository.dismiss(suggestion.id)
@@ -145,14 +150,23 @@ fun HomeTimelineSection(
             }
         }
     }
+
+    selectedSuggestion?.let { suggestion ->
+        SessionImprovementSuggestionDialog(
+            suggestion = suggestion,
+            onDismiss = { selectedSuggestion = null }
+        )
+    }
 }
 
 @Composable
 private fun SessionImprovementSuggestionCard(
     suggestion: SessionImprovementSuggestion,
+    onOpen: () -> Unit,
     onDismiss: () -> Unit
 ) {
     Card(
+        onClick = onOpen,
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.34f)
@@ -212,6 +226,68 @@ private fun SessionImprovementSuggestionCard(
                 )
             }
         }
+    }
+}
+
+@Composable
+private fun SessionImprovementSuggestionDialog(
+    suggestion: SessionImprovementSuggestion,
+    onDismiss: () -> Unit
+) {
+    val primarySuggestion = suggestion.intentText.ifBlank { suggestion.sessionPattern }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = stringResource(R.string.session_improvement_card_title),
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                verticalArrangement = Arrangement.spacedBy(14.dp)
+            ) {
+                val contextText = suggestion.sessionPattern
+                    .takeIf { it.isNotBlank() && it != primarySuggestion }
+                if (contextText != null) {
+                    SuggestionDetailText(
+                        label = stringResource(R.string.session_improvement_context_label),
+                        text = contextText
+                    )
+                }
+                SuggestionDetailText(
+                    label = stringResource(R.string.session_improvement_suggestion_label),
+                    text = primarySuggestion
+                )
+            }
+        },
+        confirmButton = {
+            TextButton(onClick = onDismiss) {
+                Text(text = stringResource(R.string.session_improvement_got_it))
+            }
+        }
+    )
+}
+
+@Composable
+private fun SuggestionDetailText(
+    label: String,
+    text: String
+) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(
+            text = label,
+            style = MaterialTheme.typography.labelMedium,
+            color = MaterialTheme.colorScheme.primary,
+            fontWeight = FontWeight.Bold
+        )
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodyMedium,
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 

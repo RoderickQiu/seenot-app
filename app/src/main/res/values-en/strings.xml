@@ -260,6 +260,9 @@
     <string name="session_improvement_card_title">Easier to keep next time</string>
     <string name="session_improvement_dismiss">Hide for now</string>
     <string name="session_improvement_use_next_time">Use next time</string>
+    <string name="session_improvement_context_label">What happened</string>
+    <string name="session_improvement_suggestion_label">Try this next time</string>
+    <string name="session_improvement_got_it">Got it</string>
     <string name="intent_rest_action">Rest for a bit</string>
     <string name="intent_rest_duration_title">How long?</string>
     <string name="intent_rest_duration_desc">When time is up, SeeNot will leave this app and resume monitoring.</string>

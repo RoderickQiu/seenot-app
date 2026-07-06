@@ -264,6 +264,9 @@
     <string name="session_improvement_card_title">下次更容易守住</string>
     <string name="session_improvement_dismiss">暂时收起</string>
     <string name="session_improvement_use_next_time">下次用这条</string>
+    <string name="session_improvement_context_label">这次发生了什么</string>
+    <string name="session_improvement_suggestion_label">下次可以这样做</string>
+    <string name="session_improvement_got_it">知道了</string>
     <string name="intent_rest_action">休息一下</string>
     <string name="intent_rest_duration_title">休息多久？</string>
     <string name="intent_rest_duration_desc">到点后 SeeNot 会帮你退出这个 app，并恢复监控。</string>
