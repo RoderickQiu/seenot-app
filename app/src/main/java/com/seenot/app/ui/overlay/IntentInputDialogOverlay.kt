@@ -27,7 +27,6 @@ import android.widget.ScrollView
 import android.widget.TextView
 import com.seenot.app.ui.overlay.ToastOverlay
 import androidx.core.content.ContextCompat
-import com.seenot.app.config.AiProvider
 import com.seenot.app.config.ApiConfig
 import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.ai.voice.VoiceInputManager
@@ -186,6 +185,10 @@ class IntentInputDialogOverlay(
         scope.launch {
             manager.recordingState.collectLatest { state ->
                 when (state) {
+                    VoiceRecordingState.STARTING -> {
+                        mode = Mode.PROCESSING
+                        updateUI()
+                    }
                     VoiceRecordingState.RECORDING -> {
                         mode = Mode.RECORDING
                         updateUI()
@@ -217,7 +220,7 @@ class IntentInputDialogOverlay(
                         updateUI()
                     }
                     VoiceRecordingState.IDLE -> {
-                        if (mode == Mode.RECORDING) {
+                        if (mode == Mode.RECORDING || mode == Mode.PROCESSING) {
                             mode = Mode.IDLE
                             updateUI()
                         }
@@ -888,7 +891,7 @@ class IntentInputDialogOverlay(
             Mode.IDLE -> {
                 lastErrorMessage = null
                 pendingInputSource = InputSource.VOICE
-                mode = Mode.RECORDING
+                mode = Mode.PROCESSING
                 updateUI()
                 voiceInputManager?.setCurrentApp(packageName, appName)
                 voiceInputManager?.startRecording()
@@ -1205,18 +1208,7 @@ class IntentInputDialogOverlay(
     private fun isChineseUi(): Boolean = AppLocalePrefs.getLanguage(context) == AppLocalePrefs.LANG_ZH
 
     private fun hasUsableVoiceConfig(): Boolean {
-        val settings = ApiConfig.getSttSettings()
-        val providerSupported = when (settings.provider) {
-            AiProvider.DASHSCOPE,
-            AiProvider.OPENAI,
-            AiProvider.GLM,
-            AiProvider.CUSTOM -> true
-            AiProvider.GEMINI,
-            AiProvider.ANTHROPIC -> false
-        }
-        if (!providerSupported) return false
-        if (settings.apiKey.isBlank() || settings.model.isBlank()) return false
-        return settings.provider == AiProvider.DASHSCOPE || settings.baseUrl.isNotBlank()
+        return ApiConfig.isVoiceConfigured()
     }
 
     private fun dismissInternal() {

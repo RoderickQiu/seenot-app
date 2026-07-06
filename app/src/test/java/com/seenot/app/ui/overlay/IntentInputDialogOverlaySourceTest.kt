@@ -51,8 +51,18 @@ class IntentInputDialogOverlaySourceTest {
         val handleMicClickBody = source.substringAfter("private fun handleMicClick()")
             .substringBefore("private fun restartVoiceInput()")
 
-        assertTrue(handleMicClickBody.contains("mode = Mode.RECORDING"))
+        assertTrue(handleMicClickBody.contains("mode = Mode.PROCESSING"))
         assertTrue(handleMicClickBody.contains("updateUI()"))
         assertTrue(handleMicClickBody.contains("voiceInputManager?.startRecording()"))
+    }
+
+    @Test
+    fun voiceAvailabilityUsesCentralConfigSoSeenotAiCanFetchFirstCredentialOnClick() {
+        val hasUsableVoiceConfigBody = source.substringAfter("private fun hasUsableVoiceConfig(): Boolean")
+            .substringBefore("private fun dismissInternal()")
+
+        assertTrue(hasUsableVoiceConfigBody.contains("ApiConfig.isVoiceConfigured()"))
+        assertFalse(hasUsableVoiceConfigBody.contains("settings.apiKey.isBlank()"))
+        assertFalse(hasUsableVoiceConfigBody.contains("settings.baseUrl.isNotBlank()"))
     }
 }

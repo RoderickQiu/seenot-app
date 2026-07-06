@@ -359,7 +359,7 @@ class VoiceInputOverlay(
                             android.util.Log.e("VoiceInputOverlay", "Exception in startRecording", e)
                         }
                     }
-                    VoiceRecordingState.PROCESSING, VoiceRecordingState.TRANSCRIBED -> {
+                    VoiceRecordingState.STARTING, VoiceRecordingState.PROCESSING, VoiceRecordingState.TRANSCRIBED -> {
                         // Do nothing - wait for processing to complete
                         android.util.Log.d("VoiceInputOverlay", "Processing in progress, ignoring click")
                         statusText?.text = ctx.getString(R.string.voice_processing)
@@ -503,6 +503,12 @@ class VoiceInputOverlay(
                 }
 
                 when (state) {
+                    VoiceRecordingState.STARTING -> {
+                        btn.text = ctx.getString(R.string.processing)
+                        btn.isEnabled = false
+                        statusText?.text = ctx.getString(R.string.voice_recognizing)
+                        statusText?.visibility = View.VISIBLE
+                    }
                     VoiceRecordingState.RECORDING -> {
                         btn.text = ctx.getString(R.string.stop_recording)
                         styleRecordingButton(btn)

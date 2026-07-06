@@ -171,6 +171,7 @@ fun VoiceInputDialog(
                 // Header
                 Text(
                     text = when (recordingState) {
+                        VoiceRecordingState.STARTING -> stringResource(R.string.state_processing)
                         VoiceRecordingState.RECORDING -> stringResource(R.string.state_recording)
                         VoiceRecordingState.PROCESSING -> stringResource(R.string.state_processing)
                         VoiceRecordingState.TRANSCRIBED -> stringResource(R.string.state_transcribed)
@@ -260,7 +261,7 @@ fun VoiceInputDialog(
                             Text(stringResource(R.string.stop_recording_button))
                         }
                     }
-                    recordingState == VoiceRecordingState.PROCESSING -> {
+                    recordingState == VoiceRecordingState.STARTING || recordingState == VoiceRecordingState.PROCESSING -> {
                         CircularProgressIndicator()
                         Spacer(modifier = Modifier.height(16.dp))
                         Text(
@@ -357,7 +358,7 @@ fun VoiceInputDialog(
                             placeholder = { Text(stringResource(R.string.input_intent_hint)) },
                             modifier = Modifier.fillMaxWidth(),
                             minLines = 2,
-                            enabled = recordingState != VoiceRecordingState.PROCESSING
+                            enabled = recordingState != VoiceRecordingState.STARTING && recordingState != VoiceRecordingState.PROCESSING
                         )
 
                         Spacer(modifier = Modifier.height(16.dp))
@@ -367,9 +368,11 @@ fun VoiceInputDialog(
                                 voiceManager.parseTextInput(textInput, packageName, appDisplayName)
                             },
                             modifier = Modifier.fillMaxWidth(),
-                            enabled = textInput.isNotBlank() && recordingState != VoiceRecordingState.PROCESSING
+                            enabled = textInput.isNotBlank() &&
+                                recordingState != VoiceRecordingState.STARTING &&
+                                recordingState != VoiceRecordingState.PROCESSING
                         ) {
-                            if (recordingState == VoiceRecordingState.PROCESSING) {
+                            if (recordingState == VoiceRecordingState.STARTING || recordingState == VoiceRecordingState.PROCESSING) {
                                 CircularProgressIndicator(
                                     modifier = Modifier.size(16.dp),
                                     strokeWidth = 2.dp
@@ -378,7 +381,13 @@ fun VoiceInputDialog(
                                 Icon(Icons.AutoMirrored.Filled.Send, contentDescription = null)
                             }
                             Spacer(modifier = Modifier.width(8.dp))
-                            Text(if (recordingState == VoiceRecordingState.PROCESSING) stringResource(R.string.processing_label) else stringResource(R.string.confirm_button))
+                            Text(
+                                if (recordingState == VoiceRecordingState.STARTING || recordingState == VoiceRecordingState.PROCESSING) {
+                                    stringResource(R.string.processing_label)
+                                } else {
+                                    stringResource(R.string.confirm_button)
+                                }
+                            )
                         }
                     }
                     else -> {
@@ -386,7 +395,8 @@ fun VoiceInputDialog(
                         Button(
                             onClick = { voiceManager.startRecording() },
                             modifier = Modifier.fillMaxWidth(),
-                            enabled = recordingState != VoiceRecordingState.PROCESSING
+                            enabled = recordingState != VoiceRecordingState.STARTING &&
+                                recordingState != VoiceRecordingState.PROCESSING
                         ) {
                             Icon(Icons.Default.Mic, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
@@ -399,7 +409,8 @@ fun VoiceInputDialog(
                         OutlinedButton(
                             onClick = { showTextInput = true },
                             modifier = Modifier.fillMaxWidth(),
-                            enabled = recordingState != VoiceRecordingState.PROCESSING
+                            enabled = recordingState != VoiceRecordingState.STARTING &&
+                                recordingState != VoiceRecordingState.PROCESSING
                         ) {
                             Icon(Icons.Default.Keyboard, contentDescription = null)
                             Spacer(modifier = Modifier.width(8.dp))
@@ -413,7 +424,8 @@ fun VoiceInputDialog(
                 // Skip button
                 TextButton(
                     onClick = onDismiss,
-                    enabled = recordingState != VoiceRecordingState.PROCESSING
+                    enabled = recordingState != VoiceRecordingState.STARTING &&
+                        recordingState != VoiceRecordingState.PROCESSING
                 ) {
                     Text(stringResource(R.string.skip_button))
                 }

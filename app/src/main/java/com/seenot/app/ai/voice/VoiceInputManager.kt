@@ -138,9 +138,8 @@ class VoiceInputManager(private val context: Context) {
 
         recordingUsesRealtimeDashScope = shouldUseRealtimeDashScope()
         val started = if (recordingUsesRealtimeDashScope) {
-            isRecording = true
             recordingStartTime = System.currentTimeMillis()
-            _recordingState.value = VoiceRecordingState.RECORDING
+            _recordingState.value = VoiceRecordingState.STARTING
             _recognizedText.value = null
             _parsedIntent.value = null
             _error.value = null
@@ -247,6 +246,7 @@ class VoiceInputManager(private val context: Context) {
             _error.value = e.message ?: context.getString(R.string.voice_err_start_failed)
             _recordingState.value = VoiceRecordingState.ERROR
             recordingUsesRealtimeDashScope = false
+            isRecording = false
             return
         }
 
@@ -300,6 +300,8 @@ class VoiceInputManager(private val context: Context) {
 
         val started = sttEngine?.startRecording() ?: false
         if (started) {
+            isRecording = true
+            recordingStartTime = System.currentTimeMillis()
             _recordingState.value = VoiceRecordingState.RECORDING
             Logger.d(TAG, "Realtime recording started")
         } else {
@@ -423,6 +425,7 @@ class VoiceInputManager(private val context: Context) {
  */
 enum class VoiceRecordingState {
     IDLE,
+    STARTING,
     RECORDING,
     TRANSCRIBED,
     PROCESSING,

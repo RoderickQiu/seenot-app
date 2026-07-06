@@ -18,6 +18,22 @@ class VoiceInputManagerSourceTest {
     }
 
     @Test
+    fun realtimeDashScopeSttDoesNotPublishRecordingBeforeCredentialAndEngineStart() {
+        val source = File("src/main/java/com/seenot/app/ai/voice/VoiceInputManager.kt").readText()
+        val realtimeStartBranch = source.substringAfter("val started = if (recordingUsesRealtimeDashScope) {")
+            .substringBefore("} else {")
+        val startRealtimeBody = source.substringAfter("private suspend fun startRealtimeDashScopeRecording()")
+            .substringBefore("private fun scheduleRealtimeStopTimeout()")
+
+        assertTrue(realtimeStartBranch.contains("_recordingState.value = VoiceRecordingState.STARTING"))
+        assertTrue(realtimeStartBranch.contains("scope.launch"))
+        assertTrue(startRealtimeBody.contains("val started = sttEngine?.startRecording() ?: false"))
+        assertTrue(startRealtimeBody.contains("if (started)"))
+        assertTrue(startRealtimeBody.contains("isRecording = true"))
+        assertTrue(startRealtimeBody.contains("_recordingState.value = VoiceRecordingState.RECORDING"))
+    }
+
+    @Test
     fun realtimeDashScopeSttLocalizesAccessDeniedSdkErrors() {
         val source = File("src/main/java/com/seenot/app/ai/voice/VoiceInputManager.kt").readText()
         val localizeBody = source.substringAfter("private fun localizeSttError(message: String): String")
