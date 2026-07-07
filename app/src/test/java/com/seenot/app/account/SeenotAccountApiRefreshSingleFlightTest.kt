@@ -98,6 +98,79 @@ class SeenotAccountApiRefreshSingleFlightTest {
         }
     }
 
+    @Test
+    fun concurrentAuthenticatedRequestsAcrossApiInstancesShareSingleRefreshAfterExpiredAccessToken() = runBlocking {
+        SeenotAccountSession.save(authToken(accessToken = "expired-access", refreshToken = "old-refresh"))
+        val oldAccessFailures = CountDownLatch(2)
+        val refreshRequests = AtomicInteger(0)
+
+        MockWebServer().use { server ->
+            server.dispatcher = object : Dispatcher() {
+                override fun dispatch(request: RecordedRequest): MockResponse {
+                    return when {
+                        request.path == "/api/v1/managed-ai/session" && request.getHeader("Authorization") == "Bearer expired-access" -> {
+                            oldAccessFailures.countDown()
+                            oldAccessFailures.await(3, TimeUnit.SECONDS)
+                            authFailure()
+                        }
+                        request.path?.startsWith("/api/v1/sync/changes") == true &&
+                            request.getHeader("Authorization") == "Bearer expired-access" -> {
+                            oldAccessFailures.countDown()
+                            oldAccessFailures.await(3, TimeUnit.SECONDS)
+                            authFailure()
+                        }
+                        request.path == "/api/v1/auth/refresh" -> {
+                            refreshRequests.incrementAndGet()
+                            json(authTokenJson(accessToken = "fresh-access", refreshToken = "fresh-refresh"))
+                        }
+                        request.path == "/api/v1/managed-ai/session" && request.getHeader("Authorization") == "Bearer fresh-access" -> {
+                            json(
+                                """
+                                {
+                                  "provider": "dashscope",
+                                  "region": "beijing",
+                                  "base_url": "https://dashscope.example/v1",
+                                  "model": "qwen-vl-plus",
+                                  "api_key": "fresh-managed-key",
+                                  "expires_at": 1900000000,
+                                  "expires_in": 600,
+                                  "fair_use_state": "normal"
+                                }
+                                """.trimIndent()
+                            )
+                        }
+                        request.path?.startsWith("/api/v1/sync/changes") == true &&
+                            request.getHeader("Authorization") == "Bearer fresh-access" -> {
+                            json(
+                                """
+                                {
+                                  "changes": [],
+                                  "latest_sequence": 1496,
+                                  "has_more": false,
+                                  "device_cursor": 1496
+                                }
+                                """.trimIndent()
+                            )
+                        }
+                        else -> MockResponse().setResponseCode(404)
+                    }
+                }
+            }
+            val baseUrl = server.url("/api/v1").toString()
+            val managedAiApi = SeenotAccountApi(context, baseUrl)
+            val syncApi = SeenotAccountApi(context, baseUrl)
+
+            val managedAi = async(Dispatchers.IO) { managedAiApi.createManagedAiSession() }
+            val syncChanges = async(Dispatchers.IO) { syncApi.readSyncChanges(since = 1496) }
+
+            assertEquals("fresh-managed-key", managedAi.await().apiKey)
+            assertEquals(1496L, syncChanges.await().latestSequence)
+            assertEquals(1, refreshRequests.get())
+            assertEquals("fresh-access", SeenotAccountSession.getAccessToken())
+            assertEquals("fresh-refresh", SeenotAccountSession.getRefreshToken())
+        }
+    }
+
     private fun authFailure(): MockResponse {
         return MockResponse()
             .setResponseCode(401)

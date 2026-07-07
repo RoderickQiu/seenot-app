@@ -26,6 +26,7 @@ import com.seenot.app.ui.overlay.ToastOverlay
 import com.seenot.app.ui.overlay.VoiceInputOverlay
 import com.seenot.app.ai.OpenAiCompatibleClient
 import com.google.gson.Gson
+import com.seenot.app.config.AiSource
 import com.seenot.app.config.ApiConfig
 import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.data.builtin.BuiltInAppHintRules
@@ -1059,7 +1060,7 @@ class ScreenAnalyzer(
             error is AiRequestFailure.Offline -> context.getString(R.string.err_model_offline)
             error is AiRequestFailure.Reachability -> context.getString(R.string.err_model_network_unreachable)
             error is AiRequestFailure.ServiceUnavailable -> context.getString(R.string.err_model_service_unavailable)
-            error is AiRequestFailure.Auth -> context.getString(R.string.err_model_auth_failed)
+            error is AiRequestFailure.Auth -> context.getString(aiAuthFailureMessageRes())
             error is AiRequestFailure.RequestFailed && error.statusCode > 0 -> {
                 context.getString(R.string.err_model_request_failed)
             }
@@ -1089,6 +1090,14 @@ class ScreenAnalyzer(
         lastAiErrorToastAt = now
         lastAiErrorToastMessage = message
         showToast(message)
+    }
+
+    private fun aiAuthFailureMessageRes(): Int {
+        return if (ApiConfig.getAiSource() == AiSource.SEENOT_AI) {
+            R.string.err_seenot_ai_reconnect_account
+        } else {
+            R.string.err_model_auth_failed
+        }
     }
 
     /**

@@ -4,6 +4,8 @@ import android.content.Context
 import com.seenot.app.R
 import com.seenot.app.ai.AiRequestFailure
 import com.seenot.app.ai.OpenAiCompatibleClient
+import com.seenot.app.config.AiSource
+import com.seenot.app.config.ApiConfig
 import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.utils.Logger
 import com.google.gson.JsonParser
@@ -202,7 +204,7 @@ $examples
                 Logger.e(TAG, "parseIntent failed", e)
                 val errorMsg = when (e) {
                     is LlmException -> context.getString(R.string.voice_err_parse_failed)
-                    is AiRequestFailure.Auth -> context.getString(R.string.err_model_auth_failed)
+                    is AiRequestFailure.Auth -> context.getString(aiAuthFailureMessageRes())
                     is AiRequestFailure.ServiceUnavailable -> context.getString(R.string.err_model_service_unavailable)
                     is AiRequestFailure.Offline -> context.getString(R.string.err_model_offline)
                     is AiRequestFailure.Reachability -> context.getString(R.string.err_model_network_unreachable)
@@ -212,6 +214,14 @@ $examples
                 }
                 ParsedIntentResult.Error(errorMsg)
             }
+        }
+    }
+
+    private fun aiAuthFailureMessageRes(): Int {
+        return if (ApiConfig.getAiSource() == AiSource.SEENOT_AI) {
+            R.string.err_seenot_ai_reconnect_account
+        } else {
+            R.string.err_model_auth_failed
         }
     }
 

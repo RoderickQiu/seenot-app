@@ -26,6 +26,7 @@ open class SeenotAccountApi(
 ) {
     companion object {
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
+        private val refreshMutex = Mutex()
     }
 
     private val appContext = context.applicationContext
@@ -35,8 +36,6 @@ open class SeenotAccountApi(
         .readTimeout(30, TimeUnit.SECONDS)
         .writeTimeout(30, TimeUnit.SECONDS)
         .build()
-    private val refreshMutex = Mutex()
-
     suspend fun loadAccount(): SeenotAccountState = withContext(Dispatchers.IO) {
         SeenotAccountSession.init(appContext)
         if (!SeenotAccountSession.hasSession()) {
