@@ -9,6 +9,7 @@ import okhttp3.mockwebserver.MockResponse
 import okhttp3.mockwebserver.MockWebServer
 import okhttp3.mockwebserver.RecordedRequest
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertTrue
 import org.junit.Before
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -168,6 +169,35 @@ class SeenotAccountApiRefreshSingleFlightTest {
             assertEquals(1, refreshRequests.get())
             assertEquals("fresh-access", SeenotAccountSession.getAccessToken())
             assertEquals("fresh-refresh", SeenotAccountSession.getRefreshToken())
+        }
+    }
+
+    @Test
+    fun loadAccountKeepsLocalSessionWhenRefreshIsRejected() = runBlocking {
+        SeenotAccountSession.save(authToken(accessToken = "expired-access", refreshToken = "old-refresh"))
+
+        MockWebServer().use { server ->
+            server.enqueue(
+                MockResponse()
+                    .setResponseCode(401)
+                    .setBody(
+                        """
+                        {
+                          "detail": {
+                            "code": "REFRESH_TOKEN_REVOKED",
+                            "message": "Refresh token has been revoked."
+                          }
+                        }
+                        """.trimIndent()
+                    )
+            )
+            val api = SeenotAccountApi(context, server.url("/api/v1").toString())
+
+            val state = api.loadAccount()
+
+            assertTrue(state is SeenotAccountState.Error)
+            assertEquals("expired-access", SeenotAccountSession.getAccessToken())
+            assertEquals("old-refresh", SeenotAccountSession.getRefreshToken())
         }
     }
 

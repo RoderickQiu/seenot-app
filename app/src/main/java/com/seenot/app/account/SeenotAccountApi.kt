@@ -8,6 +8,7 @@ import com.google.gson.JsonPrimitive
 import com.seenot.app.BuildConfig
 import com.seenot.app.R
 import com.seenot.app.config.AppLocalePrefs
+import com.seenot.app.utils.Logger
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -25,6 +26,7 @@ open class SeenotAccountApi(
     private val baseUrl: String = BuildConfig.SEENOT_BACKEND_API_BASE_URL
 ) {
     companion object {
+        private const val TAG = "SeenotAccountApi"
         private val JSON_MEDIA_TYPE = "application/json; charset=utf-8".toMediaType()
         private val refreshMutex = Mutex()
     }
@@ -39,6 +41,7 @@ open class SeenotAccountApi(
     suspend fun loadAccount(): SeenotAccountState = withContext(Dispatchers.IO) {
         SeenotAccountSession.init(appContext)
         if (!SeenotAccountSession.hasSession()) {
+            Logger.i(TAG, "loadAccount: no local account session")
             return@withContext SeenotAccountState.SignedOut
         }
 
@@ -46,14 +49,15 @@ open class SeenotAccountApi(
             val auth = refreshSession()
             ensureCurrentInstallationIfMissing(auth.accessToken, auth.device?.deviceId)
             val entitlement = getEntitlement(auth.accessToken)
+            Logger.i(TAG, "loadAccount: refreshed account state successfully")
             SeenotAccountState.Ready(SeenotAccountSnapshot(auth = auth, entitlement = entitlement))
         }.getOrElse { error ->
             if (error is SeenotAuthException) {
-                SeenotAccountSession.clear()
-                SeenotAccountState.SignedOut
+                Logger.w(TAG, "loadAccount: account refresh rejected; preserving local session")
             } else {
-                SeenotAccountState.Error(accountErrorMessage(error, R.string.account_refresh_failed_message))
+                Logger.w(TAG, "loadAccount: account refresh failed; preserving local session", error)
             }
+            SeenotAccountState.Error(accountErrorMessage(error, R.string.account_refresh_failed_message))
         }
     }
 
