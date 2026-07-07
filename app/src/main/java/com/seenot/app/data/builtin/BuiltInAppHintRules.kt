@@ -13,6 +13,7 @@ object BuiltInAppHintRules {
             "com.tencent.mobileqq" -> qqRules
             "com.xingin.xhs" -> rednoteRules
             "com.taobao.taobao" -> taobaoRules
+            "com.twitter.android" -> xRules
             else -> emptyList()
         }
     }
@@ -38,5 +39,9 @@ object BuiltInAppHintRules {
 
     private val taobaoRules = listOf<String>(
        "若页面背景或底层透出商品瀑布流，但前景存在全屏各类弹窗遮挡，该页面就不应被识别为包含推荐列表的混合页，因弹窗占据视觉中心。"
+    )
+
+    private val xRules = listOf<String>(
+        "X/Twitter 首页时间线中，单条帖子的大图或视频即使占据屏幕大部分，只要仍可见顶部推荐/正在关注标签、底部主导航、浮动发帖按钮、上下帖子残留或该条在时间线里的互动栏，就只是信息流候选曝光，不应按已进入单条帖子详情或主动消费该帖子内容判断；只有出现返回按钮、发帖/帖子详情标题、单条独立时间/浏览量、回复输入框或评论区绑定当前帖子等详情页证据时，才按单条帖子内容判断。"
     )
 }
