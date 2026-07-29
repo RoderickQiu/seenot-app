@@ -88,6 +88,21 @@ Open the project in Android Studio, or build from the command line:
 adb install app/build/outputs/apk/debug/app-debug.apk
 ```
 
+### Reinstalling on a paired phone over Wi-Fi
+
+After pairing the phone once in **Developer options → Wireless debugging**, run:
+
+```bash
+./build-and-install-wireless.sh
+```
+
+The script discovers the current wireless-debugging address, builds the debug APK, preserves
+existing SeeNot data, installs the update, and launches the app. Wireless-debugging ports can
+change after reconnecting, so leave off `--serial` for normal use. Use `--fresh` only when you
+explicitly want to clear the app's data; use `--no-build` to reinstall the APK that is already built.
+Some phones, including vivo devices, show an on-device confirmation for every update: unlock the
+phone and accept it, then rerun the command if the install was rejected.
+
 Requirements and useful settings:
 
 - Java 17
