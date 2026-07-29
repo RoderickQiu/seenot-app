@@ -134,7 +134,9 @@ fun AppRulesDialog(
     var showAddPresetDialog by remember { mutableStateOf(false) }
     var editingRuleIndex by remember { mutableStateOf<Int?>(null) }
     var editingPresetIndex by remember { mutableStateOf<Int?>(null) }
-    var guardedDimming by remember { mutableStateOf(GuardedModePrefs.isDimmingEnabled(context)) }
+    var guardedDimming by remember(app.packageName) {
+        mutableStateOf(GuardedModePrefs.isDimmingEnabled(context, app.packageName))
+    }
 
     var hints by remember { mutableStateOf<List<com.seenot.app.data.model.AppHint>>(emptyList()) }
     var showAddHintDialog by remember { mutableStateOf(false) }
@@ -415,7 +417,7 @@ fun AppRulesDialog(
                         }
                         Switch(checked = guardedDimming, onCheckedChange = {
                             guardedDimming = it
-                            GuardedModePrefs.setDimmingEnabled(context, it)
+                            GuardedModePrefs.setDimmingEnabled(context, app.packageName, it)
                         })
                     }
                 }

@@ -52,6 +52,7 @@ import com.seenot.app.ui.overlay.InterventionFeedbackDialogOverlay
 import com.seenot.app.ui.overlay.FalsePositiveRuleReviewOverlay
 import com.seenot.app.ui.overlay.NoMonitorReminderOverlay
 import com.seenot.app.ui.overlay.GuardedInterventionOverlay
+import com.seenot.app.ui.overlay.GuardedDimmingOverlay
 import com.seenot.app.ui.overlay.ToastOverlay
 import com.seenot.app.utils.Logger
 import kotlinx.coroutines.*
@@ -491,6 +492,7 @@ class SessionManager(
         cancelPauseTimeout()
         stopScreenAnalysis()
         NoMonitorReminderOverlay.dismiss()
+        GuardedDimmingOverlay.dismiss()
         _activeSession.value = session.copy(isPaused = true)
         suspendedSessions[session.appPackageName] = Pair(session.copy(isPaused = true), System.currentTimeMillis())
         _activeSession.value = null
@@ -700,6 +702,7 @@ class SessionManager(
         cancelPauseTimeout()
         stopScreenAnalysis()
         NoMonitorReminderOverlay.dismiss()
+        GuardedDimmingOverlay.dismiss()
         repository.endSession(existingSession.sessionId, SessionEndReason.USER_ENDED.name)
         _activeSession.value = null
     }
@@ -1721,7 +1724,13 @@ class SessionManager(
 
         cancelPauseTimeout()
         NoMonitorReminderOverlay.dismiss()
-        _activeSession.value = session.copy(isPaused = false)
+        val resumedAt = System.currentTimeMillis()
+        val resumedSession = session.copy(
+            isPaused = false,
+            guardedLastTickAt = if (session.mode == SessionMode.GUARDED) resumedAt else session.guardedLastTickAt
+        )
+        _activeSession.value = resumedSession
+        updateGuardedDimming(resumedSession, resumedAt)
         startTimer()
 
         // Restart screen analysis
@@ -1751,6 +1760,7 @@ class SessionManager(
         // Stop screen analysis while paused
         stopScreenAnalysis()
         NoMonitorReminderOverlay.dismiss()
+        GuardedDimmingOverlay.dismiss()
 
         _activeSession.value = session.copy(isPaused = true)
 
@@ -1792,6 +1802,7 @@ class SessionManager(
         // Stop screen analysis
         stopScreenAnalysis()
         NoMonitorReminderOverlay.dismiss()
+        GuardedDimmingOverlay.dismiss()
 
         // Update database
         repository.endSession(session.sessionId, reason.name)
@@ -2159,12 +2170,14 @@ class SessionManager(
                     session.guardedLastTickAt?.let { (now - it).coerceAtLeast(0L) } ?: 0L
                 } else 0L
                 val newConsumed = session.guardedConsumedMs + guardedDelta
+                updateGuardedDimming(session.copy(guardedConsumedMs = newConsumed), now)
                 if (isGuarded && !inReprieve) {
                     val nextStep = GuardedModeLadder.step(newConsumed)
                     if (nextStep != session.guardedStep) {
                         when (nextStep) {
                             GuardedModeLadder.Step.BREATH -> GuardedInterventionOverlay.showBreath(context)
                             GuardedModeLadder.Step.HOLD -> GuardedInterventionOverlay.showHold(context, GuardedModeLadder.holdDurationMs(newConsumed)) {
+                                GuardedDimmingOverlay.dismiss()
                                 _activeSession.value = (_activeSession.value ?: session).copy(
                                     // Re-arm the transition so every reprieve requires another hold.
                                     guardedStep = GuardedModeLadder.Step.BREATH,
@@ -2234,6 +2247,21 @@ class SessionManager(
                 )
             }
         }
+    }
+
+    private fun updateGuardedDimming(session: ActiveSession, now: Long) {
+        val inReprieve = session.guardedReprieveUntil?.let { now < it } == true
+        val fraction = if (
+            session.mode == SessionMode.GUARDED &&
+            !session.isPaused &&
+            !inReprieve &&
+            com.seenot.app.config.GuardedModePrefs.isDimmingEnabled(context, session.appPackageName)
+        ) {
+            GuardedModeLadder.dimFraction(session.guardedConsumedMs)
+        } else {
+            0f
+        }
+        GuardedDimmingOverlay.update(context, fraction)
     }
 
     private fun handleNoMonitorTimedRestExpired(session: ActiveSession, constraint: SessionConstraint) {
@@ -3300,6 +3328,8 @@ class SessionManager(
      */
     fun release() {
         timerJob?.cancel()
+        GuardedDimmingOverlay.dismiss()
+        GuardedInterventionOverlay.dismiss(context)
         scope.cancel()
         INSTANCE = null
     }

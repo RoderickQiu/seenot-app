@@ -1350,6 +1350,8 @@ class SeenotAccessibilityService : AccessibilityService() {
     }
 
     private fun dismissAllOverlays() {
+        com.seenot.app.ui.overlay.GuardedDimmingOverlay.dismiss()
+        com.seenot.app.ui.overlay.GuardedInterventionOverlay.dismiss(this)
         IntentInputDialogOverlay.dismiss()
         IntentReminderOverlay.dismiss()
         FloatingIndicatorOverlay.dismiss()

@@ -18,4 +18,12 @@ object GuardedModeLadder {
     }
 
     fun holdDurationMs(consumedMs: Long): Long = if (consumedMs < STRICT_MS) 6_000L else 12_000L
+
+    /** Follows the Guarded ladder from the end of FREE through wind-down. */
+    fun dimFraction(consumedMs: Long): Float {
+        if (consumedMs <= FREE_MS) return 0f
+        val progress = (consumedMs - FREE_MS).toFloat() /
+            (WIND_DOWN_MS - FREE_MS).toFloat()
+        return (progress.coerceIn(0f, 1f) * 0.4f)
+    }
 }

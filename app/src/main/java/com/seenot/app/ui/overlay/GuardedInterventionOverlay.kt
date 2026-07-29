@@ -11,7 +11,6 @@ import android.view.View
 import android.view.WindowManager
 import android.widget.FrameLayout
 import android.widget.TextView
-import com.seenot.app.config.GuardedModePrefs
 
 /** Buttonless breath and effort-priced hold overlays for Guarded mode. */
 object GuardedInterventionOverlay {
@@ -54,7 +53,7 @@ object GuardedInterventionOverlay {
     private fun show(context: Context, content: View?, ignored: (() -> Unit)?) {
         dismiss(context)
         val container = FrameLayout(context).apply {
-            setBackgroundColor(if (GuardedModePrefs.isDimmingEnabled(context)) 0xB3000000.toInt() else 0x66000000)
+            setBackgroundColor(0xB3000000.toInt())
         }
         content?.let { container.addView(it, FrameLayout.LayoutParams(-1, 72).apply { gravity = Gravity.CENTER; leftMargin = 48; rightMargin = 48 }) }
         wm = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
