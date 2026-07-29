@@ -20,13 +20,11 @@ class IntentInputDialogOverlaySourceTest {
     }
 
     @Test
-    fun restEntryUsesNeutralPresetRowStyle() {
-        val restRowBody = source.substringAfter("private fun buildNoMonitorRestRow()")
-            .substringBefore("private fun showTimedRestChoices()")
-
-        assertTrue(restRowBody.contains("setColor(historyBgColor)"))
-        assertFalse(restRowBody.contains("setStroke(1, adjustAlpha(primaryColor"))
-        assertFalse(restRowBody.contains("typeface = Typeface.DEFAULT_BOLD"))
+    fun dialogDoesNotOfferNoMonitorRestOrLegacyNoMonitorChoices() {
+        assertFalse(source.contains("buildNoMonitorRestRow"))
+        assertFalse(source.contains("showTimedRestChoices"))
+        assertTrue(source.contains("filter { it.type != ConstraintType.NO_MONITOR }"))
+        assertTrue(source.contains("historyEntry.none { it.type == ConstraintType.NO_MONITOR }"))
     }
 
     @Test

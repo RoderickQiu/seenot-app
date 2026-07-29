@@ -233,6 +233,12 @@
 
     <!-- IntentInputDialogOverlay -->
     <string name="intent_can_speak_or_type">Speak or type your intent</string>
+    <string name="guarded_entry_explanation">Use normally at first. If you stay longer, SeeNot adds pauses so you can decide whether to continue.</string>
+    <string name="guarded_entry_action">Continue with check-ins</string>
+    <string name="guarded_entry_detail">No interruption for 10 minutes, then brief pauses and hold-to-continue</string>
+    <string name="focus_block_optional">Focus block (optional)</string>
+    <string name="focus_block_speak_action">Say what you want to focus on</string>
+    <string name="guarded_skip_action">Continue with check-ins instead</string>
     <string name="intent_type_to_declare">Type to declare intent</string>
     <string name="intent_tap_to_start_recording">Tap to start recording</string>
     <string name="intent_no_mic_permission_type">Mic permission not granted. You can type instead.</string>

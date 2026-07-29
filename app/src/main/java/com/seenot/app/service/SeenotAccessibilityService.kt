@@ -351,6 +351,10 @@ class SeenotAccessibilityService : AccessibilityService() {
             }
 
             val eventType = event.eventType
+            if (eventType == AccessibilityEvent.TYPE_VIEW_SCROLLED) {
+                SessionManager.getInstance(this).onGuardedAdvance()
+                return
+            }
             if (
                 eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED &&
                     eventType != AccessibilityEvent.TYPE_WINDOW_CONTENT_CHANGED &&

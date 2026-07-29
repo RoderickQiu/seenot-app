@@ -51,6 +51,7 @@ import com.seenot.app.service.SeenotAccessibilityService
 import com.seenot.app.ui.overlay.InterventionFeedbackDialogOverlay
 import com.seenot.app.ui.overlay.FalsePositiveRuleReviewOverlay
 import com.seenot.app.ui.overlay.NoMonitorReminderOverlay
+import com.seenot.app.ui.overlay.GuardedInterventionOverlay
 import com.seenot.app.ui.overlay.ToastOverlay
 import com.seenot.app.utils.Logger
 import kotlinx.coroutines.*
@@ -191,6 +192,14 @@ class SessionManager(
     private var dialogReentryCooldownUntil = 0L
     private var pendingSessionStartContext: PendingSessionStartContext? = null
     private var lastNoMonitorReminderBucket: Long = 0L
+
+    /** Charges deliberate effort for each feed advance once the ladder reaches PER_ADVANCE. */
+    fun onGuardedAdvance() {
+        val session = _activeSession.value ?: return
+        if (!session.constraints.any { it.id == "guarded-mode" }) return
+        if (GuardedModeLadder.step(session.guardedConsumedMs) != GuardedModeLadder.Step.PER_ADVANCE) return
+        GuardedInterventionOverlay.showHold(context, 3_000L) { }
+    }
 
     private fun logRuntimeEvent(
         eventType: RuntimeEventType,
@@ -650,7 +659,7 @@ class SessionManager(
             autoApplyCarryOverHints(packageName, displayName, effectiveConstraints)
         }
 
-        if (ApiConfig.isConfigured() && effectiveConstraints.any { it.type != ConstraintType.NO_MONITOR }) {
+        if (ApiConfig.isConfigured() && effectiveConstraints.any { it.type != ConstraintType.NO_MONITOR && it.id != "guarded-mode" }) {
             startScreenAnalysis(packageName, displayName, effectiveConstraints)
         }
 
@@ -1944,7 +1953,7 @@ class SessionManager(
             persistSessionConstraints(active.sessionId, syncedConstraints)
 
             if (!active.isPaused) {
-                if (ApiConfig.isConfigured() && syncedConstraints.any { it.type != ConstraintType.NO_MONITOR }) {
+                if (ApiConfig.isConfigured() && syncedConstraints.any { it.type != ConstraintType.NO_MONITOR && it.id != "guarded-mode" }) {
                     screenAnalyzer?.pauseAnalysis()
                     startScreenAnalysis(active.appPackageName, active.appDisplayName, syncedConstraints)
                 } else {
@@ -2003,7 +2012,7 @@ class SessionManager(
                 persistSessionConstraints(active.sessionId, refreshedConstraints)
 
                 if (!active.isPaused) {
-                    if (ApiConfig.isConfigured() && refreshedConstraints.any { it.type != ConstraintType.NO_MONITOR }) {
+                if (ApiConfig.isConfigured() && refreshedConstraints.any { it.type != ConstraintType.NO_MONITOR && it.id != "guarded-mode" }) {
                         screenAnalyzer?.pauseAnalysis()
                         startScreenAnalysis(active.appPackageName, active.appDisplayName, refreshedConstraints)
                     } else {
@@ -2134,6 +2143,40 @@ class SessionManager(
                 if (session.isPaused) continue
                 maybeShowNoMonitorReminder(session)
 
+                // Guarded uses wall-clock deltas, so scheduler jitter and brief pauses cannot
+                // manufacture free time. Only foreground ticks contribute to the accumulator.
+                val now = System.currentTimeMillis()
+                val isGuarded = session.constraints.any { it.id == "guarded-mode" }
+                val inReprieve = session.guardedReprieveUntil?.let { now < it } == true
+                val guardedDelta = if (isGuarded && !inReprieve) {
+                    session.guardedLastTickAt?.let { (now - it).coerceAtLeast(0L) } ?: 0L
+                } else 0L
+                val newConsumed = session.guardedConsumedMs + guardedDelta
+                if (isGuarded && !inReprieve) {
+                    val nextStep = GuardedModeLadder.step(newConsumed)
+                    if (nextStep != session.guardedStep) {
+                        when (nextStep) {
+                            GuardedModeLadder.Step.BREATH -> GuardedInterventionOverlay.showBreath(context)
+                            GuardedModeLadder.Step.HOLD -> GuardedInterventionOverlay.showHold(context, GuardedModeLadder.holdDurationMs(newConsumed)) {
+                                _activeSession.value = (_activeSession.value ?: session).copy(
+                                    // Re-arm the transition so every reprieve requires another hold.
+                                    guardedStep = GuardedModeLadder.Step.BREATH,
+                                    guardedReprieveUntil = System.currentTimeMillis() + 8 * 60_000L
+                                )
+                            }
+                            GuardedModeLadder.Step.WIND_DOWN -> {
+                                val guardedConstraint = session.constraints.firstOrNull { it.id == "guarded-mode" }
+                                if (guardedConstraint != null) {
+                                    val executor = actionExecutor ?: ActionExecutor(context).also { actionExecutor = it }
+                                    executor.executeNoMonitorTimedExit(guardedConstraint, session.appDisplayName, session.appPackageName)
+                                }
+                                scope.launch { endSession(SessionEndReason.TIMEOUT) }
+                            }
+                            else -> Unit
+                        }
+                    }
+                }
+
                 // Update time for each constraint based on its timeScope
                 val updatedTimeRemaining = session.constraintTimeRemaining.toMutableMap()
 
@@ -2175,7 +2218,13 @@ class SessionManager(
                     }
                 }
 
-                _activeSession.value = session.copy(constraintTimeRemaining = updatedTimeRemaining)
+                val latest = _activeSession.value ?: session
+                _activeSession.value = latest.copy(
+                    constraintTimeRemaining = updatedTimeRemaining,
+                    guardedConsumedMs = newConsumed,
+                    guardedLastTickAt = now,
+                    guardedStep = if (isGuarded && !inReprieve) GuardedModeLadder.step(newConsumed) else latest.guardedStep
+                )
             }
         }
     }
@@ -3260,7 +3309,12 @@ data class ActiveSession(
     val startTime: Long,
     val isPaused: Boolean = false,
     val constraintTimeRemaining: Map<String, Long?> = emptyMap(),
-    val violationCount: Int = 0
+    val violationCount: Int = 0,
+    /** Wall-clock foreground consumption used by Guarded mode; never reset by swipes. */
+    val guardedConsumedMs: Long = 0L,
+    val guardedLastTickAt: Long? = null,
+    val guardedReprieveUntil: Long? = null,
+    val guardedStep: GuardedModeLadder.Step = GuardedModeLadder.Step.FREE
 )
 
 data class AppMonitoringPause(

@@ -32,10 +32,11 @@ import com.seenot.app.config.AppLocalePrefs
 import com.seenot.app.ai.voice.VoiceInputManager
 import com.seenot.app.ai.voice.VoiceRecordingState
 import com.seenot.app.data.model.ConstraintType
+import com.seenot.app.data.model.TimeScope
+import com.seenot.app.data.model.InterventionLevel
 import com.seenot.app.data.model.SessionImprovementSuggestion
 import com.seenot.app.data.repository.SessionImprovementSuggestionRepository
 import com.seenot.app.domain.AppEntryIntentMode
-import com.seenot.app.domain.NoMonitorTimedRest
 import com.seenot.app.domain.SessionConstraint
 import com.seenot.app.domain.SessionManager
 import kotlinx.coroutines.CoroutineScope
@@ -127,9 +128,8 @@ class IntentInputDialogOverlay(
     private val historyBgColor get() = if (isDarkMode) Color.parseColor("#383838") else Color.parseColor("#F5F5F5")
 
     // UI refs
-    private var micButton: FrameLayout? = null
+    private var micButton: LinearLayout? = null
     private var micIcon: ImageView? = null
-    private var micBg: View? = null
     private var statusText: TextView? = null
     private var presetContainer: LinearLayout? = null
     private var historyContainer: LinearLayout? = null
@@ -292,13 +292,9 @@ class IntentInputDialogOverlay(
         }
         cardContent.addView(titleText)
 
-        // Subtitle
+        // Explain the default path before asking anything of the user.
         val subtitle = TextView(context).apply {
-            text = if (hasAudioPermission) {
-                context.getString(R.string.intent_can_speak_or_type)
-            } else {
-                context.getString(R.string.intent_type_to_declare)
-            }
+            text = context.getString(R.string.guarded_entry_explanation)
             textSize = 14f
             setTextColor(subtleTextColor)
             gravity = Gravity.CENTER
@@ -309,33 +305,76 @@ class IntentInputDialogOverlay(
         }
         cardContent.addView(subtitle)
 
-        if (hasAudioPermission) {
-            // Mic button container
-            val micSize = 72.dp()
-            micButton = FrameLayout(context).apply {
-                layoutParams = LinearLayout.LayoutParams(micSize, micSize).apply {
-                    bottomMargin = 12.dp()
-                }
+        // Guarded is the default: clear outcome first, product term second.
+        val guardedButton = LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            gravity = Gravity.CENTER
+            background = GradientDrawable().apply {
+                setColor(primaryColor)
+                cornerRadius = 14.dp().toFloat()
             }
+            setPadding(20.dp(), 14.dp(), 20.dp(), 14.dp())
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = 18.dp() }
+            setOnClickListener { startGuardedSession() }
+            addView(TextView(context).apply {
+                text = context.getString(R.string.guarded_entry_action)
+                textSize = 17f
+                gravity = Gravity.CENTER
+                setTextColor(Color.WHITE)
+                typeface = Typeface.DEFAULT_BOLD
+            })
+            addView(TextView(context).apply {
+                text = context.getString(R.string.guarded_entry_detail)
+                textSize = 12f
+                gravity = Gravity.CENTER
+                setTextColor(adjustAlpha(Color.WHITE, 0.84f))
+            })
+        }
+        cardContent.addView(guardedButton)
 
-            micBg = View(context).apply {
-                layoutParams = FrameLayout.LayoutParams(micSize, micSize)
+        val focusLabel = TextView(context).apply {
+            text = context.getString(R.string.focus_block_optional)
+            textSize = 13f
+            setTextColor(subtleTextColor)
+            gravity = Gravity.START
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { bottomMargin = 8.dp() }
+        }
+        cardContent.addView(focusLabel)
+
+        if (hasAudioPermission) {
+            // Voice is a compact focus-block option, visually aligned with preset intents.
+            micButton = LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                setPadding(14.dp(), 10.dp(), 14.dp(), 10.dp())
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { bottomMargin = 8.dp() }
                 background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(primaryColor)
+                    setColor(historyBgColor)
+                    cornerRadius = 10.dp().toFloat()
                 }
             }
-            micButton?.addView(micBg)
 
             micIcon = ImageView(context).apply {
                 setImageResource(android.R.drawable.ic_btn_speak_now)
                 scaleType = ImageView.ScaleType.CENTER_INSIDE
-                layoutParams = FrameLayout.LayoutParams(micSize, micSize).apply {
-                    gravity = Gravity.CENTER
-                }
-                setColorFilter(Color.WHITE)
+                layoutParams = LinearLayout.LayoutParams(22.dp(), 22.dp()).apply { rightMargin = 10.dp() }
+                setColorFilter(primaryColor)
             }
             micButton?.addView(micIcon)
+
+            micButton?.addView(TextView(context).apply {
+                text = context.getString(R.string.focus_block_speak_action)
+                textSize = 14f
+                setTextColor(textColor)
+                layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+            })
 
             micButton?.setOnClickListener { handleMicClick() }
             cardContent.addView(micButton)
@@ -346,11 +385,11 @@ class IntentInputDialogOverlay(
             text = if (hasAudioPermission) context.getString(R.string.intent_tap_to_start_recording) else context.getString(R.string.intent_no_mic_permission_type)
             textSize = 13f
             setTextColor(subtleTextColor)
-            gravity = Gravity.CENTER
+            gravity = Gravity.START
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = 8.dp() }
+            ).apply { bottomMargin = 6.dp() }
         }
         cardContent.addView(statusText)
 
@@ -550,9 +589,9 @@ class IntentInputDialogOverlay(
         populateHistory()
         populateImprovementSuggestion()
 
-        // Skip button at bottom
+        // Skip is never an unmonitored escape hatch: it takes the default Guarded path.
         val skipButton = TextView(context).apply {
-            text = context.getString(R.string.intent_skip)
+            text = context.getString(R.string.guarded_skip_action)
             textSize = 14f
             setTextColor(subtleTextColor)
             gravity = Gravity.CENTER
@@ -561,10 +600,7 @@ class IntentInputDialogOverlay(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply { topMargin = 8.dp() }
-            setOnClickListener {
-                dismiss()
-                onDismissed()
-            }
+            setOnClickListener { startGuardedSession() }
         }
         cardContent.addView(skipButton)
 
@@ -597,6 +633,18 @@ class IntentInputDialogOverlay(
         } catch (e: Exception) {
             Logger.e(TAG, "Failed to show dialog overlay", e)
         }
+    }
+
+    private fun startGuardedSession() {
+        dismiss()
+        onIntentConfirmed(listOf(SessionConstraint(
+            id = "guarded-mode",
+            type = ConstraintType.TIME_CAP,
+            description = if (isChineseUi()) "带提醒继续使用" else "Continue with check-ins",
+            timeLimitMs = null,
+            timeScope = TimeScope.CONTINUOUS,
+            interventionLevel = InterventionLevel.MODERATE
+        )))
     }
 
     private fun populateImprovementSuggestion() {
@@ -651,101 +699,13 @@ class IntentInputDialogOverlay(
         presetContainer?.removeAllViews()
 
         presetRules = sessionManager.loadPresetRules(packageName)
+            .filter { it.type != ConstraintType.NO_MONITOR }
             .sortedByDescending { it.isDefault }
 
         if (presetRules.isNotEmpty()) {
             for (constraints in presetRules) {
                 val row = buildPresetRow(constraints)
                 presetContainer?.addView(row)
-            }
-        }
-        presetContainer?.addView(buildNoMonitorRestRow())
-    }
-
-    private fun buildNoMonitorRestRow(): View {
-        return LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            setPadding(14.dp(), 10.dp(), 14.dp(), 10.dp())
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = 6.dp() }
-            background = GradientDrawable().apply {
-                setColor(historyBgColor)
-                cornerRadius = 10.dp().toFloat()
-            }
-            setOnClickListener { showTimedRestChoices() }
-            addView(TextView(context).apply {
-                text = context.getString(R.string.intent_rest_action)
-                textSize = 14f
-                setTextColor(textColor)
-                maxLines = 4
-            })
-        }
-    }
-
-    private fun showTimedRestChoices() {
-        presetContainer?.removeAllViews()
-        presetContainer?.addView(TextView(context).apply {
-            text = context.getString(R.string.intent_rest_duration_title)
-            textSize = 14f
-            typeface = Typeface.DEFAULT_BOLD
-            setTextColor(textColor)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = 4.dp() }
-        })
-        presetContainer?.addView(TextView(context).apply {
-            text = context.getString(R.string.intent_rest_duration_desc)
-            textSize = 12f
-            setTextColor(subtleTextColor)
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = 8.dp() }
-        })
-
-        NoMonitorTimedRest.durationOptionsMinutes.forEach { minutes ->
-            presetContainer?.addView(buildTimedRestChoiceRow(minutes))
-        }
-
-        presetContainer?.addView(TextView(context).apply {
-            text = context.getString(R.string.intent_rest_back_to_presets)
-            textSize = 13f
-            setTextColor(primaryColor)
-            gravity = Gravity.CENTER
-            setPadding(12.dp(), 10.dp(), 12.dp(), 4.dp())
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            )
-            setOnClickListener { populatePresets() }
-        })
-    }
-
-    private fun buildTimedRestChoiceRow(minutes: Int): View {
-        val isDefault = minutes == NoMonitorTimedRest.defaultMinutes
-        return TextView(context).apply {
-            text = context.getString(R.string.intent_rest_duration_option, minutes)
-            textSize = 14f
-            typeface = if (isDefault) Typeface.DEFAULT_BOLD else Typeface.DEFAULT
-            setTextColor(textColor)
-            gravity = Gravity.CENTER_VERTICAL
-            setPadding(14.dp(), 12.dp(), 14.dp(), 12.dp())
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = 6.dp() }
-            background = GradientDrawable().apply {
-                setColor(if (isDefault) adjustAlpha(primaryColor, 0.16f) else historyBgColor)
-                cornerRadius = 10.dp().toFloat()
-                if (isDefault) {
-                    setStroke(1, adjustAlpha(primaryColor, 0.42f))
-                }
-            }
-            setOnClickListener {
-                selectPresetIntent(NoMonitorTimedRest.createConstraint(minutes))
             }
         }
     }
@@ -808,11 +768,12 @@ class IntentInputDialogOverlay(
 
         // Load preset rules first to filter out duplicates
         val loadedPresetRules = sessionManager.loadPresetRules(packageName)
+            .filter { it.type != ConstraintType.NO_MONITOR }
         val presetFingerprints = loadedPresetRules.map { sessionManager.getConstraintNameFingerprint(listOf(it)) }.toSet()
 
         val history = sessionManager.loadIntentHistory(packageName).filter { historyEntry ->
             val fingerprint = sessionManager.getConstraintNameFingerprint(historyEntry)
-            fingerprint !in presetFingerprints
+            historyEntry.none { it.type == ConstraintType.NO_MONITOR } && fingerprint !in presetFingerprints
         }
 
         if (history.isEmpty()) {
@@ -1040,10 +1001,7 @@ class IntentInputDialogOverlay(
     private fun updateUI() {
         when (mode) {
             Mode.IDLE -> {
-                micBg?.background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(primaryColor)
-                }
+                micIcon?.setColorFilter(primaryColor)
                 statusText?.text = lastErrorMessage ?: when {
                     isVoiceInputAvailable -> context.getString(R.string.intent_tap_mic_or_type)
                     !hasAudioPermission -> context.getString(R.string.intent_no_mic_permission_type)
@@ -1058,10 +1016,7 @@ class IntentInputDialogOverlay(
                 textConfirmButton?.alpha = 1f
             }
             Mode.RECORDING -> {
-                micBg?.background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(recordingColor)
-                }
+                micIcon?.setColorFilter(recordingColor)
                 statusText?.text = context.getString(R.string.intent_recording_stop_hint)
                 statusText?.setTextColor(recordingColor)
                 rulesPreviewText?.visibility = View.GONE
@@ -1072,10 +1027,7 @@ class IntentInputDialogOverlay(
                 textConfirmButton?.alpha = 0.45f
             }
             Mode.PROCESSING -> {
-                micBg?.background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(processingColor)
-                }
+                micIcon?.setColorFilter(processingColor)
                 statusText?.text = context.getString(R.string.intent_parsing)
                 statusText?.setTextColor(processingColor)
                 rulesPreviewText?.visibility = View.GONE
@@ -1086,10 +1038,7 @@ class IntentInputDialogOverlay(
                 textConfirmButton?.alpha = 0.45f
             }
             Mode.SHOWING_RULES -> {
-                micBg?.background = GradientDrawable().apply {
-                    shape = GradientDrawable.OVAL
-                    setColor(successColor)
-                }
+                micIcon?.setColorFilter(successColor)
                 statusText?.text = if (pendingInputSource == InputSource.VOICE) {
                     context.getString(R.string.intent_parsed_confirm_voice)
                 } else {
