@@ -1392,6 +1392,7 @@ class SeenotAccessibilityService : AccessibilityService() {
             mainHandler.removeCallbacks(usageStatsPollRunnable)
             cancelTrailingContentChanged()
             cancelPendingIntentReminder()
+            dismissAllOverlays()
             instance = null
             _isServiceReady.value = false
             _isUsageStatsAccessEnabled.value = false

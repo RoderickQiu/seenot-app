@@ -199,7 +199,19 @@ class SessionManager(
         val session = _activeSession.value ?: return
         if (session.mode != SessionMode.GUARDED) return
         if (GuardedModeLadder.step(session.guardedConsumedMs) != GuardedModeLadder.Step.PER_ADVANCE) return
-        GuardedInterventionOverlay.showHold(context, 3_000L) { }
+        if (GuardedInterventionOverlay.isShowing()) return
+        GuardedInterventionOverlay.showHold(
+            context = context,
+            holdMs = 3_000L,
+            onComplete = {},
+            onLeave = ::leaveGuardedSession
+        )
+    }
+
+    private fun leaveGuardedSession() {
+        GuardedDimmingOverlay.dismiss()
+        SeenotAccessibilityService.instance?.performHomeGesture { }
+        scope.launch { endSession(SessionEndReason.USER_ENDED) }
     }
 
     private fun logRuntimeEvent(
@@ -493,6 +505,7 @@ class SessionManager(
         stopScreenAnalysis()
         NoMonitorReminderOverlay.dismiss()
         GuardedDimmingOverlay.dismiss()
+        GuardedInterventionOverlay.dismiss(context)
         _activeSession.value = session.copy(isPaused = true)
         suspendedSessions[session.appPackageName] = Pair(session.copy(isPaused = true), System.currentTimeMillis())
         _activeSession.value = null
@@ -703,6 +716,7 @@ class SessionManager(
         stopScreenAnalysis()
         NoMonitorReminderOverlay.dismiss()
         GuardedDimmingOverlay.dismiss()
+        GuardedInterventionOverlay.dismiss(context)
         repository.endSession(existingSession.sessionId, SessionEndReason.USER_ENDED.name)
         _activeSession.value = null
     }
@@ -1761,6 +1775,7 @@ class SessionManager(
         stopScreenAnalysis()
         NoMonitorReminderOverlay.dismiss()
         GuardedDimmingOverlay.dismiss()
+        GuardedInterventionOverlay.dismiss(context)
 
         _activeSession.value = session.copy(isPaused = true)
 
@@ -1803,6 +1818,7 @@ class SessionManager(
         stopScreenAnalysis()
         NoMonitorReminderOverlay.dismiss()
         GuardedDimmingOverlay.dismiss()
+        GuardedInterventionOverlay.dismiss(context)
 
         // Update database
         repository.endSession(session.sessionId, reason.name)
@@ -2175,15 +2191,23 @@ class SessionManager(
                     val nextStep = GuardedModeLadder.step(newConsumed)
                     if (nextStep != session.guardedStep) {
                         when (nextStep) {
-                            GuardedModeLadder.Step.BREATH -> GuardedInterventionOverlay.showBreath(context)
-                            GuardedModeLadder.Step.HOLD -> GuardedInterventionOverlay.showHold(context, GuardedModeLadder.holdDurationMs(newConsumed)) {
-                                GuardedDimmingOverlay.dismiss()
-                                _activeSession.value = (_activeSession.value ?: session).copy(
-                                    // Re-arm the transition so every reprieve requires another hold.
-                                    guardedStep = GuardedModeLadder.Step.BREATH,
-                                    guardedReprieveUntil = System.currentTimeMillis() + 8 * 60_000L
-                                )
-                            }
+                            GuardedModeLadder.Step.BREATH -> GuardedInterventionOverlay.showBreath(
+                                context = context,
+                                onLeave = ::leaveGuardedSession
+                            )
+                            GuardedModeLadder.Step.HOLD -> GuardedInterventionOverlay.showHold(
+                                context = context,
+                                holdMs = GuardedModeLadder.holdDurationMs(newConsumed),
+                                onComplete = {
+                                    GuardedDimmingOverlay.dismiss()
+                                    _activeSession.value = (_activeSession.value ?: session).copy(
+                                        // Re-arm the transition so every reprieve requires another hold.
+                                        guardedStep = GuardedModeLadder.Step.BREATH,
+                                        guardedReprieveUntil = System.currentTimeMillis() + 8 * 60_000L
+                                    )
+                                },
+                                onLeave = ::leaveGuardedSession
+                            )
                             GuardedModeLadder.Step.WIND_DOWN -> {
                                 val guardedConstraint = session.constraints.firstOrNull()
                                 if (guardedConstraint != null) {
