@@ -33,6 +33,7 @@ import com.seenot.app.domain.SessionManager
 import com.seenot.app.observability.RuntimeEventLogger
 import com.seenot.app.observability.RuntimeEventType
 import com.seenot.app.ui.overlay.FloatingIndicatorOverlay
+import com.seenot.app.domain.SessionMode
 import com.seenot.app.ui.overlay.IntentInputDialogOverlay
 import com.seenot.app.ui.overlay.IntentReminderOverlay
 import com.seenot.app.ui.overlay.JudgmentFeedbackConfirmOverlay
@@ -1191,7 +1192,7 @@ class SeenotAccessibilityService : AccessibilityService() {
             appName = appName,
             packageName = packageName,
             sessionManager = sessionManager,
-            onIntentConfirmed = { constraints ->
+            onIntentConfirmed = { constraints, mode ->
                 Logger.d(TAG, ">>> Intent confirmed, creating session for $packageName")
                 isSessionBeingCreated = true
                 cancelPendingIntentReminder(packageName)
@@ -1204,6 +1205,7 @@ class SeenotAccessibilityService : AccessibilityService() {
                     packageName = packageName,
                     sessionManager = sessionManager,
                     constraints = constraints,
+                    mode = mode,
                     onTapToReopen = {
                         showIntentInputDialog(packageName, appName, sessionManager, allowDefaultRuleAutoApply = false)
                     }
@@ -1214,7 +1216,8 @@ class SeenotAccessibilityService : AccessibilityService() {
                         val sessionId = sessionManager.createSession(
                             packageName = packageName,
                             displayName = appName,
-                            constraints = constraints
+                            constraints = constraints,
+                            mode = mode
                         )
                         if (sessionId != null) {
                             Logger.d(TAG, "<<< Session created successfully for $packageName")

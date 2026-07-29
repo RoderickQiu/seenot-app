@@ -740,6 +740,7 @@ class ScreenAnalyzer(
                     packageName = session.appPackageName,
                     sessionManager = sessionManager,
                     constraints = session.constraints,
+                    mode = session.mode,
                     onTapToReopen = { /* handled by service */ }
                 )
                 Logger.d(TAG, "Re-showed floating overlay")

@@ -196,7 +196,7 @@ class SessionManager(
     /** Charges deliberate effort for each feed advance once the ladder reaches PER_ADVANCE. */
     fun onGuardedAdvance() {
         val session = _activeSession.value ?: return
-        if (!session.constraints.any { it.id == "guarded-mode" }) return
+        if (session.mode != SessionMode.GUARDED) return
         if (GuardedModeLadder.step(session.guardedConsumedMs) != GuardedModeLadder.Step.PER_ADVANCE) return
         GuardedInterventionOverlay.showHold(context, 3_000L) { }
     }
@@ -609,7 +609,8 @@ class SessionManager(
     suspend fun createSession(
         packageName: String,
         displayName: String,
-        constraints: List<SessionConstraint>
+        constraints: List<SessionConstraint>,
+        mode: SessionMode = SessionMode.FOCUS
     ): Long? {
         val currentPackage = SeenotAccessibilityService.currentPackage.value
         if (currentPackage != packageName) {
@@ -640,6 +641,7 @@ class SessionManager(
             appPackageName = packageName,
             appDisplayName = displayName,
             constraints = effectiveConstraints,
+            mode = mode,
             startTime = System.currentTimeMillis(),
             isPaused = false,
             constraintTimeRemaining = effectiveConstraints.associate { constraint ->
@@ -653,13 +655,17 @@ class SessionManager(
         resetConstraintMatchStates(effectiveConstraints)
         persistSessionConstraints(sessionId, effectiveConstraints)
 
-        saveLastIntent(packageName, effectiveConstraints)
+        if (mode == SessionMode.FOCUS) {
+            saveLastIntent(packageName, effectiveConstraints)
+        }
         startTimer()
-        scope.launch(Dispatchers.IO) {
-            autoApplyCarryOverHints(packageName, displayName, effectiveConstraints)
+        if (mode == SessionMode.FOCUS) {
+            scope.launch(Dispatchers.IO) {
+                autoApplyCarryOverHints(packageName, displayName, effectiveConstraints)
+            }
         }
 
-        if (ApiConfig.isConfigured() && effectiveConstraints.any { it.type != ConstraintType.NO_MONITOR && it.id != "guarded-mode" }) {
+        if (mode == SessionMode.FOCUS && ApiConfig.isConfigured() && effectiveConstraints.any { it.type != ConstraintType.NO_MONITOR }) {
             startScreenAnalysis(packageName, displayName, effectiveConstraints)
         }
 
@@ -668,6 +674,7 @@ class SessionManager(
             session = activeSession,
             payload = buildMap {
                 put("active_constraint_ids", effectiveConstraints.map { it.id })
+                put("session_mode", mode.name)
                 put("time_limit_ms", effectiveConstraints.mapNotNull { it.timeLimitMs }.maxOrNull())
                 put("trigger_source", startContext?.triggerSource ?: "create_session")
                 put("switch_from_package", startContext?.switchFromPackage)
@@ -1465,7 +1472,7 @@ class SessionManager(
                 if (shouldPauseJudgment) {
                     isFalsePositiveLearningInProgress = false
                     val active = _activeSession.value
-                    if (active != null && !active.isPaused && ApiConfig.isConfigured()) {
+                    if (active != null && active.mode == SessionMode.FOCUS && !active.isPaused && ApiConfig.isConfigured()) {
                         startScreenAnalysis(active.appPackageName, active.appDisplayName, active.constraints)
                     }
                 }
@@ -1483,7 +1490,7 @@ class SessionManager(
 
     private fun refreshActiveSessionAnalysisAfterFalsePositive(source: String) {
         val active = _activeSession.value ?: return
-        if (active.isPaused || !ApiConfig.isConfigured()) return
+        if (active.mode != SessionMode.FOCUS || active.isPaused || !ApiConfig.isConfigured()) return
 
         Logger.d(TAG, "Refreshing analysis after false positive from $source")
         screenAnalyzer?.pauseAnalysis()
@@ -1718,7 +1725,7 @@ class SessionManager(
         startTimer()
 
         // Restart screen analysis
-        if (ApiConfig.isConfigured()) {
+        if (session.mode == SessionMode.FOCUS && ApiConfig.isConfigured()) {
             startScreenAnalysis(session.appPackageName, session.appDisplayName, session.constraints)
         }
 
@@ -1953,7 +1960,7 @@ class SessionManager(
             persistSessionConstraints(active.sessionId, syncedConstraints)
 
             if (!active.isPaused) {
-                if (ApiConfig.isConfigured() && syncedConstraints.any { it.type != ConstraintType.NO_MONITOR && it.id != "guarded-mode" }) {
+                if (active.mode == SessionMode.FOCUS && ApiConfig.isConfigured() && syncedConstraints.any { it.type != ConstraintType.NO_MONITOR }) {
                     screenAnalyzer?.pauseAnalysis()
                     startScreenAnalysis(active.appPackageName, active.appDisplayName, syncedConstraints)
                 } else {
@@ -2012,7 +2019,7 @@ class SessionManager(
                 persistSessionConstraints(active.sessionId, refreshedConstraints)
 
                 if (!active.isPaused) {
-                if (ApiConfig.isConfigured() && refreshedConstraints.any { it.type != ConstraintType.NO_MONITOR && it.id != "guarded-mode" }) {
+                if (active.mode == SessionMode.FOCUS && ApiConfig.isConfigured() && refreshedConstraints.any { it.type != ConstraintType.NO_MONITOR }) {
                         screenAnalyzer?.pauseAnalysis()
                         startScreenAnalysis(active.appPackageName, active.appDisplayName, refreshedConstraints)
                     } else {
@@ -2146,7 +2153,7 @@ class SessionManager(
                 // Guarded uses wall-clock deltas, so scheduler jitter and brief pauses cannot
                 // manufacture free time. Only foreground ticks contribute to the accumulator.
                 val now = System.currentTimeMillis()
-                val isGuarded = session.constraints.any { it.id == "guarded-mode" }
+                val isGuarded = session.mode == SessionMode.GUARDED
                 val inReprieve = session.guardedReprieveUntil?.let { now < it } == true
                 val guardedDelta = if (isGuarded && !inReprieve) {
                     session.guardedLastTickAt?.let { (now - it).coerceAtLeast(0L) } ?: 0L
@@ -2165,7 +2172,7 @@ class SessionManager(
                                 )
                             }
                             GuardedModeLadder.Step.WIND_DOWN -> {
-                                val guardedConstraint = session.constraints.firstOrNull { it.id == "guarded-mode" }
+                                val guardedConstraint = session.constraints.firstOrNull()
                                 if (guardedConstraint != null) {
                                     val executor = actionExecutor ?: ActionExecutor(context).also { actionExecutor = it }
                                     executor.executeNoMonitorTimedExit(guardedConstraint, session.appDisplayName, session.appPackageName)
@@ -3306,6 +3313,7 @@ data class ActiveSession(
     val appPackageName: String,
     val appDisplayName: String,
     val constraints: List<SessionConstraint>,
+    val mode: SessionMode = SessionMode.FOCUS,
     val startTime: Long,
     val isPaused: Boolean = false,
     val constraintTimeRemaining: Map<String, Long?> = emptyMap(),

@@ -238,13 +238,9 @@
     <!-- IntentInputDialogOverlay -->
     <string name="intent_can_speak_or_type">可以说话，也可以直接键盘输入</string>
     <string name="intent_type_to_declare">直接键盘输入声明意图</string>
-    <string name="guarded_entry_explanation">先正常使用；用久后会逐步停下来，让你确认还要不要继续。</string>
-    <string name="guarded_entry_action">带提醒继续使用</string>
-    <string name="guarded_entry_detail">前 10 分钟不打扰，之后会有短暂停顿和按住确认</string>
+    <string name="guarded_entry_action">节制使用</string>
     <string name="focus_block_optional">专注模式（可选）</string>
     <string name="focus_block_speak_action">说出你想专注做什么</string>
-    <string name="guarded_skip_action">先不设意图，带提醒继续</string>
-    <string name="intent_tap_to_start_recording">点击开始录音</string>
     <string name="intent_no_mic_permission_type">未开启麦克风权限，可直接键盘输入</string>
     <string name="intent_enter_to_confirm">输入后回车，SeeNot 会直接按这条规则执行</string>
     <string name="intent_confirm_title">确认意图</string>
@@ -331,6 +327,16 @@
     <string name="hud_compact_line_time_cap">%1$s · %2$s · %3$s</string>
     <string name="hud_compact_line_deny">%1$s · %2$s</string>
     <string name="hud_duration_minutes_short">%s 分钟</string>
+    <string name="hud_guarded_active">进行中</string>
+    <string name="hud_guarded_pauses_later">稍后会暂停</string>
+    <string name="hud_guarded_first_pause_in">首次暂停还有 %d 分钟</string>
+    <string name="hud_guarded_pauses_active">暂停已开启</string>
+    <string name="hud_guarded_reprieve">已获得休息 · 剩余 %d 分钟</string>
+    <string name="hud_guarded_wind_down">冷静期</string>
+    <string name="hud_guarded_consumed">已连续使用 %d 分钟</string>
+    <string name="hud_guarded_next_pauses_increase">后续停顿会逐步增加</string>
+    <string name="hud_guarded_reprieve_detail">%d 分钟后恢复停顿</string>
+    <string name="hud_guarded_wind_down_detail">本次使用即将结束</string>
 
     <!-- JudgmentFeedbackConfirmOverlay -->
     <string name="judgment_wrong_title">这次判断不太对？</string>

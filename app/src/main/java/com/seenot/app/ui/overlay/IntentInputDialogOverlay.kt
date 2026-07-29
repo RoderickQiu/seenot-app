@@ -39,6 +39,7 @@ import com.seenot.app.data.repository.SessionImprovementSuggestionRepository
 import com.seenot.app.domain.AppEntryIntentMode
 import com.seenot.app.domain.SessionConstraint
 import com.seenot.app.domain.SessionManager
+import com.seenot.app.domain.SessionMode
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -58,7 +59,7 @@ class IntentInputDialogOverlay(
     private val appName: String,
     private val packageName: String,
     private val sessionManager: SessionManager,
-    private val onIntentConfirmed: (List<SessionConstraint>) -> Unit,
+    private val onIntentConfirmed: (List<SessionConstraint>, SessionMode) -> Unit,
     private val onDismissed: () -> Unit
 ) {
     companion object {
@@ -71,7 +72,7 @@ class IntentInputDialogOverlay(
             appName: String,
             packageName: String,
             sessionManager: SessionManager,
-            onIntentConfirmed: (List<SessionConstraint>) -> Unit,
+            onIntentConfirmed: (List<SessionConstraint>, SessionMode) -> Unit,
             onDismissed: () -> Unit,
             allowDefaultRuleAutoApply: Boolean = true
         ) {
@@ -292,45 +293,27 @@ class IntentInputDialogOverlay(
         }
         cardContent.addView(titleText)
 
-        // Explain the default path before asking anything of the user.
-        val subtitle = TextView(context).apply {
-            text = context.getString(R.string.guarded_entry_explanation)
+        // Guarded is the compact default action; Focus remains available below it.
+        val guardedButton = TextView(context).apply {
+            text = context.getString(R.string.guarded_entry_action)
             textSize = 14f
-            setTextColor(subtleTextColor)
             gravity = Gravity.CENTER
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = 24.dp() }
-        }
-        cardContent.addView(subtitle)
-
-        // Guarded is the default: clear outcome first, product term second.
-        val guardedButton = LinearLayout(context).apply {
-            orientation = LinearLayout.VERTICAL
-            gravity = Gravity.CENTER
+            setTextColor(Color.WHITE)
+            typeface = Typeface.DEFAULT_BOLD
             background = GradientDrawable().apply {
                 setColor(primaryColor)
                 cornerRadius = 14.dp().toFloat()
             }
-            setPadding(20.dp(), 14.dp(), 20.dp(), 14.dp())
+            setPadding(14.dp(), 14.dp(), 14.dp(), 14.dp())
             layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = 18.dp() }
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                gravity = Gravity.START
+                topMargin = 16.dp()
+                bottomMargin = 18.dp()
+            }
             setOnClickListener { startGuardedSession() }
-            addView(TextView(context).apply {
-                text = context.getString(R.string.guarded_entry_action)
-                textSize = 17f
-                gravity = Gravity.CENTER
-                setTextColor(Color.WHITE)
-                typeface = Typeface.DEFAULT_BOLD
-            })
-            addView(TextView(context).apply {
-                text = context.getString(R.string.guarded_entry_detail)
-                textSize = 12f
-                gravity = Gravity.CENTER
-                setTextColor(adjustAlpha(Color.WHITE, 0.84f))
-            })
         }
         cardContent.addView(guardedButton)
 
@@ -382,10 +365,11 @@ class IntentInputDialogOverlay(
 
         // Status text
         statusText = TextView(context).apply {
-            text = if (hasAudioPermission) context.getString(R.string.intent_tap_to_start_recording) else context.getString(R.string.intent_no_mic_permission_type)
+            text = if (hasAudioPermission) "" else context.getString(R.string.intent_no_mic_permission_type)
             textSize = 13f
             setTextColor(subtleTextColor)
             gravity = Gravity.START
+            visibility = if (hasAudioPermission) View.GONE else View.VISIBLE
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
@@ -589,21 +573,6 @@ class IntentInputDialogOverlay(
         populateHistory()
         populateImprovementSuggestion()
 
-        // Skip is never an unmonitored escape hatch: it takes the default Guarded path.
-        val skipButton = TextView(context).apply {
-            text = context.getString(R.string.guarded_skip_action)
-            textSize = 14f
-            setTextColor(subtleTextColor)
-            gravity = Gravity.CENTER
-            setPadding(16.dp(), 12.dp(), 16.dp(), 4.dp())
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = 8.dp() }
-            setOnClickListener { startGuardedSession() }
-        }
-        cardContent.addView(skipButton)
-
         contentScroll.addView(cardContent)
         card.addView(contentScroll)
         OverlayDialogSizer.apply(context, dimBg, card, contentScroll, 0.85f, 0.9f)
@@ -640,11 +609,11 @@ class IntentInputDialogOverlay(
         onIntentConfirmed(listOf(SessionConstraint(
             id = "guarded-mode",
             type = ConstraintType.TIME_CAP,
-            description = if (isChineseUi()) "带提醒继续使用" else "Continue with check-ins",
+            description = context.getString(R.string.guarded_entry_action),
             timeLimitMs = null,
             timeScope = TimeScope.CONTINUOUS,
             interventionLevel = InterventionLevel.MODERATE
-        )))
+        )), SessionMode.GUARDED)
     }
 
     private fun populateImprovementSuggestion() {
@@ -1003,10 +972,11 @@ class IntentInputDialogOverlay(
             Mode.IDLE -> {
                 micIcon?.setColorFilter(primaryColor)
                 statusText?.text = lastErrorMessage ?: when {
-                    isVoiceInputAvailable -> context.getString(R.string.intent_tap_mic_or_type)
                     !hasAudioPermission -> context.getString(R.string.intent_no_mic_permission_type)
-                    else -> context.getString(R.string.intent_no_voice_type)
+                    !isVoiceInputAvailable -> context.getString(R.string.intent_no_voice_type)
+                    else -> ""
                 }
+                statusText?.visibility = if (statusText?.text.isNullOrBlank()) View.GONE else View.VISIBLE
                 statusText?.setTextColor(if (lastErrorMessage == null) subtleTextColor else recordingColor)
                 rulesPreviewText?.visibility = View.GONE
                 confirmButton?.visibility = View.GONE
@@ -1016,6 +986,7 @@ class IntentInputDialogOverlay(
                 textConfirmButton?.alpha = 1f
             }
             Mode.RECORDING -> {
+                statusText?.visibility = View.VISIBLE
                 micIcon?.setColorFilter(recordingColor)
                 statusText?.text = context.getString(R.string.intent_recording_stop_hint)
                 statusText?.setTextColor(recordingColor)
@@ -1027,6 +998,7 @@ class IntentInputDialogOverlay(
                 textConfirmButton?.alpha = 0.45f
             }
             Mode.PROCESSING -> {
+                statusText?.visibility = View.VISIBLE
                 micIcon?.setColorFilter(processingColor)
                 statusText?.text = context.getString(R.string.intent_parsing)
                 statusText?.setTextColor(processingColor)
@@ -1038,6 +1010,7 @@ class IntentInputDialogOverlay(
                 textConfirmButton?.alpha = 0.45f
             }
             Mode.SHOWING_RULES -> {
+                statusText?.visibility = View.VISIBLE
                 micIcon?.setColorFilter(successColor)
                 statusText?.text = if (pendingInputSource == InputSource.VOICE) {
                     context.getString(R.string.intent_parsed_confirm_voice)
@@ -1120,7 +1093,7 @@ class IntentInputDialogOverlay(
         sessionManager.saveLastIntent(packageName, constraints)
         pendingInputSource = InputSource.NONE
         dismiss()
-        onIntentConfirmed(constraints)
+        onIntentConfirmed(constraints, SessionMode.FOCUS)
     }
 
     private fun buildConstraintSummary(constraints: List<SessionConstraint>): String {

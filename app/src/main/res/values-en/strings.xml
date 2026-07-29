@@ -233,14 +233,10 @@
 
     <!-- IntentInputDialogOverlay -->
     <string name="intent_can_speak_or_type">Speak or type your intent</string>
-    <string name="guarded_entry_explanation">Use normally at first. If you stay longer, SeeNot adds pauses so you can decide whether to continue.</string>
-    <string name="guarded_entry_action">Continue with check-ins</string>
-    <string name="guarded_entry_detail">No interruption for 10 minutes, then brief pauses and hold-to-continue</string>
+    <string name="guarded_entry_action">Use with pauses</string>
     <string name="focus_block_optional">Focus block (optional)</string>
     <string name="focus_block_speak_action">Say what you want to focus on</string>
-    <string name="guarded_skip_action">Continue with check-ins instead</string>
     <string name="intent_type_to_declare">Type to declare intent</string>
-    <string name="intent_tap_to_start_recording">Tap to start recording</string>
     <string name="intent_no_mic_permission_type">Mic permission not granted. You can type instead.</string>
     <string name="intent_enter_to_confirm">Press Enter to apply this rule</string>
     <string name="intent_confirm_title">Confirm Intent</string>
@@ -327,6 +323,16 @@
     <string name="hud_compact_line_time_cap">%1$s · %2$s · %3$s</string>
     <string name="hud_compact_line_deny">%1$s · %2$s</string>
     <string name="hud_duration_minutes_short">%s min</string>
+    <string name="hud_guarded_active">Active</string>
+    <string name="hud_guarded_pauses_later">Pauses later</string>
+    <string name="hud_guarded_first_pause_in">First pause in %d min</string>
+    <string name="hud_guarded_pauses_active">Pauses active</string>
+    <string name="hud_guarded_reprieve">Break earned · %d min left</string>
+    <string name="hud_guarded_wind_down">Cooling down</string>
+    <string name="hud_guarded_consumed">%d min of continuous use</string>
+    <string name="hud_guarded_next_pauses_increase">Pauses will gradually increase</string>
+    <string name="hud_guarded_reprieve_detail">Pauses resume in %d min</string>
+    <string name="hud_guarded_wind_down_detail">This session is ending</string>
 
     <!-- JudgmentFeedbackConfirmOverlay -->
     <string name="judgment_wrong_title">This judgment was not quite right?</string>

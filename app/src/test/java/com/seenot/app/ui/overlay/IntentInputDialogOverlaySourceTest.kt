@@ -55,6 +55,25 @@ class IntentInputDialogOverlaySourceTest {
     }
 
     @Test
+    fun guardedEntryIsCompactAndHasNoRedundantHelperCopy() {
+        val guardedEntryBody = source.substringAfter("val guardedButton = TextView(context).apply")
+            .substringBefore("cardContent.addView(guardedButton)")
+
+        assertTrue(guardedEntryBody.contains("LinearLayout.LayoutParams.WRAP_CONTENT"))
+        assertTrue(guardedEntryBody.contains("gravity = Gravity.START"))
+        assertFalse(source.contains("R.string.guarded_entry_explanation"))
+        assertFalse(source.contains("R.string.guarded_entry_detail"))
+        assertFalse(source.contains("R.string.guarded_skip_action"))
+        assertFalse(source.contains("R.string.intent_tap_to_start_recording"))
+    }
+
+    @Test
+    fun guardedAndFocusChoicesEmitExplicitSessionModes() {
+        assertTrue(source.contains("SessionMode.GUARDED"))
+        assertTrue(source.contains("onIntentConfirmed(constraints, SessionMode.FOCUS)"))
+    }
+
+    @Test
     fun voiceAvailabilityUsesCentralConfigSoSeenotAiCanFetchFirstCredentialOnClick() {
         val hasUsableVoiceConfigBody = source.substringAfter("private fun hasUsableVoiceConfig(): Boolean")
             .substringBefore("private fun dismissInternal()")

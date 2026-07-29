@@ -28,6 +28,7 @@ import com.seenot.app.domain.ActiveSession
 import com.seenot.app.domain.NoMonitorTimedRest
 import com.seenot.app.domain.SessionConstraint
 import com.seenot.app.domain.SessionManager
+import com.seenot.app.domain.SessionMode
 import com.seenot.app.utils.Logger
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -50,6 +51,7 @@ class FloatingIndicatorOverlay(
         val session: ActiveSession? = null,
         val hasActiveSession: Boolean = false,
         val displayedConstraints: List<SessionConstraint>? = null,
+        val displayedMode: SessionMode? = null,
         val isViolating: Boolean = false,
         val isExpanded: Boolean = false,
         val matchStates: Map<String, Boolean> = emptyMap(),
@@ -99,11 +101,12 @@ class FloatingIndicatorOverlay(
     private var scope = CoroutineScope(Dispatchers.Main + Job())
     private var observersStarted = false
 
-    fun showWithConstraints(constraints: List<SessionConstraint>) {
+    fun showWithConstraints(constraints: List<SessionConstraint>, mode: SessionMode = SessionMode.FOCUS) {
         windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
         state = state.copy(
             hasActiveSession = true,
-            displayedConstraints = constraints
+            displayedConstraints = constraints,
+            displayedMode = mode
         )
         startObserversIfNeeded()
         render()
@@ -151,7 +154,11 @@ class FloatingIndicatorOverlay(
                         constraint.timeLimitMs?.toString().orEmpty(),
                         constraint.timeScope?.name.orEmpty(),
                         constraint.interventionLevel.name,
-                        constraint.isActive.toString()
+                        constraint.isActive.toString(),
+                        session.mode.name,
+                        (session.guardedConsumedMs / 60_000L).toString(),
+                        session.guardedStep.name,
+                        (session.guardedReprieveUntil?.let { (it - System.currentTimeMillis()).coerceAtLeast(0L) / 60_000L }).toString()
                     ).joinToString(":")
                 } ?: ""
                 val isPaused = session?.isPaused ?: true
@@ -167,13 +174,15 @@ class FloatingIndicatorOverlay(
                         windowManager = context.getSystemService(Context.WINDOW_SERVICE) as WindowManager
                         state = state.copy(
                             session = session,
-                            displayedConstraints = session?.constraints ?: state.displayedConstraints
+                            displayedConstraints = session?.constraints ?: state.displayedConstraints,
+                            displayedMode = session?.mode ?: state.displayedMode
                         )
                         render()
                     } else {
                         state = state.copy(
                             session = session,
-                            displayedConstraints = session?.constraints ?: state.displayedConstraints
+                            displayedConstraints = session?.constraints ?: state.displayedConstraints,
+                            displayedMode = session?.mode ?: state.displayedMode
                         )
 
                         if (sessionSignature != lastSessionSignature || isPaused != lastPausedState) {
@@ -303,7 +312,7 @@ class FloatingIndicatorOverlay(
         statusTextView?.setTextColor(
             when {
                 state.isViolating -> riskColor
-                state.isAiOffline -> inactiveGrayColor
+                state.isAiOffline && currentMode() == SessionMode.FOCUS -> inactiveGrayColor
                 else -> subtleTextColor
             }
         )
@@ -387,7 +396,8 @@ class FloatingIndicatorOverlay(
     }
 
     private fun buildExpandedView(): View {
-        val statuses = buildRuleTypeStatuses()
+        val isGuarded = currentMode() == SessionMode.GUARDED
+        val statuses = if (isGuarded) emptyList() else buildRuleTypeStatuses()
 
         rootContainer = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -450,6 +460,10 @@ class FloatingIndicatorOverlay(
                 }
             }
         )
+
+        if (isGuarded) {
+            rootContainer?.addView(buildGuardedStatusCard())
+        }
 
         statuses.forEachIndexed { index, status ->
             rootContainer?.addView(buildStatusCard(status).apply {
@@ -605,6 +619,66 @@ class FloatingIndicatorOverlay(
         }
     }
 
+    private fun buildGuardedStatusCard(): View {
+        val hudState = currentGuardedHudState()
+        return LinearLayout(context).apply {
+            orientation = LinearLayout.VERTICAL
+            setPadding(12.dp(), 12.dp(), 12.dp(), 12.dp())
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            )
+            background = GradientDrawable().apply {
+                setColor(if (isDarkMode) Color.parseColor("#1F1F1F") else Color.parseColor("#FAFAFA"))
+                cornerRadius = 14.dp().toFloat()
+                setStroke(1, surfaceBorderColor)
+            }
+
+            addView(LinearLayout(context).apply {
+                orientation = LinearLayout.HORIZONTAL
+                gravity = Gravity.CENTER_VERTICAL
+                addView(TextView(context).apply {
+                    text = context.getString(R.string.guarded_entry_action)
+                    textSize = 14f
+                    setTextColor(strongTextColor)
+                    typeface = Typeface.DEFAULT_BOLD
+                    layoutParams = LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 1f)
+                })
+                addView(TextView(context).apply {
+                    text = context.getString(R.string.hud_guarded_active)
+                    textSize = 12f
+                    setTextColor(primaryColor)
+                    typeface = Typeface.DEFAULT_BOLD
+                    background = GradientDrawable().apply {
+                        setColor(adjustAlpha(primaryColor, 0.12f))
+                        cornerRadius = 999.dp().toFloat()
+                    }
+                    setPadding(10.dp(), 4.dp(), 10.dp(), 4.dp())
+                })
+            })
+
+            addView(TextView(context).apply {
+                text = context.getString(R.string.hud_guarded_consumed, hudState.consumedMinutes)
+                textSize = 12f
+                setTextColor(strongTextColor)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = 10.dp() }
+            })
+
+            addView(TextView(context).apply {
+                text = guardedNextStateText(hudState)
+                textSize = 12f
+                setTextColor(subtleTextColor)
+                layoutParams = LinearLayout.LayoutParams(
+                    LinearLayout.LayoutParams.MATCH_PARENT,
+                    LinearLayout.LayoutParams.WRAP_CONTENT
+                ).apply { topMargin = 6.dp() }
+            })
+        }
+    }
+
     private fun buildHeaderButton(text: String, onClick: () -> Unit): View {
         return TextView(context).apply {
             this.text = text
@@ -670,7 +744,9 @@ class FloatingIndicatorOverlay(
     private fun buildCompactStatusText(): String {
         val constraints = currentConstraints()
         val isChineseUi = AppLocalePrefs.getLanguage(context) == AppLocalePrefs.LANG_ZH
-        return if (state.isAiOffline) {
+        return if (currentMode() == SessionMode.GUARDED) {
+            guardedCompactText(currentGuardedHudState())
+        } else if (state.isAiOffline) {
             context.getString(R.string.hud_status_offline)
         } else if (constraints.isEmpty()) {
             context.getString(R.string.hud_tap_to_set_intent)
@@ -798,6 +874,45 @@ class FloatingIndicatorOverlay(
         return state.displayedConstraints ?: state.session?.constraints ?: emptyList()
     }
 
+    private fun currentMode(): SessionMode = state.session?.mode ?: state.displayedMode ?: SessionMode.FOCUS
+
+    private fun currentGuardedHudState(): GuardedHudState {
+        val session = state.session
+        return GuardedHudState.from(
+            consumedMs = session?.guardedConsumedMs ?: 0L,
+            reprieveUntil = session?.guardedReprieveUntil,
+            now = System.currentTimeMillis()
+        )
+    }
+
+    private fun guardedCompactText(hudState: GuardedHudState): String = when (hudState.phase) {
+        GuardedHudState.Phase.PAUSES_LATER -> context.getString(R.string.hud_guarded_pauses_later)
+        GuardedHudState.Phase.FIRST_PAUSE_COUNTDOWN -> context.getString(
+            R.string.hud_guarded_first_pause_in,
+            hudState.remainingMinutes ?: 1L
+        )
+        GuardedHudState.Phase.PAUSES_ACTIVE -> context.getString(R.string.hud_guarded_pauses_active)
+        GuardedHudState.Phase.REPRIEVE -> context.getString(
+            R.string.hud_guarded_reprieve,
+            hudState.remainingMinutes ?: 1L
+        )
+        GuardedHudState.Phase.WIND_DOWN -> context.getString(R.string.hud_guarded_wind_down)
+    }
+
+    private fun guardedNextStateText(hudState: GuardedHudState): String = when (hudState.phase) {
+        GuardedHudState.Phase.PAUSES_LATER,
+        GuardedHudState.Phase.FIRST_PAUSE_COUNTDOWN -> context.getString(
+            R.string.hud_guarded_first_pause_in,
+            hudState.remainingMinutes ?: 1L
+        )
+        GuardedHudState.Phase.PAUSES_ACTIVE -> context.getString(R.string.hud_guarded_next_pauses_increase)
+        GuardedHudState.Phase.REPRIEVE -> context.getString(
+            R.string.hud_guarded_reprieve_detail,
+            hudState.remainingMinutes ?: 1L
+        )
+        GuardedHudState.Phase.WIND_DOWN -> context.getString(R.string.hud_guarded_wind_down_detail)
+    }
+
     private fun hasRulesToShow(): Boolean = currentConstraints().isNotEmpty()
 
     private fun formatConstraintDetail(constraint: SessionConstraint): String {
@@ -901,6 +1016,9 @@ class FloatingIndicatorOverlay(
     }
 
     private fun getIndicatorColor(): Int {
+        if (currentMode() == SessionMode.GUARDED) {
+            return primaryColor
+        }
         if (state.isAiOffline) {
             return inactiveGrayColor
         }
@@ -1010,13 +1128,14 @@ class FloatingIndicatorOverlay(
             packageName: String,
             sessionManager: SessionManager,
             constraints: List<SessionConstraint>,
+            mode: SessionMode = SessionMode.FOCUS,
             onTapToReopen: () -> Unit
         ) {
             dismiss()
             val localizedContext = AppLocalePrefs.createLocalizedContext(context)
             val overlay = FloatingIndicatorOverlay(localizedContext, appName, packageName, sessionManager, onTapToReopen)
             overlay.state = overlay.state.copy(isAiOffline = currentAiOffline)
-            overlay.showWithConstraints(constraints)
+            overlay.showWithConstraints(constraints, mode)
             currentOverlay = overlay
         }
 
