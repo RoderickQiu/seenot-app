@@ -473,7 +473,7 @@ class FloatingIndicatorOverlay(
             })
         }
 
-        if (statuses.isEmpty()) {
+        if (!isGuarded && statuses.isEmpty()) {
             rootContainer?.addView(
                 TextView(context).apply {
                     text = context.getString(R.string.hud_no_intent_yet)

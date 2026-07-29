@@ -29,6 +29,7 @@ object GuardedInterventionOverlay {
     private const val TAG = "GuardedIntervention"
     private const val PROGRESS_MAX = 1_000
     private const val PROGRESS_FRAME_MS = 32L
+    private const val ELAPSED_REFRESH_MS = 1_000L
 
     private var root: View? = null
     private var windowManager: WindowManager? = null
@@ -63,13 +64,21 @@ object GuardedInterventionOverlay {
     fun showHold(
         context: Context,
         holdMs: Long,
+        consumedMs: Long,
         onComplete: () -> Unit,
         onLeave: () -> Unit = {}
     ) {
         val localizedContext = AppLocalePrefs.createLocalizedContext(context)
         val card = buildCard(localizedContext)
-        card.addView(buildTitle(localizedContext, localizedContext.getString(R.string.guarded_hold_title)))
-        card.addView(buildBody(localizedContext, localizedContext.getString(R.string.guarded_hold_message)))
+        val holdSeconds = ceil(holdMs / 1_000.0).toInt()
+        val shownAt = SystemClock.elapsedRealtime()
+        val title = buildTitle(localizedContext, formatElapsedTitle(localizedContext, consumedMs))
+        card.addView(title)
+        card.addView(buildBody(localizedContext, localizedContext.getString(R.string.guarded_hold_message, holdSeconds)))
+        card.addView(buildPrimaryAction(localizedContext, localizedContext.getString(R.string.guarded_leave_app)) {
+            dismiss(localizedContext)
+            onLeave()
+        })
 
         val progress = ProgressBar(localizedContext, null, android.R.attr.progressBarStyleHorizontal).apply {
             max = PROGRESS_MAX
@@ -81,7 +90,7 @@ object GuardedInterventionOverlay {
             ).apply { topMargin = 10.dp(localizedContext) }
         }
         val label = TextView(localizedContext).apply {
-            text = localizedContext.getString(R.string.guarded_hold_action)
+            text = localizedContext.getString(R.string.guarded_hold_action, holdSeconds)
             textSize = 16f
             setTextColor(Color.WHITE)
             typeface = Typeface.DEFAULT_BOLD
@@ -91,14 +100,14 @@ object GuardedInterventionOverlay {
             orientation = LinearLayout.VERTICAL
             gravity = Gravity.CENTER
             setPadding(18.dp(localizedContext), 15.dp(localizedContext), 18.dp(localizedContext), 13.dp(localizedContext))
-            background = roundedDrawable(primaryButtonColor(localizedContext), 14.dp(localizedContext).toFloat())
+            background = roundedDrawable(secondaryButtonColor(localizedContext), 14.dp(localizedContext).toFloat())
             isClickable = true
             isFocusable = true
-            contentDescription = localizedContext.getString(R.string.guarded_hold_action)
+            contentDescription = localizedContext.getString(R.string.guarded_hold_action, holdSeconds)
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { topMargin = 22.dp(localizedContext) }
+            ).apply { topMargin = 10.dp(localizedContext) }
             addView(label)
             addView(progress)
         }
@@ -110,7 +119,7 @@ object GuardedInterventionOverlay {
             holding = false
             handler.removeCallbacks(updateProgress)
             progress.progress = 0
-            label.text = localizedContext.getString(R.string.guarded_hold_action)
+            label.text = localizedContext.getString(R.string.guarded_hold_action, holdSeconds)
         }
         updateProgress = Runnable {
             if (!holding || root == null) return@Runnable
@@ -142,11 +151,25 @@ object GuardedInterventionOverlay {
             }
         }
         card.addView(holdButton)
-        card.addView(buildSecondaryAction(localizedContext, localizedContext.getString(R.string.guarded_leave_app)) {
-            dismiss(localizedContext)
-            onLeave()
-        })
         show(localizedContext, card)
+
+        lateinit var refreshElapsed: Runnable
+        refreshElapsed = Runnable {
+            if (root == null) return@Runnable
+            val elapsedWhileShown = SystemClock.elapsedRealtime() - shownAt
+            title.text = formatElapsedTitle(localizedContext, consumedMs + elapsedWhileShown)
+            handler.postDelayed(refreshElapsed, ELAPSED_REFRESH_MS)
+        }
+        handler.postDelayed(refreshElapsed, ELAPSED_REFRESH_MS)
+    }
+
+    private fun formatElapsedTitle(context: Context, consumedMs: Long): String {
+        val safeConsumedMs = consumedMs.coerceAtLeast(0L)
+        if (safeConsumedMs < 1_000L) return context.getString(R.string.guarded_hold_title_just_started)
+        if (safeConsumedMs < 60_000L) {
+            return context.getString(R.string.guarded_hold_title_seconds, safeConsumedMs / 1_000L)
+        }
+        return context.getString(R.string.guarded_hold_title_minutes, safeConsumedMs / 60_000L)
     }
 
     private fun show(context: Context, card: View) {
@@ -214,6 +237,20 @@ object GuardedInterventionOverlay {
         isFocusable = true
         setOnClickListener { action() }
         layoutParams = LinearLayout.LayoutParams(-1, -2).apply { topMargin = 10.dp(context) }
+    }
+
+    private fun buildPrimaryAction(context: Context, value: String, action: () -> Unit) = TextView(context).apply {
+        text = value
+        textSize = 16f
+        setTextColor(Color.WHITE)
+        typeface = Typeface.DEFAULT_BOLD
+        gravity = Gravity.CENTER
+        setPadding(18.dp(context), 15.dp(context), 18.dp(context), 15.dp(context))
+        background = roundedDrawable(primaryButtonColor(context), 14.dp(context).toFloat())
+        isClickable = true
+        isFocusable = true
+        setOnClickListener { action() }
+        layoutParams = LinearLayout.LayoutParams(-1, -2).apply { topMargin = 22.dp(context) }
     }
 
     private fun buildProgressDrawable(context: Context): LayerDrawable {

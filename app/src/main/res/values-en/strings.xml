@@ -234,13 +234,17 @@
     <!-- IntentInputDialogOverlay -->
     <string name="intent_can_speak_or_type">Speak or type your intent</string>
     <string name="guarded_entry_action">Use with pauses</string>
+    <string name="guarded_dimming_title">Gradually dim the screen</string>
+    <string name="guarded_dimming_summary">The screen gradually dims during Guarded use. Pauses and holds still apply when this is off.</string>
     <string name="guarded_pause_title">Take a moment</string>
     <string name="guarded_pause_message">Nothing to do. This pause will end automatically.</string>
-    <string name="guarded_hold_title">Continue?</string>
-    <string name="guarded_hold_message">Keep holding the button. You’ll continue automatically when the progress completes.</string>
-    <string name="guarded_hold_action">Hold to continue</string>
+    <string name="guarded_hold_title_just_started">Just started</string>
+    <string name="guarded_hold_title_seconds">%d sec already</string>
+    <string name="guarded_hold_title_minutes">%d min already</string>
+    <string name="guarded_hold_message">This is a good time to end this session. Continuing takes a %d-sec hold, and the next pause will be harder.</string>
+    <string name="guarded_hold_action">Hold to continue · %d sec</string>
     <string name="guarded_hold_progress">Keep holding · %d sec</string>
-    <string name="guarded_leave_app">End this session and leave</string>
+    <string name="guarded_leave_app">End this session</string>
     <string name="focus_block_optional">Focus block (optional)</string>
     <string name="focus_block_speak_action">Say what you want to focus on</string>
     <string name="intent_type_to_declare">Type to declare intent</string>

@@ -79,6 +79,7 @@ import com.seenot.app.config.selectableProviders
 import com.seenot.app.config.selectableSttProviders
 import com.seenot.app.config.IntentReminderPrefs
 import com.seenot.app.config.NoMonitorReminderPrefs
+import com.seenot.app.config.GuardedModePrefs
 import com.seenot.app.config.RuleRecordingPrefs
 import com.seenot.app.domain.AppEntryIntentMode
 import com.seenot.app.domain.SessionManager
@@ -147,6 +148,7 @@ fun SettingsTab(
     var showAnalysisResultToast by remember { mutableStateOf(RuleRecordingPrefs.isAnalysisResultToastEnabled(context)) }
     var intentReminderEnabled by remember { mutableStateOf(IntentReminderPrefs.isEnabled(context)) }
     var noMonitorReminderEnabled by remember { mutableStateOf(NoMonitorReminderPrefs.isEnabled(context)) }
+    var guardedDimmingEnabled by remember { mutableStateOf(GuardedModePrefs.isDimmingEnabled(context)) }
     var intentReminderDelayMs by remember { mutableLongStateOf(IntentReminderPrefs.getDelayMs(context)) }
     var intentReminderDropdownExpanded by remember { mutableStateOf(false) }
     var nonGentleAllowIgnoreOnce by remember {
@@ -301,6 +303,16 @@ fun SettingsTab(
                     RuleRecordingPrefs.setHomeTimelineEnabled(context, it)
                     sessionManager.enqueueGlobalPreferencesSync()
                     onHomeTimelineChanged(it)
+                }
+            )
+            HorizontalDivider()
+            SettingsSwitchRow(
+                title = stringResource(R.string.guarded_dimming_title),
+                summary = stringResource(R.string.guarded_dimming_summary),
+                checked = guardedDimmingEnabled,
+                onCheckedChange = {
+                    guardedDimmingEnabled = it
+                    GuardedModePrefs.setDimmingEnabled(context, it)
                 }
             )
             HorizontalDivider()

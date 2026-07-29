@@ -79,7 +79,6 @@ import com.seenot.app.config.selectableProviders
 import com.seenot.app.config.selectableSttProviders
 import com.seenot.app.config.IntentReminderPrefs
 import com.seenot.app.config.NoMonitorReminderPrefs
-import com.seenot.app.config.GuardedModePrefs
 import com.seenot.app.config.RuleRecordingPrefs
 import com.seenot.app.domain.AppEntryIntentMode
 import com.seenot.app.domain.SessionManager
@@ -134,10 +133,6 @@ fun AppRulesDialog(
     var showAddPresetDialog by remember { mutableStateOf(false) }
     var editingRuleIndex by remember { mutableStateOf<Int?>(null) }
     var editingPresetIndex by remember { mutableStateOf<Int?>(null) }
-    var guardedDimming by remember(app.packageName) {
-        mutableStateOf(GuardedModePrefs.isDimmingEnabled(context, app.packageName))
-    }
-
     var hints by remember { mutableStateOf<List<com.seenot.app.data.model.AppHint>>(emptyList()) }
     var showAddHintDialog by remember { mutableStateOf(false) }
     var newHintText by remember { mutableStateOf("") }
@@ -405,22 +400,6 @@ fun AppRulesDialog(
                     .heightIn(max = 400.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text("Dim during Guarded use", style = MaterialTheme.typography.bodyMedium)
-                            Text("Breath and hold steps still apply when off", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
-                        }
-                        Switch(checked = guardedDimming, onCheckedChange = {
-                            guardedDimming = it
-                            GuardedModePrefs.setDimmingEnabled(context, app.packageName, it)
-                        })
-                    }
-                }
                 item {
                     AppEntryIntentModeSection(
                         selectedMode = appEntryIntentMode,

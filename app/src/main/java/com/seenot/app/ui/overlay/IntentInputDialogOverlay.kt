@@ -40,6 +40,7 @@ import com.seenot.app.domain.AppEntryIntentMode
 import com.seenot.app.domain.SessionConstraint
 import com.seenot.app.domain.SessionManager
 import com.seenot.app.domain.SessionMode
+import com.seenot.app.domain.GuardedSessionConstraint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.Job
@@ -293,7 +294,7 @@ class IntentInputDialogOverlay(
         }
         cardContent.addView(titleText)
 
-        // Guarded is the compact default action; Focus remains available below it.
+        // Guarded is the full-width default action; Focus remains available below it.
         val guardedButton = TextView(context).apply {
             text = context.getString(R.string.guarded_entry_action)
             textSize = 14f
@@ -306,10 +307,9 @@ class IntentInputDialogOverlay(
             }
             setPadding(14.dp(), 14.dp(), 14.dp(), 14.dp())
             layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.MATCH_PARENT,
                 LinearLayout.LayoutParams.WRAP_CONTENT
             ).apply {
-                gravity = Gravity.START
                 topMargin = 16.dp()
                 bottomMargin = 18.dp()
             }
@@ -607,7 +607,7 @@ class IntentInputDialogOverlay(
     private fun startGuardedSession() {
         dismiss()
         onIntentConfirmed(listOf(SessionConstraint(
-            id = "guarded-mode",
+            id = GuardedSessionConstraint.ID,
             type = ConstraintType.TIME_CAP,
             description = context.getString(R.string.guarded_entry_action),
             timeLimitMs = null,

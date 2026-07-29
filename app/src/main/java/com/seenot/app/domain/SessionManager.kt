@@ -203,6 +203,7 @@ class SessionManager(
         GuardedInterventionOverlay.showHold(
             context = context,
             holdMs = 3_000L,
+            consumedMs = session.guardedConsumedMs,
             onComplete = {},
             onLeave = ::leaveGuardedSession
         )
@@ -2198,6 +2199,7 @@ class SessionManager(
                             GuardedModeLadder.Step.HOLD -> GuardedInterventionOverlay.showHold(
                                 context = context,
                                 holdMs = GuardedModeLadder.holdDurationMs(newConsumed),
+                                consumedMs = newConsumed,
                                 onComplete = {
                                     GuardedDimmingOverlay.dismiss()
                                     _activeSession.value = (_activeSession.value ?: session).copy(
@@ -2279,7 +2281,7 @@ class SessionManager(
             session.mode == SessionMode.GUARDED &&
             !session.isPaused &&
             !inReprieve &&
-            com.seenot.app.config.GuardedModePrefs.isDimmingEnabled(context, session.appPackageName)
+            com.seenot.app.config.GuardedModePrefs.isDimmingEnabled(context)
         ) {
             GuardedModeLadder.dimFraction(session.guardedConsumedMs)
         } else {
@@ -2592,8 +2594,8 @@ class SessionManager(
      * the per-app history list (deduplicated by constraint fingerprint).
      */
     fun saveLastIntent(packageName: String, constraints: List<SessionConstraint>) {
-        if (constraints.isNoMonitorOnly()) {
-            Logger.d(TAG, "Skipped saving no-monitor intent for $packageName")
+        if (constraints.isNoMonitorOnly() || GuardedSessionConstraint.isInternalEntry(constraints)) {
+            Logger.d(TAG, "Skipped saving non-focus intent for $packageName")
             return
         }
         val json = serializeConstraints(constraints)
@@ -2604,7 +2606,7 @@ class SessionManager(
     }
 
     fun replaceLastIntent(packageName: String, constraints: List<SessionConstraint>) {
-        if (constraints.isEmpty() || constraints.isNoMonitorOnly()) {
+        if (constraints.isEmpty() || constraints.isNoMonitorOnly() || GuardedSessionConstraint.isInternalEntry(constraints)) {
             prefs.edit().remove("${KEY_LAST_INTENT_PREFIX}$packageName").apply()
             Logger.d(TAG, "Cleared last intent for $packageName")
             return
@@ -2621,7 +2623,7 @@ class SessionManager(
         val json = prefs.getString("${KEY_LAST_INTENT_PREFIX}$packageName", null) ?: return null
         return deserializeConstraints(json)
             ?.let { InterventionLevelPrefs.applyToConstraints(context, it) }
-            ?.takeUnless { it.isNoMonitorOnly() }
+            ?.takeUnless { it.isNoMonitorOnly() || GuardedSessionConstraint.isInternalEntry(it) }
     }
 
     /**
@@ -2665,7 +2667,7 @@ class SessionManager(
             dedupeHistoryByName(
                 outerList.mapNotNull { entry -> deserializeConstraintList(entry) }
                     .map { InterventionLevelPrefs.applyToConstraints(context, it) }
-                    .filterNot { it.isNoMonitorOnly() }
+                    .filterNot { it.isNoMonitorOnly() || GuardedSessionConstraint.isInternalEntry(it) }
             )
         } catch (e: Exception) {
             Logger.e(TAG, "Failed to load intent history for $packageName", e)
@@ -2674,8 +2676,8 @@ class SessionManager(
     }
 
     private fun appendToIntentHistory(packageName: String, constraints: List<SessionConstraint>) {
-        if (constraints.isNoMonitorOnly()) {
-            Logger.d(TAG, "Skipped adding no-monitor intent to history for $packageName")
+        if (constraints.isNoMonitorOnly() || GuardedSessionConstraint.isInternalEntry(constraints)) {
+            Logger.d(TAG, "Skipped adding non-focus intent to history for $packageName")
             return
         }
         val nameFingerprint = getConstraintNameFingerprint(constraints)
@@ -2724,7 +2726,9 @@ class SessionManager(
      * Save preset rules for a specific app.
      */
     fun savePresetRules(packageName: String, rules: List<SessionConstraint>) {
-        val dedupedRules = dedupePresetRulesByName(rules.filter { it.type != ConstraintType.NO_MONITOR })
+        val dedupedRules = dedupePresetRulesByName(
+            rules.filter { it.type != ConstraintType.NO_MONITOR && !GuardedSessionConstraint.isInternal(it) }
+        )
         val json = gson.toJson(dedupedRules.map { constraint ->
             mapOf(
                 "id" to constraint.id,
@@ -2775,7 +2779,7 @@ class SessionManager(
                         Logger.e(TAG, "Failed to parse preset rule", e)
                         null
                     }
-                }.filter { it.type != ConstraintType.NO_MONITOR })
+                }.filter { it.type != ConstraintType.NO_MONITOR && !GuardedSessionConstraint.isInternal(it) })
             )
         } catch (e: Exception) {
             Logger.e(TAG, "Failed to load preset rules for $packageName", e)
@@ -2819,7 +2823,9 @@ class SessionManager(
      * Save intent history (for editing).
      */
     fun saveIntentHistory(packageName: String, history: List<List<SessionConstraint>>) {
-        val trimmed = dedupeHistoryByName(history.filterNot { it.isNoMonitorOnly() }).take(MAX_HISTORY_PER_APP)
+        val trimmed = dedupeHistoryByName(
+            history.filterNot { it.isNoMonitorOnly() || GuardedSessionConstraint.isInternalEntry(it) }
+        ).take(MAX_HISTORY_PER_APP)
         val json = gson.toJson(trimmed.map { constraints ->
             constraints.map { constraint ->
                 mapOf<String, Any?>(

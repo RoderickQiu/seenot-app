@@ -36,6 +36,15 @@ class GuardedInterventionOverlaySourceTest {
     }
 
     @Test
+    fun elapsedUsageKeepsUpdatingWhileHoldIsVisible() {
+        assertTrue(overlaySource.contains("SystemClock.elapsedRealtime() - shownAt"))
+        assertTrue(overlaySource.contains("handler.postDelayed(refreshElapsed, ELAPSED_REFRESH_MS)"))
+        assertTrue(overlaySource.contains("R.string.guarded_hold_title_seconds"))
+        assertTrue(overlaySource.contains("R.string.guarded_hold_title_minutes"))
+        assertFalse(overlaySource.contains("coerceAtLeast(1L) / 60_000.0"))
+    }
+
+    @Test
     fun guardedOverlayIsDismissedAcrossEverySessionAndServiceExitPath() {
         val pauseBody = sessionSource.substringAfter("fun pauseSession()")
             .substringBefore("fun pauseActiveMonitoringForMainActivity()")

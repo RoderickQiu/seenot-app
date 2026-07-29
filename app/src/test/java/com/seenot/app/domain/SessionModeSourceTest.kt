@@ -24,4 +24,10 @@ class SessionModeSourceTest {
             )
         )
     }
+
+    @Test
+    fun legacyGuardedConstraintsAreExcludedFromStoredFocusSurfaces() {
+        assertTrue(source.contains("GuardedSessionConstraint.isInternalEntry"))
+        assertTrue(source.contains("!GuardedSessionConstraint.isInternal(it)"))
+    }
 }
