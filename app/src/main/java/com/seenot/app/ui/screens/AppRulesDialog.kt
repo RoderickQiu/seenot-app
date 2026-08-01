@@ -130,6 +130,7 @@ fun AppRulesDialog(
     var presetRules by remember { mutableStateOf<List<SessionConstraint>>(emptyList()) }
     var lastIntentRules by remember { mutableStateOf<List<SessionConstraint>>(emptyList()) }
     var appEntryIntentMode by remember { mutableStateOf(sessionManager.getAppEntryIntentMode(app.packageName)) }
+    var defaultRuleEnabled by remember { mutableStateOf(sessionManager.isDefaultRuleEnabled(app.packageName)) }
     var showAddPresetDialog by remember { mutableStateOf(false) }
     var editingRuleIndex by remember { mutableStateOf<Int?>(null) }
     var editingPresetIndex by remember { mutableStateOf<Int?>(null) }
@@ -150,6 +151,17 @@ fun AppRulesDialog(
         val previousRules = presetRules
         presetRules = rules
         sessionManager.savePresetRules(app.packageName, rules)
+        if (rules.none { it.isDefault }) {
+            defaultRuleEnabled = false
+            sessionManager.setDefaultRuleEnabled(app.packageName, false)
+            if (appEntryIntentMode != AppEntryIntentMode.ASK_EVERY_TIME) {
+                appEntryIntentMode = AppEntryIntentMode.ASK_EVERY_TIME
+                sessionManager.setAppEntryIntentMode(
+                    app.packageName,
+                    AppEntryIntentMode.ASK_EVERY_TIME
+                )
+            }
+        }
         uiScope.launch {
             sessionManager.syncActiveSessionConstraintEditsForApp(
                 packageName = app.packageName,
@@ -172,6 +184,7 @@ fun AppRulesDialog(
         }
         lastIntentRules = sessionManager.loadLastIntent(app.packageName).orEmpty()
         appEntryIntentMode = sessionManager.getAppEntryIntentMode(app.packageName)
+        defaultRuleEnabled = sessionManager.isDefaultRuleEnabled(app.packageName)
         reloadHints()
     }
 
@@ -401,37 +414,92 @@ fun AppRulesDialog(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 item {
-                    AppEntryIntentModeSection(
-                        selectedMode = appEntryIntentMode,
-                        presetRules = presetRules,
-                        onModeSelected = { mode ->
-                            if (mode == AppEntryIntentMode.ASK_EVERY_TIME && presetRules.any { it.isDefault }) {
-                                val newPresets = presetRules.map { it.copy(isDefault = false) }
-                                savePresetRulesAndSyncSession(newPresets)
+                    val defaultRule = presetRules.firstOrNull { it.isDefault }
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(enabled = defaultRule != null) {
+                                val enabled = !defaultRuleEnabled
+                                defaultRuleEnabled = enabled
+                                sessionManager.setDefaultRuleEnabled(app.packageName, enabled)
+                                if (!enabled && appEntryIntentMode != AppEntryIntentMode.ASK_EVERY_TIME) {
+                                    appEntryIntentMode = AppEntryIntentMode.ASK_EVERY_TIME
+                                    sessionManager.setAppEntryIntentMode(
+                                        app.packageName,
+                                        AppEntryIntentMode.ASK_EVERY_TIME
+                                    )
+                                }
+                                onSyncNeeded()
                             }
-                            if (mode == AppEntryIntentMode.USE_PRESET && presetRules.none { it.isDefault }) {
-                                val firstPreset = presetRules.firstOrNull()
-                                if (firstPreset != null) {
-                                    val newPresets = presetRules.map { rule ->
-                                        rule.copy(isDefault = rule.id == firstPreset.id)
+                            .padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.use_default_rule),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = defaultRule?.description
+                                    ?: stringResource(R.string.no_default_rule_card),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        Switch(
+                            checked = defaultRuleEnabled && defaultRule != null,
+                            onCheckedChange = null,
+                            enabled = defaultRule != null
+                        )
+                    }
+                }
+
+                item {
+                    val askEveryTime = appEntryIntentMode == AppEntryIntentMode.ASK_EVERY_TIME
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                val nextAskEveryTime = !askEveryTime
+                                val hasDefaultRule = presetRules.any { it.isDefault }
+                                if (!nextAskEveryTime && !hasDefaultRule) {
+                                    Toast.makeText(
+                                        context,
+                                        context.getString(R.string.default_rule_required_for_direct_entry),
+                                        Toast.LENGTH_SHORT
+                                    ).show()
+                                } else {
+                                    appEntryIntentMode = if (nextAskEveryTime) {
+                                        AppEntryIntentMode.ASK_EVERY_TIME
+                                    } else {
+                                        AppEntryIntentMode.USE_PRESET
                                     }
-                                    savePresetRulesAndSyncSession(newPresets)
+                                    sessionManager.setAppEntryIntentMode(app.packageName, appEntryIntentMode)
+                                    onSyncNeeded()
                                 }
                             }
-                            appEntryIntentMode = mode
-                            sessionManager.setAppEntryIntentMode(app.packageName, mode)
-                            onSyncNeeded()
-                        },
-                        onPresetSelected = { presetId ->
-                            val newPresets = presetRules.map { rule ->
-                                rule.copy(isDefault = rule.id == presetId)
-                            }
-                            appEntryIntentMode = AppEntryIntentMode.USE_PRESET
-                            savePresetRulesAndSyncSession(newPresets)
-                            sessionManager.setAppEntryIntentMode(app.packageName, AppEntryIntentMode.USE_PRESET)
-                            onSyncNeeded()
+                            .padding(vertical = 2.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(R.string.ask_intent_every_time),
+                                style = MaterialTheme.typography.bodyMedium
+                            )
+                            Text(
+                                text = stringResource(R.string.ask_intent_every_time_description),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
-                    )
+                        Switch(
+                            checked = askEveryTime,
+                            onCheckedChange = null
+                        )
+                    }
+                    HorizontalDivider(modifier = Modifier.padding(top = 8.dp))
                 }
 
                 item {
@@ -488,24 +556,30 @@ fun AppRulesDialog(
                                     text = "${stringResource(constraintTypeLabel(constraint.type))}: ${constraint.description}",
                                     style = MaterialTheme.typography.bodySmall
                                 )
+                                if (constraint.isDefault) {
+                                    Text(
+                                        text = stringResource(R.string.default_rule_label),
+                                        style = MaterialTheme.typography.labelSmall,
+                                        color = MaterialTheme.colorScheme.primary
+                                    )
+                                }
                             }
                             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                                 IconButton(
                                     onClick = {
+                                        val willBeDefault = !constraint.isDefault
                                         val newPresets = presetRules.map { rule ->
                                             if (rule.id == constraint.id) {
-                                                rule.copy(isDefault = !rule.isDefault)
+                                                rule.copy(isDefault = willBeDefault)
                                             } else {
                                                 rule.copy(isDefault = false)
                                             }
                                         }
-                                        appEntryIntentMode = if (newPresets.any { it.isDefault }) {
-                                            AppEntryIntentMode.USE_PRESET
-                                        } else {
-                                            AppEntryIntentMode.ASK_EVERY_TIME
-                                        }
                                         savePresetRulesAndSyncSession(newPresets)
-                                        sessionManager.setAppEntryIntentMode(app.packageName, appEntryIntentMode)
+                                        if (willBeDefault) {
+                                            defaultRuleEnabled = true
+                                            sessionManager.setDefaultRuleEnabled(app.packageName, true)
+                                        }
                                         onSyncNeeded()
                                     },
                                     modifier = Modifier.size(24.dp)
@@ -520,11 +594,6 @@ fun AppRulesDialog(
                                 IconButton(
                                     onClick = {
                                         val newPresets = presetRules.toMutableList().apply { removeAt(index) }
-                                        if (newPresets.none { it.isDefault } && appEntryIntentMode == AppEntryIntentMode.USE_PRESET) {
-                                            appEntryIntentMode = AppEntryIntentMode.ASK_EVERY_TIME
-                                            sessionManager.setAppEntryIntentMode(app.packageName, appEntryIntentMode)
-                                            onSyncNeeded()
-                                        }
                                         savePresetRulesAndSyncSession(newPresets)
                                     },
                                     modifier = Modifier.size(24.dp)
@@ -898,10 +967,10 @@ private fun AppEntryIntentModeSection(
             }
         }
         AppEntryIntentModeRow(
-            title = stringResource(R.string.entry_mode_last),
-            selected = selectedMode == AppEntryIntentMode.USE_LAST_INTENT,
+            title = stringResource(R.string.entry_mode_guarded),
+            selected = selectedMode == AppEntryIntentMode.GUARDED,
             enabled = true,
-            onClick = { onModeSelected(AppEntryIntentMode.USE_LAST_INTENT) }
+            onClick = { onModeSelected(AppEntryIntentMode.GUARDED) }
         )
     }
 }

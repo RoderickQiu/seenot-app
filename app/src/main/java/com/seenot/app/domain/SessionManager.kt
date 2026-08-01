@@ -64,7 +64,8 @@ import kotlinx.coroutines.sync.withLock
 enum class AppEntryIntentMode {
     ASK_EVERY_TIME,
     USE_PRESET,
-    USE_LAST_INTENT
+    USE_LAST_INTENT,
+    GUARDED
 }
 
 /**
@@ -89,6 +90,7 @@ class SessionManager(
         private const val KEY_INTENT_HISTORY_PREFIX = "intent_history_"
         private const val KEY_PRESET_RULES_PREFIX = "preset_rules_"
         private const val KEY_DEFAULT_RULE_PREFIX = "default_rule_"
+        private const val KEY_DEFAULT_RULE_ENABLED_PREFIX = "default_rule_enabled_"
         private const val KEY_APP_ENTRY_INTENT_MODE_PREFIX = "app_entry_intent_mode_"
         private const val KEY_AUTO_START = "auto_start"
         private const val KEY_PAUSED_APP_MONITORING = "paused_app_monitoring"
@@ -648,9 +650,13 @@ class SessionManager(
             totalTimeLimitMs = null
         )
 
+        val sessionGoalConstraints = sessionGoalOnly(constraints)
         val effectiveConstraints = prepareConstraintsForUse(
             packageName = packageName,
-            constraints = InterventionLevelPrefs.applyToConstraints(context, constraints)
+            constraints = InterventionLevelPrefs.applyToConstraints(
+                context,
+                effectiveSessionConstraints(packageName, constraints)
+            )
         )
 
         val activeSession = ActiveSession(
@@ -673,8 +679,8 @@ class SessionManager(
         resetConstraintMatchStates(effectiveConstraints)
         persistSessionConstraints(sessionId, effectiveConstraints)
 
-        if (mode == SessionMode.FOCUS) {
-            saveLastIntent(packageName, effectiveConstraints)
+        if (mode == SessionMode.FOCUS && sessionGoalConstraints.isNotEmpty()) {
+            saveLastIntent(packageName, sessionGoalConstraints)
         }
         startTimer()
         if (mode == SessionMode.FOCUS) {
@@ -683,7 +689,7 @@ class SessionManager(
             }
         }
 
-        if (mode == SessionMode.FOCUS && ApiConfig.isConfigured() && effectiveConstraints.any { it.type != ConstraintType.NO_MONITOR }) {
+        if (ApiConfig.isConfigured() && effectiveConstraints.any { it.type != ConstraintType.NO_MONITOR && !GuardedSessionConstraint.isInternal(it) }) {
             startScreenAnalysis(packageName, displayName, effectiveConstraints)
         }
 
@@ -729,7 +735,9 @@ class SessionManager(
      */
     @Suppress("UNUSED_PARAMETER")
     private fun startScreenAnalysis(packageName: String, displayName: String, constraints: List<SessionConstraint>) {
-        val analysisConstraints = constraints.filter { it.type != ConstraintType.NO_MONITOR }
+        val analysisConstraints = constraints.filter {
+            it.type != ConstraintType.NO_MONITOR && !GuardedSessionConstraint.isInternal(it)
+        }
         if (analysisConstraints.isEmpty()) {
             Logger.d(TAG, "Skipped screen analysis for no-monitor session")
             return
@@ -1492,7 +1500,7 @@ class SessionManager(
                 if (shouldPauseJudgment) {
                     isFalsePositiveLearningInProgress = false
                     val active = _activeSession.value
-                    if (active != null && active.mode == SessionMode.FOCUS && !active.isPaused && ApiConfig.isConfigured()) {
+                    if (active != null && shouldAnalyze(active) && !active.isPaused && ApiConfig.isConfigured()) {
                         startScreenAnalysis(active.appPackageName, active.appDisplayName, active.constraints)
                     }
                 }
@@ -1510,7 +1518,7 @@ class SessionManager(
 
     private fun refreshActiveSessionAnalysisAfterFalsePositive(source: String) {
         val active = _activeSession.value ?: return
-        if (active.mode != SessionMode.FOCUS || active.isPaused || !ApiConfig.isConfigured()) return
+        if (!shouldAnalyze(active) || active.isPaused || !ApiConfig.isConfigured()) return
 
         Logger.d(TAG, "Refreshing analysis after false positive from $source")
         screenAnalyzer?.pauseAnalysis()
@@ -1751,7 +1759,7 @@ class SessionManager(
         startTimer()
 
         // Restart screen analysis
-        if (session.mode == SessionMode.FOCUS && ApiConfig.isConfigured()) {
+        if (shouldAnalyze(session) && ApiConfig.isConfigured()) {
             startScreenAnalysis(session.appPackageName, session.appDisplayName, session.constraints)
         }
 
@@ -1956,6 +1964,86 @@ class SessionManager(
         _sessionEvents.emit(SessionEvent.ConstraintsModified(merged))
     }
 
+    /** Removes only the temporary goal while preserving the app's default rule and guarded state. */
+    suspend fun clearCurrentSessionGoal() {
+        val session = _activeSession.value ?: return
+        val retained = session.constraints.filter { constraint ->
+            constraint.isDefault || GuardedSessionConstraint.isInternal(constraint)
+        }
+        if (retained == session.constraints) return
+
+        val updated = session.copy(
+            constraints = retained,
+            constraintTimeRemaining = reconcileTimeRemaining(session, retained)
+        )
+        _activeSession.value = updated
+        reconcileConstraintMatchStates(retained)
+        persistSessionConstraints(session.sessionId, retained)
+
+        if (!session.isPaused) {
+            if (ApiConfig.isConfigured() && shouldAnalyze(updated)) {
+                screenAnalyzer?.pauseAnalysis()
+                startScreenAnalysis(updated.appPackageName, updated.appDisplayName, retained)
+            } else {
+                stopScreenAnalysis()
+            }
+        }
+        _sessionEvents.emit(SessionEvent.ConstraintsModified(retained))
+        Logger.d(TAG, "Cleared current session goal for ${session.appPackageName}")
+    }
+
+    /** Replaces the temporary goal without replacing the current usage session. */
+    suspend fun replaceCurrentSessionGoal(
+        sessionGoalConstraints: List<SessionConstraint>,
+        mode: SessionMode
+    ): Long? {
+        val session = _activeSession.value ?: return null
+        val goals = sessionGoalOnly(sessionGoalConstraints)
+        val modeConstraint = sessionGoalConstraints.firstOrNull { GuardedSessionConstraint.isInternal(it) }
+        val combined = effectiveSessionConstraints(
+            session.appPackageName,
+            goals + listOfNotNull(modeConstraint)
+        )
+        val prepared = prepareConstraintsForUse(
+            session.appPackageName,
+            InterventionLevelPrefs.applyToConstraints(context, combined)
+        )
+        val now = SystemClock.elapsedRealtime()
+        val updated = session.copy(
+            constraints = prepared,
+            mode = mode,
+            constraintTimeRemaining = reconcileTimeRemaining(session, prepared),
+            guardedLastTickAt = when {
+                mode != SessionMode.GUARDED -> null
+                session.mode == SessionMode.GUARDED -> session.guardedLastTickAt
+                else -> now
+            }
+        )
+        _activeSession.value = updated
+        reconcileConstraintMatchStates(prepared)
+        persistSessionConstraints(session.sessionId, prepared)
+
+        if (mode == SessionMode.FOCUS && goals.isNotEmpty()) {
+            saveLastIntent(session.appPackageName, goals)
+        }
+        if (mode != SessionMode.GUARDED) {
+            GuardedDimmingOverlay.dismiss()
+            GuardedInterventionOverlay.dismiss(context)
+        }
+        updateGuardedDimming(updated, now)
+        if (!session.isPaused) {
+            if (ApiConfig.isConfigured() && shouldAnalyze(updated)) {
+                screenAnalyzer?.pauseAnalysis()
+                startScreenAnalysis(updated.appPackageName, updated.appDisplayName, prepared)
+            } else {
+                stopScreenAnalysis()
+            }
+        }
+        _sessionEvents.emit(SessionEvent.ConstraintsModified(prepared))
+        Logger.d(TAG, "Replaced current session goal for ${session.appPackageName} without replacing the session")
+        return session.sessionId
+    }
+
     /**
      * Replace the running session constraints for an app after the user edits presets in the main UI.
      * This keeps a paused/resumed session aligned with the latest app-level intent settings.
@@ -1966,18 +2054,26 @@ class SessionManager(
         updatedConstraints: List<SessionConstraint>,
         allowPositionFallback: Boolean = false
     ) {
-        if (originalConstraints.isEmpty()) return
         val preparedUpdatedConstraints = prepareConstraintsForUse(packageName, updatedConstraints)
 
         var updatedSession: ActiveSession? = null
 
         val active = _activeSession.value
         if (active?.appPackageName == packageName) {
-            val syncedConstraints = applyConstraintEdits(
-                current = active.constraints,
-                original = originalConstraints,
-                updated = preparedUpdatedConstraints,
-                allowPositionFallback = allowPositionFallback
+            val editedConstraints = if (originalConstraints.isEmpty()) {
+                active.constraints
+            } else {
+                applyConstraintEdits(
+                    current = active.constraints,
+                    original = originalConstraints,
+                    updated = preparedUpdatedConstraints,
+                    allowPositionFallback = allowPositionFallback
+                )
+            }
+            val syncedConstraints = reconcileDefaultRuleChange(
+                editedConstraints,
+                originalConstraints,
+                preparedUpdatedConstraints
             )
             if (syncedConstraints == active.constraints) return
 
@@ -1990,7 +2086,7 @@ class SessionManager(
             persistSessionConstraints(active.sessionId, syncedConstraints)
 
             if (!active.isPaused) {
-                if (active.mode == SessionMode.FOCUS && ApiConfig.isConfigured() && syncedConstraints.any { it.type != ConstraintType.NO_MONITOR }) {
+                if (ApiConfig.isConfigured() && shouldAnalyze(updatedSession)) {
                     screenAnalyzer?.pauseAnalysis()
                     startScreenAnalysis(active.appPackageName, active.appDisplayName, syncedConstraints)
                 } else {
@@ -2002,11 +2098,20 @@ class SessionManager(
         val suspended = suspendedSessions[packageName]
         if (suspended != null) {
             val (session, pausedAt) = suspended
-            val syncedConstraints = applyConstraintEdits(
-                current = session.constraints,
-                original = originalConstraints,
-                updated = preparedUpdatedConstraints,
-                allowPositionFallback = allowPositionFallback
+            val editedConstraints = if (originalConstraints.isEmpty()) {
+                session.constraints
+            } else {
+                applyConstraintEdits(
+                    current = session.constraints,
+                    original = originalConstraints,
+                    updated = preparedUpdatedConstraints,
+                    allowPositionFallback = allowPositionFallback
+                )
+            }
+            val syncedConstraints = reconcileDefaultRuleChange(
+                editedConstraints,
+                originalConstraints,
+                preparedUpdatedConstraints
             )
             if (syncedConstraints == session.constraints) {
                 return
@@ -2049,7 +2154,7 @@ class SessionManager(
                 persistSessionConstraints(active.sessionId, refreshedConstraints)
 
                 if (!active.isPaused) {
-                if (active.mode == SessionMode.FOCUS && ApiConfig.isConfigured() && refreshedConstraints.any { it.type != ConstraintType.NO_MONITOR }) {
+                if (ApiConfig.isConfigured() && shouldAnalyze(updatedSession)) {
                         screenAnalyzer?.pauseAnalysis()
                         startScreenAnalysis(active.appPackageName, active.appDisplayName, refreshedConstraints)
                     } else {
@@ -2654,15 +2759,12 @@ class SessionManager(
 
     fun getAppEntryIntentMode(packageName: String): AppEntryIntentMode {
         val stored = prefs.getString("${KEY_APP_ENTRY_INTENT_MODE_PREFIX}$packageName", null)
-        if (stored != null) {
-            return runCatching { AppEntryIntentMode.valueOf(stored) }
-                .getOrDefault(AppEntryIntentMode.ASK_EVERY_TIME)
+        val parsed = stored?.let { runCatching { AppEntryIntentMode.valueOf(it) }.getOrNull() }
+        val resolved = resolveEntryMode(parsed, getDefaultRule(packageName) != null)
+        if (parsed != null && parsed != resolved) {
+            setAppEntryIntentMode(packageName, resolved)
         }
-        return if (getDefaultRule(packageName) != null) {
-            AppEntryIntentMode.USE_PRESET
-        } else {
-            AppEntryIntentMode.ASK_EVERY_TIME
-        }
+        return resolved
     }
 
     fun setAppEntryIntentMode(packageName: String, mode: AppEntryIntentMode) {
@@ -2816,6 +2918,7 @@ class SessionManager(
             rule.copy(isDefault = rule.id == ruleId)
         }
         savePresetRules(packageName, updatedRules)
+        setDefaultRuleEnabled(packageName, true)
         Logger.d(TAG, "Set default rule $ruleId for $packageName")
     }
 
@@ -2828,15 +2931,44 @@ class SessionManager(
             rule.copy(isDefault = false)
         }
         savePresetRules(packageName, updatedRules)
+        setDefaultRuleEnabled(packageName, false)
         Logger.d(TAG, "Cleared default rule for $packageName")
     }
 
     /**
      * Get the default rule for a specific app.
      */
-    fun getDefaultRule(packageName: String): SessionConstraint? {
-        return loadPresetRules(packageName).firstOrNull { it.isDefault }
+    fun getConfiguredDefaultRule(packageName: String): SessionConstraint? =
+        loadPresetRules(packageName).firstOrNull { it.isDefault }
+
+    fun isDefaultRuleEnabled(packageName: String): Boolean {
+        val configured = getConfiguredDefaultRule(packageName) ?: return false
+        return if (prefs.contains("${KEY_DEFAULT_RULE_ENABLED_PREFIX}$packageName")) {
+            prefs.getBoolean("${KEY_DEFAULT_RULE_ENABLED_PREFIX}$packageName", true)
+        } else {
+            // Legacy defaults remain active after migration.
+            configured.isDefault
+        }
     }
+
+    fun setDefaultRuleEnabled(packageName: String, enabled: Boolean) {
+        prefs.edit().putBoolean("${KEY_DEFAULT_RULE_ENABLED_PREFIX}$packageName", enabled).apply()
+        enqueueAppConfigSync(packageName)
+    }
+
+    fun getDefaultRule(packageName: String): SessionConstraint? =
+        getConfiguredDefaultRule(packageName)?.takeIf { isDefaultRuleEnabled(packageName) }
+
+    /** Combines the persistent default rule with the optional goal for this use. */
+    fun effectiveSessionConstraints(
+        packageName: String,
+        sessionGoalConstraints: List<SessionConstraint>
+    ): List<SessionConstraint> {
+        return combineDefaultRuleAndSessionGoal(getDefaultRule(packageName), sessionGoalConstraints)
+    }
+
+    private fun shouldAnalyze(session: ActiveSession): Boolean =
+        session.constraints.any { it.type != ConstraintType.NO_MONITOR && !GuardedSessionConstraint.isInternal(it) }
 
     /**
      * Save intent history (for editing).
@@ -3142,6 +3274,9 @@ class SessionManager(
             ?.let { mode ->
                 prefs.edit().putString("${KEY_APP_ENTRY_INTENT_MODE_PREFIX}$packageName", mode.name).apply()
             }
+        (payload["default_rule_enabled"] as? Boolean)?.let { enabled ->
+            prefs.edit().putBoolean("${KEY_DEFAULT_RULE_ENABLED_PREFIX}$packageName", enabled).apply()
+        }
     }
 
     private fun applyAppHintsSyncChange(change: SyncChange) {
@@ -3228,7 +3363,8 @@ class SessionManager(
         return linkedMapOf(
             "package_name" to packageName,
             "entry_mode" to getAppEntryIntentMode(packageName).name,
-            "default_rule_id" to getDefaultRule(packageName)?.id,
+            "default_rule_id" to getConfiguredDefaultRule(packageName)?.id,
+            "default_rule_enabled" to isDefaultRuleEnabled(packageName),
             "last_intent" to loadLastIntent(packageName)?.map { it.toSyncMap() }
         )
     }
@@ -3445,6 +3581,42 @@ private fun SessionConstraint.toEntity(sessionId: Long): IntentConstraintEntity 
         effectiveIntentJson = effectiveIntent?.let { Gson().toJson(it) },
         isActive = isActive
     )
+}
+
+internal fun combineDefaultRuleAndSessionGoal(
+    defaultRule: SessionConstraint?,
+    sessionGoalConstraints: List<SessionConstraint>
+): List<SessionConstraint> = buildList {
+    if (defaultRule != null) add(defaultRule)
+    addAll(sessionGoalConstraints.filterNot { it.id == defaultRule?.id })
+}
+
+internal fun sessionGoalOnly(constraints: List<SessionConstraint>): List<SessionConstraint> =
+    constraints.filterNot { it.isDefault || GuardedSessionConstraint.isInternal(it) }
+
+internal fun reconcileDefaultRuleChange(
+    current: List<SessionConstraint>,
+    previousRules: List<SessionConstraint>,
+    updatedRules: List<SessionConstraint>
+): List<SessionConstraint> {
+    val previousDefaultIds = previousRules.filter { it.isDefault }.mapTo(mutableSetOf()) { it.id }
+    val newDefault = updatedRules.firstOrNull { it.isDefault }
+    val withoutOldDefault = current.filterNot {
+        it.id in previousDefaultIds && it.id != newDefault?.id
+    }
+    if (newDefault == null) return withoutOldDefault
+    return listOf(newDefault) + withoutOldDefault.filterNot { it.id == newDefault.id }
+}
+
+internal fun resolveEntryMode(
+    storedMode: AppEntryIntentMode?,
+    hasActiveDefaultRule: Boolean
+): AppEntryIntentMode = when {
+    storedMode == AppEntryIntentMode.USE_LAST_INTENT -> AppEntryIntentMode.ASK_EVERY_TIME
+    storedMode == AppEntryIntentMode.USE_PRESET && !hasActiveDefaultRule -> AppEntryIntentMode.ASK_EVERY_TIME
+    storedMode != null -> storedMode
+    hasActiveDefaultRule -> AppEntryIntentMode.USE_PRESET
+    else -> AppEntryIntentMode.ASK_EVERY_TIME
 }
 
 private fun IntentConstraintEntity.toSessionConstraint(): SessionConstraint {

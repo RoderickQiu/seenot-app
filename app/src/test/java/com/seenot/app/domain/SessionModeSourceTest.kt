@@ -18,11 +18,9 @@ class SessionModeSourceTest {
 
     @Test
     fun guardedSessionsDoNotPolluteFocusIntentHistory() {
-        assertTrue(
-            source.contains(
-                "if (mode == SessionMode.FOCUS) {\n            saveLastIntent(packageName, effectiveConstraints)"
-            )
-        )
+        assertTrue(source.contains("if (mode == SessionMode.FOCUS && sessionGoalConstraints.isNotEmpty())"))
+        assertTrue(source.contains("saveLastIntent(packageName, sessionGoalConstraints)"))
+        assertTrue(source.contains("sessionGoalOnly(constraints)"))
     }
 
     @Test

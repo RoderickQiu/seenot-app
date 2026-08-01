@@ -26,6 +26,7 @@ import com.seenot.app.config.RuleRecordingPrefs
 import com.seenot.app.data.model.ConstraintType
 import com.seenot.app.data.model.TimeScope
 import com.seenot.app.domain.ActiveSession
+import com.seenot.app.domain.GuardedSessionConstraint
 import com.seenot.app.domain.NoMonitorTimedRest
 import com.seenot.app.domain.SessionConstraint
 import com.seenot.app.domain.SessionManager
@@ -398,7 +399,7 @@ class FloatingIndicatorOverlay(
 
     private fun buildExpandedView(): View {
         val isGuarded = currentMode() == SessionMode.GUARDED
-        val statuses = if (isGuarded) emptyList() else buildRuleTypeStatuses()
+        val statuses = buildRuleTypeStatuses()
 
         rootContainer = LinearLayout(context).apply {
             orientation = LinearLayout.VERTICAL
@@ -437,6 +438,16 @@ class FloatingIndicatorOverlay(
                         (layoutParams as LinearLayout.LayoutParams).marginEnd = 8.dp()
                     }
                 )
+
+                if (currentConstraints().any { !it.isDefault && !GuardedSessionConstraint.isInternal(it) }) {
+                    addView(
+                        buildHeaderButton(context.getString(R.string.hud_btn_remove_session_goal)) {
+                            scope.launch { sessionManager.clearCurrentSessionGoal() }
+                        }.apply {
+                            (layoutParams as LinearLayout.LayoutParams).marginEnd = 8.dp()
+                        }
+                    )
+                }
 
                 addView(
                     buildHeaderButton(context.getString(R.string.hud_btn_collapse)) {
@@ -743,10 +754,17 @@ class FloatingIndicatorOverlay(
     }
 
     private fun buildCompactStatusText(): String {
-        val constraints = currentConstraints()
+        val constraints = currentConstraints().filterNot { GuardedSessionConstraint.isInternal(it) }
         val isChineseUi = AppLocalePrefs.getLanguage(context) == AppLocalePrefs.LANG_ZH
         return if (currentMode() == SessionMode.GUARDED) {
-            guardedCompactText(currentGuardedHudState())
+            if (constraints.any { it.isDefault }) {
+                context.getString(
+                    R.string.hud_guarded_with_default_rule,
+                    guardedCompactText(currentGuardedHudState())
+                )
+            } else {
+                guardedCompactText(currentGuardedHudState())
+            }
         } else if (state.isAiOffline) {
             context.getString(R.string.hud_status_offline)
         } else if (constraints.isEmpty()) {
@@ -825,7 +843,7 @@ class FloatingIndicatorOverlay(
     }
 
     private fun buildRuleTypeStatuses(): List<RuleTypeStatus> {
-        val constraints = currentConstraints()
+        val constraints = currentConstraints().filterNot { GuardedSessionConstraint.isInternal(it) }
         if (constraints.isEmpty()) return emptyList()
 
         val statuses = mutableListOf<RuleTypeStatus>()
@@ -1017,7 +1035,7 @@ class FloatingIndicatorOverlay(
     }
 
     private fun getIndicatorColor(): Int {
-        if (currentMode() == SessionMode.GUARDED) {
+        if (currentMode() == SessionMode.GUARDED && currentConstraints().none { it.isDefault }) {
             return primaryColor
         }
         if (state.isAiOffline) {

@@ -49,6 +49,9 @@ class MainActivity : ComponentActivity() {
         super.onNewIntent(intent)
         setIntent(intent)
         extractAuthCallbackUri(intent)?.let { authCallbackUri = it }
+        if (intent.getBooleanExtra("open_apps_tab", false)) {
+            recreate()
+        }
     }
 
     override fun onResume() {

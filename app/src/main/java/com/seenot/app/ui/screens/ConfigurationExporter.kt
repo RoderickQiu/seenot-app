@@ -15,6 +15,7 @@ import com.seenot.app.data.model.buildAppGeneralScopeKey
 import com.seenot.app.data.model.buildAppGeneralScopeLabel
 import com.seenot.app.data.repository.AppHintRepository
 import com.seenot.app.domain.SessionConstraint
+import com.seenot.app.domain.AppEntryIntentMode
 import com.seenot.app.domain.SessionManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -33,6 +34,8 @@ class ConfigurationExporter(private val context: Context) {
         val packageName: String = "",
         val appName: String = "",
         val defaultRuleId: String? = null,
+        val defaultRuleEnabled: Boolean? = null,
+        val entryMode: String? = null,
         val presetRules: List<SessionConstraint> = emptyList(),
         val lastIntent: List<SessionConstraint> = emptyList(),
         val intentHistory: List<List<SessionConstraint>> = emptyList(),
@@ -56,7 +59,7 @@ class ConfigurationExporter(private val context: Context) {
                     }.getOrDefault(packageName)
 
                     val presetRules = sessionManager.loadPresetRules(packageName)
-                    val defaultRule = sessionManager.getDefaultRule(packageName)
+                    val defaultRule = sessionManager.getConfiguredDefaultRule(packageName)
                     val lastIntent = sessionManager.loadLastIntent(packageName).orEmpty()
                     val history = sessionManager.loadIntentHistory(packageName)
                     val hints = appHintRepository.getHintsForPackage(packageName)
@@ -65,6 +68,8 @@ class ConfigurationExporter(private val context: Context) {
                         "packageName" to packageName,
                         "appName" to appName,
                         "defaultRuleId" to defaultRule?.id,
+                        "defaultRuleEnabled" to sessionManager.isDefaultRuleEnabled(packageName),
+                        "entryMode" to sessionManager.getAppEntryIntentMode(packageName).name,
                         "presetRules" to presetRules,
                         "lastIntent" to lastIntent,
                         "intentHistory" to history,
@@ -156,7 +161,14 @@ class ConfigurationExporter(private val context: Context) {
                         sessionManager.clearDefaultRule(packageName)
                     } else {
                         sessionManager.setDefaultRule(packageName, appConfig.defaultRuleId)
+                        sessionManager.setDefaultRuleEnabled(
+                            packageName,
+                            appConfig.defaultRuleEnabled ?: true
+                        )
                     }
+                    appConfig.entryMode
+                        ?.let { runCatching { AppEntryIntentMode.valueOf(it) }.getOrNull() }
+                        ?.let { sessionManager.setAppEntryIntentMode(packageName, it) }
 
                     appHintRepository.deleteHintsForPackage(packageName)
                     appConfig.supplementalHints.forEach { hint ->

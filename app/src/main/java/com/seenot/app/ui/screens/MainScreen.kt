@@ -156,7 +156,11 @@ fun MainScreen(
     var showGitHubStarPrompt by remember { mutableStateOf(false) }
 
     // State
-    var selectedTab by remember { mutableIntStateOf(0) }
+    var selectedTab by remember {
+        mutableIntStateOf(
+            if ((context as? Activity)?.intent?.getBooleanExtra("open_apps_tab", false) == true) 1 else 0
+        )
+    }
     var isAccessibilityEnabled by remember { mutableStateOf(false) }
     var isOverlayEnabled by remember { mutableStateOf(false) }
     var isNotificationEnabled by remember { mutableStateOf(false) }

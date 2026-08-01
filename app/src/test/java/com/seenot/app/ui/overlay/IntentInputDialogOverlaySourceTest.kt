@@ -82,6 +82,15 @@ class IntentInputDialogOverlaySourceTest {
     }
 
     @Test
+    fun defaultRuleIsShownAsActiveWithoutReplacingTheSessionGoalPrompt() {
+        assertTrue(source.contains("getDefaultRule(packageName)"))
+        assertTrue(source.contains("R.string.intent_default_rule_view_link"))
+        assertTrue(source.contains("showDefaultRulePreview(defaultRule)"))
+        assertTrue(source.contains("AppEntryIntentMode.ASK_EVERY_TIME,"))
+        assertTrue(source.contains("AppEntryIntentMode.USE_LAST_INTENT -> Unit"))
+    }
+
+    @Test
     fun voiceAvailabilityUsesCentralConfigSoSeenotAiCanFetchFirstCredentialOnClick() {
         val hasUsableVoiceConfigBody = source.substringAfter("private fun hasUsableVoiceConfig(): Boolean")
             .substringBefore("private fun dismissInternal()")

@@ -1,8 +1,10 @@
 package com.seenot.app.ui.overlay
 
 import android.Manifest
+import android.app.AlertDialog
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.content.pm.PackageManager
 import android.content.res.Configuration
 import android.graphics.Color
@@ -10,6 +12,7 @@ import android.graphics.PixelFormat
 import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import com.seenot.app.R
+import com.seenot.app.MainActivity
 import com.seenot.app.utils.Logger
 import android.text.InputType
 import android.text.TextUtils
@@ -164,15 +167,12 @@ class IntentInputDialogOverlay(
                         return
                     }
                 }
-                AppEntryIntentMode.USE_LAST_INTENT -> {
-                    val lastIntent = sessionManager.loadLastIntent(packageName)
-                    if (!lastIntent.isNullOrEmpty()) {
-                        pendingConstraints = lastIntent
-                        confirmAndTransition(ApplyFeedback.LAST_INTENT)
-                        return
-                    }
+                AppEntryIntentMode.GUARDED -> {
+                    startGuardedSession()
+                    return
                 }
-                AppEntryIntentMode.ASK_EVERY_TIME -> Unit
+                AppEntryIntentMode.ASK_EVERY_TIME,
+                AppEntryIntentMode.USE_LAST_INTENT -> Unit
             }
         }
 
@@ -307,6 +307,18 @@ class IntentInputDialogOverlay(
             }
         }
         cardContent.addView(focusLabel)
+
+        sessionManager.getDefaultRule(packageName)?.let { defaultRule ->
+            cardContent.addView(TextView(context).apply {
+                text = context.getString(R.string.intent_default_rule_view_link)
+                textSize = 12f
+                setTextColor(successColor)
+                gravity = Gravity.CENTER_VERTICAL
+                minHeight = 48.dp()
+                setPadding(0, 0, 0, 4.dp())
+                setOnClickListener { showDefaultRulePreview(defaultRule) }
+            })
+        }
 
         if (hasAudioPermission) {
             // Voice is a compact focus-block option, visually aligned with preset intents.
@@ -619,6 +631,26 @@ class IntentInputDialogOverlay(
             timeScope = TimeScope.CONTINUOUS,
             interventionLevel = InterventionLevel.MODERATE
         )), SessionMode.GUARDED)
+    }
+
+    private fun showDefaultRulePreview(defaultRule: SessionConstraint) {
+        val dialog = AlertDialog.Builder(context)
+            .setTitle(context.getString(R.string.default_rule_card_title))
+            .setMessage(formatIntentConstraintSummary(defaultRule))
+            .setPositiveButton(context.getString(R.string.edit_default_rule_link)) { _, _ ->
+                dismissInternal()
+                context.startActivity(
+                    Intent(context, MainActivity::class.java).apply {
+                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
+                        putExtra("open_apps_tab", true)
+                        putExtra("open_app_rules_package", packageName)
+                    }
+                )
+            }
+            .setNegativeButton(context.getString(R.string.close), null)
+            .create()
+        dialog.window?.setType(WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY)
+        dialog.show()
     }
 
     private fun populateImprovementSuggestion() {

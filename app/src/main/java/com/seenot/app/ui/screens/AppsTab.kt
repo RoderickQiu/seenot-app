@@ -125,6 +125,9 @@ fun AppsTab(
 
     // Get SessionManager instance
     val sessionManager = remember { SessionManager.getInstance(context) }
+    val requestedRulesPackage = remember {
+        (context as? Activity)?.intent?.getStringExtra("open_app_rules_package")
+    }
 
     // State for controlled apps from SessionManager
     var controlledApps by remember { mutableStateOf<Set<String>>(emptySet()) }
@@ -136,6 +139,7 @@ fun AppsTab(
     var selectedAppForRules by remember { mutableStateOf<AppInfo?>(null) }
     var selectedAppForPause by remember { mutableStateOf<AppInfo?>(null) }
     var selectedAppForDelete by remember { mutableStateOf<AppInfo?>(null) }
+    var appSettingsRevision by remember { mutableIntStateOf(0) }
 
     // Collect controlled apps from SessionManager
     LaunchedEffect(Unit) {
@@ -164,6 +168,14 @@ fun AppsTab(
             null
         }
     }.sortedBy { it.name }
+
+    LaunchedEffect(requestedRulesPackage, controlledAppList) {
+        if (selectedAppForRules == null && requestedRulesPackage != null) {
+            selectedAppForRules = controlledAppList.firstOrNull { it.packageName == requestedRulesPackage }
+            (context as? Activity)?.intent?.removeExtra("open_app_rules_package")
+            (context as? Activity)?.intent?.removeExtra("open_apps_tab")
+        }
+    }
 
     Column(modifier = modifier.fillMaxWidth()) {
         // Header with add button
@@ -231,9 +243,17 @@ fun AppsTab(
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 items(controlledAppList) { app ->
+                    val configuredDefaultRule = remember(app.packageName, appSettingsRevision) {
+                        sessionManager.getConfiguredDefaultRule(app.packageName)
+                    }
+                    val defaultRuleEnabled = remember(app.packageName, appSettingsRevision) {
+                        sessionManager.isDefaultRuleEnabled(app.packageName)
+                    }
                     AppItem(
                         app = app,
                         pause = pausedMonitoringApps[app.packageName],
+                        defaultRule = configuredDefaultRule,
+                        defaultRuleEnabled = defaultRuleEnabled,
                         onDelete = {
                             selectedAppForDelete = app
                         },
@@ -272,7 +292,10 @@ fun AppsTab(
             app = app,
             sessionManager = sessionManager,
             onSyncNeeded = onSyncNeeded,
-            onDismiss = { selectedAppForRules = null }
+            onDismiss = {
+                selectedAppForRules = null
+                appSettingsRevision++
+            }
         )
     }
 
@@ -334,26 +357,32 @@ fun AppsTab(
 fun AppItem(
     app: AppInfo,
     pause: AppMonitoringPause?,
+    defaultRule: SessionConstraint?,
+    defaultRuleEnabled: Boolean,
     onDelete: () -> Unit,
     onEditRules: () -> Unit,
     onPauseMonitoring: () -> Unit,
     onResumeMonitoring: () -> Unit
 ) {
     val appColors = remember(app.packageName) { AppThemeColorResolver.resolve(app.packageName) }
+    var menuExpanded by remember { mutableStateOf(false) }
 
     Card(
-        modifier = Modifier.fillMaxWidth()
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onEditRules),
+        shape = MaterialTheme.shapes.medium
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 14.dp, vertical = 12.dp),
+                .padding(start = 12.dp, end = 4.dp, top = 10.dp, bottom = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Surface(
                 shape = MaterialTheme.shapes.small,
                 color = appColors.background,
-                modifier = Modifier.size(48.dp)
+                modifier = Modifier.size(40.dp)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Text(
@@ -364,11 +393,11 @@ fun AppItem(
                 }
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
+            Spacer(modifier = Modifier.width(10.dp))
 
             Column(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(2.dp)
+                verticalArrangement = Arrangement.spacedBy(1.dp)
             ) {
                 Text(
                     text = app.name,
@@ -377,9 +406,23 @@ fun AppItem(
                     overflow = TextOverflow.Ellipsis
                 )
                 Text(
-                    text = app.packageName,
+                    text = when {
+                        defaultRule == null -> stringResource(R.string.no_default_rule_is_ok)
+                        defaultRuleEnabled -> stringResource(
+                            R.string.default_rule_summary,
+                            defaultRule.description
+                        )
+                        else -> stringResource(
+                            R.string.default_rule_disabled_summary,
+                            defaultRule.description
+                        )
+                    },
                     style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    color = if (defaultRuleEnabled) {
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    } else {
+                        MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.72f)
+                    },
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
@@ -392,49 +435,61 @@ fun AppItem(
                 }
             }
 
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(2.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
+            Box {
                 IconButton(
-                    onClick = if (pause == null) onPauseMonitoring else onResumeMonitoring,
-                    modifier = Modifier.size(34.dp)
+                    onClick = { menuExpanded = true },
+                    modifier = Modifier.size(40.dp)
                 ) {
                     Icon(
-                        if (pause == null) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
-                        contentDescription = if (pause == null) {
-                            stringResource(R.string.pause_app_monitoring)
-                        } else {
-                            stringResource(R.string.resume_app_monitoring)
-                        },
-                        modifier = Modifier.size(18.dp),
+                        Icons.Default.MoreVert,
+                        contentDescription = stringResource(R.string.more_app_actions),
+                        modifier = Modifier.size(20.dp),
                         tint = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-
-                IconButton(
-                    onClick = onEditRules,
-                    modifier = Modifier.size(34.dp)
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { menuExpanded = false }
                 ) {
-                    Icon(
-                        Icons.Default.Edit,
-                        contentDescription = stringResource(R.string.edit_intent),
-                        modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.primary
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.edit_app_rules)) },
+                        leadingIcon = { Icon(Icons.Default.Edit, contentDescription = null) },
+                        onClick = {
+                            menuExpanded = false
+                            onEditRules()
+                        }
                     )
-                }
-
-                IconButton(
-                    onClick = onDelete,
-                    modifier = Modifier.size(34.dp)
-                ) {
-                    Icon(
-                        Icons.Default.Delete,
-                        contentDescription = stringResource(R.string.delete),
-                        modifier = Modifier.size(18.dp),
-                        tint = MaterialTheme.colorScheme.error
+                    DropdownMenuItem(
+                        text = {
+                            Text(
+                                if (pause == null) stringResource(R.string.pause_app_monitoring)
+                                else stringResource(R.string.resume_app_monitoring)
+                            )
+                        },
+                        leadingIcon = {
+                            Icon(
+                                if (pause == null) Icons.Default.PauseCircle else Icons.Default.PlayCircle,
+                                contentDescription = null
+                            )
+                        },
+                        onClick = {
+                            menuExpanded = false
+                            if (pause == null) onPauseMonitoring() else onResumeMonitoring()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text(stringResource(R.string.delete)) },
+                        leadingIcon = {
+                            Icon(
+                                Icons.Default.Delete,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.error
+                            )
+                        },
+                        onClick = {
+                            menuExpanded = false
+                            onDelete()
+                        }
                     )
                 }
             }

@@ -1199,12 +1199,13 @@ class SeenotAccessibilityService : AccessibilityService() {
                 IntentInputDialogOverlay.dismiss()
                 FloatingIndicatorOverlay.dismiss()
 
+                val effectiveConstraints = sessionManager.effectiveSessionConstraints(packageName, constraints)
                 FloatingIndicatorOverlay.showWithConstraints(
                     context = this,
                     appName = appName,
                     packageName = packageName,
                     sessionManager = sessionManager,
-                    constraints = constraints,
+                    constraints = effectiveConstraints,
                     mode = mode,
                     onTapToReopen = {
                         showIntentInputDialog(packageName, appName, sessionManager, allowDefaultRuleAutoApply = false)
@@ -1213,12 +1214,18 @@ class SeenotAccessibilityService : AccessibilityService() {
 
                 serviceScope.launch {
                     try {
-                        val sessionId = sessionManager.createSession(
-                            packageName = packageName,
-                            displayName = appName,
-                            constraints = constraints,
-                            mode = mode
-                        )
+                        val activeSession = sessionManager.activeSession.value
+                            ?.takeIf { it.appPackageName == packageName }
+                        val sessionId = if (activeSession != null) {
+                            sessionManager.replaceCurrentSessionGoal(constraints, mode)
+                        } else {
+                            sessionManager.createSession(
+                                packageName = packageName,
+                                displayName = appName,
+                                constraints = constraints,
+                                mode = mode
+                            )
+                        }
                         if (sessionId != null) {
                             Logger.d(TAG, "<<< Session created successfully for $packageName")
                         } else {
