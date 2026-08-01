@@ -237,7 +237,7 @@
     <string name="guarded_dimming_title">Gradually dim the screen</string>
     <string name="guarded_dimming_summary">The screen gradually dims during Guarded use. Pauses and holds still apply when this is off.</string>
     <string name="guarded_pause_title">Take a moment</string>
-    <string name="guarded_pause_message">Nothing to do. This pause will end automatically.</string>
+    <string name="guarded_pause_message">Pause before continuing. Hold below for %d seconds when you are ready.</string>
     <string name="guarded_hold_title_just_started">Just started</string>
     <string name="guarded_hold_title_seconds">%d sec already</string>
     <string name="guarded_hold_title_minutes">%d min already</string>

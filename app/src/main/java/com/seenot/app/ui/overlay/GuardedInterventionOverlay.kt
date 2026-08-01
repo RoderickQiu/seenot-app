@@ -46,35 +46,54 @@ object GuardedInterventionOverlay {
 
     fun showBreath(
         context: Context,
-        durationMs: Long = 4_000L,
+        holdMs: Long = 3_000L,
+        onComplete: () -> Unit = {},
         onLeave: () -> Unit = {}
-    ) {
-        val localizedContext = AppLocalePrefs.createLocalizedContext(context)
-        val card = buildCard(localizedContext)
-        card.addView(buildTitle(localizedContext, localizedContext.getString(R.string.guarded_pause_title)))
-        card.addView(buildBody(localizedContext, localizedContext.getString(R.string.guarded_pause_message)))
-        card.addView(buildSecondaryAction(localizedContext, localizedContext.getString(R.string.guarded_leave_app)) {
-            dismiss(localizedContext)
-            onLeave()
-        })
-        show(localizedContext, card)
-        handler.postDelayed({ dismiss(localizedContext) }, durationMs)
-    }
+    ) = showRequiredHold(
+        context = context,
+        holdMs = holdMs,
+        titleText = { it.getString(R.string.guarded_pause_title) },
+        bodyText = { localizedContext, holdSeconds ->
+            localizedContext.getString(R.string.guarded_pause_message, holdSeconds)
+        },
+        elapsedMsProvider = null,
+        onComplete = onComplete,
+        onLeave = onLeave
+    )
 
     fun showHold(
         context: Context,
         holdMs: Long,
-        consumedMs: Long,
+        elapsedMsProvider: () -> Long,
         onComplete: () -> Unit,
         onLeave: () -> Unit = {}
+    ) = showRequiredHold(
+        context = context,
+        holdMs = holdMs,
+        titleText = { formatElapsedTitle(it, elapsedMsProvider()) },
+        bodyText = { localizedContext, holdSeconds ->
+            localizedContext.getString(R.string.guarded_hold_message, holdSeconds)
+        },
+        elapsedMsProvider = elapsedMsProvider,
+        onComplete = onComplete,
+        onLeave = onLeave
+    )
+
+    private fun showRequiredHold(
+        context: Context,
+        holdMs: Long,
+        titleText: (Context) -> String,
+        bodyText: (Context, Int) -> String,
+        elapsedMsProvider: (() -> Long)?,
+        onComplete: () -> Unit,
+        onLeave: () -> Unit
     ) {
         val localizedContext = AppLocalePrefs.createLocalizedContext(context)
         val card = buildCard(localizedContext)
         val holdSeconds = ceil(holdMs / 1_000.0).toInt()
-        val shownAt = SystemClock.elapsedRealtime()
-        val title = buildTitle(localizedContext, formatElapsedTitle(localizedContext, consumedMs))
+        val title = buildTitle(localizedContext, titleText(localizedContext))
         card.addView(title)
-        card.addView(buildBody(localizedContext, localizedContext.getString(R.string.guarded_hold_message, holdSeconds)))
+        card.addView(buildBody(localizedContext, bodyText(localizedContext, holdSeconds)))
         card.addView(buildPrimaryAction(localizedContext, localizedContext.getString(R.string.guarded_leave_app)) {
             dismiss(localizedContext)
             onLeave()
@@ -153,14 +172,15 @@ object GuardedInterventionOverlay {
         card.addView(holdButton)
         show(localizedContext, card)
 
-        lateinit var refreshElapsed: Runnable
-        refreshElapsed = Runnable {
-            if (root == null) return@Runnable
-            val elapsedWhileShown = SystemClock.elapsedRealtime() - shownAt
-            title.text = formatElapsedTitle(localizedContext, consumedMs + elapsedWhileShown)
+        if (elapsedMsProvider != null) {
+            lateinit var refreshElapsed: Runnable
+            refreshElapsed = Runnable {
+                if (root == null) return@Runnable
+                title.text = formatElapsedTitle(localizedContext, elapsedMsProvider())
+                handler.postDelayed(refreshElapsed, ELAPSED_REFRESH_MS)
+            }
             handler.postDelayed(refreshElapsed, ELAPSED_REFRESH_MS)
         }
-        handler.postDelayed(refreshElapsed, ELAPSED_REFRESH_MS)
     }
 
     private fun formatElapsedTitle(context: Context, consumedMs: Long): String {

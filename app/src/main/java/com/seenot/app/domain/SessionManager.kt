@@ -6,6 +6,7 @@ import android.content.Context
 import android.content.Intent
 import android.content.SharedPreferences
 import android.os.Build
+import android.os.SystemClock
 import com.google.gson.Gson
 import com.seenot.app.R
 import com.seenot.app.ai.feedback.FalsePositiveRuleGenerator
@@ -203,7 +204,7 @@ class SessionManager(
         GuardedInterventionOverlay.showHold(
             context = context,
             holdMs = 3_000L,
-            consumedMs = session.guardedConsumedMs,
+            elapsedMsProvider = { currentGuardedConsumedMs(session.sessionId, session.guardedConsumedMs) },
             onComplete = {},
             onLeave = ::leaveGuardedSession
         )
@@ -662,7 +663,8 @@ class SessionManager(
             isPaused = false,
             constraintTimeRemaining = effectiveConstraints.associate { constraint ->
                 constraint.id to constraint.timeLimitMs
-            }
+            },
+            guardedLastTickAt = if (mode == SessionMode.GUARDED) SystemClock.elapsedRealtime() else null
         )
 
         lastNoMonitorReminderBucket = 0L
@@ -1739,7 +1741,7 @@ class SessionManager(
 
         cancelPauseTimeout()
         NoMonitorReminderOverlay.dismiss()
-        val resumedAt = System.currentTimeMillis()
+        val resumedAt = SystemClock.elapsedRealtime()
         val resumedSession = session.copy(
             isPaused = false,
             guardedLastTickAt = if (session.mode == SessionMode.GUARDED) resumedAt else session.guardedLastTickAt
@@ -2178,35 +2180,49 @@ class SessionManager(
                 if (session.isPaused) continue
                 maybeShowNoMonitorReminder(session)
 
-                // Guarded uses wall-clock deltas, so scheduler jitter and brief pauses cannot
-                // manufacture free time. Only foreground ticks contribute to the accumulator.
-                val now = System.currentTimeMillis()
+                // Guarded uses a monotonic clock so device clock changes cannot alter usage.
+                // Foreground usage continues accumulating during reprieves; only interventions
+                // and dimming are suppressed during that recovery window.
+                val now = SystemClock.elapsedRealtime()
                 val isGuarded = session.mode == SessionMode.GUARDED
                 val inReprieve = session.guardedReprieveUntil?.let { now < it } == true
-                val guardedDelta = if (isGuarded && !inReprieve) {
-                    session.guardedLastTickAt?.let { (now - it).coerceAtLeast(0L) } ?: 0L
-                } else 0L
-                val newConsumed = session.guardedConsumedMs + guardedDelta
-                updateGuardedDimming(session.copy(guardedConsumedMs = newConsumed), now)
+                val timing = if (isGuarded) {
+                    GuardedSessionTiming.advance(session.guardedConsumedMs, session.guardedLastTickAt, now)
+                } else {
+                    GuardedSessionTiming.Snapshot(session.guardedConsumedMs, now)
+                }
+                val newConsumed = timing.consumedMs
+                val nextStep = if (isGuarded) GuardedModeLadder.step(newConsumed) else session.guardedStep
+                val guardedSnapshot = session.copy(
+                    guardedConsumedMs = newConsumed,
+                    guardedLastTickAt = timing.tickAt,
+                    guardedStep = if (!inReprieve) nextStep else session.guardedStep
+                )
+                _activeSession.value = guardedSnapshot
+                updateGuardedDimming(guardedSnapshot, now)
                 if (isGuarded && !inReprieve) {
-                    val nextStep = GuardedModeLadder.step(newConsumed)
                     if (nextStep != session.guardedStep) {
                         when (nextStep) {
                             GuardedModeLadder.Step.BREATH -> GuardedInterventionOverlay.showBreath(
                                 context = context,
+                                onComplete = {},
                                 onLeave = ::leaveGuardedSession
                             )
                             GuardedModeLadder.Step.HOLD -> GuardedInterventionOverlay.showHold(
                                 context = context,
                                 holdMs = GuardedModeLadder.holdDurationMs(newConsumed),
-                                consumedMs = newConsumed,
+                                elapsedMsProvider = {
+                                    currentGuardedConsumedMs(session.sessionId, newConsumed)
+                                },
                                 onComplete = {
-                                    GuardedDimmingOverlay.dismiss()
-                                    _activeSession.value = (_activeSession.value ?: session).copy(
+                                    val current = _activeSession.value
+                                    if (current?.sessionId != session.sessionId) return@showHold
+                                    _activeSession.value = current.copy(
                                         // Re-arm the transition so every reprieve requires another hold.
                                         guardedStep = GuardedModeLadder.Step.BREATH,
-                                        guardedReprieveUntil = System.currentTimeMillis() + 8 * 60_000L
+                                        guardedReprieveUntil = SystemClock.elapsedRealtime() + 8 * 60_000L
                                     )
+                                    GuardedDimmingOverlay.dismiss()
                                 },
                                 onLeave = ::leaveGuardedSession
                             )
@@ -2267,9 +2283,7 @@ class SessionManager(
                 val latest = _activeSession.value ?: session
                 _activeSession.value = latest.copy(
                     constraintTimeRemaining = updatedTimeRemaining,
-                    guardedConsumedMs = newConsumed,
-                    guardedLastTickAt = now,
-                    guardedStep = if (isGuarded && !inReprieve) GuardedModeLadder.step(newConsumed) else latest.guardedStep
+                    guardedConsumedMs = newConsumed
                 )
             }
         }
@@ -2288,6 +2302,11 @@ class SessionManager(
             0f
         }
         GuardedDimmingOverlay.update(context, fraction)
+    }
+
+    private fun currentGuardedConsumedMs(sessionId: Long, fallback: Long): Long {
+        val current = _activeSession.value
+        return if (current?.sessionId == sessionId) current.guardedConsumedMs else fallback
     }
 
     private fun handleNoMonitorTimedRestExpired(session: ActiveSession, constraint: SessionConstraint) {
@@ -3378,7 +3397,7 @@ data class ActiveSession(
     val isPaused: Boolean = false,
     val constraintTimeRemaining: Map<String, Long?> = emptyMap(),
     val violationCount: Int = 0,
-    /** Wall-clock foreground consumption used by Guarded mode; never reset by swipes. */
+    /** Monotonic foreground consumption used by Guarded mode; never reset by swipes. */
     val guardedConsumedMs: Long = 0L,
     val guardedLastTickAt: Long? = null,
     val guardedReprieveUntil: Long? = null,

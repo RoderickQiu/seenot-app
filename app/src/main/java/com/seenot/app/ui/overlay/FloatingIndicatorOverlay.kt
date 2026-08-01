@@ -10,6 +10,7 @@ import android.graphics.Typeface
 import android.graphics.drawable.GradientDrawable
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.os.VibrationEffect
 import android.os.Vibrator
 import android.view.Gravity
@@ -158,7 +159,7 @@ class FloatingIndicatorOverlay(
                         session.mode.name,
                         (session.guardedConsumedMs / 60_000L).toString(),
                         session.guardedStep.name,
-                        (session.guardedReprieveUntil?.let { (it - System.currentTimeMillis()).coerceAtLeast(0L) / 60_000L }).toString()
+                        (session.guardedReprieveUntil?.let { (it - SystemClock.elapsedRealtime()).coerceAtLeast(0L) / 60_000L }).toString()
                     ).joinToString(":")
                 } ?: ""
                 val isPaused = session?.isPaused ?: true
@@ -881,7 +882,7 @@ class FloatingIndicatorOverlay(
         return GuardedHudState.from(
             consumedMs = session?.guardedConsumedMs ?: 0L,
             reprieveUntil = session?.guardedReprieveUntil,
-            now = System.currentTimeMillis()
+            now = SystemClock.elapsedRealtime()
         )
     }
 

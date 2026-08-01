@@ -36,12 +36,37 @@ class GuardedInterventionOverlaySourceTest {
     }
 
     @Test
-    fun elapsedUsageKeepsUpdatingWhileHoldIsVisible() {
-        assertTrue(overlaySource.contains("SystemClock.elapsedRealtime() - shownAt"))
+    fun elapsedUsageReadsTheLiveSessionClockWhileHoldIsVisible() {
+        assertTrue(overlaySource.contains("elapsedMsProvider()"))
         assertTrue(overlaySource.contains("handler.postDelayed(refreshElapsed, ELAPSED_REFRESH_MS)"))
         assertTrue(overlaySource.contains("R.string.guarded_hold_title_seconds"))
         assertTrue(overlaySource.contains("R.string.guarded_hold_title_minutes"))
-        assertFalse(overlaySource.contains("coerceAtLeast(1L) / 60_000.0"))
+        assertFalse(overlaySource.contains("elapsedWhileShown"))
+    }
+
+    @Test
+    fun firstBreathRequiresAnExplicitHoldAndCannotAutoDismiss() {
+        val breathBody = overlaySource.substringAfter("fun showBreath(")
+            .substringBefore("fun showHold(")
+
+        assertTrue(breathBody.contains("showRequiredHold("))
+        assertTrue(breathBody.contains("holdMs: Long = 3_000L"))
+        assertFalse(breathBody.contains("postDelayed"))
+        assertFalse(breathBody.contains("durationMs"))
+    }
+
+    @Test
+    fun sessionUsesOneMonotonicClockAndCountsForegroundReprieveUsage() {
+        val timerBody = sessionSource.substringAfter("private fun startTimer()")
+            .substringBefore("private fun updateGuardedDimming")
+        val accountingBody = timerBody.substringAfter("val timing =")
+            .substringBefore("val newConsumed")
+
+        assertTrue(timerBody.contains("val now = SystemClock.elapsedRealtime()"))
+        assertTrue(accountingBody.contains("GuardedSessionTiming.advance("))
+        assertFalse(accountingBody.contains("inReprieve"))
+        assertFalse(timerBody.contains("System.currentTimeMillis() + 8 * 60_000L"))
+        assertTrue(timerBody.contains("current?.sessionId != session.sessionId"))
     }
 
     @Test

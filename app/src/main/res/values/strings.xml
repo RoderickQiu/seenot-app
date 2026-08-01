@@ -242,7 +242,7 @@
     <string name="guarded_dimming_title">逐步调暗屏幕</string>
     <string name="guarded_dimming_summary">节制使用时屏幕会逐渐变暗；关闭后停顿和按住确认仍会继续。</string>
     <string name="guarded_pause_title">先停一下</string>
-    <string name="guarded_pause_message">不用操作，几秒后会自动继续。</string>
+    <string name="guarded_pause_message">先停一下。准备好后，请在下方按住 %d 秒继续。</string>
     <string name="guarded_hold_title_just_started">刚刚开始</string>
     <string name="guarded_hold_title_seconds">已经使用 %d 秒</string>
     <string name="guarded_hold_title_minutes">已经使用 %d 分钟</string>

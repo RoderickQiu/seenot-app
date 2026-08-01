@@ -27,3 +27,16 @@ object GuardedModeLadder {
         return (progress.coerceIn(0f, 1f) * 0.4f)
     }
 }
+
+/** Monotonic foreground-time accounting shared by the timer and its tests. */
+object GuardedSessionTiming {
+    data class Snapshot(val consumedMs: Long, val tickAt: Long)
+
+    fun advance(consumedMs: Long, lastTickAt: Long?, now: Long): Snapshot {
+        val delta = lastTickAt?.let { (now - it).coerceAtLeast(0L) } ?: 0L
+        return Snapshot(
+            consumedMs = (consumedMs + delta).coerceAtLeast(0L),
+            tickAt = now
+        )
+    }
+}
