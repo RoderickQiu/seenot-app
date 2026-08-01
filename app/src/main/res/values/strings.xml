@@ -238,7 +238,7 @@
     <!-- IntentInputDialogOverlay -->
     <string name="intent_can_speak_or_type">可以说话，也可以直接键盘输入</string>
     <string name="intent_type_to_declare">直接键盘输入声明意图</string>
-    <string name="guarded_entry_action">节制使用</string>
+    <string name="guarded_entry_action">节制浏览</string>
     <string name="guarded_dimming_title">逐步调暗屏幕</string>
     <string name="guarded_dimming_summary">节制使用时屏幕会逐渐变暗；关闭后停顿和按住确认仍会继续。</string>
     <string name="guarded_pause_title">先停一下</string>
@@ -250,8 +250,8 @@
     <string name="guarded_hold_action">按住继续 · %d 秒</string>
     <string name="guarded_hold_progress">继续按住 · %d 秒</string>
     <string name="guarded_leave_app">结束本次使用</string>
-    <string name="focus_block_optional">专注模式（可选）</string>
-    <string name="focus_block_speak_action">说出你想专注做什么</string>
+    <string name="focus_block_optional">先说明这次要做什么</string>
+    <string name="focus_block_speak_action">说出你这次要做什么</string>
     <string name="intent_no_mic_permission_type">未开启麦克风权限，可直接键盘输入</string>
     <string name="intent_enter_to_confirm">输入后回车，SeeNot 会直接按这条规则执行</string>
     <string name="intent_confirm_title">确认意图</string>

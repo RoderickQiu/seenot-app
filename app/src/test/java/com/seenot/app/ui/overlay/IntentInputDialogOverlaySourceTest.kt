@@ -55,16 +55,24 @@ class IntentInputDialogOverlaySourceTest {
     }
 
     @Test
-    fun guardedEntryIsCompactAndHasNoRedundantHelperCopy() {
+    fun guardedEntryIsSecondaryAndHasNoRedundantHelperCopy() {
         val guardedEntryBody = source.substringAfter("val guardedButton = TextView(context).apply")
             .substringBefore("cardContent.addView(guardedButton)")
 
         assertTrue(guardedEntryBody.contains("LinearLayout.LayoutParams.MATCH_PARENT"))
-        assertFalse(guardedEntryBody.contains("gravity = Gravity.START"))
+        assertTrue(guardedEntryBody.contains("setStroke(1, primaryColor)"))
+        assertFalse(guardedEntryBody.contains("setColor(primaryColor)"))
         assertFalse(source.contains("R.string.guarded_entry_explanation"))
         assertFalse(source.contains("R.string.guarded_entry_detail"))
         assertFalse(source.contains("R.string.guarded_skip_action"))
         assertFalse(source.contains("R.string.intent_tap_to_start_recording"))
+    }
+
+    @Test
+    fun focusIntentChoicesComeBeforeGuardedFallback() {
+        assertTrue(source.indexOf("cardContent.addView(focusLabel)") < source.indexOf("cardContent.addView(guardedButton)"))
+        assertTrue(source.indexOf("cardContent.addView(textInputRow)") < source.indexOf("cardContent.addView(guardedButton)"))
+        assertTrue(source.indexOf("cardContent.addView(historyContainer)") < source.indexOf("cardContent.addView(guardedButton)"))
     }
 
     @Test

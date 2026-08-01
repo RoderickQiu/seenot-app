@@ -294,29 +294,6 @@ class IntentInputDialogOverlay(
         }
         cardContent.addView(titleText)
 
-        // Guarded is the full-width default action; Focus remains available below it.
-        val guardedButton = TextView(context).apply {
-            text = context.getString(R.string.guarded_entry_action)
-            textSize = 14f
-            gravity = Gravity.CENTER
-            setTextColor(Color.WHITE)
-            typeface = Typeface.DEFAULT_BOLD
-            background = GradientDrawable().apply {
-                setColor(primaryColor)
-                cornerRadius = 14.dp().toFloat()
-            }
-            setPadding(14.dp(), 14.dp(), 14.dp(), 14.dp())
-            layoutParams = LinearLayout.LayoutParams(
-                LinearLayout.LayoutParams.MATCH_PARENT,
-                LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply {
-                topMargin = 16.dp()
-                bottomMargin = 18.dp()
-            }
-            setOnClickListener { startGuardedSession() }
-        }
-        cardContent.addView(guardedButton)
-
         val focusLabel = TextView(context).apply {
             text = context.getString(R.string.focus_block_optional)
             textSize = 13f
@@ -324,7 +301,10 @@ class IntentInputDialogOverlay(
             gravity = Gravity.START
             layoutParams = LinearLayout.LayoutParams(
                 LinearLayout.LayoutParams.MATCH_PARENT, LinearLayout.LayoutParams.WRAP_CONTENT
-            ).apply { bottomMargin = 8.dp() }
+            ).apply {
+                topMargin = 16.dp()
+                bottomMargin = 8.dp()
+            }
         }
         cardContent.addView(focusLabel)
 
@@ -567,6 +547,31 @@ class IntentInputDialogOverlay(
             )
         }
         cardContent.addView(historyContainer)
+
+        // Guarded stays available for intentionally open-ended browsing, but it is not
+        // the primary path when the user has a concrete intent to preserve.
+        val guardedButton = TextView(context).apply {
+            text = context.getString(R.string.guarded_entry_action)
+            textSize = 14f
+            gravity = Gravity.CENTER
+            setTextColor(primaryColor)
+            typeface = Typeface.DEFAULT_BOLD
+            background = GradientDrawable().apply {
+                setColor(surfaceColor)
+                cornerRadius = 14.dp().toFloat()
+                setStroke(1, primaryColor)
+            }
+            setPadding(14.dp(), 13.dp(), 14.dp(), 13.dp())
+            layoutParams = LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.MATCH_PARENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply {
+                topMargin = 16.dp()
+                bottomMargin = 2.dp()
+            }
+            setOnClickListener { startGuardedSession() }
+        }
+        cardContent.addView(guardedButton)
 
         // Populate preset and history
         populatePresets()
